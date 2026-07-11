@@ -515,3 +515,13 @@ h2 {
   .live-dot.live, .live-dot.error, .radar { animation: none; }
   #panel { transition: none; }
 }
+
+/* rows that zoom the map on click */
+.line-row.zoomable {
+  cursor: pointer;
+  border-radius: 8px;
+  margin: 0 -8px;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+.line-row.zoomable:hover { background: rgba(255, 255, 255, 0.045); }

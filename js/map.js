@@ -169,7 +169,10 @@ export function setRouteShapes(featureCollection) {
   map.getSource('route-shapes')?.setData(featureCollection);
 }
 
+const fleetData = new Map(); // fleetId -> latest FeatureCollection, for focusGroup
+
 export function setFleetData(fleetId, featureCollection) {
+  fleetData.set(fleetId, featureCollection);
   map.getSource(`veh-${fleetId}`)?.setData(featureCollection);
 }
 
@@ -234,5 +237,30 @@ export function focusAlert(alert) {
   );
   map.fitBounds(bounds, { padding: fitPadding(), maxZoom: 14.5, duration: 1400 });
   if (points.length) dropPing(points[0]);
+  return true;
+}
+
+// Zoom to wherever a layer group's vehicles currently are — the one-click
+// answer to "where are the commuter rail trains?" when they're all out in
+// the suburbs. Falls back to the group's route ribbons when no vehicle is
+// reporting (e.g. ferries between rush hours).
+export function focusGroup(groupKey, routeIds = []) {
+  let coords = [...fleetData.values()]
+    .flatMap((fc) => fc.features)
+    .filter((f) => f.properties.group === groupKey)
+    .map((f) => f.geometry.coordinates);
+
+  if (!coords.length && routeIds.length) {
+    coords = routeShapesFC.features
+      .filter((f) => routeIds.includes(f.properties.route))
+      .flatMap((f) => f.geometry.coordinates);
+  }
+  if (!coords.length) return false;
+
+  const bounds = coords.reduce(
+    (b, c) => b.extend(c),
+    new maplibregl.LngLatBounds(coords[0], coords[0]),
+  );
+  map.fitBounds(bounds, { padding: fitPadding(), maxZoom: 13.5, duration: 1200 });
   return true;
 }

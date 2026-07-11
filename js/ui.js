@@ -1,7 +1,7 @@
 // Panel UI: layer toggles, alert feed, connection status, loading states.
 
 import { CONFIG } from './config.js';
-import { focusAlert } from './map.js';
+import { focusAlert, focusGroup } from './map.js';
 
 const el = (id) => document.getElementById(id);
 
@@ -90,6 +90,26 @@ export function initPanel(routeInfo, visibleChangeHandler) {
       syncMaster();
       emitVisible();
     });
+
+    // Clicking the row itself (not the switch) flies the map to wherever this
+    // fleet currently is — and switches the layer on first if it was off.
+    if (!group.needsKey) {
+      row.classList.add('zoomable');
+      row.title = `Zoom to ${group.name}`;
+      row.addEventListener('click', (e) => {
+        if (e.target.closest('.switch') || e.target.closest('a')) return;
+        if (!groupState.get(group.key)) {
+          groupState.set(group.key, true);
+          row.querySelector('input').checked = true;
+          syncMaster();
+          emitVisible();
+        }
+        const flew = focusGroup(group.key, group.routes);
+        if (flew && window.matchMedia('(max-width: 760px)').matches) {
+          document.body.classList.remove('panel-open');
+        }
+      });
+    }
     el(group.section === 'subway' ? 'layer-rows' : 'modal-rows').appendChild(row);
   }
 
