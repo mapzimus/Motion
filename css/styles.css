@@ -221,6 +221,25 @@ h2 {
 .line-row:has(input:not(:checked)) .count { opacity: 0.4; }
 .line-row:has(input:not(:checked)) .bullet { filter: saturate(0.15) brightness(0.6); }
 
+.modal-divider { margin: 10px 0; border-top: 1px dashed var(--hairline); }
+
+.bullet.dark-text { color: #10141a; text-shadow: none; }
+
+.line-row.needs-key .line-name,
+.line-row.needs-key .bullet { opacity: 0.5; }
+.line-row.needs-key .switch { opacity: 0.35; cursor: not-allowed; }
+.get-key {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+.get-key:hover { color: var(--text); }
+
 /* ---- future layers (roadmap) -------------------------------------------- */
 
 .future-rows { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--hairline); }
@@ -291,6 +310,44 @@ h2 {
   font-size: 12px;
   color: var(--text-faint);
   font-style: italic;
+}
+
+.alert-item.clickable { cursor: pointer; position: relative; padding-right: 22px; transition: background 0.15s ease; }
+.alert-item.clickable::after {
+  content: '›';
+  position: absolute;
+  right: 9px;
+  top: 50%;
+  transform: translateY(-55%);
+  color: var(--text-faint);
+  font-size: 15px;
+}
+.alert-item.clickable:hover,
+.alert-item.clickable:focus-visible { background: rgba(255, 255, 255, 0.06); }
+.alert-item.clickable:hover::after { color: var(--text); }
+
+/* Expanding ring dropped on the map when an alert is focused */
+.alert-ping {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(255, 92, 92, 0.85);
+  box-shadow: 0 0 12px rgba(255, 92, 92, 0.8);
+  position: relative;
+}
+.alert-ping::before,
+.alert-ping::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 92, 92, 0.75);
+  animation: ping 1.6s ease-out infinite;
+}
+.alert-ping::after { animation-delay: 0.8s; }
+@keyframes ping {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(3.4); opacity: 0; }
 }
 
 /* ---- footer / status ------------------------------------------------------ */
@@ -401,7 +458,7 @@ h2 {
 .maplibregl-popup-close-button { color: var(--text-faint); font-size: 16px; right: 4px; top: 2px; }
 .maplibregl-popup-close-button:hover { color: var(--text); background: none; }
 
-.popup-route { font-family: var(--font-mono); font-size: 10px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; }
+.popup-title { font-family: var(--font-mono); font-size: 10px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; }
 .popup-dest { font-family: var(--font-display); font-weight: 700; font-size: 16px; color: var(--text); margin: 3px 0 6px; }
 .popup-status { font-size: 12.5px; color: var(--text-dim); }
 .popup-meta { font-family: var(--font-mono); font-size: 10px; color: var(--text-faint); margin-top: 7px; }

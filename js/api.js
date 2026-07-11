@@ -1,5 +1,6 @@
 // MBTA V3 API client. The API speaks JSON:API (data / included / relationships),
 // so each fetcher flattens that into plain objects the rest of the app consumes.
+// Sparse fieldsets (fields[...]) trim the full-fleet payload substantially.
 
 import { CONFIG } from './config.js';
 
@@ -22,13 +23,20 @@ export async function mbta(path, params) {
   return res.json();
 }
 
+// Every route the map can carry: subway/light rail (0,1), commuter rail (2),
+// bus incl. Silver Line (3), ferry (4). One call; colors and names for all.
 export async function fetchRoutes() {
-  const json = await mbta('/routes', { 'filter[id]': CONFIG.RAPID_TRANSIT_ROUTES.join(',') });
+  const json = await mbta('/routes', {
+    'filter[type]': '0,1,2,3,4',
+    'fields[route]': 'color,text_color,long_name,short_name,type,direction_destinations',
+  });
   return json.data.map((r) => ({
     id: r.id,
+    type: r.attributes.type,
     color: `#${r.attributes.color}`,
     textColor: `#${r.attributes.text_color}`,
     longName: r.attributes.long_name,
+    shortName: r.attributes.short_name,
     destinations: r.attributes.direction_destinations,
   }));
 }
@@ -51,10 +59,15 @@ function summarizeOccupancy(carriages) {
   return 'Heavy crowding';
 }
 
+// The entire MBTA fleet — subway, commuter rail, buses, ferries — in ONE
+// request (~500-900 vehicles at peak).
 export async function fetchVehicles() {
   const json = await mbta('/vehicles', {
-    'filter[route]': CONFIG.RAPID_TRANSIT_ROUTES.join(','),
+    'filter[route_type]': '0,1,2,3,4',
     include: 'stop',
+    'fields[vehicle]':
+      'latitude,longitude,bearing,current_status,direction_id,label,updated_at,carriages,revenue',
+    'fields[stop]': 'name',
   });
   const stopNames = new Map(
     (json.included ?? [])
@@ -87,18 +100,33 @@ export async function fetchVehicles() {
 
 export async function fetchAlerts() {
   const json = await mbta('/alerts', {
-    'filter[route]': CONFIG.RAPID_TRANSIT_ROUTES.join(','),
+    'filter[route_type]': '0,1,2,3,4',
     'filter[datetime]': 'NOW',
   });
-  return json.data.map((a) => ({
-    id: a.id,
-    effect: a.attributes.effect,
-    severity: a.attributes.severity,
-    header: a.attributes.header,
-    routes: [
-      ...new Set(
-        (a.attributes.informed_entity ?? []).map((e) => e.route).filter(Boolean),
-      ),
-    ],
-  }));
+  return json.data.map((a) => {
+    const entities = a.attributes.informed_entity ?? [];
+    return {
+      id: a.id,
+      effect: a.attributes.effect,
+      severity: a.attributes.severity,
+      header: a.attributes.header,
+      routes: [...new Set(entities.map((e) => e.route).filter(Boolean))],
+      stops: [...new Set(entities.map((e) => e.stop).filter(Boolean))],
+    };
+  });
+}
+
+// Locations for the stops an alert names, so clicking it can fly there.
+export async function fetchStopCoords(stopIds) {
+  if (!stopIds.length) return new Map();
+  const json = await mbta('/stops', {
+    'filter[id]': stopIds.join(','),
+    'fields[stop]': 'latitude,longitude',
+    'page[limit]': '300',
+  });
+  return new Map(
+    json.data
+      .filter((s) => Number.isFinite(s.attributes.longitude))
+      .map((s) => [s.id, [s.attributes.longitude, s.attributes.latitude]]),
+  );
 }

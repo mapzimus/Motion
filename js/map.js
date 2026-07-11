@@ -1,12 +1,17 @@
-// Map engine: MapLibre GL setup, sources, layers, and popups.
-// Vehicles render as two layers over the route ribbons: a color-coded dot
-// (circle layer) plus a white heading chevron (symbol layer rotated by GPS bearing).
+// Map engine: MapLibre GL setup, route ribbons, one animated layer-pair per
+// vehicle fleet, source-agnostic popups, and alert-focus navigation.
 
 import { CONFIG } from './config.js';
 
 const EMPTY_FC = { type: 'FeatureCollection', features: [] };
 
+// Draw order, bottom to top: boats under trains under planes.
+const FLEETS = ['vessel', 'amtrak', 'mbta', 'plane'];
+
 export let map;
+let routeShapesFC = EMPTY_FC; // kept for alert-focus bounds math
+let pingMarker = null;
+let pingTimer = null;
 
 export function initMap() {
   map = new maplibregl.Map({
@@ -14,19 +19,18 @@ export function initMap() {
     style: CONFIG.BASEMAP_STYLE,
     center: CONFIG.MAP_CENTER,
     zoom: CONFIG.MAP_ZOOM,
-    minZoom: 9,
+    minZoom: 7.5,
     maxZoom: 17.5,
     maxBounds: CONFIG.MAP_BOUNDS,
     attributionControl: false,
   });
-
   window.__map = map; // console/debug access
 
   map.addControl(
     new maplibregl.AttributionControl({
       compact: true,
       customAttribution:
-        'Data <a href="https://www.mbta.com/developers/v3-api" target="_blank" rel="noopener">MBTA V3 API</a>',
+        'Data <a href="https://www.mbta.com/developers/v3-api" target="_blank" rel="noopener">MBTA</a> · <a href="https://amtraker.com" target="_blank" rel="noopener">Amtraker</a> · <a href="https://airplanes.live" target="_blank" rel="noopener">airplanes.live</a> · <a href="https://aisstream.io" target="_blank" rel="noopener">AISStream</a>',
     }),
     'bottom-right',
   );
@@ -36,6 +40,8 @@ export function initMap() {
     map.on('load', () => {
       setupLayers();
       wirePopups();
+      layersReady = true;
+      if (pendingGroups) applyGroupFilter(pendingGroups);
       resolve(map);
     });
   });
@@ -61,9 +67,7 @@ function setupLayers() {
   map.addImage('nav-chevron', chevronImage(), { pixelRatio: 2 });
 
   map.addSource('route-shapes', { type: 'geojson', data: EMPTY_FC });
-  map.addSource('vehicles', { type: 'geojson', data: EMPTY_FC });
 
-  // Soft glow under the route ribbons so lines read on the dark basemap.
   map.addLayer({
     id: 'route-halo',
     type: 'line',
@@ -76,7 +80,6 @@ function setupLayers() {
       'line-blur': 4,
     },
   });
-
   map.addLayer({
     id: 'route-lines',
     type: 'line',
@@ -89,39 +92,39 @@ function setupLayers() {
     },
   });
 
-  map.addLayer({
-    id: 'vehicle-dots',
-    type: 'circle',
-    source: 'vehicles',
-    paint: {
-      'circle-color': ['get', 'color'],
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 3.5, 12, 6, 15, 10],
-      'circle-stroke-color': '#f4f6f8',
-      'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 9, 1, 15, 2],
-      'circle-opacity': ['case', ['get', 'stale'], 0.35, 1],
-      'circle-stroke-opacity': ['case', ['get', 'stale'], 0.35, 1],
-    },
-  });
-
-  map.addLayer({
-    id: 'vehicle-arrows',
-    type: 'symbol',
-    source: 'vehicles',
-    filter: ['==', ['get', 'hasBearing'], true],
-    layout: {
-      'icon-image': 'nav-chevron',
-      'icon-size': ['interpolate', ['linear'], ['zoom'], 9, 0.3, 15, 0.65],
-      'icon-rotate': ['get', 'bearing'],
-      'icon-rotation-alignment': 'map',
-      'icon-allow-overlap': true,
-      'icon-ignore-placement': true,
-      // Sits just ahead of the dot; the offset rotates with the bearing.
-      'icon-offset': [0, -36],
-    },
-    paint: {
-      'icon-opacity': ['case', ['get', 'stale'], 0.3, 0.95],
-    },
-  });
+  for (const fleetId of FLEETS) {
+    map.addSource(`veh-${fleetId}`, { type: 'geojson', data: EMPTY_FC });
+    map.addLayer({
+      id: `veh-${fleetId}-dots`,
+      type: 'circle',
+      source: `veh-${fleetId}`,
+      paint: {
+        'circle-color': ['get', 'color'],
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 3.5, 12, 6, 15, 10],
+        'circle-stroke-color': '#f4f6f8',
+        'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 9, 1, 15, 2],
+        'circle-opacity': ['case', ['get', 'stale'], 0.35, 1],
+        'circle-stroke-opacity': ['case', ['get', 'stale'], 0.35, 1],
+      },
+    });
+    map.addLayer({
+      id: `veh-${fleetId}-arrows`,
+      type: 'symbol',
+      source: `veh-${fleetId}`,
+      filter: ['==', ['get', 'hasBearing'], true],
+      layout: {
+        'icon-image': 'nav-chevron',
+        'icon-size': ['interpolate', ['linear'], ['zoom'], 9, 0.3, 15, 0.65],
+        'icon-rotate': ['get', 'bearing'],
+        'icon-rotation-alignment': 'map',
+        'icon-allow-overlap': true,
+        'icon-ignore-placement': true,
+        // Sits just ahead of the dot; the offset rotates with the bearing.
+        'icon-offset': [0, -36],
+      },
+      paint: { 'icon-opacity': ['case', ['get', 'stale'], 0.3, 0.95] },
+    });
+  }
 }
 
 function relativeAge(iso) {
@@ -129,8 +132,8 @@ function relativeAge(iso) {
   return seconds < 60 ? `${seconds}s ago` : `${Math.round(seconds / 60)}m ago`;
 }
 
-// API strings (stop names, alert text) are third-party content — always escape
-// before interpolating into HTML.
+// API strings (stop names, vessel names, alert text) are third-party content —
+// always escape before interpolating into HTML.
 const esc = (s) =>
   String(s).replace(
     /[&<>"']/g,
@@ -138,40 +141,98 @@ const esc = (s) =>
   );
 
 function wirePopups() {
-  map.on('click', 'vehicle-dots', (e) => {
-    const p = e.features[0].properties;
-    const html = `
-      <div class="popup-route" style="color:${esc(p.color)}">${esc(p.routeName)}</div>
-      <div class="popup-dest">to ${esc(p.destination || '—')}</div>
-      <div class="popup-status">${esc(p.statusText)}</div>
-      <div class="popup-meta">
-        ${p.label ? `car ${esc(p.label)} · ` : ''}${relativeAge(p.updatedAt)}${p.occupancy ? ` · ${esc(p.occupancy.toLowerCase())}` : ''}
-      </div>`;
-    new maplibregl.Popup({ offset: 14, maxWidth: '260px' })
-      .setLngLat(e.features[0].geometry.coordinates)
-      .setHTML(html)
-      .addTo(map);
-  });
-  map.on('mouseenter', 'vehicle-dots', () => {
-    map.getCanvas().style.cursor = 'pointer';
-  });
-  map.on('mouseleave', 'vehicle-dots', () => {
-    map.getCanvas().style.cursor = '';
-  });
+  for (const fleetId of FLEETS) {
+    const layerId = `veh-${fleetId}-dots`;
+    map.on('click', layerId, (e) => {
+      const p = e.features[0].properties;
+      const html = `
+        <div class="popup-title" style="color:${esc(p.color)}">${esc(p.title)}</div>
+        ${p.dest ? `<div class="popup-dest">${esc(p.dest)}</div>` : ''}
+        ${p.status ? `<div class="popup-status">${esc(p.status)}</div>` : ''}
+        <div class="popup-meta">${p.meta ? `${esc(p.meta)} · ` : ''}${relativeAge(p.updatedAt)}</div>`;
+      new maplibregl.Popup({ offset: 14, maxWidth: '280px' })
+        .setLngLat(e.features[0].geometry.coordinates)
+        .setHTML(html)
+        .addTo(map);
+    });
+    map.on('mouseenter', layerId, () => {
+      map.getCanvas().style.cursor = 'pointer';
+    });
+    map.on('mouseleave', layerId, () => {
+      map.getCanvas().style.cursor = '';
+    });
+  }
 }
 
 export function setRouteShapes(featureCollection) {
+  routeShapesFC = featureCollection;
   map.getSource('route-shapes')?.setData(featureCollection);
 }
 
-export function setVehicleData(featureCollection) {
-  map.getSource('vehicles')?.setData(featureCollection);
+export function setFleetData(fleetId, featureCollection) {
+  map.getSource(`veh-${fleetId}`)?.setData(featureCollection);
 }
 
-export function setVisibleRoutes(routeIds) {
-  const routeFilter = ['in', ['get', 'route'], ['literal', routeIds]];
-  map.setFilter('route-halo', routeFilter);
-  map.setFilter('route-lines', routeFilter);
-  map.setFilter('vehicle-dots', routeFilter);
-  map.setFilter('vehicle-arrows', ['all', routeFilter, ['==', ['get', 'hasBearing'], true]]);
+// The UI can emit visibility before the map finishes loading — queue the
+// latest request and apply it once layers exist.
+let pendingGroups = null;
+let layersReady = false;
+
+export function setVisibleGroups(groups) {
+  pendingGroups = groups;
+  if (layersReady) applyGroupFilter(groups);
+}
+
+function applyGroupFilter(groups) {
+  const groupFilter = ['in', ['get', 'group'], ['literal', groups]];
+  map.setFilter('route-halo', groupFilter);
+  map.setFilter('route-lines', groupFilter);
+  for (const fleetId of FLEETS) {
+    map.setFilter(`veh-${fleetId}-dots`, groupFilter);
+    map.setFilter(`veh-${fleetId}-arrows`, [
+      'all',
+      groupFilter,
+      ['==', ['get', 'hasBearing'], true],
+    ]);
+  }
+}
+
+// ---- alert focus -----------------------------------------------------------
+
+function fitPadding() {
+  // Keep targets clear of the console on desktop; on mobile the panel closes.
+  return window.innerWidth > 760
+    ? { top: 70, right: 70, bottom: 70, left: 420 }
+    : { top: 60, right: 40, bottom: 60, left: 40 };
+}
+
+function dropPing(lngLat) {
+  clearTimeout(pingTimer);
+  pingMarker?.remove();
+  const el = document.createElement('div');
+  el.className = 'alert-ping';
+  pingMarker = new maplibregl.Marker({ element: el }).setLngLat(lngLat).addTo(map);
+  pingTimer = setTimeout(() => pingMarker?.remove(), 5000);
+}
+
+// Fly to what an alert affects: its stops when known, else the extent of the
+// affected routes' ribbons.
+export function focusAlert(alert) {
+  const points = alert.focus?.points ?? [];
+  let coords = points;
+
+  if (!coords.length && alert.routes?.length) {
+    coords = routeShapesFC.features
+      .filter((f) => alert.routes.includes(f.properties.route))
+      .flatMap((f) => f.geometry.coordinates);
+  }
+  if (!coords.length) return false;
+
+  const bounds = coords.reduce(
+    (b, c) => b.extend(c),
+    new maplibregl.LngLatBounds(coords[0], coords[0]),
+  );
+  map.fitBounds(bounds, { padding: fitPadding(), maxZoom: 14.5, duration: 1400 });
+  if (points.length) dropPing(points[0]);
+  return true;
 }

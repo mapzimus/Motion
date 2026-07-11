@@ -1,28 +1,45 @@
 // Panel UI: layer toggles, alert feed, connection status, loading states.
 
 import { CONFIG } from './config.js';
-
-// The rider-facing line groups. Branches toggle together (Green B-E, the six
-// Silver services) because that's how riders think of them; colors come from
-// the API at init. Mattapan is branded Red but is its own light-rail trolley,
-// so it keeps its own row.
-const LINE_GROUPS = [
-  { key: 'red', name: 'Red Line', initial: 'R', routes: ['Red'] },
-  { key: 'orange', name: 'Orange Line', initial: 'O', routes: ['Orange'] },
-  { key: 'green', name: 'Green Line', initial: 'G', routes: ['Green-B', 'Green-C', 'Green-D', 'Green-E'] },
-  { key: 'blue', name: 'Blue Line', initial: 'B', routes: ['Blue'] },
-  { key: 'silver', name: 'Silver Line', initial: 'SL', routes: ['741', '742', '743', '746', '749', '751'] },
-  { key: 'mattapan', name: 'Mattapan Trolley', initial: 'M', routes: ['Mattapan'] },
-];
+import { focusAlert } from './map.js';
 
 const el = (id) => document.getElementById(id);
 
-const groupState = new Map(LINE_GROUPS.map((g) => [g.key, true]));
+let GROUPS = [];
+const groupState = new Map();
+const counts = new Map(); // group key -> latest count (null = needs key)
 let onVisibleChange = () => {};
-let status = { state: 'connecting', count: 0, lastUpdate: null, retryAtMs: null, message: '' };
+let status = { state: 'connecting', lastUpdate: null, retryAtMs: null, message: '' };
+
+// Layer groups are built at init because route membership and colors come from
+// the API (e.g. "every type-3 route that isn't Silver Line" = the bus group).
+function buildGroups(routeInfo) {
+  const routesOfType = (t) =>
+    [...routeInfo.values()].filter((r) => r.type === t).map((r) => r.id);
+  const colorOf = (routeId) => routeInfo.get(routeId)?.color;
+
+  return [
+    // Subway lines (the master switch governs these). Green's four branches
+    // toggle as one because that's how riders think of them. Mattapan is
+    // branded Red but is its own light-rail trolley, so it keeps its own row.
+    { key: 'red', name: 'Red Line', initial: 'R', section: 'subway', routes: ['Red'], color: colorOf('Red') },
+    { key: 'orange', name: 'Orange Line', initial: 'O', section: 'subway', routes: ['Orange'], color: colorOf('Orange') },
+    { key: 'green', name: 'Green Line', initial: 'G', section: 'subway', routes: ['Green-B', 'Green-C', 'Green-D', 'Green-E'], color: colorOf('Green-B') },
+    { key: 'blue', name: 'Blue Line', initial: 'B', section: 'subway', routes: ['Blue'], color: colorOf('Blue') },
+    { key: 'silver', name: 'Silver Line', initial: 'SL', section: 'subway', routes: [...CONFIG.SILVER_ROUTES], color: colorOf('741') },
+    { key: 'mattapan', name: 'Mattapan Trolley', initial: 'M', section: 'subway', routes: ['Mattapan'], color: colorOf('Mattapan') },
+    // The wider fleet.
+    { key: 'commuter', name: 'Commuter Rail', initial: 'CR', section: 'modal', routes: routesOfType(2), color: colorOf(routesOfType(2)[0]) },
+    { key: 'bus', name: 'Bus network', initial: 'B', section: 'modal', routes: routesOfType(3).filter((id) => !CONFIG.SILVER_ROUTES.includes(id)), color: '#ffc72c', darkText: true },
+    { key: 'ferry', name: 'MBTA Ferries', initial: 'F', section: 'modal', routes: routesOfType(4), color: colorOf(routesOfType(4)[0]) ?? '#008eaa' },
+    { key: 'amtrak', name: 'Amtrak', initial: 'A', section: 'modal', routes: [], color: CONFIG.AMTRAK_COLOR },
+    { key: 'plane', name: 'Planes · Logan', initial: '✈', section: 'modal', routes: [], color: CONFIG.PLANE_COLOR },
+    { key: 'vessel', name: 'Harbor traffic', initial: '⚓', section: 'modal', routes: [], color: CONFIG.VESSEL_COLOR, needsKey: !CONFIG.AIS_KEY },
+  ];
+}
 
 /*
- * TODO(Max) — YOUR CALL: how should a train's status read in its popup?
+ * TODO(Max) — YOUR CALL: how should a vehicle's status read in its popup?
  *
  * The API gives three raw states: STOPPED_AT, INCOMING_AT, IN_TRANSIT_TO,
  * plus the name of the stop each refers to. The wording below is a working
@@ -46,21 +63,26 @@ export function formatVehicleStatus(v) {
 }
 
 export function initPanel(routeInfo, visibleChangeHandler) {
+  GROUPS = buildGroups(routeInfo);
   onVisibleChange = visibleChangeHandler;
 
-  const container = el('layer-rows');
-  for (const group of LINE_GROUPS) {
-    const color = routeInfo.get(group.routes[0])?.color ?? '#8a939c';
+  for (const group of GROUPS) {
+    const startOn = !CONFIG.DEFAULT_OFF_GROUPS.includes(group.key) && !group.needsKey;
+    groupState.set(group.key, startOn);
+
     const row = document.createElement('div');
     row.className = 'line-row';
     row.dataset.key = group.key;
-    row.style.setProperty('--line-color', color);
+    row.style.setProperty('--line-color', group.color ?? '#39424c');
+    if (group.needsKey) row.classList.add('needs-key');
     row.innerHTML = `
-      <span class="bullet">${group.initial}</span>
-      <span class="line-name">${group.name}<span class="badge" hidden></span></span>
+      <span class="bullet${group.darkText ? ' dark-text' : ''}">${group.initial}</span>
+      <span class="line-name">${group.name}<span class="badge" hidden></span>
+        ${group.needsKey ? '<a class="get-key" href="https://aisstream.io" target="_blank" rel="noopener" title="Live AIS needs a free aisstream.io key — see README">free key</a>' : ''}
+      </span>
       <span class="count" data-count>–</span>
       <label class="switch">
-        <input type="checkbox" checked aria-label="Toggle ${group.name}">
+        <input type="checkbox" ${startOn ? 'checked' : ''} ${group.needsKey ? 'disabled' : ''} aria-label="Toggle ${group.name}">
         <span class="knob"></span>
       </label>`;
     row.querySelector('input').addEventListener('change', (e) => {
@@ -68,11 +90,11 @@ export function initPanel(routeInfo, visibleChangeHandler) {
       syncMaster();
       emitVisible();
     });
-    container.appendChild(row);
+    el(group.section === 'subway' ? 'layer-rows' : 'modal-rows').appendChild(row);
   }
 
   el('subway-master').addEventListener('change', (e) => {
-    for (const group of LINE_GROUPS) {
+    for (const group of GROUPS.filter((g) => g.section === 'subway')) {
       groupState.set(group.key, e.target.checked);
       rowInput(group.key).checked = e.target.checked;
     }
@@ -84,35 +106,47 @@ export function initPanel(routeInfo, visibleChangeHandler) {
   });
 
   setInterval(renderStatus, 1000);
+  emitVisible();
 }
 
 const rowInput = (key) =>
   document.querySelector(`.line-row[data-key="${key}"] input`);
 
 function syncMaster() {
-  el('subway-master').checked = [...groupState.values()].some(Boolean);
+  el('subway-master').checked = GROUPS.filter((g) => g.section === 'subway').some(
+    (g) => groupState.get(g.key),
+  );
+}
+
+export function getVisibleGroups() {
+  return GROUPS.filter((g) => groupState.get(g.key)).map((g) => g.key);
 }
 
 function emitVisible() {
-  const visible = LINE_GROUPS.filter((g) => groupState.get(g.key)).flatMap(
-    (g) => g.routes,
-  );
-  onVisibleChange(visible);
+  onVisibleChange(getVisibleGroups());
 }
 
-// ---- live stats / connection status -------------------------------------
+// ---- live counts / connection status --------------------------------------
 
-export function updateStats({ count, byRoute }) {
-  status.count = count;
-  status.lastUpdate = Date.now();
-  for (const group of LINE_GROUPS) {
-    const n = group.routes.reduce((sum, r) => sum + (byRoute[r] ?? 0), 0);
-    document.querySelector(
+// Every fleet reports its own group counts; they merge here.
+export function updateCounts(partialByGroup) {
+  for (const [group, n] of Object.entries(partialByGroup)) counts.set(group, n);
+  for (const group of GROUPS) {
+    const cell = document.querySelector(
       `.line-row[data-key="${group.key}"] [data-count]`,
-    ).textContent = n;
+    );
+    if (!cell) continue;
+    const n = counts.get(group.key);
+    cell.textContent = n === null || n === undefined ? '–' : n;
   }
   hideOverlay();
   renderStatus();
+}
+
+// The MBTA poller is the app's heartbeat: it stamps lastUpdate.
+export function updateStats({ byGroup, lastUpdate }) {
+  status.lastUpdate = lastUpdate;
+  updateCounts(byGroup);
 }
 
 export function updateStatus(state, detail = {}) {
@@ -120,6 +154,12 @@ export function updateStatus(state, detail = {}) {
   status.message = detail.message ?? '';
   status.retryAtMs = detail.retryInMs ? Date.now() + detail.retryInMs : null;
   renderStatus();
+}
+
+function totalCount() {
+  let total = 0;
+  for (const n of counts.values()) total += n ?? 0;
+  return total;
 }
 
 function renderStatus() {
@@ -132,9 +172,9 @@ function renderStatus() {
   dot.className = `live-dot ${status.state}`;
   switch (status.state) {
     case 'live': {
-      const vehicles = `${status.count} vehicle${status.count === 1 ? '' : 's'}`;
-      const hint = status.count === 0 ? ' (overnight shutdown?)' : '';
-      text.textContent = `LIVE · ${vehicles}${hint} · ${age}s ago`;
+      const total = totalCount();
+      const hint = total === 0 ? ' (overnight shutdown?)' : '';
+      text.textContent = `LIVE · ${total} vehicle${total === 1 ? '' : 's'}${hint} · ${age}s ago`;
       break;
     }
     case 'paused':
@@ -162,8 +202,9 @@ const prettyEffect = (effect) => {
 export function renderAlerts(alerts) {
   el('alerts-count').textContent = alerts.length;
 
-  // Worst severity per line group drives the badge next to the line name.
-  for (const group of LINE_GROUPS) {
+  // Worst severity per group drives the badge next to the group name.
+  for (const group of GROUPS) {
+    if (!group.routes.length) continue;
     const worst = Math.max(
       0,
       ...alerts
@@ -173,6 +214,7 @@ export function renderAlerts(alerts) {
     const badge = document.querySelector(
       `.line-row[data-key="${group.key}"] .badge`,
     );
+    if (!badge) continue;
     badge.hidden = worst < CONFIG.ALERT_LEVELS.minor;
     badge.className = `badge ${worst >= CONFIG.ALERT_LEVELS.major ? 'major' : 'minor'}`;
   }
@@ -200,6 +242,27 @@ export function renderAlerts(alerts) {
     text.className = 'alert-text';
     text.textContent = a.header;
     li.append(effect, text);
+
+    // Clicking an alert flies the map to what it affects.
+    const canFocus = a.focus?.points?.length || a.routes?.length;
+    if (canFocus) {
+      li.classList.add('clickable');
+      li.setAttribute('role', 'button');
+      li.tabIndex = 0;
+      const go = () => {
+        const flew = focusAlert(a);
+        if (flew && window.matchMedia('(max-width: 760px)').matches) {
+          document.body.classList.remove('panel-open');
+        }
+      };
+      li.addEventListener('click', go);
+      li.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          go();
+        }
+      });
+    }
     list.appendChild(li);
   }
 }
