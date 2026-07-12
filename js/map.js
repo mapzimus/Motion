@@ -8,6 +8,12 @@ const EMPTY_FC = { type: 'FeatureCollection', features: [] };
 // Draw order, bottom to top: bike docks under boats under trains under planes.
 const FLEETS = ['bike', 'vessel', 'amtrak', 'mbta', 'plane'];
 
+// The visual language: SHAPE says what kind of vehicle it is, COLOR says whose
+// service it is. Rail keeps the classic dot + heading chevron; every other
+// mode gets its own silhouette so it reads at first glance.
+const RAIL_GROUPS = ['red', 'orange', 'green', 'blue', 'silver', 'mattapan', 'commuter', 'amtrak'];
+const ICON_GROUPS = ['bus', 'ferry', 'plane', 'vessel', 'bike'];
+
 export let map;
 let routeShapesFC = EMPTY_FC; // kept for alert-focus bounds math
 let pingMarker = null;
@@ -63,8 +69,67 @@ function chevronImage(size = 48) {
   return ctx.getImageData(0, 0, size, size);
 }
 
+// ---- mode icon sprites -----------------------------------------------------
+// Pre-rendered filled silhouettes wearing the same white outline as the rail
+// dots. Shapes point north; MapLibre rotates them by live bearing.
+
+function mirroredPolygon(ctx, rightHalf, size) {
+  const u = size / 64;
+  ctx.beginPath();
+  ctx.moveTo(rightHalf[0][0] * u, rightHalf[0][1] * u);
+  for (const [x, y] of rightHalf.slice(1)) ctx.lineTo(x * u, y * u);
+  for (const [x, y] of [...rightHalf].reverse()) ctx.lineTo((64 - x) * u, y * u);
+  ctx.closePath();
+}
+
+// Airliner from above, nose up: fuselage, swept wings, tailplane.
+const PLANE_HALF = [
+  [32, 2], [35, 8], [36, 20], [62, 36], [62, 43], [36, 33],
+  [35, 46], [45, 56], [45, 61], [32, 57],
+];
+// Boat hull from above, bow up.
+const BOAT_HALF = [
+  [32, 2], [45, 14], [48, 34], [45, 58], [32, 61],
+];
+
+const roundedRect = (x, y, w, h, r) => (ctx, size) => {
+  const u = size / 64;
+  ctx.beginPath();
+  ctx.roundRect(x * u, y * u, w * u, h * u, r * u);
+};
+
+function makeIcon(fill, draw, size = 64) {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  draw(ctx, size);
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = '#f4f6f8';
+  ctx.lineWidth = 4.5;
+  ctx.stroke();
+  ctx.fillStyle = fill;
+  ctx.fill();
+  return ctx.getImageData(0, 0, size, size);
+}
+
+function registerModeIcons() {
+  const icons = {
+    'icon-plane': makeIcon(CONFIG.PLANE_COLOR, (c, s) => mirroredPolygon(c, PLANE_HALF, s)),
+    'icon-boat-ferry': makeIcon(CONFIG.FERRY_COLOR, (c, s) => mirroredPolygon(c, BOAT_HALF, s)),
+    'icon-boat-vessel': makeIcon(CONFIG.VESSEL_COLOR, (c, s) => mirroredPolygon(c, BOAT_HALF, s)),
+    'icon-bus': makeIcon(CONFIG.BUS_COLOR, roundedRect(21, 8, 22, 48, 9)),
+    'icon-dock-ok': makeIcon(CONFIG.BIKE_COLOR, roundedRect(15, 15, 34, 34, 8)),
+    'icon-dock-low': makeIcon(CONFIG.BIKE_LOW_COLOR, roundedRect(15, 15, 34, 34, 8)),
+    'icon-dock-empty': makeIcon(CONFIG.BIKE_EMPTY_COLOR, roundedRect(15, 15, 34, 34, 8)),
+  };
+  for (const [name, image] of Object.entries(icons)) {
+    map.addImage(name, image, { pixelRatio: 2 });
+  }
+}
+
 function setupLayers() {
   map.addImage('nav-chevron', chevronImage(), { pixelRatio: 2 });
+  registerModeIcons();
 
   // Live congestion raster under everything else we draw — only when a
   // TomTom key is configured (see config.js).
@@ -105,8 +170,14 @@ function setupLayers() {
     layout: { 'line-cap': 'round', 'line-join': 'round' },
     paint: {
       'line-color': ['get', 'color'],
-      'line-width': ['interpolate', ['linear'], ['zoom'], 10, 1.8, 15, 4.5],
-      'line-opacity': 0.9,
+      // The ~150 bus ribbons render thin and faint so they inform without
+      // burying the rail network.
+      'line-width': [
+        'interpolate', ['linear'], ['zoom'],
+        10, ['case', ['==', ['get', 'group'], 'bus'], 0.7, 1.8],
+        15, ['case', ['==', ['get', 'group'], 'bus'], 2.2, 4.5],
+      ],
+      'line-opacity': ['case', ['==', ['get', 'group'], 'bus'], 0.45, 0.9],
     },
   });
 
@@ -116,6 +187,7 @@ function setupLayers() {
       id: `veh-${fleetId}-dots`,
       type: 'circle',
       source: `veh-${fleetId}`,
+      filter: ['in', ['get', 'group'], ['literal', RAIL_GROUPS]],
       paint: {
         'circle-color': ['get', 'color'],
         'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 3.5, 12, 6, 15, 10],
@@ -129,7 +201,11 @@ function setupLayers() {
       id: `veh-${fleetId}-arrows`,
       type: 'symbol',
       source: `veh-${fleetId}`,
-      filter: ['==', ['get', 'hasBearing'], true],
+      filter: [
+        'all',
+        ['in', ['get', 'group'], ['literal', RAIL_GROUPS]],
+        ['==', ['get', 'hasBearing'], true],
+      ],
       layout: {
         'icon-image': 'nav-chevron',
         'icon-size': ['interpolate', ['linear'], ['zoom'], 9, 0.3, 15, 0.65],
@@ -141,6 +217,36 @@ function setupLayers() {
         'icon-offset': [0, -36],
       },
       paint: { 'icon-opacity': ['case', ['get', 'stale'], 0.3, 0.95] },
+    });
+    map.addLayer({
+      id: `veh-${fleetId}-icons`,
+      type: 'symbol',
+      source: `veh-${fleetId}`,
+      filter: ['in', ['get', 'group'], ['literal', ICON_GROUPS]],
+      layout: {
+        'icon-image': [
+          'match', ['get', 'group'],
+          'plane', 'icon-plane',
+          'bus', 'icon-bus',
+          'ferry', 'icon-boat-ferry',
+          'vessel', 'icon-boat-vessel',
+          // default arm = bike docks, colored by fill level
+          ['match', ['get', 'color'],
+            CONFIG.BIKE_LOW_COLOR, 'icon-dock-low',
+            CONFIG.BIKE_EMPTY_COLOR, 'icon-dock-empty',
+            'icon-dock-ok'],
+        ],
+        'icon-size': [
+          'interpolate', ['linear'], ['zoom'],
+          9, ['match', ['get', 'group'], 'plane', 0.38, 'bike', 0.2, 0.3],
+          15, ['match', ['get', 'group'], 'plane', 0.8, 'bike', 0.5, 0.7],
+        ],
+        'icon-rotate': ['case', ['get', 'hasBearing'], ['get', 'bearing'], 0],
+        'icon-rotation-alignment': 'map',
+        'icon-allow-overlap': true,
+        'icon-ignore-placement': true,
+      },
+      paint: { 'icon-opacity': ['case', ['get', 'stale'], 0.35, 1] },
     });
   }
 }
@@ -160,8 +266,14 @@ const esc = (s) =>
 
 function wirePopups() {
   for (const fleetId of FLEETS) {
-    const layerId = `veh-${fleetId}-dots`;
-    map.on('click', layerId, (e) => {
+    for (const layerId of [`veh-${fleetId}-dots`, `veh-${fleetId}-icons`]) {
+      wirePopupLayer(layerId);
+    }
+  }
+}
+
+function wirePopupLayer(layerId) {
+  map.on('click', layerId, (e) => {
       const p = e.features[0].properties;
       const html = `
         <div class="popup-title" style="color:${esc(p.color)}">${esc(p.title)}</div>
@@ -179,7 +291,6 @@ function wirePopups() {
     map.on('mouseleave', layerId, () => {
       map.getCanvas().style.cursor = '';
     });
-  }
 }
 
 export function setRouteShapes(featureCollection) {
@@ -205,16 +316,21 @@ export function setVisibleGroups(groups) {
 }
 
 function applyGroupFilter(groups) {
-  const groupFilter = ['in', ['get', 'group'], ['literal', groups]];
-  map.setFilter('route-halo', groupFilter);
-  map.setFilter('route-lines', groupFilter);
+  const visible = ['in', ['get', 'group'], ['literal', groups]];
+  const railVisible = ['all', visible, ['in', ['get', 'group'], ['literal', RAIL_GROUPS]]];
+  const iconVisible = ['all', visible, ['in', ['get', 'group'], ['literal', ICON_GROUPS]]];
+
+  // Bus ribbons skip the halo pass — 150 glowing routes would wash the map.
+  map.setFilter('route-halo', ['all', visible, ['!=', ['get', 'group'], 'bus']]);
+  map.setFilter('route-lines', visible);
   for (const fleetId of FLEETS) {
-    map.setFilter(`veh-${fleetId}-dots`, groupFilter);
+    map.setFilter(`veh-${fleetId}-dots`, railVisible);
     map.setFilter(`veh-${fleetId}-arrows`, [
       'all',
-      groupFilter,
+      railVisible,
       ['==', ['get', 'hasBearing'], true],
     ]);
+    map.setFilter(`veh-${fleetId}-icons`, iconVisible);
   }
   // The traffic layer is raster tiles, not features — toggle its visibility.
   if (map.getLayer('traffic-flow')) {

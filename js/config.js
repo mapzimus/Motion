@@ -37,9 +37,10 @@ export const CONFIG = {
   // transit — these six route IDs get their own layer group.
   SILVER_ROUTES: ['741', '742', '743', '746', '749', '751'],
 
-  // Route ribbons are drawn for subway/SL/commuter rail/ferry — not the ~150
-  // bus routes, which would bury the map. Geometry is static, so cache it.
-  SHAPE_CACHE_KEY: 'bim-shapes-v2',
+  // Route ribbons are drawn for every MBTA route — including all ~150 bus
+  // routes (thin + faint, toggling with the bus layer). Geometry is static,
+  // so it's cached as encoded polylines (compact enough for localStorage).
+  SHAPE_CACHE_KEY: 'bim-shapes-v3',
   SHAPE_CACHE_TTL_MS: 24 * 3600 * 1000,
 
   // Amtrak via the community Amtraker API (CORS-open, no key). We show trains
@@ -71,6 +72,10 @@ export const CONFIG = {
   BIKE_COLOR: '#4d9fec', // stocked
   BIKE_LOW_COLOR: '#ffb454', // 1-2 bikes left
   BIKE_EMPTY_COLOR: '#5c6570', // empty (also renders dimmed)
+
+  // Mode-icon fill colors (map sprites are pre-rendered at startup).
+  BUS_COLOR: '#ffc72c', // MBTA bus yellow
+  FERRY_COLOR: '#008eaa', // MBTA ferry teal
 
   // Live road congestion via TomTom traffic flow tiles. Needs a free key
   // (https://developer.tomtom.com — no credit card) — paste it below, or pass

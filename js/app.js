@@ -36,23 +36,33 @@ async function main() {
   startAlertPolling(routeInfo, ui.renderAlerts);
 
   // Route ribbons load after polling kicks off; vehicles shouldn't wait on
-  // them. Ribbons cover rail + Silver Line + ferries — not the ~150 bus
-  // routes, which would bury the map.
-  const ribbonRoutes = routes.filter(
-    (r) => [0, 1, 2, 4].includes(r.type) || CONFIG.SILVER_ROUTES.includes(r.id),
-  );
+  // them. Every route gets a ribbon — the ~150 bus routes render thin and
+  // faint and toggle with the bus layer.
   setRouteShapes({
     type: 'FeatureCollection',
-    features: await loadShapeFeatures(ribbonRoutes, routeInfo),
+    features: await loadShapeFeatures(routes, routeInfo),
   });
   setVisibleGroups(ui.getVisibleGroups()); // re-apply to the fresh ribbon data
 }
 
-// Shapes are static geometry, but ~35 routes = ~35 requests — cache for a day
-// and survive partial failures (a missing ribbon heals on the next visit;
-// vehicles render regardless).
+// Shapes are static geometry, but ~180 routes = ~180 requests on a cold load —
+// so cache them for a day and survive partial failures (a missing ribbon heals
+// on the next visit; vehicles render regardless). The cache stores ENCODED
+// polylines: compact enough that even the whole bus network fits comfortably
+// in localStorage, decoded fresh on each load (fast).
 async function loadShapeFeatures(ribbonRoutes, routeInfo) {
+  localStorage.removeItem('bim-shapes-v2'); // superseded cache format
   const routesKey = ribbonRoutes.map((r) => r.id).join(',');
+
+  const buildFeatures = (sets) =>
+    sets.flatMap((set) =>
+      set.polylines.map((polyline) => ({
+        type: 'Feature',
+        geometry: { type: 'LineString', coordinates: decodePolyline(polyline) },
+        properties: { route: set.id, group: set.group, color: set.color },
+      })),
+    );
+
   try {
     const cached = JSON.parse(localStorage.getItem(CONFIG.SHAPE_CACHE_KEY));
     if (
@@ -60,14 +70,19 @@ async function loadShapeFeatures(ribbonRoutes, routeInfo) {
       cached.routes === routesKey &&
       Date.now() - cached.at < CONFIG.SHAPE_CACHE_TTL_MS
     ) {
-      return cached.features;
+      return buildFeatures(cached.sets);
     }
   } catch {
     /* corrupt cache -> refetch */
   }
 
   const settled = await Promise.allSettled(
-    ribbonRoutes.map(async (r) => ({ id: r.id, polylines: await fetchShapes(r.id) })),
+    ribbonRoutes.map(async (r) => ({
+      id: r.id,
+      group: groupFor(r.id, routeInfo.get(r.id)),
+      color: routeInfo.get(r.id)?.color ?? '#8a939c',
+      polylines: await fetchShapes(r.id),
+    })),
   );
   const failed = ribbonRoutes.filter((_, i) => settled[i].status === 'rejected');
   if (failed.length) {
@@ -75,32 +90,19 @@ async function loadShapeFeatures(ribbonRoutes, routeInfo) {
       `Route ribbons unavailable this load: ${failed.map((r) => r.id).join(', ')}`,
     );
   }
-
-  const features = settled
-    .filter((s) => s.status === 'fulfilled')
-    .flatMap(({ value: { id, polylines } }) =>
-      polylines.map((polyline) => ({
-        type: 'Feature',
-        geometry: { type: 'LineString', coordinates: decodePolyline(polyline) },
-        properties: {
-          route: id,
-          group: groupFor(id, routeInfo.get(id)),
-          color: routeInfo.get(id)?.color ?? '#8a939c',
-        },
-      })),
-    );
+  const sets = settled.filter((s) => s.status === 'fulfilled').map((s) => s.value);
 
   if (!failed.length) {
     try {
       localStorage.setItem(
         CONFIG.SHAPE_CACHE_KEY,
-        JSON.stringify({ at: Date.now(), routes: routesKey, features }),
+        JSON.stringify({ at: Date.now(), routes: routesKey, sets }),
       );
     } catch {
       /* storage full/blocked -> fine, just refetch next time */
     }
   }
-  return features;
+  return buildFeatures(sets);
 }
 
 main().catch((err) => ui.fatal(err));
