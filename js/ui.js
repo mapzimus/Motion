@@ -34,7 +34,9 @@ function buildGroups(routeInfo) {
     { key: 'ferry', name: 'MBTA Ferries', initial: 'F', section: 'modal', routes: routesOfType(4), color: colorOf(routesOfType(4)[0]) ?? '#008eaa' },
     { key: 'amtrak', name: 'Amtrak', initial: 'A', section: 'modal', routes: [], color: CONFIG.AMTRAK_COLOR },
     { key: 'plane', name: 'Planes · Logan', initial: '✈', section: 'modal', routes: [], color: CONFIG.PLANE_COLOR },
-    { key: 'vessel', name: 'Harbor traffic', initial: '⚓', section: 'modal', routes: [], color: CONFIG.VESSEL_COLOR, needsKey: !CONFIG.AIS_KEY },
+    { key: 'vessel', name: 'Harbor traffic', initial: '⚓', section: 'modal', routes: [], color: CONFIG.VESSEL_COLOR, needsKey: !CONFIG.AIS_KEY, keyUrl: 'https://aisstream.io' },
+    { key: 'bike', name: 'Bluebikes', initial: 'b', section: 'modal', routes: [], color: CONFIG.BIKE_COLOR },
+    { key: 'traffic', name: 'Road traffic', initial: '≋', section: 'modal', routes: [], color: '#e05d5d', needsKey: !CONFIG.TOMTOM_KEY, keyUrl: 'https://developer.tomtom.com', zoomable: false },
   ];
 }
 
@@ -78,7 +80,7 @@ export function initPanel(routeInfo, visibleChangeHandler) {
     row.innerHTML = `
       <span class="bullet${group.darkText ? ' dark-text' : ''}">${group.initial}</span>
       <span class="line-name">${group.name}<span class="badge" hidden></span>
-        ${group.needsKey ? '<a class="get-key" href="https://aisstream.io" target="_blank" rel="noopener" title="Live AIS needs a free aisstream.io key — see README">free key</a>' : ''}
+        ${group.needsKey ? `<a class="get-key" href="${group.keyUrl}" target="_blank" rel="noopener" title="This layer needs a free key — see the README">free key</a>` : ''}
       </span>
       <span class="count" data-count>–</span>
       <label class="switch">
@@ -93,7 +95,8 @@ export function initPanel(routeInfo, visibleChangeHandler) {
 
     // Clicking the row itself (not the switch) flies the map to wherever this
     // fleet currently is — and switches the layer on first if it was off.
-    if (!group.needsKey) {
+    // (Not for area layers like traffic, where "zoom to it" is meaningless.)
+    if (!group.needsKey && group.zoomable !== false) {
       row.classList.add('zoomable');
       row.title = `Zoom to ${group.name}`;
       row.addEventListener('click', (e) => {

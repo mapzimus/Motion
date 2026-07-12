@@ -8,6 +8,7 @@ import { startMbta, groupFor, onStats, onStatus } from './mbta.js';
 import { startAmtrak } from './amtrak.js';
 import { startPlanes } from './planes.js';
 import { startAis } from './ais.js';
+import { startBluebikes } from './bluebikes.js';
 import { startAlertPolling } from './alerts.js';
 import * as ui from './ui.js';
 
@@ -31,6 +32,7 @@ async function main() {
   startAmtrak(ui.updateCounts);
   startPlanes(ui.updateCounts);
   startAis(ui.updateCounts);
+  startBluebikes(ui.updateCounts);
   startAlertPolling(routeInfo, ui.renderAlerts);
 
   // Route ribbons load after polling kicks off; vehicles shouldn't wait on

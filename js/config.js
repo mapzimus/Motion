@@ -63,18 +63,39 @@ export const CONFIG = {
   AIS_PRUNE_MS: 10 * 60_000, // drop vessels silent for 10 min
   VESSEL_COLOR: '#63d8c8',
 
-  // Layer groups that start switched off (the bus network is dense — one tap
-  // turns its ~400 vehicles on).
-  DEFAULT_OFF_GROUPS: ['bus'],
+  // Bluebikes stations via the public GBFS feed (keyless, CORS-open).
+  // Stations don't move, but fill levels are live.
+  BIKE_INFO_URL: 'https://gbfs.bluebikes.com/gbfs/en/station_information.json',
+  BIKE_STATUS_URL: 'https://gbfs.bluebikes.com/gbfs/en/station_status.json',
+  BIKE_POLL_MS: 60_000,
+  BIKE_COLOR: '#4d9fec', // stocked
+  BIKE_LOW_COLOR: '#ffb454', // 1-2 bikes left
+  BIKE_EMPTY_COLOR: '#5c6570', // empty (also renders dimmed)
+
+  // Live road congestion via TomTom traffic flow tiles. Needs a free key
+  // (https://developer.tomtom.com — no credit card) — paste it below, or pass
+  // ?tomtom_key=YOUR_KEY once (it persists in this browser via localStorage).
+  TOMTOM_KEY: params.get('tomtom_key') || localStorage.getItem('bim-tomtom-key') || '',
+  TRAFFIC_TILE_TEMPLATE:
+    'https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key={key}&thickness=10',
+
+  // Layer groups that start switched off (dense layers — one tap turns them
+  // on: ~400 buses, ~600 bike stations, wall-to-wall traffic color).
+  DEFAULT_OFF_GROUPS: ['bus', 'bike', 'traffic'],
 
   BASEMAP_STYLE: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
 };
 
-// Persist an AIS key passed via URL so it survives future visits.
-if (params.get('ais_key')) {
-  try {
-    localStorage.setItem('bim-ais-key', params.get('ais_key'));
-  } catch {
-    /* private mode — session-only */
+// Persist keys passed via URL so they survive future visits.
+for (const [param, storageKey] of [
+  ['ais_key', 'bim-ais-key'],
+  ['tomtom_key', 'bim-tomtom-key'],
+]) {
+  if (params.get(param)) {
+    try {
+      localStorage.setItem(storageKey, params.get(param));
+    } catch {
+      /* private mode — session-only */
+    }
   }
 }

@@ -16,7 +16,8 @@ MapLibre basemap. No backend at all.
 | Amtrak (trains inside the map region) | [Amtraker API](https://amtraker.com) (community, keyless) | 90 s |
 | Planes (30 nm around Logan) | [airplanes.live](https://airplanes.live) ADS-B (community, keyless) | 45 s |
 | Harbor traffic (live AIS) | [aisstream.io](https://aisstream.io) WebSocket — needs free key | streaming |
-| Road traffic | — | planned |
+| Bluebikes (~600 stations, live fill levels) | [Bluebikes GBFS](https://gbfs.bluebikes.com/gbfs/gbfs.json) (keyless) | 60 s |
+| Road traffic (congestion coloring) | [TomTom flow tiles](https://developer.tomtom.com) — needs free key | live tiles |
 
 The entire MBTA fleet (~500-900 vehicles) arrives in **one** `/vehicles`
 request per poll, classified into layers client-side. The Silver Line is
@@ -57,6 +58,10 @@ Deployment is copying these files to any static host (GitHub Pages, Vercel, …)
   localStorage. Until then the layer shows a "free key" link; MBTA ferries
   still appear regardless. Note: MBTA ferries also broadcast AIS, so with both
   layers on, a ferry can appear twice (two independent sources).
+- **Road traffic** — needs a free [developer.tomtom.com](https://developer.tomtom.com)
+  key (no credit card). Paste it into `TOMTOM_KEY` in `js/config.js`, or visit
+  once with `?tomtom_key=YOUR_KEY` (persists the same way). Renders live
+  congestion coloring (green→red) under the transit layers, off by default.
 
 ## Architecture
 
@@ -65,6 +70,8 @@ MBTA V3 API ──── /routes /shapes /vehicles /alerts /stops   (poll)
 Amtraker ─────── all US trains, filtered to the map region  (poll)
 airplanes.live ─ ADS-B aircraft within 30 nm of Logan       (poll)
 aisstream.io ─── AIS position reports over WebSocket        (stream)
+Bluebikes GBFS ─ station fill levels                        (poll)
+TomTom ───────── traffic flow raster tiles                  (tiles)
         │
   js/api.js      MBTA JSON:API -> plain objects (sparse fieldsets)
   js/mbta.js     one-request full-fleet poller + group classifier
@@ -83,13 +90,15 @@ aisstream.io ─── AIS position reports over WebSocket        (stream)
 | v1 | Subway + Silver Line, live map, alerts | ✅ |
 | v2 | Commuter rail, buses, ferries | ✅ |
 | v3 | Amtrak, planes, harbor AIS, alert→map focus | ✅ |
-| v4 | Road traffic layer, all-of-New-England expansion | planned |
+| v4 | Road traffic (TomTom), Bluebikes, click-row-to-zoom | ✅ |
+| v5 | All-of-New-England expansion, weather radar, regional GTFS-RT | ideas |
 
 ## Credits
 
 Data: [MBTA V3 API](https://www.mbta.com/developers/v3-api) ·
 [Amtraker](https://amtraker.com) · [airplanes.live](https://airplanes.live) ·
-[aisstream.io](https://aisstream.io) ·
+[aisstream.io](https://aisstream.io) · [Bluebikes GBFS](https://gbfs.bluebikes.com/gbfs/gbfs.json) ·
+[TomTom Traffic](https://developer.tomtom.com) ·
 Basemap: [CARTO Dark Matter](https://carto.com/basemaps/) © OpenStreetMap contributors ·
 Map engine: [MapLibre GL JS](https://maplibre.org/)
 

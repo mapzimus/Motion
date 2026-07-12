@@ -5,8 +5,8 @@ import { CONFIG } from './config.js';
 
 const EMPTY_FC = { type: 'FeatureCollection', features: [] };
 
-// Draw order, bottom to top: boats under trains under planes.
-const FLEETS = ['vessel', 'amtrak', 'mbta', 'plane'];
+// Draw order, bottom to top: bike docks under boats under trains under planes.
+const FLEETS = ['bike', 'vessel', 'amtrak', 'mbta', 'plane'];
 
 export let map;
 let routeShapesFC = EMPTY_FC; // kept for alert-focus bounds math
@@ -65,6 +65,24 @@ function chevronImage(size = 48) {
 
 function setupLayers() {
   map.addImage('nav-chevron', chevronImage(), { pixelRatio: 2 });
+
+  // Live congestion raster under everything else we draw — only when a
+  // TomTom key is configured (see config.js).
+  if (CONFIG.TOMTOM_KEY) {
+    map.addSource('traffic-flow', {
+      type: 'raster',
+      tiles: [CONFIG.TRAFFIC_TILE_TEMPLATE.replace('{key}', CONFIG.TOMTOM_KEY)],
+      tileSize: 256,
+      attribution: '© TomTom',
+    });
+    map.addLayer({
+      id: 'traffic-flow',
+      type: 'raster',
+      source: 'traffic-flow',
+      layout: { visibility: 'none' },
+      paint: { 'raster-opacity': 0.7 },
+    });
+  }
 
   map.addSource('route-shapes', { type: 'geojson', data: EMPTY_FC });
 
@@ -197,6 +215,14 @@ function applyGroupFilter(groups) {
       groupFilter,
       ['==', ['get', 'hasBearing'], true],
     ]);
+  }
+  // The traffic layer is raster tiles, not features — toggle its visibility.
+  if (map.getLayer('traffic-flow')) {
+    map.setLayoutProperty(
+      'traffic-flow',
+      'visibility',
+      groups.includes('traffic') ? 'visible' : 'none',
+    );
   }
 }
 
