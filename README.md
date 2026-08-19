@@ -117,11 +117,40 @@ Agencies that publish only schedules, use a closed tracker, or do not expose a
 current vehicle feed still appear as scheduled route ribbons, but are not
 misrepresented as live dots.
 
+Some intercity GTFS files publish only terminal stops or incomplete shapes.
+The snapshot builder replaces bus gaps longer than 20 km with a cached,
+approximate road-following path from OpenStreetMap/Project OSRM. These repairs
+run only at build time, remain labeled approximate in the popup, and never make
+network requests from a visitor's browser. A geometry check prevents a future
+feed update from restoring a map-spanning straight bus line.
+
 Rebuild the static route snapshot after agencies update their schedules:
 
 ```powershell
 py -3 -X utf8 scripts\build-regional-routes.py
 ```
+
+Normal rebuilds make no road-router requests: that portion uses the checked-in
+cache. The builder still downloads each agency's current GTFS schedule, so the
+route snapshot can change when a provider updates its feed. A maintainer can
+explicitly fetch generic road geometry for newly discovered long gaps (at a
+rate limited to the public router's usage guidance), then review and commit the
+updated cache:
+
+```powershell
+py -3 -X utf8 scripts\build-regional-routes.py --update-road-cache
+```
+
+Reviewed interstate controls keep New York-bound coaches off bus-restricted
+Connecticut and New York parkways. Use `--refresh-road-cache` when those
+controls or the routing method change and every cached repair must be
+regenerated. The geometry check rejects long chords, loops, stale cache
+entries, and excessive road detours before a release.
+
+Approximate repaired geometry is derived from
+[OpenStreetMap contributors](https://www.openstreetmap.org/copyright) using the
+[Project OSRM route service](https://project-osrm.org/docs/v5.7.0/api/); an
+operator's actual roadway may vary.
 
 ## Run the map
 

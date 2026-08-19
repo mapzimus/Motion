@@ -1,0 +1,47 @@
+{
+  "description": "Reviewed, bus-plausible interstate controls for long scheduled-route gaps that an endpoint-only car route would send onto restricted parkways.",
+  "corridors": {
+    "i84_i684_bronx": [
+      {"coordinate": [-73.45552, 41.40964], "bearing": 255, "range": 25},
+      {"coordinate": [-73.59834, 41.38961], "bearing": 190, "range": 25},
+      {"coordinate": [-73.72254, 41.03502], "bearing": 180, "range": 25},
+      {"coordinate": [-73.82005, 41.05862], "bearing": 270, "range": 25},
+      {"coordinate": [-73.860773, 40.954312]},
+      {"coordinate": [-73.911554, 40.86267]}
+    ],
+    "gwb_westbound": [
+      {"coordinate": [-73.952128, 40.851448], "bearing": 270, "range": 25}
+    ],
+    "nj_turnpike_to_lincoln_tunnel": [
+      {"coordinate": [-74.05582, 40.7808], "bearing": 220, "range": 30}
+    ],
+    "i91_to_new_haven": [
+      {"coordinate": [-72.86523, 41.39081], "bearing": 205, "range": 35}
+    ],
+    "providence_i95_to_bronx": [
+      {"coordinate": [-72.09968, 41.36353], "bearing": 245, "range": 30},
+      {"coordinate": [-72.91651, 41.29621], "bearing": 250, "range": 30},
+      {"coordinate": [-73.20319, 41.16696], "bearing": 250, "range": 30},
+      {"coordinate": [-73.54103, 41.04781], "bearing": 240, "range": 30},
+      {"coordinate": [-73.7842, 40.91302], "bearing": 220, "range": 30}
+    ]
+  },
+  "segments": {
+    "driving:-71.05618,42.35047|-73.99050,40.75695": {"corridors": ["i84_i684_bronx", "gwb_westbound", "nj_turnpike_to_lincoln_tunnel"]},
+    "driving:-71.05618,42.35047|-73.99527,40.75031": {"corridors": ["i84_i684_bronx", "gwb_westbound", "nj_turnpike_to_lincoln_tunnel"]},
+    "driving:-71.05618,42.35047|-73.99562,40.71639": {"corridors": ["i84_i684_bronx", "gwb_westbound", "nj_turnpike_to_lincoln_tunnel"]},
+    "driving:-71.05618,42.35047|-74.16431,40.73498": {"corridors": ["i84_i684_bronx", "gwb_westbound"]},
+    "driving:-71.12211,42.34274|-72.92607,41.29873": {"corridors": ["i91_to_new_haven"]},
+    "driving:-71.79493,42.26180|-73.93826,40.84902": {"corridors": ["i84_i684_bronx"]},
+    "driving:-71.79493,42.26180|-73.93834,40.84879": {"corridors": ["i84_i684_bronx"]},
+    "driving:-71.41133,41.83100|-73.99527,40.75031": {"corridors": ["providence_i95_to_bronx", "gwb_westbound", "nj_turnpike_to_lincoln_tunnel"]},
+    "driving:-72.59218,42.10830|-73.93834,40.84879": {"corridors": ["i84_i684_bronx"]},
+    "driving:-72.59218,42.10830|-73.99518,40.75043": {"corridors": ["i84_i684_bronx", "gwb_westbound", "nj_turnpike_to_lincoln_tunnel"]},
+    "driving:-72.59358,42.10715|-73.99518,40.75043": {"corridors": ["i84_i684_bronx", "gwb_westbound", "nj_turnpike_to_lincoln_tunnel"]},
+    "driving:-72.59432,42.10652|-73.93834,40.84879": {"corridors": ["i84_i684_bronx"]},
+    "driving:-72.59432,42.10652|-73.99518,40.75043": {"corridors": ["i84_i684_bronx", "gwb_westbound", "nj_turnpike_to_lincoln_tunnel"]},
+    "driving:-72.68129,41.76877|-73.93826,40.84902": {"corridors": ["i84_i684_bronx"]},
+    "driving:-72.68129,41.76877|-73.93834,40.84879": {"corridors": ["i84_i684_bronx"]},
+    "driving:-72.68129,41.76882|-73.93826,40.84902": {"corridors": ["i84_i684_bronx"]}
+  }
+}
