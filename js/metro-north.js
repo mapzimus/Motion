@@ -36,6 +36,7 @@ function trainItem(trip, stops) {
     lat: previous.lat + (next.lat - previous.lat) * progress,
     props: {
       group: 'commuter',
+      dataStatus: 'estimated',
       color: trip.color ?? CONFIG.MNR_COLOR,
       bearing: bearingBetween(previous, next),
       hasBearing: true,
@@ -44,6 +45,8 @@ function trainItem(trip, stops) {
       dest: `${trip.label ? `Train ${trip.label}` : 'Train'}${destination ? ` to ${destination.name}` : ''}`,
       status: `${previous.name} → ${next.name} · ${minutes ? `${minutes} min` : 'due'}`,
       meta: 'Estimated position from MTA trip updates',
+      provider: 'MTA Metro-North GTFS-Realtime',
+      sourceUrl: 'https://www.mta.info/developers',
       updatedAt: trip.updatedAt,
     },
   };

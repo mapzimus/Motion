@@ -38,6 +38,7 @@ export function startPlanes(onCounts, initialRegion, enabled = true) {
           lat: a.lat,
           props: {
             group: 'plane',
+            dataStatus: 'live',
             color: CONFIG.PLANE_COLOR,
             bearing: a.bearing ?? 0,
             hasBearing: Number.isFinite(a.bearing),
@@ -54,6 +55,8 @@ export function startPlanes(onCounts, initialRegion, enabled = true) {
                   .filter(Boolean)
                   .join(' · '),
             meta: `icao ${a.id}`,
+            provider: json.provider || 'ADSB public telemetry',
+            sourceUrl: 'https://api.adsb.lol/',
             updatedAt: a.updatedAt,
           },
         };

@@ -30,6 +30,15 @@ let pingTimer = null;
 let trafficAvailable = false;
 let allRoadworkFC = EMPTY_FC;
 let roadworkFC = EMPTY_FC;
+let allRoadEventsFC = EMPTY_FC;
+let roadEventsFC = EMPTY_FC;
+let allCamerasFC = EMPTY_FC;
+let camerasFC = EMPTY_FC;
+let allInfrastructureFC = EMPTY_FC;
+let infrastructureFC = EMPTY_FC;
+let allLocalServicesFC = EMPTY_FC;
+let localServicesFC = EMPTY_FC;
+let referenceLoadPromise = null;
 
 export function configureGateway(capabilities) {
   trafficAvailable = Boolean(capabilities?.traffic);
@@ -63,7 +72,7 @@ export function initMap() {
       setupLayers();
       wirePopups();
       layersReady = true;
-      if (pendingGroups) applyGroupFilter(pendingGroups);
+      if (pendingFilters) applyGroupFilter(pendingFilters.groups, pendingFilters.statuses);
       applyRegion(false);
       resolve(map);
     });
@@ -171,14 +180,15 @@ function setupLayers() {
   map.addImage('nav-chevron', chevronImage(), { pixelRatio: 2 });
   registerModeIcons();
 
-  // Live congestion raster under everything else we draw — only when a
-  // TomTom key is configured (see config.js).
+  // Live congestion raster under everything else we draw. The gateway uses
+  // the public New England 511 speed service when no optional TomTom key is
+  // configured.
   if (CONFIG.TRAFFIC_TILE_TEMPLATE && trafficAvailable) {
     map.addSource('traffic-flow', {
       type: 'raster',
       tiles: [CONFIG.TRAFFIC_TILE_TEMPLATE],
       tileSize: 256,
-      attribution: '© TomTom',
+      attribution: 'Traffic speeds · public 511 services / IBI',
     });
     map.addLayer({
       id: 'traffic-flow',
@@ -186,6 +196,21 @@ function setupLayers() {
       source: 'traffic-flow',
       layout: { visibility: 'none' },
       paint: { 'raster-opacity': 0.7 },
+    });
+  }
+
+  for (const [id, tiles, attribution, opacity] of [
+    ['walking-routes', CONFIG.WALK_TILE_TEMPLATE, 'Walking routes © OpenStreetMap contributors · Waymarked Trails', 0.8],
+    ['cycling-routes', CONFIG.CYCLE_TILE_TEMPLATE, 'Cycling routes © OpenStreetMap contributors · Waymarked Trails', 0.8],
+  ]) {
+    if (!tiles) continue;
+    map.addSource(id, { type: 'raster', tiles: [tiles], tileSize: 256, attribution });
+    map.addLayer({
+      id,
+      type: 'raster',
+      source: id,
+      layout: { visibility: 'none' },
+      paint: { 'raster-opacity': opacity },
     });
   }
 
@@ -208,6 +233,88 @@ function setupLayers() {
       'line-opacity': 0.45,
       'line-width': ['interpolate', ['linear'], ['zoom'], 5, 0.8, 12, 1.8],
       'line-dasharray': [3, 2],
+    },
+  });
+
+  map.addSource('infrastructure', { type: 'geojson', data: EMPTY_FC });
+  map.addLayer({
+    id: 'major-roads-halo',
+    type: 'line',
+    source: 'infrastructure',
+    filter: ['==', ['get', 'group'], 'roads'],
+    layout: { visibility: 'none', 'line-cap': 'round', 'line-join': 'round' },
+    paint: {
+      'line-color': CONFIG.ROAD_COLOR,
+      'line-width': ['interpolate', ['linear'], ['zoom'], 5, 2.5, 13, 8],
+      'line-opacity': 0.14,
+      'line-blur': 2,
+    },
+  });
+  map.addLayer({
+    id: 'major-roads-lines',
+    type: 'line',
+    source: 'infrastructure',
+    filter: ['==', ['get', 'group'], 'roads'],
+    layout: { visibility: 'none', 'line-cap': 'round', 'line-join': 'round' },
+    paint: {
+      'line-color': CONFIG.ROAD_COLOR,
+      'line-width': ['interpolate', ['linear'], ['zoom'], 5, 0.7, 13, 2.5],
+      'line-opacity': 0.7,
+    },
+  });
+  map.addLayer({
+    id: 'freight-rail-lines',
+    type: 'line',
+    source: 'infrastructure',
+    filter: ['==', ['get', 'group'], 'freight'],
+    layout: { visibility: 'none', 'line-cap': 'round', 'line-join': 'round' },
+    paint: {
+      'line-color': CONFIG.FREIGHT_COLOR,
+      'line-width': ['interpolate', ['linear'], ['zoom'], 5, 0.7, 13, 2.8],
+      'line-opacity': 0.78,
+      'line-dasharray': [2, 1],
+    },
+  });
+
+  map.addSource('local-services', { type: 'geojson', data: EMPTY_FC });
+  map.addLayer({
+    id: 'local-service-points',
+    type: 'circle',
+    source: 'local-services',
+    paint: {
+      'circle-color': ['get', 'color'],
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 3.5, 12, 7],
+      'circle-stroke-color': '#f4f6f8',
+      'circle-stroke-width': 1.2,
+      'circle-opacity': 0.9,
+    },
+  });
+
+  map.addSource('road-events', { type: 'geojson', data: EMPTY_FC });
+  map.addLayer({
+    id: 'incident-points',
+    type: 'circle',
+    source: 'road-events',
+    paint: {
+      'circle-color': CONFIG.INCIDENT_COLOR,
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 6, 4.5, 13, 9],
+      'circle-stroke-color': '#fff',
+      'circle-stroke-width': 1.5,
+      'circle-opacity': 0.92,
+    },
+  });
+
+  map.addSource('cameras', { type: 'geojson', data: EMPTY_FC });
+  map.addLayer({
+    id: 'camera-points',
+    type: 'circle',
+    source: 'cameras',
+    paint: {
+      'circle-color': '#151a21',
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 6, 3, 13, 6.5],
+      'circle-stroke-color': CONFIG.CAMERA_COLOR,
+      'circle-stroke-width': 1.8,
+      'circle-opacity': 0.9,
     },
   });
 
@@ -344,10 +451,17 @@ function setupLayers() {
       paint: { 'icon-opacity': ['case', ['get', 'stale'], 0.35, 1] },
     });
   }
+  // Operational point layers remain clickable above route ribbons and dense
+  // infrastructure without covering moving vehicle symbols.
+  for (const layerId of ['local-service-points', 'camera-points', 'incident-points']) {
+    map.moveLayer(layerId, 'veh-bike-dots');
+  }
 }
 
 function relativeAge(iso) {
-  const seconds = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 1000));
+  const timestamp = Date.parse(iso);
+  if (!Number.isFinite(timestamp)) return 'update time unavailable';
+  const seconds = Math.max(0, Math.round((Date.now() - timestamp) / 1000));
   return seconds < 60 ? `${seconds}s ago` : `${Math.round(seconds / 60)}m ago`;
 }
 
@@ -367,15 +481,94 @@ function wirePopups() {
   }
   wireRoutePopups();
   wireRoadworkPopups();
+  wireInformationPopup('incident-points');
+  wireInformationPopup('local-service-points');
+  wireInformationPopup('major-roads-lines');
+  wireInformationPopup('freight-rail-lines');
+  wireCameraPopups();
 }
 
 function vehiclePopupHtml(properties, routeHtml = '') {
+  const dataStatus = properties.dataStatus ?? 'live';
+  const provider = properties.provider || properties.meta || '';
+  const sourceUrl = /^https:\/\//.test(properties.sourceUrl ?? '') ? properties.sourceUrl : '';
   return `
     <div class="popup-title" style="color:${esc(properties.color)}">${esc(properties.title)}</div>
     ${properties.dest ? `<div class="popup-dest">${esc(properties.dest)}</div>` : ''}
     ${routeHtml}
     ${properties.status ? `<div class="popup-status">${esc(properties.status)}</div>` : ''}
-    <div class="popup-meta">${properties.meta ? `${esc(properties.meta)} · ` : ''}${relativeAge(properties.updatedAt)}</div>`;
+    <div class="popup-meta"><span class="popup-data-status ${esc(dataStatus)}">${esc(dataStatus)}</span>${provider ? ` · ${esc(provider)}` : ''} · ${relativeAge(properties.updatedAt)}</div>
+    ${sourceUrl ? `<a class="popup-route-link" href="${esc(sourceUrl)}" target="_blank" rel="noopener">Open source ↗</a>` : ''}`;
+}
+
+function informationPopupHtml(properties, extra = '') {
+  const sourceUrl = /^https:\/\//.test(properties.sourceUrl ?? '') ? properties.sourceUrl : '';
+  const dataStatus = properties.dataStatus ?? 'reference';
+  const color = properties.color || '#d2d7dd';
+  return `
+    <div class="popup-title" style="color:${esc(color)}">${esc(properties.title || 'Map feature')}</div>
+    ${properties.status ? `<div class="popup-dest">${esc(properties.status)}</div>` : ''}
+    ${properties.details ? `<div class="popup-status">${esc(properties.details)}</div>` : ''}
+    ${extra}
+    <div class="popup-meta"><span class="popup-data-status ${esc(dataStatus)}">${esc(dataStatus)}</span>${properties.provider ? ` · ${esc(properties.provider)}` : ''}${properties.updatedAt ? ` · ${relativeAge(properties.updatedAt)}` : ''}</div>
+    ${sourceUrl ? `<a class="popup-route-link" href="${esc(sourceUrl)}" target="_blank" rel="noopener">Open official source ↗</a>` : ''}`;
+}
+
+function wireInformationPopup(layerId) {
+  map.on('click', layerId, (event) => {
+    const feature = event.features[0];
+    const coordinates = feature.geometry.type === 'Point'
+      ? feature.geometry.coordinates
+      : event.lngLat;
+    new maplibregl.Popup({ offset: 10, maxWidth: '330px' })
+      .setLngLat(coordinates)
+      .setHTML(informationPopupHtml(feature.properties))
+      .addTo(map);
+  });
+  map.on('mouseenter', layerId, () => { map.getCanvas().style.cursor = 'pointer'; });
+  map.on('mouseleave', layerId, () => { map.getCanvas().style.cursor = ''; });
+}
+
+function wireCameraPopups() {
+  map.on('click', 'camera-points', (event) => {
+    const feature = event.features[0];
+    const p = feature.properties;
+    const popup = new maplibregl.Popup({ offset: 12, maxWidth: '360px' })
+      .setLngLat(feature.geometry.coordinates)
+      .setHTML(informationPopupHtml(p, p.providerKey ? '<div class="popup-route-note">Loading current image…</div>' : ''))
+      .addTo(map);
+    if (!p.providerKey || !p.cameraId || !CONFIG.GATEWAY_BASE) return;
+    const query = new URLSearchParams({ provider: p.providerKey, id: p.cameraId });
+    fetch(`${CONFIG.GATEWAY_BASE}/api/camera-detail?${query}`, {
+      signal: AbortSignal.timeout(10_000),
+    })
+      .then((response) => {
+        if (!response.ok) throw new Error(`camera detail ${response.status}`);
+        return response.json();
+      })
+      .then((detail) => {
+        if (!popup.isOpen()) return;
+        const merged = {
+          ...p,
+          title: detail.title || p.title,
+          status: detail.direction || p.status,
+          provider: detail.provider || p.provider,
+          sourceUrl: detail.sourceUrl || p.sourceUrl,
+          updatedAt: detail.updatedAt || p.updatedAt,
+        };
+        const image = /^https:\/\//.test(detail.imageUrl ?? '')
+          ? `<img class="popup-camera-image" src="${esc(detail.imageUrl)}" alt="Latest view from ${esc(merged.title)}">`
+          : '<div class="popup-route-note">Image unavailable; open the official viewer.</div>';
+        popup.setHTML(informationPopupHtml(merged, image));
+      })
+      .catch(() => {
+        if (popup.isOpen()) {
+          popup.setHTML(informationPopupHtml(p, '<div class="popup-route-note">Current image unavailable; open the official viewer.</div>'));
+        }
+      });
+  });
+  map.on('mouseenter', 'camera-points', () => { map.getCanvas().style.cursor = 'pointer'; });
+  map.on('mouseleave', 'camera-points', () => { map.getCanvas().style.cursor = ''; });
 }
 
 function scheduledRouteHtml(route) {
@@ -447,6 +640,7 @@ function wireRoutePopups() {
       <div class="popup-title" style="color:${esc(properties.color)}">${esc(properties.name)}</div>
       <div class="popup-dest">${esc(properties.agency)}</div>
       <div class="popup-status">${esc(properties.scheduleNote ?? 'Scheduled route · visible even without live vehicle positions')}</div>
+      <div class="popup-meta"><span class="popup-data-status scheduled">scheduled</span> · ${esc(properties.provider ?? 'Published schedule')}</div>
       ${sourceUrl ? `<a class="popup-route-link" href="${esc(sourceUrl)}" target="_blank" rel="noopener">View carrier schedule ↗</a>` : ''}`;
     new maplibregl.Popup({ offset: 10, maxWidth: '310px' })
       .setLngLat(event.lngLat)
@@ -472,7 +666,11 @@ function wireRoadworkPopups() {
       <div class="popup-title" style="color:${esc(p.color)}">${esc(p.title)}</div>
       <div class="popup-dest">${p.active ? 'Active work zone' : 'Upcoming work zone'}</div>
       ${p.status ? `<div class="popup-status">${esc(p.status)}</div>` : ''}
-      ${timing ? `<div class="popup-meta">${esc(timing)}</div>` : ''}`;
+      ${p.details ? `<div class="popup-status popup-details">${esc(p.details)}</div>` : ''}
+      ${p.workTypes ? `<div class="popup-meta">Work: ${esc(p.workTypes)}</div>` : ''}
+      ${timing ? `<div class="popup-meta">${esc(timing)}</div>` : ''}
+      <div class="popup-meta"><span class="popup-data-status live">live</span> · ${esc(p.provider ?? 'Official WZDx')} · ${relativeAge(p.updatedAt)}</div>
+      ${/^https:\/\//.test(p.sourceUrl ?? '') ? `<a class="popup-route-link" href="${esc(p.sourceUrl)}" target="_blank" rel="noopener">Open official feed ↗</a>` : ''}`;
     new maplibregl.Popup({ offset: 10, maxWidth: '310px' })
       .setLngLat(event.lngLat)
       .setHTML(html)
@@ -510,6 +708,62 @@ function renderRoadwork() {
   map?.getSource('roadwork')?.setData(roadworkFC);
 }
 
+export function setRoadEventsData(featureCollection) {
+  allRoadEventsFC = featureCollection;
+  renderRoadEvents();
+}
+
+export function roadEventCountForRegion() {
+  return filterSpatialFeatureCollection(allRoadEventsFC, activeRegion).features.length;
+}
+
+function renderRoadEvents() {
+  roadEventsFC = filterSpatialFeatureCollection(allRoadEventsFC, activeRegion);
+  map?.getSource('road-events')?.setData(roadEventsFC);
+}
+
+export function setCameraData(featureCollection) {
+  allCamerasFC = featureCollection;
+  renderCameras();
+}
+
+export function cameraCountForRegion() {
+  return filterSpatialFeatureCollection(allCamerasFC, activeRegion).features.length;
+}
+
+function renderCameras() {
+  camerasFC = filterSpatialFeatureCollection(allCamerasFC, activeRegion);
+  map?.getSource('cameras')?.setData(camerasFC);
+}
+
+function renderReferenceData() {
+  infrastructureFC = filterSpatialFeatureCollection(allInfrastructureFC, activeRegion);
+  localServicesFC = filterSpatialFeatureCollection(allLocalServicesFC, activeRegion);
+  map?.getSource('infrastructure')?.setData(infrastructureFC);
+  map?.getSource('local-services')?.setData(localServicesFC);
+}
+
+async function ensureReferenceData() {
+  if (referenceLoadPromise) return referenceLoadPromise;
+  referenceLoadPromise = Promise.allSettled([
+    fetch(CONFIG.INFRASTRUCTURE_URL).then((response) => {
+      if (!response.ok) throw new Error(`infrastructure ${response.status}`);
+      return response.json();
+    }),
+    fetch(CONFIG.LOCAL_SERVICES_URL).then((response) => {
+      if (!response.ok) throw new Error(`local services ${response.status}`);
+      return response.json();
+    }),
+  ]).then(([infrastructure, local]) => {
+    if (infrastructure.status === 'fulfilled') allInfrastructureFC = infrastructure.value;
+    else console.warn('Reference road/rail data unavailable:', infrastructure.reason);
+    if (local.status === 'fulfilled') allLocalServicesFC = local.value;
+    else console.warn('Local-service catalog unavailable:', local.reason);
+    renderReferenceData();
+  });
+  return referenceLoadPromise;
+}
+
 const rawFleetData = new Map(); // unfiltered provider output
 const fleetData = new Map(); // visible FeatureCollections, for focusGroup
 
@@ -527,13 +781,16 @@ function renderFleetData(fleetId) {
 
 // The UI can emit visibility before the map finishes loading — queue the
 // latest request and apply it once layers exist.
-let pendingGroups = null;
+let pendingFilters = null;
 let layersReady = false;
 let activeRegion = 'boston';
 
-export function setVisibleGroups(groups) {
-  pendingGroups = groups;
-  if (layersReady) applyGroupFilter(groups);
+export function setVisibleGroups(groups, statuses = ['live', 'estimated', 'scheduled', 'reference']) {
+  pendingFilters = { groups, statuses };
+  if (groups.some((group) => ['roads', 'freight', 'local'].includes(group))) {
+    ensureReferenceData();
+  }
+  if (layersReady) applyGroupFilter(groups, statuses);
 }
 
 export function setRegion(regionKey, { fit = true } = {}) {
@@ -568,6 +825,9 @@ function applyRegion(fit) {
   map.getSource('region-boundary')?.setData(boundaryForRegion(activeRegion));
   renderRouteShapes();
   renderRoadwork();
+  renderRoadEvents();
+  renderCameras();
+  renderReferenceData();
   for (const fleetId of rawFleetData.keys()) renderFleetData(fleetId);
   if (!fit) return;
   const bounds = boundsForRegion(activeRegion);
@@ -580,14 +840,20 @@ function applyRegion(fit) {
   }
 }
 
-function applyGroupFilter(groups) {
+function applyGroupFilter(groups, statuses) {
   const visible = ['in', ['get', 'group'], ['literal', groups]];
-  const railVisible = ['all', visible, ['in', ['get', 'group'], ['literal', RAIL_GROUPS]]];
-  const iconVisible = ['all', visible, ['in', ['get', 'group'], ['literal', ICON_GROUPS]]];
+  const statusVisible = [
+    'in',
+    ['coalesce', ['get', 'dataStatus'], 'live'],
+    ['literal', statuses],
+  ];
+  const visibleByStatus = ['all', visible, statusVisible];
+  const railVisible = ['all', visibleByStatus, ['in', ['get', 'group'], ['literal', RAIL_GROUPS]]];
+  const iconVisible = ['all', visibleByStatus, ['in', ['get', 'group'], ['literal', ICON_GROUPS]]];
 
   // Bus ribbons skip the halo pass — 150 glowing routes would wash the map.
-  map.setFilter('route-halo', ['all', visible, ['!=', ['get', 'group'], 'bus']]);
-  map.setFilter('route-lines', visible);
+  map.setFilter('route-halo', ['all', visibleByStatus, ['!=', ['get', 'group'], 'bus']]);
+  map.setFilter('route-lines', visibleByStatus);
   for (const fleetId of FLEETS) {
     map.setFilter(`veh-${fleetId}-dots`, railVisible);
     map.setFilter(`veh-${fleetId}-arrows`, [
@@ -602,7 +868,7 @@ function applyGroupFilter(groups) {
     map.setLayoutProperty(
       'traffic-flow',
       'visibility',
-      groups.includes('traffic') ? 'visible' : 'none',
+      groups.includes('traffic') && statuses.includes('live') ? 'visible' : 'none',
     );
   }
   for (const layerId of ['roadwork-halo', 'roadwork-lines']) {
@@ -610,6 +876,37 @@ function applyGroupFilter(groups) {
       layerId,
       'visibility',
       groups.includes('roadwork') ? 'visible' : 'none',
+    );
+  }
+  map.setFilter('roadwork-lines', statusVisible);
+  map.setFilter('roadwork-halo', statusVisible);
+  map.setFilter('incident-points', ['all', ['==', ['get', 'group'], 'incident'], statusVisible]);
+  map.setFilter('camera-points', ['all', ['==', ['get', 'group'], 'camera'], statusVisible]);
+  map.setFilter('local-service-points', ['all', ['==', ['get', 'group'], 'local'], statusVisible]);
+  for (const [layerId, group] of [
+    ['major-roads-halo', 'roads'],
+    ['major-roads-lines', 'roads'],
+    ['freight-rail-lines', 'freight'],
+  ]) {
+    map.setFilter(layerId, ['all', ['==', ['get', 'group'], group], statusVisible]);
+    map.setLayoutProperty(
+      layerId,
+      'visibility',
+      groups.includes(group) ? 'visible' : 'none',
+    );
+  }
+  for (const [layerId, group, status] of [
+    ['incident-points', 'incident', 'live'],
+    ['camera-points', 'camera', 'live'],
+    ['local-service-points', 'local', null],
+    ['walking-routes', 'walking', 'reference'],
+    ['cycling-routes', 'cycling', 'reference'],
+  ]) {
+    if (!map.getLayer(layerId)) continue;
+    map.setLayoutProperty(
+      layerId,
+      'visibility',
+      groups.includes(group) && (!status || statuses.includes(status)) ? 'visible' : 'none',
     );
   }
 }
@@ -675,6 +972,14 @@ export function focusGroup(groupKey, routeIds = []) {
           || !routeIds.length
           || routeIds.includes(f.properties.route)))
       .flatMap(lineCoordinates);
+  }
+  if (!coords.length) {
+    coords = [roadworkFC, roadEventsFC, camerasFC, infrastructureFC, localServicesFC]
+      .flatMap((collection) => collection.features)
+      .filter((feature) => feature.properties.group === groupKey)
+      .flatMap((feature) => feature.geometry.type === 'Point'
+        ? [feature.geometry.coordinates]
+        : lineCoordinates(feature));
   }
   if (!coords.length) return false;
 

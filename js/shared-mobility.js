@@ -72,6 +72,7 @@ async function stationItems(system, feeds) {
       lat: Number(info.lat),
       props: {
         group: 'bike',
+        dataStatus: 'live',
         markerKind: 'dock',
         color: bikes === 0
           ? CONFIG.BIKE_EMPTY_COLOR
@@ -85,6 +86,7 @@ async function stationItems(system, feeds) {
         dest: info.name,
         status: `${bikes} bike${bikes === 1 ? '' : 's'}${ebikes ? ` (${ebikes} electric)` : ''} · ${docks} dock${docks === 1 ? '' : 's'} open`,
         meta: Number.isFinite(Number(info.capacity)) ? `capacity ${info.capacity}` : 'GBFS station',
+        provider: `${system.name} · GBFS`,
         updatedAt: timestamp,
       },
     }];
@@ -127,6 +129,7 @@ async function freeVehicleItems(system, feeds) {
       lat,
       props: {
         group: 'bike',
+        dataStatus: 'live',
         markerKind: kind,
         color: system.color ?? CONFIG.BIKE_FREE_COLOR,
         bearing: 0,
@@ -136,6 +139,7 @@ async function freeVehicleItems(system, feeds) {
         dest: friendlyVehicle(type),
         status: [battery, rangeMiles !== null ? `about ${rangeMiles} mi range` : ''].filter(Boolean).join(' · ') || 'Available to rent',
         meta: 'free-floating GBFS vehicle',
+        provider: `${system.name} · GBFS`,
         updatedAt: timestamp,
       },
     }];

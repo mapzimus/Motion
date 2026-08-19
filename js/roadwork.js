@@ -1,9 +1,7 @@
-// Current and next-day MassDOT work zones, normalized by the Motion gateway.
+// Current and upcoming official WZDx work zones across MA, ME, NH, and VT.
 
 import { CONFIG } from './config.js';
 import { roadworkCountForRegion, setRoadworkData } from './map.js';
-
-const EMPTY_FC = { type: 'FeatureCollection', features: [] };
 
 export function startRoadwork(onCounts, initialRegion, enabled = true) {
   if (!CONFIG.GATEWAY_BASE || !enabled) {
@@ -17,12 +15,6 @@ export function startRoadwork(onCounts, initialRegion, enabled = true) {
   const poll = async () => {
     clearTimeout(timer);
     if (document.hidden) {
-      timer = setTimeout(poll, CONFIG.ROADWORK_POLL_MS);
-      return;
-    }
-    if (!['boston', 'ma', 'new-england'].includes(region)) {
-      setRoadworkData(EMPTY_FC);
-      onCounts({ roadwork: 0 });
       timer = setTimeout(poll, CONFIG.ROADWORK_POLL_MS);
       return;
     }

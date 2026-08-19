@@ -61,6 +61,8 @@ export const CONFIG = {
   SHAPE_CACHE_KEY: 'bim-shapes-v3',
   SHAPE_CACHE_TTL_MS: 24 * 3600 * 1000,
   REGIONAL_ROUTE_URL: './data/regional-routes.geojson',
+  INFRASTRUCTURE_URL: './data/infrastructure.geojson',
+  LOCAL_SERVICES_URL: './data/local-services.geojson',
   MNR_STOPS_URL: './data/mnr-stops.json',
   MNR_COLOR: '#ee0034',
   MNR_STALE_MS: 2 * 60_000,
@@ -75,8 +77,9 @@ export const CONFIG = {
   // controls overlapping probes, then exact Census polygons clip the results.
   PLANE_COLOR: '#9be1ff',
 
-  // AIS and protected traffic tiles also pass through the gateway, so vendor
-  // keys never enter browser storage or the public JavaScript bundle.
+  // AIS passes through the gateway so a provider key never enters the public
+  // bundle. Traffic is relayed from the public 511 tile service and needs no
+  // commercial API key.
   AIS_STALE_MS: 3 * 60_000, // dim vessels silent for 3 min
   AIS_PRUNE_MS: 10 * 60_000, // drop vessels silent for 10 min
   VESSEL_COLOR: '#63d8c8',
@@ -122,17 +125,34 @@ export const CONFIG = {
   ROADWORK_POLL_MS: 5 * 60_000,
   ROADWORK_COLOR: '#ff8a4c',
 
-  // Mode-icon fill colors (map sprites are pre-rendered at startup).
-  BUS_COLOR: '#ffc72c', // MBTA bus yellow
-  FERRY_COLOR: '#008eaa', // MBTA ferry teal
+  // One consistent non-MBTA mode palette. Official subway colors remain the
+  // exception because those colors are navigational information themselves.
+  COMMUTER_COLOR: '#a58add',
+  BUS_COLOR: '#f2b84b',
+  FERRY_COLOR: '#2eb7c5',
+  CAMERA_COLOR: '#d2d7dd',
+  INCIDENT_COLOR: '#ff5c5c',
+  ROAD_COLOR: '#8a949f',
+  FREIGHT_COLOR: '#b98b72',
+  WALK_COLOR: '#8bdc78',
+  CYCLE_COLOR: '#45b7e8',
+  LOCAL_COLOR: '#9fc36a',
+
+  CAMERA_POLL_MS: 5 * 60_000,
+  ROAD_EVENT_POLL_MS: 60_000,
 
   TRAFFIC_TILE_TEMPLATE: gatewayBase
     ? `${gatewayBase}/api/traffic/{z}/{x}/{y}.png`
     : '',
+  WALK_TILE_TEMPLATE: 'https://tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png',
+  CYCLE_TILE_TEMPLATE: 'https://tile.waymarkedtrails.org/cycling/{z}/{x}/{y}.png',
 
   // Layer groups that start switched off (dense layers — one tap turns them
   // on: ~400 buses, ~600 bike stations, wall-to-wall traffic color).
-  DEFAULT_OFF_GROUPS: ['bus', 'bike', 'roadwork', 'traffic'],
+  DEFAULT_OFF_GROUPS: [
+    'bus', 'bike', 'roadwork', 'traffic', 'incident', 'camera',
+    'roads', 'freight', 'walking', 'cycling', 'local',
+  ],
 
   BASEMAP_STYLE: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
 };

@@ -11,6 +11,12 @@ const groupState = new Map();
 const countsBySource = new Map(); // source -> Map(group key, count)
 const manualGroupOverrides = new Set();
 const STATE_BUS_DEFAULT_ON = new Set(['ct', 'ri', 'nh', 'vt', 'me']);
+const statusState = new Map([
+  ['live', true],
+  ['estimated', true],
+  ['scheduled', true],
+  ['reference', true],
+]);
 let scheduledCounts = new Map();
 let onVisibleChange = () => {};
 let onRegionChange = () => {};
@@ -34,15 +40,22 @@ function buildGroups(routeInfo, capabilities) {
     { key: 'silver', name: 'Silver Line', initial: 'SL', section: 'subway', routes: [...CONFIG.SILVER_ROUTES], color: colorOf('741') },
     { key: 'mattapan', name: 'Mattapan Trolley', initial: 'M', section: 'subway', routes: ['Mattapan'], color: colorOf('Mattapan') },
     // The wider fleet.
-    { key: 'commuter', name: 'Commuter & regional rail', initial: 'CR', section: 'modal', routes: routesOfType(2), color: colorOf(routesOfType(2)[0]) },
-    { key: 'bus', name: 'Buses & scheduled routes', initial: 'B', section: 'modal', routes: routesOfType(3).filter((id) => !CONFIG.SILVER_ROUTES.includes(id)), color: '#ffc72c', darkText: true },
-    { key: 'ferry', name: 'Ferries & passenger boats', initial: 'F', section: 'modal', routes: routesOfType(4), color: colorOf(routesOfType(4)[0]) ?? '#008eaa' },
-    { key: 'amtrak', name: 'Amtrak', initial: 'A', section: 'modal', routes: [], color: CONFIG.AMTRAK_COLOR },
-    { key: 'plane', name: 'Aircraft', initial: '✈', section: 'modal', routes: [], color: CONFIG.PLANE_COLOR, needsKey: !capabilities?.aircraft, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'setup' },
-    { key: 'vessel', name: 'Harbor & coastal traffic', initial: '⚓', section: 'modal', routes: [], color: CONFIG.VESSEL_COLOR, needsKey: !capabilities?.ais, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'setup' },
-    { key: 'bike', name: 'Regional bike & scooter share', initial: 'b', section: 'modal', routes: [], color: CONFIG.BIKE_COLOR },
-    { key: 'roadwork', name: 'Road work (MassDOT)', initial: '!', section: 'modal', routes: [], color: CONFIG.ROADWORK_COLOR, needsKey: !capabilities?.roadwork, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false, zoomable: false },
-    { key: 'traffic', name: 'Live congestion speeds', initial: '≋', section: 'modal', routes: [], color: '#e05d5d', needsKey: !capabilities?.traffic, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'optional', countAsVehicle: false, zoomable: false },
+    { key: 'commuter', name: 'Commuter & regional rail', initial: 'CR', section: 'ground', sectionName: 'Ground & rail', routes: routesOfType(2), color: CONFIG.COMMUTER_COLOR, truth: 'live + schedule' },
+    { key: 'bus', name: 'Local, rural & intercity buses', initial: 'B', section: 'ground', routes: routesOfType(3).filter((id) => !CONFIG.SILVER_ROUTES.includes(id)), color: CONFIG.BUS_COLOR, darkText: true, truth: 'live + schedule' },
+    { key: 'amtrak', name: 'Amtrak', initial: 'A', section: 'ground', routes: [], color: CONFIG.AMTRAK_COLOR, truth: 'live' },
+    { key: 'local', name: 'Local & on-demand services', initial: 'L', section: 'ground', routes: [], color: CONFIG.LOCAL_COLOR, darkText: true, truth: 'catalog', countAsVehicle: false },
+    { key: 'ferry', name: 'Ferries & passenger boats', initial: 'F', section: 'airwater', sectionName: 'Air & water', routes: routesOfType(4), color: CONFIG.FERRY_COLOR, truth: 'live + schedule' },
+    { key: 'plane', name: 'Aircraft', initial: '✈', section: 'airwater', routes: [], color: CONFIG.PLANE_COLOR, truth: 'live', needsKey: !capabilities?.aircraft, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'setup' },
+    { key: 'vessel', name: 'Live vessels (AIS)', initial: '⚓', section: 'airwater', routes: [], color: CONFIG.VESSEL_COLOR, truth: 'live', needsKey: !capabilities?.ais, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'AIS key' },
+    { key: 'bike', name: 'Public bike & scooter share', initial: 'b', section: 'shared', sectionName: 'Shared & active travel', routes: [], color: CONFIG.BIKE_COLOR, truth: 'live' },
+    { key: 'walking', name: 'Marked walking & hiking routes', initial: 'W', section: 'shared', routes: [], color: CONFIG.WALK_COLOR, truth: 'OSM routes', countAsVehicle: false, zoomable: false },
+    { key: 'cycling', name: 'Marked cycling routes', initial: 'C', section: 'shared', routes: [], color: CONFIG.CYCLE_COLOR, truth: 'OSM routes', countAsVehicle: false, zoomable: false },
+    { key: 'traffic', name: 'Live congestion speeds', initial: '≋', section: 'conditions', sectionName: 'Roads & conditions', routes: [], color: CONFIG.INCIDENT_COLOR, truth: 'live 511', needsKey: !capabilities?.traffic, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false, zoomable: false },
+    { key: 'roadwork', name: 'Work zones & closures', initial: '!', section: 'conditions', routes: [], color: CONFIG.ROADWORK_COLOR, truth: 'live WZDx', needsKey: !capabilities?.roadwork, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false },
+    { key: 'incident', name: 'Traffic incidents', initial: '!', section: 'conditions', routes: [], color: CONFIG.INCIDENT_COLOR, truth: 'live 511', needsKey: !capabilities?.roadEvents, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false },
+    { key: 'camera', name: 'Public traffic cameras', initial: '◉', section: 'conditions', routes: [], color: CONFIG.CAMERA_COLOR, truth: 'live / viewer', needsKey: !capabilities?.cameras, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false },
+    { key: 'roads', name: 'Major roadways', initial: 'R', section: 'infrastructure', sectionName: 'Movement infrastructure', routes: [], color: CONFIG.ROAD_COLOR, truth: 'reference', countAsVehicle: false },
+    { key: 'freight', name: 'Freight rail network', initial: 'FR', section: 'infrastructure', routes: [], color: CONFIG.FREIGHT_COLOR, truth: 'FRA reference', countAsVehicle: false },
   ];
 }
 
@@ -109,6 +122,15 @@ export function initPanel(routeInfo, visibleChangeHandler, regionChangeHandler, 
     }
   });
 
+  for (const input of document.querySelectorAll('#data-status-filters input')) {
+    statusState.set(input.value, input.checked);
+    input.addEventListener('change', () => {
+      statusState.set(input.value, input.checked);
+      emitVisible();
+    });
+  }
+
+  let lastSection = '';
   for (const group of GROUPS) {
     const startOn = groupStartsOn(group, selectedRegion);
     groupState.set(group.key, startOn);
@@ -120,7 +142,8 @@ export function initPanel(routeInfo, visibleChangeHandler, regionChangeHandler, 
     if (group.needsKey) row.classList.add('needs-key');
     row.innerHTML = `
       <span class="bullet${group.darkText ? ' dark-text' : ''}">${group.initial}</span>
-      <span class="line-name">${group.name}<span class="badge" hidden></span>
+      <span class="line-name"><span class="line-label">${group.name}</span><span class="badge" hidden></span>
+        ${group.truth ? `<span class="truth-tag">${group.truth}</span>` : ''}
         ${group.needsKey ? `<a class="get-key" href="${group.keyUrl}" target="_blank" rel="noopener" title="This layer needs the Motion gateway — see the README">${group.setupText ?? 'setup'}</a>` : ''}
       </span>
       <span class="count" data-count>–</span>
@@ -156,7 +179,15 @@ export function initPanel(routeInfo, visibleChangeHandler, regionChangeHandler, 
         }
       });
     }
-    el(group.section === 'subway' ? 'layer-rows' : 'modal-rows').appendChild(row);
+    const container = el(group.section === 'subway' ? 'layer-rows' : 'modal-rows');
+    if (group.section !== 'subway' && group.section !== lastSection) {
+      const heading = document.createElement('div');
+      heading.className = 'layer-subhead';
+      heading.textContent = group.sectionName ?? group.section;
+      container.appendChild(heading);
+      lastSection = group.section;
+    }
+    container.appendChild(row);
   }
 
   el('subway-master').addEventListener('change', (e) => {
@@ -200,8 +231,12 @@ export function getVisibleGroups() {
   return GROUPS.filter((g) => groupState.get(g.key)).map((g) => g.key);
 }
 
+export function getVisibleStatuses() {
+  return [...statusState.entries()].filter(([, visible]) => visible).map(([key]) => key);
+}
+
 function emitVisible() {
-  onVisibleChange(getVisibleGroups());
+  onVisibleChange(getVisibleGroups(), getVisibleStatuses());
 }
 
 // ---- live counts / connection status --------------------------------------

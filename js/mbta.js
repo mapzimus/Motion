@@ -93,6 +93,7 @@ function apply(vehicles) {
       lat: v.lat,
       props: {
         group,
+        dataStatus: 'live',
         color: info?.color ?? '#8a939c',
         bearing: v.bearing ?? 0,
         hasBearing: typeof v.bearing === 'number',
@@ -105,6 +106,8 @@ function apply(vehicles) {
         meta: [v.label ? `car ${v.label}` : '', v.occupancy.toLowerCase()]
           .filter(Boolean)
           .join(' · '),
+        provider: 'MBTA V3 vehicle feed',
+        sourceUrl: 'https://www.mbta.com/developers/v3-api',
         updatedAt: v.updatedAt,
       },
     };

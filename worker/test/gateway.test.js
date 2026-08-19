@@ -12,7 +12,14 @@ describe('Motion gateway', () => {
     expect(body).toMatchObject({
       service: 'Motion gateway',
       status: 'ok',
-      providers: { aircraft: true, regionalTransit: true, metroNorth: true },
+      providers: {
+        aircraft: true,
+        regionalTransit: true,
+        metroNorth: true,
+        roadEvents: true,
+        cameras: true,
+        traffic: true,
+      },
     });
     expect(JSON.stringify(body)).not.toContain('API_KEY');
   });
@@ -39,8 +46,14 @@ describe('Motion gateway', () => {
     await expect(response.json()).resolves.toEqual({ error: 'Unknown region' });
   });
 
-  it('does not attempt traffic requests without a configured key', async () => {
+  it('relays the public 511 traffic tiles without a commercial key', async () => {
     const response = await call('/api/traffic/10/302/385.png');
-    expect(response.status).toBe(503);
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('image/png');
+  });
+
+  it('validates camera detail requests before calling providers', async () => {
+    const response = await call('/api/camera-detail?provider=flock&id=secret');
+    expect(response.status).toBe(400);
   });
 });

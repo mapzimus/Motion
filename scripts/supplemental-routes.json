@@ -166,6 +166,96 @@
         "sourceUrl": "https://www.msmountwashington.com/pages/mailboat-cruises",
         "scheduleNote": "Seasonal working mailboat with scheduled island stops · passenger cruise · not a live vessel position"
       }
+    },
+    {
+      "type": "Feature",
+      "geometry": {"type":"LineString","coordinates":[[-69.108024,44.107163],[-68.974,44.079],[-68.839459,44.0431]]},
+      "properties": {
+        "route": "maine-state-ferry:rockland-vinalhaven",
+        "group": "ferry",
+        "color": "#2eb7c5",
+        "agency": "Maine State Ferry Service",
+        "name": "Rockland ↔ Vinalhaven",
+        "kind": "regional-static",
+        "regions": ["me"],
+        "sourceUrl": "https://www.maine.gov/dot/programs-services/ferry",
+        "scheduleNote": "Year-round island passenger and vehicle ferry · official schedule · not a live vessel position"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {"type":"LineString","coordinates":[[-69.108024,44.107163],[-68.991,44.119],[-68.872883,44.127188]]},
+      "properties": {
+        "route": "maine-state-ferry:rockland-north-haven",
+        "group": "ferry",
+        "color": "#2eb7c5",
+        "agency": "Maine State Ferry Service",
+        "name": "Rockland ↔ North Haven",
+        "kind": "regional-static",
+        "regions": ["me"],
+        "sourceUrl": "https://www.maine.gov/dot/programs-services/ferry",
+        "scheduleNote": "Year-round island passenger and vehicle ferry · official schedule · not a live vessel position"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {"type":"LineString","coordinates":[[-69.108024,44.107163],[-68.996,43.986],[-68.887428,43.864188]]},
+      "properties": {
+        "route": "maine-state-ferry:rockland-matinicus",
+        "group": "ferry",
+        "color": "#2eb7c5",
+        "agency": "Maine State Ferry Service",
+        "name": "Rockland ↔ Matinicus",
+        "kind": "regional-static",
+        "regions": ["me"],
+        "sourceUrl": "https://www.maine.gov/dot/programs-services/ferry",
+        "scheduleNote": "Infrequent scheduled island passenger and vehicle ferry · official schedule · not a live vessel position"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {"type":"LineString","coordinates":[[-68.348445,44.234856],[-68.385,44.207],[-68.423436,44.181293]]},
+      "properties": {
+        "route": "maine-state-ferry:bass-harbor-swans-island",
+        "group": "ferry",
+        "color": "#2eb7c5",
+        "agency": "Maine State Ferry Service",
+        "name": "Bass Harbor ↔ Swan's Island",
+        "kind": "regional-static",
+        "regions": ["me"],
+        "sourceUrl": "https://www.maine.gov/dot/programs-services/ferry",
+        "scheduleNote": "Year-round island passenger and vehicle ferry · official schedule · not a live vessel position"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {"type":"LineString","coordinates":[[-68.348445,44.234856],[-68.354,44.176],[-68.362517,44.118138]]},
+      "properties": {
+        "route": "maine-state-ferry:bass-harbor-frenchboro",
+        "group": "ferry",
+        "color": "#2eb7c5",
+        "agency": "Maine State Ferry Service",
+        "name": "Bass Harbor ↔ Frenchboro",
+        "kind": "regional-static",
+        "regions": ["me"],
+        "sourceUrl": "https://www.maine.gov/dot/programs-services/ferry",
+        "scheduleNote": "Scheduled island passenger and vehicle ferry · official schedule · not a live vessel position"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {"type":"LineString","coordinates":[[-69.008178,44.282326],[-68.976,44.282],[-68.942971,44.281463]]},
+      "properties": {
+        "route": "maine-state-ferry:lincolnville-islesboro",
+        "group": "ferry",
+        "color": "#2eb7c5",
+        "agency": "Maine State Ferry Service",
+        "name": "Lincolnville ↔ Islesboro",
+        "kind": "regional-static",
+        "regions": ["me"],
+        "sourceUrl": "https://www.maine.gov/dot/programs-services/ferry",
+        "scheduleNote": "Year-round island passenger and vehicle ferry · official schedule · not a live vessel position"
+      }
     }
   ]
 }

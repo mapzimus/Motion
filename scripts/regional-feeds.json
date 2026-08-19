@@ -9,6 +9,8 @@
   {"id":"milford","agency":"Milford Transit District","states":["ct"],"url":"https://files.mobilitydatabase.org/ntd-10107/latest.zip"},
   {"id":"middletown","agency":"Middletown Area Transit","states":["ct"],"url":"https://files.mobilitydatabase.org/mdb-551/latest.zip"},
   {"id":"seat","agency":"Southeast Area Transit District","states":["ct"],"url":"https://files.mobilitydatabase.org/mdb-2240/latest.zip"},
+  {"id":"uconn-wrtd","agency":"UConn / Windham Region Transit District","states":["ct"],"url":"https://files.mobilitydatabase.org/tld-4473/latest.zip","source_url":"https://transpo.uconn.edu/"},
+  {"id":"mashantucket","agency":"Mashantucket Pequot Tribal Nation","states":["ct"],"url":"https://files.mobilitydatabase.org/ntd-11152/latest.zip"},
 
   {"id":"brta","agency":"Berkshire Regional Transit Authority","states":["ma"],"url":"https://files.mobilitydatabase.org/mdb-537/latest.zip"},
   {"id":"bat","agency":"Brockton Area Transit Authority","states":["ma"],"url":"https://files.mobilitydatabase.org/mdb-422/latest.zip"},
@@ -33,6 +35,14 @@
   {"id":"hy-line","agency":"Hy-Line Cruises","states":["ma"],"url":"https://files.mobilitydatabase.org/mdb-427/latest.zip"},
   {"id":"steamship-authority","agency":"Steamship Authority","states":["ma"],"url":"https://files.mobilitydatabase.org/ntd-10183/latest.zip"},
   {"id":"block-island-ferry","agency":"Block Island Ferry","states":["ri","ma"],"url":"https://files.mobilitydatabase.org/mdb-554/latest.zip"},
+  {"id":"lexpress","agency":"Lexpress","states":["ma"],"url":"https://files.mobilitydatabase.org/tld-4728/latest.zip","source_url":"https://www.lexingtonma.gov/380/Lexpress"},
+  {"id":"middlesex-3","agency":"Middlesex 3 TMA","states":["ma"],"url":"https://files.mobilitydatabase.org/mdb-442/latest.zip","source_url":"https://middlesex3tma.com/"},
+  {"id":"plymouth-brockton","agency":"Plymouth & Brockton","states":["ma"],"url":"https://files.mobilitydatabase.org/mdb-556/latest.zip","source_url":"https://www.p-b.com/"},
+  {"id":"blue-apple","agency":"Blue Apple Bus Company","states":["ma"],"url":"https://files.mobilitydatabase.org/mdb-2299/latest.zip"},
+  {"id":"bay-state-cruise","agency":"Bay State Cruise Company","states":["ma"],"url":"https://files.mobilitydatabase.org/mdb-435/latest.zip","source_url":"https://baystatecruisecompany.com/"},
+  {"id":"cuttyhunk-ferry","agency":"Cuttyhunk Ferry Company","states":["ma"],"url":"https://files.mobilitydatabase.org/mdb-423/latest.zip","source_url":"https://www.cuttyhunkferryco.com/"},
+  {"id":"vineyard-fast-ferry","agency":"Vineyard Fast Ferry","states":["ma","ri"],"url":"https://files.mobilitydatabase.org/mdb-419/latest.zip","source_url":"https://vineyardfastferry.com/"},
+  {"id":"yankee-line","agency":"Yankee Line","states":["ma"],"url":"https://files.mobilitydatabase.org/mdb-443/latest.zip","source_url":"https://yankeeline.us/"},
 
   {"id":"ripta","agency":"Rhode Island Public Transit Authority","states":["ri","ma"],"url":"https://files.mobilitydatabase.org/mdb-624/latest.zip"},
 
@@ -41,6 +51,7 @@
   {"id":"manchester","agency":"Manchester Transit Authority","states":["nh"],"url":"https://files.mobilitydatabase.org/mdb-3432/latest.zip"},
   {"id":"nashua","agency":"Nashua Transit System","states":["nh","ma"],"url":"https://files.mobilitydatabase.org/ntd-10087/latest.zip"},
   {"id":"city-express","agency":"City Express","states":["nh"],"url":"https://files.mobilitydatabase.org/ntd-10159/latest.zip"},
+  {"id":"dartmouth-college","agency":"Dartmouth College shuttles","states":["nh","vt"],"url":"https://files.mobilitydatabase.org/mdb-1958/latest.zip","source_url":"https://www.dartmouth.edu/transportation/"},
 
   {"id":"gmt","agency":"Green Mountain Transit","states":["vt"],"url":"https://files.mobilitydatabase.org/mdb-629/latest.zip"},
   {"id":"gmcn","agency":"Green Mountain Community Network","states":["vt","ma","ny"],"url":"https://files.mobilitydatabase.org/mdb-539/latest.zip"},
@@ -58,5 +69,8 @@
   {"id":"south-portland","agency":"South Portland Bus Service","states":["me"],"url":"https://files.mobilitydatabase.org/mdb-2641/latest.zip"},
   {"id":"citylink","agency":"Lewiston-Auburn citylink","states":["me"],"url":"https://files.mobilitydatabase.org/ntd-10015/latest.zip"},
   {"id":"western-maine","agency":"Western Maine Transportation Services","states":["me"],"url":"https://files.mobilitydatabase.org/tld-7871/latest.zip"},
-  {"id":"casco-bay","agency":"Casco Bay Lines","states":["me"],"url":"https://files.mobilitydatabase.org/mdb-1/latest.zip"}
+  {"id":"casco-bay","agency":"Casco Bay Lines","states":["me"],"url":"https://files.mobilitydatabase.org/mdb-1/latest.zip"},
+  {"id":"lakes-region-explorer","agency":"Lakes Region Explorer","states":["me"],"url":"https://files.mobilitydatabase.org/mdb-452/latest.zip"},
+  {"id":"cranberry-isles-ferry","agency":"Cranberry Isles Commuter Ferry","states":["me"],"url":"https://files.mobilitydatabase.org/tld-7866/latest.zip","source_url":"https://www.cranberryisles-me.gov/"},
+  {"id":"wests-bus","agency":"West's Bus Service","states":["me"],"url":"https://files.mobilitydatabase.org/tld-7870/latest.zip"}
 ]
