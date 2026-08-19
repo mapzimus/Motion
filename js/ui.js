@@ -31,14 +31,15 @@ function buildGroups(routeInfo, capabilities) {
     { key: 'silver', name: 'Silver Line', initial: 'SL', section: 'subway', routes: [...CONFIG.SILVER_ROUTES], color: colorOf('741') },
     { key: 'mattapan', name: 'Mattapan Trolley', initial: 'M', section: 'subway', routes: ['Mattapan'], color: colorOf('Mattapan') },
     // The wider fleet.
-    { key: 'commuter', name: 'Commuter Rail', initial: 'CR', section: 'modal', routes: routesOfType(2), color: colorOf(routesOfType(2)[0]) },
-    { key: 'bus', name: 'Local buses', initial: 'B', section: 'modal', routes: routesOfType(3).filter((id) => !CONFIG.SILVER_ROUTES.includes(id)), color: '#ffc72c', darkText: true },
+    { key: 'commuter', name: 'Commuter & regional rail', initial: 'CR', section: 'modal', routes: routesOfType(2), color: colorOf(routesOfType(2)[0]) },
+    { key: 'bus', name: 'Buses & scheduled routes', initial: 'B', section: 'modal', routes: routesOfType(3).filter((id) => !CONFIG.SILVER_ROUTES.includes(id)), color: '#ffc72c', darkText: true },
     { key: 'ferry', name: 'Ferries', initial: 'F', section: 'modal', routes: routesOfType(4), color: colorOf(routesOfType(4)[0]) ?? '#008eaa' },
     { key: 'amtrak', name: 'Amtrak', initial: 'A', section: 'modal', routes: [], color: CONFIG.AMTRAK_COLOR },
     { key: 'plane', name: 'Aircraft', initial: '✈', section: 'modal', routes: [], color: CONFIG.PLANE_COLOR, needsKey: !capabilities?.aircraft, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'setup' },
     { key: 'vessel', name: 'Harbor & coastal traffic', initial: '⚓', section: 'modal', routes: [], color: CONFIG.VESSEL_COLOR, needsKey: !capabilities?.ais, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'setup' },
-    { key: 'bike', name: 'Bluebikes', initial: 'b', section: 'modal', routes: [], color: CONFIG.BIKE_COLOR },
-    { key: 'traffic', name: 'Road traffic', initial: '≋', section: 'modal', routes: [], color: '#e05d5d', needsKey: !capabilities?.traffic, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'setup', zoomable: false },
+    { key: 'bike', name: 'Bike & scooter share', initial: 'b', section: 'modal', routes: [], color: CONFIG.BIKE_COLOR },
+    { key: 'roadwork', name: 'Road work (MassDOT)', initial: '!', section: 'modal', routes: [], color: CONFIG.ROADWORK_COLOR, needsKey: !capabilities?.roadwork, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false, zoomable: false },
+    { key: 'traffic', name: 'Live congestion speeds', initial: '≋', section: 'modal', routes: [], color: '#e05d5d', needsKey: !capabilities?.traffic, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'optional', countAsVehicle: false, zoomable: false },
   ];
 }
 
@@ -225,7 +226,7 @@ export function updateStatus(state, detail = {}) {
 }
 
 function totalCount() {
-  return GROUPS.reduce((total, group) => {
+  return GROUPS.filter((group) => group.countAsVehicle !== false).reduce((total, group) => {
     const groupTotal = [...countsBySource.values()].reduce(
       (sum, sourceMap) => sum + (sourceMap.get(group.key) ?? 0),
       0,

@@ -501,6 +501,8 @@ h2 {
 .popup-dest { font-family: var(--font-display); font-weight: 700; font-size: 16px; color: var(--text); margin: 3px 0 6px; }
 .popup-status { font-size: 12.5px; color: var(--text-dim); }
 .popup-meta { font-family: var(--font-mono); font-size: 10px; color: var(--text-faint); margin-top: 7px; }
+.popup-route { font-family: var(--font-display); font-size: 18px; font-weight: 800; color: var(--text); margin: 5px 0 2px; }
+.popup-route-note { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-faint); margin: 3px 0 6px; }
 
 .maplibregl-ctrl-group {
   background: rgba(13, 17, 23, 0.92);

@@ -98,6 +98,21 @@ export function filterFeatureCollection(collection, key = activeRegion) {
   };
 }
 
+// Lines and polygons are kept when at least one vertex falls inside the
+// selected boundary. Moving points use the stricter point-only helper above.
+export function filterSpatialFeatureCollection(collection, key = activeRegion) {
+  return {
+    type: 'FeatureCollection',
+    features: collection.features.filter((feature) => {
+      let inside = false;
+      visitCoordinates(feature.geometry?.coordinates ?? [], (coordinate) => {
+        if (!inside && containsPoint(key, coordinate)) inside = true;
+      });
+      return inside;
+    }),
+  };
+}
+
 export function boundaryForRegion(key) {
   const keys = key === 'new-england' ? STATE_KEYS : [key];
   return {
@@ -107,6 +122,7 @@ export function boundaryForRegion(key) {
 }
 
 function visitCoordinates(value, callback) {
+  if (!Array.isArray(value) || !value.length) return;
   if (typeof value[0] === 'number') callback(value);
   else for (const child of value) visitCoordinates(child, callback);
 }

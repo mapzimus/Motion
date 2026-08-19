@@ -16,7 +16,8 @@ import { startAmtrak } from './amtrak.js';
 import { startPlanes } from './planes.js';
 import { startAis } from './ais.js';
 import { startRegional } from './regional.js';
-import { startBluebikes } from './bluebikes.js';
+import { startSharedMobility } from './shared-mobility.js';
+import { startRoadwork } from './roadwork.js';
 import { startAlertPolling } from './alerts.js';
 import { initialRegion, loadRegions } from './regions.js';
 import * as ui from './ui.js';
@@ -105,8 +106,13 @@ async function main() {
       selectedRegion,
       capabilities.ais,
     ),
+    startRoadwork(
+      (counts) => ui.updateCounts(counts, 'roadwork'),
+      selectedRegion,
+      capabilities.roadwork,
+    ),
   );
-  startBluebikes((counts) => ui.updateCounts(counts, 'bluebikes'));
+  startSharedMobility((counts) => ui.updateCounts(counts, 'shared-mobility'));
   regionalControllers.push(startAlertPolling(routeInfo, ui.renderAlerts));
 
   // Route ribbons load after polling kicks off; vehicles shouldn't wait on
@@ -114,9 +120,24 @@ async function main() {
   // faint and toggle with the bus layer.
   setRouteShapes({
     type: 'FeatureCollection',
-    features: await loadShapeFeatures(routes, routeInfo),
+    features: (await Promise.all([
+      loadShapeFeatures(routes, routeInfo),
+      loadRegionalRouteFeatures(),
+    ])).flat(),
   });
   setVisibleGroups(ui.getVisibleGroups()); // re-apply to the fresh ribbon data
+}
+
+async function loadRegionalRouteFeatures() {
+  try {
+    const response = await fetch(CONFIG.REGIONAL_ROUTE_URL);
+    if (!response.ok) throw new Error(`regional routes ${response.status}`);
+    const collection = await response.json();
+    return collection.features ?? [];
+  } catch (error) {
+    console.warn('Scheduled regional route ribbons unavailable:', error.message);
+    return [];
+  }
 }
 
 // Shapes are static geometry, but ~180 routes = ~180 requests on a cold load —
@@ -133,7 +154,13 @@ async function loadShapeFeatures(ribbonRoutes, routeInfo) {
       set.polylines.map((polyline) => ({
         type: 'Feature',
         geometry: { type: 'LineString', coordinates: decodePolyline(polyline) },
-        properties: { route: set.id, group: set.group, color: set.color },
+        properties: {
+          route: set.id,
+          group: set.group,
+          color: set.color,
+          kind: 'mbta',
+          regions: ['boston', 'ma'],
+        },
       })),
     );
 

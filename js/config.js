@@ -9,7 +9,6 @@ const gatewayBase = (
 ).replace(/\/+$/, '');
 const aircraftGatewayBase = (
   params.get('aircraft_gateway') ||
-  explicitGatewayBase ||
   localStorage.getItem('motion-aircraft-gateway') ||
   DEFAULT_AIRCRAFT_GATEWAY_BASE
 ).replace(/\/+$/, '');
@@ -60,6 +59,7 @@ export const CONFIG = {
   // so it's cached as encoded polylines (compact enough for localStorage).
   SHAPE_CACHE_KEY: 'bim-shapes-v3',
   SHAPE_CACHE_TTL_MS: 24 * 3600 * 1000,
+  REGIONAL_ROUTE_URL: './data/regional-routes.geojson',
 
   // Amtrak via the community Amtraker API (CORS-open, no key). Exact region
   // clipping is handled by the shared Census boundary filter.
@@ -77,14 +77,46 @@ export const CONFIG = {
   AIS_PRUNE_MS: 10 * 60_000, // drop vessels silent for 10 min
   VESSEL_COLOR: '#63d8c8',
 
-  // Bluebikes stations via the public GBFS feed (keyless, CORS-open).
-  // Stations don't move, but fill levels are live.
-  BIKE_INFO_URL: 'https://gbfs.bluebikes.com/gbfs/en/station_information.json',
-  BIKE_STATUS_URL: 'https://gbfs.bluebikes.com/gbfs/en/station_status.json',
+  // Keyless GBFS systems currently cataloged in New England. Discovery feeds
+  // choose their own station/free-vehicle endpoints, so provider URL changes
+  // do not require an app release.
+  SHARED_MOBILITY_SYSTEMS: [
+    {
+      id: 'bluebikes',
+      name: 'Bluebikes',
+      discoveryUrl: 'https://gbfs.bluebikes.com/gbfs/gbfs.json',
+      color: '#4d9fec',
+      stationOnly: true,
+    },
+    {
+      id: 'veo-hartford',
+      name: 'Veo · Hartford',
+      discoveryUrl: 'https://cluster-prod.veoride.com/api/shares/name/hrt/gbfs',
+      color: '#69d277',
+    },
+    {
+      id: 'veo-new-haven',
+      name: 'Veo · New Haven',
+      discoveryUrl: 'https://cluster-prod.veoride.com/api/shares/name/nhv/gbfs',
+      color: '#69d277',
+    },
+    {
+      id: 'spin-providence',
+      name: 'Spin · Providence',
+      discoveryUrl: 'https://mds.bird.co/gbfs/v2/public/provider/spin/providence/gbfs.json',
+      color: '#ff7f32',
+    },
+  ],
   BIKE_POLL_MS: 60_000,
   BIKE_COLOR: '#4d9fec', // stocked
   BIKE_LOW_COLOR: '#ffb454', // 1-2 bikes left
   BIKE_EMPTY_COLOR: '#5c6570', // empty (also renders dimmed)
+  BIKE_FREE_COLOR: '#69d277',
+
+  // MassDOT's public Connected Work Zone feed is relayed and reduced by the
+  // Worker because the ~3 MB upstream file is not browser-CORS enabled.
+  ROADWORK_POLL_MS: 5 * 60_000,
+  ROADWORK_COLOR: '#ff8a4c',
 
   // Mode-icon fill colors (map sprites are pre-rendered at startup).
   BUS_COLOR: '#ffc72c', // MBTA bus yellow
@@ -96,7 +128,7 @@ export const CONFIG = {
 
   // Layer groups that start switched off (dense layers — one tap turns them
   // on: ~400 buses, ~600 bike stations, wall-to-wall traffic color).
-  DEFAULT_OFF_GROUPS: ['bus', 'bike', 'traffic'],
+  DEFAULT_OFF_GROUPS: ['bus', 'bike', 'roadwork', 'traffic'],
 
   BASEMAP_STYLE: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
 };
@@ -105,7 +137,6 @@ export const CONFIG = {
 if (params.get('gateway')) {
   try {
     localStorage.setItem('motion-gateway', gatewayBase);
-    localStorage.setItem('motion-aircraft-gateway', aircraftGatewayBase);
   } catch {
     /* private mode — session-only */
   }

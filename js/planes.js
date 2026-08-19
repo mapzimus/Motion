@@ -43,6 +43,7 @@ export function startPlanes(onCounts, initialRegion, enabled = true) {
             hasBearing: Number.isFinite(a.bearing),
             stale: a.onGround, // taxiing aircraft render dimmed
             title: a.callsign || a.id.toUpperCase(),
+            callsign: a.callsign || '',
             dest: a.aircraftType ?? '',
             status: a.onGround
               ? 'On the ground'

@@ -2,10 +2,12 @@
 // vehicle fleet, source-agnostic popups, and alert-focus navigation.
 
 import { CONFIG } from './config.js';
+import { lookupFlightRoute } from './flight-routes.js';
 import {
   boundaryForRegion,
   boundsForRegion,
   filterFeatureCollection,
+  filterSpatialFeatureCollection,
   setActiveRegion,
 } from './regions.js';
 
@@ -26,6 +28,8 @@ let allRouteShapesFC = EMPTY_FC;
 let pingMarker = null;
 let pingTimer = null;
 let trafficAvailable = false;
+let allRoadworkFC = EMPTY_FC;
+let roadworkFC = EMPTY_FC;
 
 export function configureGateway(capabilities) {
   trafficAvailable = Boolean(capabilities?.traffic);
@@ -48,7 +52,7 @@ export function initMap() {
     new maplibregl.AttributionControl({
       compact: true,
       customAttribution:
-        'Data <a href="https://www.mbta.com/developers/v3-api" target="_blank" rel="noopener">MBTA</a> · <a href="https://amtraker.com" target="_blank" rel="noopener">Amtraker</a> · <a href="https://api.adsb.lol" target="_blank" rel="noopener">ADSB.lol</a> / <a href="https://adsb.fi" target="_blank" rel="noopener">adsb.fi</a> · <a href="https://aisstream.io" target="_blank" rel="noopener">AISStream</a> · boundaries U.S. Census Bureau',
+        'Data <a href="https://www.mbta.com/developers/v3-api" target="_blank" rel="noopener">MBTA</a> · agency GTFS / <a href="https://mobilitydatabase.org" target="_blank" rel="noopener">Mobility Database</a> · <a href="https://amtraker.com" target="_blank" rel="noopener">Amtraker</a> · <a href="https://api.adsb.lol" target="_blank" rel="noopener">ADSB.lol</a> / <a href="https://adsb.fi" target="_blank" rel="noopener">adsb.fi</a> · MassDOT · GBFS · boundaries U.S. Census Bureau',
     }),
     'bottom-right',
   );
@@ -111,6 +115,27 @@ const roundedRect = (x, y, w, h, r) => (ctx, size) => {
   ctx.roundRect(x * u, y * u, w * u, h * u, r * u);
 };
 
+const diamond = (ctx, size) => {
+  ctx.beginPath();
+  ctx.moveTo(size * 0.5, size * 0.08);
+  ctx.lineTo(size * 0.92, size * 0.5);
+  ctx.lineTo(size * 0.5, size * 0.92);
+  ctx.lineTo(size * 0.08, size * 0.5);
+  ctx.closePath();
+};
+
+const scooter = (ctx, size) => {
+  const u = size / 64;
+  ctx.beginPath();
+  ctx.roundRect(12 * u, 40 * u, 38 * u, 11 * u, 5 * u);
+  ctx.moveTo(43 * u, 42 * u);
+  ctx.lineTo(48 * u, 12 * u);
+  ctx.lineTo(57 * u, 12 * u);
+  ctx.lineTo(57 * u, 18 * u);
+  ctx.lineTo(51 * u, 18 * u);
+  ctx.lineTo(47 * u, 42 * u);
+};
+
 function makeIcon(fill, draw, size = 64) {
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = size;
@@ -134,6 +159,8 @@ function registerModeIcons() {
     'icon-dock-ok': makeIcon(CONFIG.BIKE_COLOR, roundedRect(15, 15, 34, 34, 8)),
     'icon-dock-low': makeIcon(CONFIG.BIKE_LOW_COLOR, roundedRect(15, 15, 34, 34, 8)),
     'icon-dock-empty': makeIcon(CONFIG.BIKE_EMPTY_COLOR, roundedRect(15, 15, 34, 34, 8)),
+    'icon-share-bike': makeIcon(CONFIG.BIKE_FREE_COLOR, diamond),
+    'icon-share-scooter': makeIcon(CONFIG.BIKE_FREE_COLOR, scooter),
   };
   for (const [name, image] of Object.entries(icons)) {
     map.addImage(name, image, { pixelRatio: 2 });
@@ -181,6 +208,36 @@ function setupLayers() {
       'line-opacity': 0.45,
       'line-width': ['interpolate', ['linear'], ['zoom'], 5, 0.8, 12, 1.8],
       'line-dasharray': [3, 2],
+    },
+  });
+
+  map.addSource('roadwork', { type: 'geojson', data: EMPTY_FC });
+  map.addLayer({
+    id: 'roadwork-halo',
+    type: 'line',
+    source: 'roadwork',
+    layout: { visibility: 'none', 'line-cap': 'round', 'line-join': 'round' },
+    paint: {
+      'line-color': ['get', 'color'],
+      'line-width': ['interpolate', ['linear'], ['zoom'], 7, 4, 14, 12],
+      'line-opacity': 0.2,
+      'line-blur': 3,
+    },
+  });
+  map.addLayer({
+    id: 'roadwork-lines',
+    type: 'line',
+    source: 'roadwork',
+    layout: {
+      visibility: 'none',
+      'line-cap': 'round',
+      'line-join': 'round',
+    },
+    paint: {
+      'line-color': ['get', 'color'],
+      'line-width': ['interpolate', ['linear'], ['zoom'], 7, 1.5, 14, 5],
+      'line-opacity': ['case', ['get', 'active'], 0.95, 0.55],
+      'line-dasharray': [2, 1],
     },
   });
 
@@ -265,11 +322,14 @@ function setupLayers() {
           'bus', 'icon-bus',
           'ferry', 'icon-boat-ferry',
           'vessel', 'icon-boat-vessel',
-          // default arm = bike docks, colored by fill level
-          ['match', ['get', 'color'],
-            CONFIG.BIKE_LOW_COLOR, 'icon-dock-low',
-            CONFIG.BIKE_EMPTY_COLOR, 'icon-dock-empty',
-            'icon-dock-ok'],
+          // default arm = shared mobility; shape separates docks from vehicles
+          ['match', ['get', 'markerKind'],
+            'scooter', 'icon-share-scooter',
+            'bicycle', 'icon-share-bike',
+            ['match', ['get', 'color'],
+              CONFIG.BIKE_LOW_COLOR, 'icon-dock-low',
+              CONFIG.BIKE_EMPTY_COLOR, 'icon-dock-empty',
+              'icon-dock-ok']],
         ],
         'icon-size': [
           'interpolate', ['linear'], ['zoom'],
@@ -305,20 +365,49 @@ function wirePopups() {
       wirePopupLayer(layerId);
     }
   }
+  wireRoutePopups();
+  wireRoadworkPopups();
+}
+
+function vehiclePopupHtml(properties, routeHtml = '') {
+  return `
+    <div class="popup-title" style="color:${esc(properties.color)}">${esc(properties.title)}</div>
+    ${properties.dest ? `<div class="popup-dest">${esc(properties.dest)}</div>` : ''}
+    ${routeHtml}
+    ${properties.status ? `<div class="popup-status">${esc(properties.status)}</div>` : ''}
+    <div class="popup-meta">${properties.meta ? `${esc(properties.meta)} · ` : ''}${relativeAge(properties.updatedAt)}</div>`;
+}
+
+function scheduledRouteHtml(route) {
+  if (!route?.airports?.length) {
+    return '<div class="popup-status">Scheduled origin/destination unavailable for this callsign.</div>';
+  }
+  const codes = route.airports.map((airport) => airport.iata || airport.icao).filter(Boolean);
+  const endpoints = [route.airports[0], route.airports.at(-1)];
+  return `
+    <div class="popup-route">${codes.map(esc).join(' → ')}</div>
+    <div class="popup-status">${endpoints.map((airport) => esc(airport.name)).join(' → ')}</div>
+    <div class="popup-route-note">Best-effort scheduled route</div>`;
 }
 
 function wirePopupLayer(layerId) {
   map.on('click', layerId, (e) => {
-      const p = e.features[0].properties;
-      const html = `
-        <div class="popup-title" style="color:${esc(p.color)}">${esc(p.title)}</div>
-        ${p.dest ? `<div class="popup-dest">${esc(p.dest)}</div>` : ''}
-        ${p.status ? `<div class="popup-status">${esc(p.status)}</div>` : ''}
-        <div class="popup-meta">${p.meta ? `${esc(p.meta)} · ` : ''}${relativeAge(p.updatedAt)}</div>`;
-      new maplibregl.Popup({ offset: 14, maxWidth: '280px' })
+      const feature = e.features[0];
+      const p = feature.properties;
+      const popup = new maplibregl.Popup({ offset: 14, maxWidth: '310px' })
         .setLngLat(e.features[0].geometry.coordinates)
-        .setHTML(html)
+        .setHTML(vehiclePopupHtml(p))
         .addTo(map);
+      if (p.group === 'plane' && p.callsign) {
+        popup.setHTML(vehiclePopupHtml(p, '<div class="popup-route-note">Looking up scheduled route…</div>'));
+        lookupFlightRoute(p.callsign)
+          .then((route) => {
+            if (popup.isOpen()) popup.setHTML(vehiclePopupHtml(p, scheduledRouteHtml(route)));
+          })
+          .catch(() => {
+            if (popup.isOpen()) popup.setHTML(vehiclePopupHtml(p, scheduledRouteHtml(null)));
+          });
+      }
     });
     map.on('mouseenter', layerId, () => {
       map.getCanvas().style.cursor = 'pointer';
@@ -333,13 +422,74 @@ export function setRouteShapes(featureCollection) {
   renderRouteShapes();
 }
 
+function wireRoutePopups() {
+  map.on('click', 'route-lines', (event) => {
+    const properties = event.features[0].properties;
+    if (properties.kind !== 'regional-static') return;
+    const html = `
+      <div class="popup-title" style="color:${esc(properties.color)}">${esc(properties.name)}</div>
+      <div class="popup-dest">${esc(properties.agency)}</div>
+      <div class="popup-status">Scheduled route · visible even without live vehicle positions</div>`;
+    new maplibregl.Popup({ offset: 10, maxWidth: '310px' })
+      .setLngLat(event.lngLat)
+      .setHTML(html)
+      .addTo(map);
+  });
+  map.on('mouseenter', 'route-lines', () => { map.getCanvas().style.cursor = 'pointer'; });
+  map.on('mouseleave', 'route-lines', () => { map.getCanvas().style.cursor = ''; });
+}
+
+function readableTime(value) {
+  const date = new Date(value);
+  return Number.isNaN(date.valueOf())
+    ? ''
+    : date.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+function wireRoadworkPopups() {
+  map.on('click', 'roadwork-lines', (event) => {
+    const p = event.features[0].properties;
+    const timing = [readableTime(p.startAt), readableTime(p.endAt)].filter(Boolean).join(' – ');
+    const html = `
+      <div class="popup-title" style="color:${esc(p.color)}">${esc(p.title)}</div>
+      <div class="popup-dest">${p.active ? 'Active work zone' : 'Upcoming work zone'}</div>
+      ${p.status ? `<div class="popup-status">${esc(p.status)}</div>` : ''}
+      ${timing ? `<div class="popup-meta">${esc(timing)}</div>` : ''}`;
+    new maplibregl.Popup({ offset: 10, maxWidth: '310px' })
+      .setLngLat(event.lngLat)
+      .setHTML(html)
+      .addTo(map);
+  });
+  map.on('mouseenter', 'roadwork-lines', () => { map.getCanvas().style.cursor = 'pointer'; });
+  map.on('mouseleave', 'roadwork-lines', () => { map.getCanvas().style.cursor = ''; });
+}
+
 function renderRouteShapes() {
-  // The checked-in ribbons are MBTA-only. Outside MA/Boston, hiding them is
-  // more truthful than showing Boston geometry under another state's filter.
-  routeShapesFC = ['boston', 'ma', 'new-england'].includes(activeRegion)
-    ? allRouteShapesFC
-    : EMPTY_FC;
+  routeShapesFC = {
+    type: 'FeatureCollection',
+    features: allRouteShapesFC.features.filter((feature) => {
+      if (activeRegion === 'new-england') return true;
+      if (feature.properties.kind === 'regional-static') {
+        return feature.properties.regions?.includes(activeRegion);
+      }
+      return ['boston', 'ma'].includes(activeRegion);
+    }),
+  };
   map?.getSource('route-shapes')?.setData(routeShapesFC);
+}
+
+export function setRoadworkData(featureCollection) {
+  allRoadworkFC = featureCollection;
+  renderRoadwork();
+}
+
+export function roadworkCountForRegion() {
+  return filterSpatialFeatureCollection(allRoadworkFC, activeRegion).features.length;
+}
+
+function renderRoadwork() {
+  roadworkFC = filterSpatialFeatureCollection(allRoadworkFC, activeRegion);
+  map?.getSource('roadwork')?.setData(roadworkFC);
 }
 
 const rawFleetData = new Map(); // unfiltered provider output
@@ -376,7 +526,7 @@ export function setRegion(regionKey, { fit = true } = {}) {
 
 export function fleetCountsForRegion() {
   const sourceNames = {
-    bike: 'bluebikes',
+    bike: 'shared-mobility',
     vessel: 'ais',
     amtrak: 'amtrak',
     regional: 'regional',
@@ -398,6 +548,7 @@ export function fleetCountsForRegion() {
 function applyRegion(fit) {
   map.getSource('region-boundary')?.setData(boundaryForRegion(activeRegion));
   renderRouteShapes();
+  renderRoadwork();
   for (const fleetId of rawFleetData.keys()) renderFleetData(fleetId);
   if (!fit) return;
   const bounds = boundsForRegion(activeRegion);
@@ -435,6 +586,13 @@ function applyGroupFilter(groups) {
       groups.includes('traffic') ? 'visible' : 'none',
     );
   }
+  for (const layerId of ['roadwork-halo', 'roadwork-lines']) {
+    map.setLayoutProperty(
+      layerId,
+      'visibility',
+      groups.includes('roadwork') ? 'visible' : 'none',
+    );
+  }
 }
 
 // ---- alert focus -----------------------------------------------------------
@@ -457,6 +615,10 @@ function dropPing(lngLat) {
 
 // Fly to what an alert affects: its stops when known, else the extent of the
 // affected routes' ribbons.
+const lineCoordinates = (feature) => feature.geometry.type === 'MultiLineString'
+  ? feature.geometry.coordinates.flat()
+  : feature.geometry.coordinates;
+
 export function focusAlert(alert) {
   const points = alert.focus?.points ?? [];
   let coords = points;
@@ -464,7 +626,7 @@ export function focusAlert(alert) {
   if (!coords.length && alert.routes?.length) {
     coords = routeShapesFC.features
       .filter((f) => alert.routes.includes(f.properties.route))
-      .flatMap((f) => f.geometry.coordinates);
+      .flatMap(lineCoordinates);
   }
   if (!coords.length) return false;
 
@@ -487,10 +649,13 @@ export function focusGroup(groupKey, routeIds = []) {
     .filter((f) => f.properties.group === groupKey)
     .map((f) => f.geometry.coordinates);
 
-  if (!coords.length && routeIds.length) {
+  if (!coords.length) {
     coords = routeShapesFC.features
-      .filter((f) => routeIds.includes(f.properties.route))
-      .flatMap((f) => f.geometry.coordinates);
+      .filter((f) => f.properties.group === groupKey
+        && (f.properties.kind === 'regional-static'
+          || !routeIds.length
+          || routeIds.includes(f.properties.route)))
+      .flatMap(lineCoordinates);
   }
   if (!coords.length) return false;
 
