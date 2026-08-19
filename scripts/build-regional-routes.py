@@ -51,6 +51,7 @@ RESTRICTED_BUS_ROAD_PATTERN = re.compile(
 RESTRICTED_BUS_REF_PATTERN = re.compile(r"(?:^|[;,\s])CT[- ]?15(?:$|[;,\s])", re.I)
 GROUP_BY_ROUTE_TYPE = {2: "commuter", 3: "bus", 4: "ferry"}
 MODE_COLORS = {2: "#a58add", 3: "#f2b84b", 4: "#2eb7c5"}
+GROUP_COLORS = {"amtrak": "#5b9bd5"}
 
 
 def download(url: str) -> bytes:
@@ -588,6 +589,22 @@ def mode_color(route_type):
     return MODE_COLORS.get(route_type, "#8a949f")
 
 
+def feature_group(feed, route_type):
+    return feed.get("group_override") or GROUP_BY_ROUTE_TYPE[route_type]
+
+
+def feature_color(feed, route_type):
+    group = feature_group(feed, route_type)
+    return feed.get("group_color") or GROUP_COLORS.get(group) or mode_color(route_type)
+
+
+def source_url(value, fallback):
+    url = (value or fallback or "").strip()
+    if url.startswith("http://www.amtrak.com/"):
+        return "https://www.amtrak.com/" + url.removeprefix("http://www.amtrak.com/")
+    return url
+
+
 def effective_route_type(feed, route):
     override = feed.get("route_type_override")
     if override is not None:
@@ -616,6 +633,72 @@ def coordinates_from_stops(archive, selected_trip_ids):
     return {trip_id: [point for _, point in sorted(values)] for trip_id, values in sequences.items()}
 
 
+def station_features(
+    archive,
+    feed,
+    selected_routes,
+    trip_rows,
+    included_route_ids,
+    region_geometries,
+):
+    """Build scheduled station points for feeds that explicitly opt in."""
+    if not feed.get("include_stations") or not included_route_ids:
+        return []
+
+    route_by_trip = {
+        trip.get("trip_id"): trip.get("route_id")
+        for trip in trip_rows
+        if trip.get("trip_id") and trip.get("route_id") in included_route_ids
+    }
+    routes_by_stop = defaultdict(set)
+    for row in read_rows(archive, "stop_times.txt"):
+        route_id = route_by_trip.get(row.get("trip_id"))
+        stop_id = row.get("stop_id")
+        if route_id and stop_id:
+            routes_by_stop[stop_id].add(route_id)
+
+    stops = {row.get("stop_id"): row for row in read_rows(archive, "stops.txt") if row.get("stop_id")}
+    features = []
+    group = feed.get("group_override")
+    color = feed.get("group_color") or GROUP_COLORS.get(group, "#8a949f")
+    region_order = ("ct", "ma", "me", "nh", "ri", "vt", "boston")
+    for stop_id, route_ids in sorted(routes_by_stop.items()):
+        stop = stops.get(stop_id)
+        if not stop:
+            continue
+        try:
+            point = (float(stop["stop_lon"]), float(stop["stop_lat"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+        regions = [
+            key for key in region_order
+            if point_in_geometry(point, region_geometries[key])
+        ]
+        if not regions:
+            continue
+        route_names = sorted({route_label(selected_routes[route_id]) for route_id in route_ids})
+        stop_code = (stop.get("stop_code") or stop_id).strip()
+        features.append({
+            "type": "Feature",
+            "geometry": {"type": "Point", "coordinates": [round(point[0], 6), round(point[1], 6)]},
+            "properties": {
+                "group": group,
+                "color": color,
+                "kind": "regional-station",
+                "dataStatus": "scheduled",
+                "title": stop.get("stop_name") or f"{feed['agency']} station",
+                "status": f"{feed['agency']} station · {stop_code}",
+                "details": "Routes: " + ", ".join(route_names),
+                "stationCode": stop_code,
+                "routeIds": [f"{feed['id']}:{route_id}" for route_id in sorted(route_ids)],
+                "provider": feed.get("provider") or "Agency schedule · GTFS",
+                "sourceUrl": source_url(stop.get("stop_url"), feed.get("source_url")),
+                "regions": regions,
+            },
+        })
+    return features
+
+
 def process_feed(
     feed,
     region_geometries,
@@ -640,20 +723,22 @@ def process_feed(
             continue
         if route_type not in GROUP_BY_ROUTE_TYPE:
             continue
-        if pattern and not pattern.search(route_label(route)):
+        match_value = route.get(feed.get("route_name_field"), "") if feed.get("route_name_field") else route_label(route)
+        if pattern and not pattern.search(match_value or ""):
             continue
         selected_routes[route_id] = route
 
     shape_to_route = {}
     fallback_trip_by_route_direction = {}
-    for trip in read_rows(archive, "trips.txt"):
+    trip_rows = read_rows(archive, "trips.txt")
+    for trip in trip_rows:
         route_id = trip.get("route_id")
         if route_id not in selected_routes:
             continue
         shape_id = (trip.get("shape_id") or "").strip()
         if shape_id:
             shape_to_route.setdefault(shape_id, route_id)
-        else:
+        elif not feed.get("shape_only"):
             key = (route_id, trip.get("direction_id") or "")
             fallback_trip_by_route_direction.setdefault(key, trip.get("trip_id"))
 
@@ -736,13 +821,13 @@ def process_feed(
         regions = [key for key in ("ct", "ma", "me", "nh", "ri", "vt", "boston") if key in detected_regions]
         properties = {
             "route": f"{feed['id']}:{route_id}",
-            "group": GROUP_BY_ROUTE_TYPE[route_type],
-            "color": mode_color(route_type),
+            "group": feature_group(feed, route_type),
+            "color": feature_color(feed, route_type),
             "agency": feed.get("agency_names", {}).get(route.get("agency_id"), feed["agency"]),
             "name": route_label(route),
             "kind": "regional-static",
             "dataStatus": "scheduled",
-            "provider": "Agency schedule · GTFS",
+            "provider": feed.get("provider") or "Agency schedule · GTFS",
             "scheduleNote": "Published schedule route · live vehicle position shown separately when available",
             "regions": regions,
         }
@@ -751,13 +836,36 @@ def process_feed(
             properties["geometryProvider"] = "OpenStreetMap / Project OSRM"
             properties["geometryNote"] = ROAD_GEOMETRY_NOTE
             properties["scheduleNote"] += f" · {ROAD_GEOMETRY_NOTE}"
-        properties["sourceUrl"] = feed.get("source_url") or "https://mobilitydatabase.org/"
+        route_url = route.get("route_url") if feed.get("use_route_urls") else None
+        properties["sourceUrl"] = source_url(
+            route_url,
+            feed.get("source_url") or "https://mobilitydatabase.org/",
+        )
         features.append({
             "type": "Feature",
             "geometry": {"type": "MultiLineString", "coordinates": paths},
             "properties": properties,
         })
-    return features, len(selected_routes)
+    features.extend(station_features(
+        archive,
+        feed,
+        selected_routes,
+        trip_rows,
+        set(paths_by_route),
+        region_geometries,
+    ))
+    source_metadata = {}
+    if feed.get("record_feed_info"):
+        feed_info_rows = read_rows(archive, "feed_info.txt")
+        feed_info = feed_info_rows[0] if feed_info_rows else {}
+        source_metadata = {
+            "feedUrl": feed["url"],
+            "feedPublisherName": feed_info.get("feed_publisher_name") or feed["agency"],
+            "feedVersion": feed_info.get("feed_version") or "",
+            "feedStartDate": feed_info.get("feed_start_date") or "",
+            "feedEndDate": feed_info.get("feed_end_date") or "",
+        }
+    return features, len(selected_routes), source_metadata
 
 
 def main(update_road_cache=False, refresh_road_cache=False):
@@ -786,7 +894,7 @@ def main(update_road_cache=False, refresh_road_cache=False):
     for index, feed in enumerate(feeds, 1):
         print(f"[{index:02}/{len(feeds)}] {feed['agency']}...", flush=True)
         try:
-            features, route_count = process_feed(
+            features, route_count, source_metadata = process_feed(
                 feed,
                 region_geometries,
                 road_cache,
@@ -797,11 +905,19 @@ def main(update_road_cache=False, refresh_road_cache=False):
                 routing_state,
             )
             all_features.extend(features)
-            successes.append({"id": feed["id"], "agency": feed["agency"], "routes": route_count, "features": len(features)})
+            successes.append({
+                "id": feed["id"],
+                "agency": feed["agency"],
+                "routes": route_count,
+                "features": len(features),
+                **source_metadata,
+            })
             print(f"     {route_count} routes, {len(features)} shapes")
         except Exception as error:  # continue so one seasonal feed cannot erase the regional map
             failures.append({"id": feed["id"], "agency": feed["agency"], "error": str(error)})
             print(f"     skipped: {error}")
+            if feed.get("required"):
+                raise RuntimeError(f"Required feed {feed['agency']} failed; existing snapshot was preserved") from error
 
     supplemental = json.loads(SUPPLEMENTAL_PATH.read_text(encoding="utf-8"))
     supplemental_features = supplemental.get("features", [])

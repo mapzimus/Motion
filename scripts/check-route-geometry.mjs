@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
 const MAX_BUS_CHORD_KM = 20.05;
+const MAX_AMTRAK_CHORD_KM = 20.05;
 const MAX_ROAD_DETOUR_RATIO = 1.6;
 const MAX_ROAD_DETOUR_ALLOWANCE_KM = 5;
 const ROAD_ROUTING_VERSION = 'osrm-driving-bus-controls-v4';
@@ -192,6 +193,66 @@ if (offenders.length) {
   throw new Error(`Straight-line bus geometry exceeds ${MAX_BUS_CHORD_KM} km:\n${offenders.join('\n')}`);
 }
 
+const amtrakRoutes = collection.features.filter(
+  (feature) => feature.properties?.group === 'amtrak'
+    && feature.properties?.kind === 'regional-static',
+);
+const requiredNewEnglandAmtrak = [
+  'Acela', 'Amtrak Hartford Line', 'Downeaster', 'Ethan Allen Express',
+  'Lake Shore Limited', 'Northeast Regional', 'Valley Flyer', 'Vermonter',
+];
+const amtrakNames = new Set(amtrakRoutes.map((feature) => feature.properties.name));
+if (amtrakNames.size !== requiredNewEnglandAmtrak.length
+    || requiredNewEnglandAmtrak.some((name) => !amtrakNames.has(name))) {
+  throw new Error('Official scheduled Amtrak coverage is missing a New England route.');
+}
+const vermontAmtrakNames = new Set(
+  amtrakRoutes
+    .filter((feature) => feature.properties?.regions?.includes('vt'))
+    .map((feature) => feature.properties.name),
+);
+const requiredVermontAmtrak = ['Ethan Allen Express', 'Vermonter'];
+if (vermontAmtrakNames.size !== requiredVermontAmtrak.length
+    || requiredVermontAmtrak.some((name) => !vermontAmtrakNames.has(name))) {
+  throw new Error('Vermont must contain scheduled Vermonter and Ethan Allen Express route geometry.');
+}
+
+const requiredVermontStationCodes = [
+  'BLF', 'BRA', 'BTN', 'CNV', 'ESX', 'MBY', 'MPR',
+  'RPH', 'RUD', 'SAB', 'VRN', 'WAB', 'WNM', 'WRJ',
+];
+const vermontStationCodes = new Set(
+  collection.features
+    .filter((feature) => feature.properties?.group === 'amtrak'
+      && feature.properties?.kind === 'regional-station'
+      && feature.properties?.regions?.includes('vt'))
+    .map((feature) => feature.properties.stationCode),
+);
+if (vermontStationCodes.size !== requiredVermontStationCodes.length
+    || requiredVermontStationCodes.some((code) => !vermontStationCodes.has(code))) {
+  throw new Error('Vermont Amtrak station coverage must contain all 14 official station codes.');
+}
+
+const amtrakChordOffenders = [];
+for (const feature of amtrakRoutes) {
+  const paths = feature.geometry?.type === 'LineString'
+    ? [feature.geometry.coordinates]
+    : feature.geometry?.coordinates ?? [];
+  for (const path of paths) {
+    for (let index = 1; index < path.length; index += 1) {
+      const distance = distanceKm(path[index - 1], path[index]);
+      if (distance > MAX_AMTRAK_CHORD_KM) {
+        amtrakChordOffenders.push(`${feature.properties.route}: ${distance.toFixed(1)} km`);
+      }
+    }
+  }
+}
+if (amtrakChordOffenders.length) {
+  throw new Error(
+    `Straight-line Amtrak geometry exceeds ${MAX_AMTRAK_CHORD_KM} km:\n${amtrakChordOffenders.join('\n')}`,
+  );
+}
+
 const vineyardFerry = collection.features.find(
   (feature) => feature.properties?.route === 'vineyard-fast-ferry:2100',
 );
@@ -225,5 +286,6 @@ if (missingRepairs.length) {
 console.log(
   `Route geometry check passed: ${approximate.length} road-routed scheduled features; `
   + `${Object.keys(cache.segments ?? {}).length} loop-free cache segments; `
-  + `no bus chord exceeds ${MAX_BUS_CHORD_KM} km.`,
+  + `${amtrakRoutes.length} official Amtrak routes; `
+  + `no bus or Amtrak chord exceeds ${MAX_BUS_CHORD_KM} km.`,
 );

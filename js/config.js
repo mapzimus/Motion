@@ -72,6 +72,7 @@ export const CONFIG = {
   AMTRAK_URL: 'https://api-v3.amtraker.com/v3/trains',
   AMTRAK_BBOX: { latMin: 40.7, latMax: 47.75, lonMin: -74.1, lonMax: -65.8 },
   AMTRAK_COLOR: '#5b9bd5',
+  AMTRAK_STALE_MS: 5 * 60_000,
 
   // Aircraft are fetched server-side from ADSB.lol. The selected geography
   // controls overlapping probes, then exact Census polygons clip the results.

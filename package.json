@@ -1,6 +1,6 @@
 {
   "name": "new-england-in-motion",
-  "version": "0.9.3",
+  "version": "0.9.4",
   "private": true,
   "description": "Live transportation map for Boston and New England",
   "scripts": {

@@ -4,16 +4,12 @@
 
 import { CONFIG } from './config.js';
 import { createFleet } from './fleet.js';
-
-// Amtraker reports heading as a compass point, not degrees.
-const COMPASS = {
-  N: 0, NNE: 22.5, NE: 45, ENE: 67.5, E: 90, ESE: 112.5, SE: 135, SSE: 157.5,
-  S: 180, SSW: 202.5, SW: 225, WSW: 247.5, W: 270, WNW: 292.5, NW: 315, NNW: 337.5,
-};
+import { ageAmtrakItems, normalizeAmtrakTrain } from './amtrak-normalize.js';
 
 export function startAmtrak(onCounts) {
   const fleet = createFleet('amtrak');
   const box = CONFIG.AMTRAK_BBOX;
+  let latestItems = [];
 
   const poll = async () => {
     if (document.hidden) return;
@@ -22,54 +18,33 @@ export function startAmtrak(onCounts) {
       if (!res.ok) throw new Error(`Amtraker ${res.status}`);
       const json = await res.json();
 
-      const trains = Object.values(json)
+      const now = Date.now();
+      const items = Object.values(json)
         .flat()
-        .filter(
-          (t) =>
-            t.lat > box.latMin && t.lat < box.latMax &&
-            t.lon > box.lonMin && t.lon < box.lonMax,
-        );
+        .map((train) => normalizeAmtrakTrain(train, {
+          box,
+          color: CONFIG.AMTRAK_COLOR,
+          now,
+          staleAfterMs: CONFIG.AMTRAK_STALE_MS,
+        }))
+        .filter(Boolean);
 
-      const items = trains.map((t) => {
-        const heading = COMPASS[t.heading];
-        const nextStation = (t.stations ?? []).find((s) => s.status === 'Enroute');
-        const finalStation = (t.stations ?? []).at(-1);
-        return {
-          id: `amtrak-${t.trainID ?? t.trainNum}`,
-          lng: t.lon,
-          lat: t.lat,
-          props: {
-            group: 'amtrak',
-            dataStatus: 'live',
-            color: CONFIG.AMTRAK_COLOR,
-            bearing: heading ?? 0,
-            hasBearing: heading !== undefined,
-            stale: false,
-            title: `Amtrak ${t.routeName ?? ''}`.trim(),
-            dest: finalStation?.name ? `to ${finalStation.name}` : '',
-            status: nextStation?.name
-              ? `Next stop ${nextStation.name}`
-              : (t.trainState ?? ''),
-            meta: [
-              `train ${t.trainNum}`,
-              Number.isFinite(t.velocity) ? `${Math.round(t.velocity)} mph` : '',
-            ]
-              .filter(Boolean)
-              .join(' · '),
-            provider: 'Amtraker community Amtrak telemetry',
-            sourceUrl: 'https://amtraker.com/',
-            updatedAt: t.updatedAt ?? new Date().toISOString(),
-          },
-        };
-      });
-
+      latestItems = items;
       const visible = fleet.update(items);
       onCounts({ amtrak: visible.length });
     } catch (err) {
       console.warn('Amtrak feed unavailable:', err.message);
+      if (latestItems.length) {
+        latestItems = ageAmtrakItems(latestItems, Date.now(), CONFIG.AMTRAK_STALE_MS);
+        const visible = fleet.update(latestItems);
+        onCounts({ amtrak: visible.length });
+      }
     }
   };
 
   poll();
   setInterval(poll, CONFIG.AMTRAK_POLL_MS);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) poll();
+  });
 }
