@@ -48,7 +48,7 @@ export function initMap() {
     new maplibregl.AttributionControl({
       compact: true,
       customAttribution:
-        'Data <a href="https://www.mbta.com/developers/v3-api" target="_blank" rel="noopener">MBTA</a> · <a href="https://amtraker.com" target="_blank" rel="noopener">Amtraker</a> · <a href="https://api.adsb.lol" target="_blank" rel="noopener">ADSB.lol</a> · <a href="https://aisstream.io" target="_blank" rel="noopener">AISStream</a> · boundaries U.S. Census Bureau',
+        'Data <a href="https://www.mbta.com/developers/v3-api" target="_blank" rel="noopener">MBTA</a> · <a href="https://amtraker.com" target="_blank" rel="noopener">Amtraker</a> · <a href="https://api.adsb.lol" target="_blank" rel="noopener">ADSB.lol</a> / <a href="https://adsb.fi" target="_blank" rel="noopener">adsb.fi</a> · <a href="https://aisstream.io" target="_blank" rel="noopener">AISStream</a> · boundaries U.S. Census Bureau',
     }),
     'bottom-right',
   );
