@@ -274,6 +274,24 @@
         "sourceUrl": "https://www.longislandferry.com/Schedules/Schedules.aspx",
         "scheduleNote": "Year-round vehicle/passenger ferry · about 1 hr 20 min; seasonal high-speed passenger sailings · scheduled, not live"
       }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [[-70.880457,42.52186],[-70.856,42.51],[-70.838,42.485],[-70.86,42.455],[-70.91,42.405],[-70.978,42.363],[-71.050456,42.359431]]
+      },
+      "properties": {
+        "route": "salem-ferry:salem-boston",
+        "group": "ferry",
+        "color": "#2eb7c5",
+        "agency": "Salem Ferry / Boston Harbor City Cruises",
+        "name": "Salem Ferry Terminal ↔ Boston Long Wharf",
+        "kind": "regional-static",
+        "regions": ["ma","boston"],
+        "sourceUrl": "https://www.salemma.gov/336/Ferry-Service",
+        "scheduleNote": "Seasonal May 22–October 31, 2026 · high-speed passenger ferry · under 45 minutes · scheduled, not live"
+      }
     }
   ]
 }
