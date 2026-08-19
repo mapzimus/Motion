@@ -61,7 +61,7 @@ export function initMap() {
     new maplibregl.AttributionControl({
       compact: true,
       customAttribution:
-        'Data <a href="https://www.mbta.com/developers/v3-api" target="_blank" rel="noopener">MBTA</a> · <a href="https://www.mta.info/developers" target="_blank" rel="noopener">MTA Metro-North</a> · agency GTFS / <a href="https://mobilitydatabase.org" target="_blank" rel="noopener">Mobility Database</a> · <a href="https://amtraker.com" target="_blank" rel="noopener">Amtraker</a> · <a href="https://api.adsb.lol" target="_blank" rel="noopener">ADSB.lol</a> / <a href="https://adsb.fi" target="_blank" rel="noopener">adsb.fi</a> · MassDOT · GBFS · boundaries U.S. Census Bureau',
+        'Data <a href="https://www.mbta.com/developers/v3-api" target="_blank" rel="noopener">MBTA</a> · <a href="https://www.mta.info/developers" target="_blank" rel="noopener">MTA Metro-North</a> · agency GTFS / <a href="https://mobilitydatabase.org" target="_blank" rel="noopener">Mobility Database</a> · <a href="https://content.amtrak.com/content/gtfs/GTFS.zip" target="_blank" rel="noopener">Amtrak schedule GTFS</a> / <a href="https://amtraker.com" target="_blank" rel="noopener">Amtraker live</a> · <a href="https://api.adsb.lol" target="_blank" rel="noopener">ADSB.lol</a> / <a href="https://adsb.fi" target="_blank" rel="noopener">adsb.fi</a> · MassDOT · GBFS · boundaries U.S. Census Bureau',
     }),
     'bottom-right',
   );
@@ -379,6 +379,20 @@ function setupLayers() {
       'line-opacity': ['case', ['==', ['get', 'group'], 'bus'], 0.45, 0.9],
     },
   });
+  map.addLayer({
+    id: 'scheduled-stations',
+    type: 'circle',
+    source: 'route-shapes',
+    filter: ['==', ['get', 'kind'], 'regional-station'],
+    paint: {
+      'circle-color': ['get', 'color'],
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 2.2, 10, 4.2, 14, 7],
+      'circle-stroke-color': '#f4f6f8',
+      'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 5, 0.7, 14, 1.8],
+      'circle-opacity': 0.9,
+      'circle-stroke-opacity': 0.9,
+    },
+  });
 
   for (const fleetId of FLEETS) {
     map.addSource(`veh-${fleetId}`, { type: 'geojson', data: EMPTY_FC });
@@ -480,6 +494,7 @@ function wirePopups() {
     }
   }
   wireRoutePopups();
+  wireInformationPopup('scheduled-stations');
   wireRoadworkPopups();
   wireInformationPopup('incident-points');
   wireInformationPopup('local-service-points');
@@ -490,13 +505,14 @@ function wirePopups() {
 
 function vehiclePopupHtml(properties, routeHtml = '') {
   const dataStatus = properties.dataStatus ?? 'live';
-  const provider = properties.provider || properties.meta || '';
+  const provider = properties.provider || '';
   const sourceUrl = /^https:\/\//.test(properties.sourceUrl ?? '') ? properties.sourceUrl : '';
   return `
     <div class="popup-title" style="color:${esc(properties.color)}">${esc(properties.title)}</div>
     ${properties.dest ? `<div class="popup-dest">${esc(properties.dest)}</div>` : ''}
     ${routeHtml}
     ${properties.status ? `<div class="popup-status">${esc(properties.status)}</div>` : ''}
+    ${properties.meta ? `<div class="popup-meta">${esc(properties.meta)}</div>` : ''}
     <div class="popup-meta"><span class="popup-data-status ${esc(dataStatus)}">${esc(dataStatus)}</span>${provider ? ` · ${esc(provider)}` : ''} · ${relativeAge(properties.updatedAt)}</div>
     ${sourceUrl ? `<a class="popup-route-link" href="${esc(sourceUrl)}" target="_blank" rel="noopener">Open source ↗</a>` : ''}`;
 }
@@ -631,6 +647,7 @@ export function scheduledRouteCountsForRegion() {
 
 function wireRoutePopups() {
   map.on('click', 'route-lines', (event) => {
+    if (map.queryRenderedFeatures(event.point, { layers: ['scheduled-stations'] }).length) return;
     const properties = event.features[0].properties;
     if (properties.kind !== 'regional-static') return;
     const sourceUrl = /^https:\/\//.test(properties.sourceUrl ?? '')
@@ -685,7 +702,7 @@ function renderRouteShapes() {
     type: 'FeatureCollection',
     features: allRouteShapesFC.features.filter((feature) => {
       if (activeRegion === 'new-england') return true;
-      if (feature.properties.kind === 'regional-static') {
+      if (['regional-static', 'regional-station'].includes(feature.properties.kind)) {
         return feature.properties.regions?.includes(activeRegion);
       }
       return ['boston', 'ma'].includes(activeRegion);
@@ -854,6 +871,11 @@ function applyGroupFilter(groups, statuses) {
   // Bus ribbons skip the halo pass — 150 glowing routes would wash the map.
   map.setFilter('route-halo', ['all', visibleByStatus, ['!=', ['get', 'group'], 'bus']]);
   map.setFilter('route-lines', visibleByStatus);
+  map.setFilter('scheduled-stations', [
+    'all',
+    visibleByStatus,
+    ['==', ['get', 'kind'], 'regional-station'],
+  ]);
   for (const fleetId of FLEETS) {
     map.setFilter(`veh-${fleetId}-dots`, railVisible);
     map.setFilter(`veh-${fleetId}-arrows`, [
@@ -967,7 +989,8 @@ export function focusGroup(groupKey, routeIds = []) {
 
   if (!coords.length) {
     coords = routeShapesFC.features
-      .filter((f) => f.properties.group === groupKey
+      .filter((f) => ['LineString', 'MultiLineString'].includes(f.geometry.type)
+        && f.properties.group === groupKey
         && (f.properties.kind === 'regional-static'
           || !routeIds.length
           || routeIds.includes(f.properties.route)))

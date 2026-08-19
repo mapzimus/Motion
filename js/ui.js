@@ -42,7 +42,7 @@ function buildGroups(routeInfo, capabilities) {
     // The wider fleet.
     { key: 'commuter', name: 'Commuter & regional rail', initial: 'CR', section: 'ground', sectionName: 'Ground & rail', routes: routesOfType(2), color: CONFIG.COMMUTER_COLOR, truth: 'live + schedule' },
     { key: 'bus', name: 'Local, rural & intercity buses', initial: 'B', section: 'ground', routes: routesOfType(3).filter((id) => !CONFIG.SILVER_ROUTES.includes(id)), color: CONFIG.BUS_COLOR, darkText: true, truth: 'live + schedule' },
-    { key: 'amtrak', name: 'Amtrak', initial: 'A', section: 'ground', routes: [], color: CONFIG.AMTRAK_COLOR, truth: 'live' },
+    { key: 'amtrak', name: 'Amtrak', initial: 'A', section: 'ground', routes: [], color: CONFIG.AMTRAK_COLOR, truth: 'live + schedule' },
     { key: 'local', name: 'Local & on-demand services', initial: 'L', section: 'ground', routes: [], color: CONFIG.LOCAL_COLOR, darkText: true, truth: 'catalog', countAsVehicle: false },
     { key: 'ferry', name: 'Ferries & passenger boats', initial: 'F', section: 'airwater', sectionName: 'Air & water', routes: routesOfType(4), color: CONFIG.FERRY_COLOR, truth: 'live + schedule' },
     { key: 'plane', name: 'Aircraft', initial: '✈', section: 'airwater', routes: [], color: CONFIG.PLANE_COLOR, truth: 'live', needsKey: !capabilities?.aircraft, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'setup' },

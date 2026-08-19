@@ -19,9 +19,9 @@ Every feature is labeled **live**, **estimated**, **scheduled**, or
 | MBTA subway, Silver Line, buses, commuter rail, ferries | [MBTA V3 API](https://www.mbta.com/developers/v3-api) | 10 s |
 | Regional buses | Agency GTFS-realtime feeds, normalized by the gateway | 20 s |
 | Metro-North New Haven branches | [MTA GTFS-Realtime](https://www.mta.info/developers) trip predictions and alerts; positions are explicitly estimated between stations | 30 s |
-| Scheduled bus, rail, ferry, and passenger-boat routes | 69 GTFS sources plus 17 official-schedule corridors, including Metro-North, Concord Coach, Dartmouth Coach, Greyhound/FlixBus, Salem Ferry, Cross Sound Ferry, Lake Champlain, Lake Winnipesaukee, and Maine State Ferry Service | built snapshot |
+| Scheduled bus, rail, ferry, and passenger-boat routes | 70 GTFS sources plus 17 official-schedule corridors, including Amtrak, Metro-North, Concord Coach, Dartmouth Coach, Greyhound/FlixBus, Salem Ferry, Cross Sound Ferry, Lake Champlain, Lake Winnipesaukee, and Maine State Ferry Service | built snapshot |
 | Small-town, county, flex, volunteer, and microtransit service catalog | 45 official-directory service markers across all six states | built snapshot |
-| Amtrak | [Amtraker](https://amtraker.com) community API | 90 s |
+| Amtrak | [Amtrak official static GTFS](https://content.amtrak.com/content/gtfs/GTFS.zip) for scheduled routes/stations; [Amtraker](https://amtraker.com) community API for live trains | built snapshot + 90 s |
 | Aircraft | [ADSB.lol](https://api.adsb.lol/) with [adsb.fi](https://adsb.fi/) failover; click a plane for its best-effort origin and destination | 45 s |
 | Harbor/coastal vessels and identifiable passenger ferries | [AISStream](https://aisstream.io) through a protected WebSocket relay | streaming |
 | Bike and scooter share | GBFS feeds for Bluebikes across 13 Greater Boston municipalities, Veo Hartford, Veo New Haven, and Spin Providence | 60 s |
@@ -44,10 +44,11 @@ private, repositioning, and irregular flights may not have an itinerary.
 
 ## Regional transit coverage
 
-The checked-in route snapshot contains 1,000 bus, commuter-rail, ferry, and
-passenger-boat route features assembled from 69 GTFS sources plus 17
-official-schedule corridors. Scheduled routes remain visible when an operator
-publishes no live positions. State views start with the scheduled bus layer on,
+The checked-in route snapshot contains 1,008 bus, commuter-rail, Amtrak,
+ferry, and passenger-boat route features plus 53 New England Amtrak stations,
+assembled from 70 GTFS sources and 17 official-schedule corridors. Scheduled
+routes remain visible when an operator publishes no live positions. State
+views start with the scheduled bus layer on,
 and the sidebar reports scheduled route counts separately from live vehicles,
 so a missing realtime credential no longer makes service look absent.
 Metro-North's New Haven, New Canaan, Danbury, and Waterbury lines are included
@@ -65,7 +66,12 @@ as schedules, not invented live vehicle positions.
 
 Vermont includes regional routes from every discoverable public GTFS source in
 the current audit, including Green Mountain Transit, Vermont Translines, and
-intercity Greyhound/FlixBus connections. Lake Champlain's current Grand
+intercity Greyhound/FlixBus connections. Official Amtrak schedule data adds
+the Vermonter and Ethan Allen Express as persistent rail-following ribbons and
+all 14 Vermont stations. Burlington Union Station (`BTN`) is kept distinct
+from Essex Junction–Burlington (`ESX`) because they serve different routes.
+Amtraker remains the separately attributed community source for live train
+positions. Lake Champlain's current Grand
 Isle–Plattsburgh and
 Charlotte–Essex crossings are included. In New Hampshire, the ferry/passenger-
 boat layer also includes published 2026 Mount Washington Cruises corridors and
@@ -121,8 +127,10 @@ Some intercity GTFS files publish only terminal stops or incomplete shapes.
 The snapshot builder replaces bus gaps longer than 20 km with a cached,
 approximate road-following path from OpenStreetMap/Project OSRM. These repairs
 run only at build time, remain labeled approximate in the popup, and never make
-network requests from a visitor's browser. A geometry check prevents a future
-feed update from restoring a map-spanning straight bus line.
+network requests from a visitor's browser. Amtrak's build uses only official
+nonempty rail shapes and never substitutes straight stop-to-stop lines. A
+geometry check prevents a future feed update from restoring a map-spanning
+straight bus or Amtrak line.
 
 Rebuild the static route snapshot after agencies update their schedules:
 

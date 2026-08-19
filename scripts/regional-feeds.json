@@ -1,4 +1,5 @@
 [
+  {"id":"amtrak","agency":"Amtrak","states":["ct","ma","me","nh","ri","vt","ny"],"url":"https://content.amtrak.com/content/gtfs/GTFS.zip","source_url":"https://www.amtrak.com/regions/northeast","route_name_pattern":"^(Acela|Amtrak Hartford Line|Downeaster|Ethan Allen Express|Lake Shore Limited|Northeast Regional|Valley Flyer|Vermonter)$","route_name_field":"route_long_name","group_override":"amtrak","group_color":"#5b9bd5","provider":"Amtrak official static GTFS","use_route_urls":true,"include_stations":true,"shape_only":true,"require_region_match":true,"record_feed_info":true,"required":true},
   {"id":"cttransit","agency":"CTtransit","states":["ct"],"url":"https://files.mobilitydatabase.org/mdb-553/latest.zip"},
   {"id":"hartford-line","agency":"Hartford Line","states":["ct"],"url":"https://files.mobilitydatabase.org/mdb-2840/latest.zip"},
   {"id":"greater-bridgeport","agency":"Greater Bridgeport Transit","states":["ct"],"url":"https://files.mobilitydatabase.org/mdb-530/latest.zip"},
