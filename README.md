@@ -19,7 +19,7 @@ Every feature is labeled **live**, **estimated**, **scheduled**, or
 | MBTA subway, Silver Line, buses, commuter rail, ferries | [MBTA V3 API](https://www.mbta.com/developers/v3-api) | 10 s |
 | Regional buses | Agency GTFS-realtime feeds, normalized by the gateway | 20 s |
 | Metro-North New Haven branches | [MTA GTFS-Realtime](https://www.mta.info/developers) trip predictions and alerts; positions are explicitly estimated between stations | 30 s |
-| Scheduled bus, rail, ferry, and passenger-boat routes | 69 GTFS sources plus 15 official-schedule corridors, including Metro-North, Concord Coach, Dartmouth Coach, Greyhound/FlixBus, Lake Champlain, Lake Winnipesaukee, and Maine State Ferry Service | built snapshot |
+| Scheduled bus, rail, ferry, and passenger-boat routes | 69 GTFS sources plus 16 official-schedule corridors, including Metro-North, Concord Coach, Dartmouth Coach, Greyhound/FlixBus, Cross Sound Ferry, Lake Champlain, Lake Winnipesaukee, and Maine State Ferry Service | built snapshot |
 | Small-town, county, flex, volunteer, and microtransit service catalog | 45 official-directory service markers across all six states | built snapshot |
 | Amtrak | [Amtraker](https://amtraker.com) community API | 90 s |
 | Aircraft | [ADSB.lol](https://api.adsb.lol/) with [adsb.fi](https://adsb.fi/) failover; click a plane for its best-effort origin and destination | 45 s |
@@ -44,8 +44,8 @@ private, repositioning, and irregular flights may not have an itinerary.
 
 ## Regional transit coverage
 
-The checked-in route snapshot contains 998 bus, commuter-rail, ferry, and
-passenger-boat route features assembled from 69 GTFS sources plus 15
+The checked-in route snapshot contains 999 bus, commuter-rail, ferry, and
+passenger-boat route features assembled from 69 GTFS sources plus 16
 official-schedule corridors. Scheduled routes remain visible when an operator
 publishes no live positions. State views start with the scheduled bus layer on,
 and the sidebar reports scheduled route counts separately from live vehicles,
@@ -74,6 +74,8 @@ six state-ferry links to Vinalhaven, North Haven, Matinicus, Swan's Island,
 Frenchboro, and Islesboro are also mapped from official schedules. These
 inland-water lines are schedule context; AIS may add a live marker only when a
 vessel is independently broadcasting and received by the configured provider.
+Cross Sound Ferry's New London–Orient Point corridor is included as a
+year-round vehicle/passenger route with seasonal high-speed service.
 
 Bluebikes is a Greater Boston system rather than a statewide brand. Its public
 feed covers Arlington, Boston, Brookline, Cambridge, Chelsea, Everett, Malden,
