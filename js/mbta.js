@@ -87,7 +87,6 @@ function apply(vehicles) {
   const items = vehicles.map((v) => {
     const info = routeInfo.get(v.route);
     const group = groupFor(v.route, info);
-    byGroup[group] = (byGroup[group] ?? 0) + 1;
     return {
       id: v.id,
       lng: v.lng,
@@ -111,6 +110,10 @@ function apply(vehicles) {
     };
   });
 
-  fleet.update(items);
+  const visible = fleet.update(items);
+  for (const item of visible) {
+    const group = item.props.group;
+    byGroup[group] = (byGroup[group] ?? 0) + 1;
+  }
   statsListeners.forEach((fn) => fn({ byGroup, lastUpdate: now }));
 }

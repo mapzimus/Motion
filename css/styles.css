@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Boston in Motion — mission-control aesthetic.
+   New England in Motion — mission-control aesthetic.
    Near-black ink, one glass console, MBTA line colors as the only saturated
    hues. Display: Bricolage Grotesque. Telemetry: IBM Plex Mono.
    ========================================================================== */
@@ -135,6 +135,31 @@ h2 {
   border: 1px solid var(--hairline-strong);
   border-radius: 999px;
   color: var(--text-dim);
+}
+
+.region-select {
+  width: 100%;
+  appearance: none;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 8px;
+  background:
+    linear-gradient(45deg, transparent 50%, var(--text-dim) 50%) calc(100% - 15px) 50% / 5px 5px no-repeat,
+    linear-gradient(135deg, var(--text-dim) 50%, transparent 50%) calc(100% - 10px) 50% / 5px 5px no-repeat,
+    rgba(255, 255, 255, 0.045);
+  color: var(--text);
+  padding: 9px 34px 9px 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: pointer;
+}
+.region-select:focus-visible { outline: 2px solid var(--text-dim); outline-offset: 2px; }
+.region-select option { background: #11161e; color: var(--text); }
+.region-note {
+  margin-top: 7px;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  line-height: 1.45;
 }
 
 /* ---- line rows ---------------------------------------------------------- */
@@ -312,7 +337,21 @@ h2 {
   font-style: italic;
 }
 
-.alert-item.clickable { cursor: pointer; position: relative; padding-right: 22px; transition: background 0.15s ease; }
+.alert-item.clickable { cursor: pointer; position: relative; padding: 0; transition: background 0.15s ease; }
+.alert-button {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  padding: 8px 22px 8px 10px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.alert-button:focus-visible { outline: 2px solid var(--text-dim); outline-offset: 2px; }
 .alert-item.clickable::after {
   content: '›';
   position: absolute;
@@ -323,7 +362,7 @@ h2 {
   font-size: 15px;
 }
 .alert-item.clickable:hover,
-.alert-item.clickable:focus-visible { background: rgba(255, 255, 255, 0.06); }
+.alert-item.clickable:focus-within { background: rgba(255, 255, 255, 0.06); }
 .alert-item.clickable:hover::after { color: var(--text); }
 
 /* Expanding ring dropped on the map when an alert is focused */

@@ -2,18 +2,20 @@
 
 import { CONFIG } from './config.js';
 import { focusAlert, focusGroup } from './map.js';
+import { REGIONS } from './regions.js';
 
 const el = (id) => document.getElementById(id);
 
 let GROUPS = [];
 const groupState = new Map();
-const counts = new Map(); // group key -> latest count (null = needs key)
+const countsBySource = new Map(); // source -> Map(group key, count)
 let onVisibleChange = () => {};
+let onRegionChange = () => {};
 let status = { state: 'connecting', lastUpdate: null, retryAtMs: null, message: '' };
 
 // Layer groups are built at init because route membership and colors come from
 // the API (e.g. "every type-3 route that isn't Silver Line" = the bus group).
-function buildGroups(routeInfo) {
+function buildGroups(routeInfo, capabilities) {
   const routesOfType = (t) =>
     [...routeInfo.values()].filter((r) => r.type === t).map((r) => r.id);
   const colorOf = (routeId) => routeInfo.get(routeId)?.color;
@@ -30,13 +32,13 @@ function buildGroups(routeInfo) {
     { key: 'mattapan', name: 'Mattapan Trolley', initial: 'M', section: 'subway', routes: ['Mattapan'], color: colorOf('Mattapan') },
     // The wider fleet.
     { key: 'commuter', name: 'Commuter Rail', initial: 'CR', section: 'modal', routes: routesOfType(2), color: colorOf(routesOfType(2)[0]) },
-    { key: 'bus', name: 'Bus network', initial: 'B', section: 'modal', routes: routesOfType(3).filter((id) => !CONFIG.SILVER_ROUTES.includes(id)), color: '#ffc72c', darkText: true },
-    { key: 'ferry', name: 'MBTA Ferries', initial: 'F', section: 'modal', routes: routesOfType(4), color: colorOf(routesOfType(4)[0]) ?? '#008eaa' },
+    { key: 'bus', name: 'Local buses', initial: 'B', section: 'modal', routes: routesOfType(3).filter((id) => !CONFIG.SILVER_ROUTES.includes(id)), color: '#ffc72c', darkText: true },
+    { key: 'ferry', name: 'Ferries', initial: 'F', section: 'modal', routes: routesOfType(4), color: colorOf(routesOfType(4)[0]) ?? '#008eaa' },
     { key: 'amtrak', name: 'Amtrak', initial: 'A', section: 'modal', routes: [], color: CONFIG.AMTRAK_COLOR },
-    { key: 'plane', name: 'Planes · Logan', initial: '✈', section: 'modal', routes: [], color: CONFIG.PLANE_COLOR },
-    { key: 'vessel', name: 'Harbor traffic', initial: '⚓', section: 'modal', routes: [], color: CONFIG.VESSEL_COLOR, needsKey: !CONFIG.AIS_KEY, keyUrl: 'https://aisstream.io' },
+    { key: 'plane', name: 'Aircraft', initial: '✈', section: 'modal', routes: [], color: CONFIG.PLANE_COLOR, needsKey: !capabilities?.aircraft, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'setup' },
+    { key: 'vessel', name: 'Harbor & coastal traffic', initial: '⚓', section: 'modal', routes: [], color: CONFIG.VESSEL_COLOR, needsKey: !capabilities?.ais, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'setup' },
     { key: 'bike', name: 'Bluebikes', initial: 'b', section: 'modal', routes: [], color: CONFIG.BIKE_COLOR },
-    { key: 'traffic', name: 'Road traffic', initial: '≋', section: 'modal', routes: [], color: '#e05d5d', needsKey: !CONFIG.TOMTOM_KEY, keyUrl: 'https://developer.tomtom.com', zoomable: false },
+    { key: 'traffic', name: 'Road traffic', initial: '≋', section: 'modal', routes: [], color: '#e05d5d', needsKey: !capabilities?.traffic, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'setup', zoomable: false },
   ];
 }
 
@@ -64,9 +66,27 @@ export function formatVehicleStatus(v) {
   }
 }
 
-export function initPanel(routeInfo, visibleChangeHandler) {
-  GROUPS = buildGroups(routeInfo);
+export function initPanel(routeInfo, visibleChangeHandler, regionChangeHandler, selectedRegion, capabilities) {
+  GROUPS = buildGroups(routeInfo, capabilities);
   onVisibleChange = visibleChangeHandler;
+  onRegionChange = regionChangeHandler;
+
+  const regionSelect = el('region-select');
+  for (const region of REGIONS) {
+    const option = document.createElement('option');
+    option.value = region.key;
+    option.textContent = region.name;
+    regionSelect.appendChild(option);
+  }
+  regionSelect.value = selectedRegion;
+  renderRegionCopy(selectedRegion);
+  regionSelect.addEventListener('change', () => {
+    renderRegionCopy(regionSelect.value);
+    onRegionChange(regionSelect.value);
+    if (window.matchMedia('(max-width: 760px)').matches) {
+      document.body.classList.remove('panel-open');
+    }
+  });
 
   for (const group of GROUPS) {
     const startOn = !CONFIG.DEFAULT_OFF_GROUPS.includes(group.key) && !group.needsKey;
@@ -80,7 +100,7 @@ export function initPanel(routeInfo, visibleChangeHandler) {
     row.innerHTML = `
       <span class="bullet${group.darkText ? ' dark-text' : ''}">${group.initial}</span>
       <span class="line-name">${group.name}<span class="badge" hidden></span>
-        ${group.needsKey ? `<a class="get-key" href="${group.keyUrl}" target="_blank" rel="noopener" title="This layer needs a free key — see the README">free key</a>` : ''}
+        ${group.needsKey ? `<a class="get-key" href="${group.keyUrl}" target="_blank" rel="noopener" title="This layer needs the Motion gateway — see the README">${group.setupText ?? 'setup'}</a>` : ''}
       </span>
       <span class="count" data-count>–</span>
       <label class="switch">
@@ -132,6 +152,18 @@ export function initPanel(routeInfo, visibleChangeHandler) {
   emitVisible();
 }
 
+function renderRegionCopy(key) {
+  const name = REGIONS.find((region) => region.key === key)?.name ?? 'Boston only';
+  el('region-eyebrow').textContent = `${name.replace(' only', '').toUpperCase()} · REAL-TIME TELEMETRY`;
+  el('region-tagline').textContent = key === 'boston'
+    ? 'Boston selected. Switch to any state or all New England.'
+    : `${name} selected. Live points outside this boundary are hidden.`;
+}
+
+export function getRegion() {
+  return el('region-select').value;
+}
+
 const rowInput = (key) =>
   document.querySelector(`.line-row[data-key="${key}"] input`);
 
@@ -152,15 +184,28 @@ function emitVisible() {
 // ---- live counts / connection status --------------------------------------
 
 // Every fleet reports its own group counts; they merge here.
-export function updateCounts(partialByGroup) {
-  for (const [group, n] of Object.entries(partialByGroup)) counts.set(group, n);
+export function updateCounts(partialByGroup, source = 'default') {
+  if (!countsBySource.has(source)) countsBySource.set(source, new Map());
+  const sourceCounts = countsBySource.get(source);
+  for (const [group, n] of Object.entries(partialByGroup)) sourceCounts.set(group, n);
+  renderCounts();
+}
+
+export function replaceCounts(partialByGroup, source) {
+  countsBySource.set(source, new Map(Object.entries(partialByGroup)));
+  renderCounts();
+}
+
+function renderCounts() {
   for (const group of GROUPS) {
     const cell = document.querySelector(
       `.line-row[data-key="${group.key}"] [data-count]`,
     );
     if (!cell) continue;
-    const n = counts.get(group.key);
-    cell.textContent = n === null || n === undefined ? '–' : n;
+    const values = [...countsBySource.values()]
+      .map((sourceMap) => sourceMap.get(group.key))
+      .filter((value) => value !== null && value !== undefined);
+    cell.textContent = values.length ? values.reduce((sum, value) => sum + value, 0) : '–';
   }
   hideOverlay();
   renderStatus();
@@ -169,7 +214,7 @@ export function updateCounts(partialByGroup) {
 // The MBTA poller is the app's heartbeat: it stamps lastUpdate.
 export function updateStats({ byGroup, lastUpdate }) {
   status.lastUpdate = lastUpdate;
-  updateCounts(byGroup);
+  updateCounts(byGroup, 'mbta');
 }
 
 export function updateStatus(state, detail = {}) {
@@ -180,9 +225,13 @@ export function updateStatus(state, detail = {}) {
 }
 
 function totalCount() {
-  let total = 0;
-  for (const n of counts.values()) total += n ?? 0;
-  return total;
+  return GROUPS.reduce((total, group) => {
+    const groupTotal = [...countsBySource.values()].reduce(
+      (sum, sourceMap) => sum + (sourceMap.get(group.key) ?? 0),
+      0,
+    );
+    return total + groupTotal;
+  }, 0);
 }
 
 function renderStatus() {
@@ -264,27 +313,24 @@ export function renderAlerts(alerts) {
     const text = document.createElement('span');
     text.className = 'alert-text';
     text.textContent = a.header;
-    li.append(effect, text);
-
     // Clicking an alert flies the map to what it affects.
     const canFocus = a.focus?.points?.length || a.routes?.length;
     if (canFocus) {
       li.classList.add('clickable');
-      li.setAttribute('role', 'button');
-      li.tabIndex = 0;
+      const button = document.createElement('button');
+      button.className = 'alert-button';
+      button.type = 'button';
+      button.append(effect, text);
+      li.appendChild(button);
       const go = () => {
         const flew = focusAlert(a);
         if (flew && window.matchMedia('(max-width: 760px)').matches) {
           document.body.classList.remove('panel-open');
         }
       };
-      li.addEventListener('click', go);
-      li.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          go();
-        }
-      });
+      button.addEventListener('click', go);
+    } else {
+      li.append(effect, text);
     }
     list.appendChild(li);
   }

@@ -1,0 +1,24 @@
+{
+  "name": "new-england-in-motion",
+  "version": "0.5.0",
+  "private": true,
+  "description": "Live transportation map for Boston and New England",
+  "scripts": {
+    "dev": "node server.js",
+    "gateway:dev": "wrangler dev",
+    "gateway:types": "wrangler types",
+    "check": "tsc --noEmit",
+    "test": "vitest run",
+    "deploy:dry-run": "wrangler deploy --dry-run --env=\"\""
+  },
+  "dependencies": {
+    "gtfs-realtime-bindings": "^2.2.0"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.22.0",
+    "@types/node": "^26.2.0",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11",
+    "wrangler": "^4.124.0"
+  }
+}

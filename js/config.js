@@ -1,6 +1,9 @@
 // Central knobs for the whole app. Everything tunable lives here.
 
 const params = new URLSearchParams(window.location.search);
+const gatewayBase = (
+  params.get('gateway') || localStorage.getItem('motion-gateway') || ''
+).replace(/\/+$/, '');
 
 export const CONFIG = {
   API_BASE: 'https://api-v3.mbta.com',
@@ -10,6 +13,10 @@ export const CONFIG = {
   // billing, and can be regenerated anytime at https://api-v3.mbta.com.
   // Override per-visit with ?api_key=YOUR_KEY.
   API_KEY: params.get('api_key') || 'd9bab356c0644656a933fd24f356b45f',
+
+  // Worker gateway for feeds that cannot safely or reliably run in a browser.
+  // Override once with ?gateway=http://localhost:8787; it persists.
+  GATEWAY_BASE: gatewayBase,
 
   // Polling cadence per feed.
   VEHICLE_POLL_MS: 10_000, // one request covers the entire MBTA fleet
@@ -29,9 +36,9 @@ export const CONFIG = {
 
   MAP_CENTER: [-71.0589, 42.335],
   MAP_ZOOM: 11.5,
-  // Wide enough for the full commuter rail network (Worcester/Providence/
-  // Newburyport) plus harbor approaches.
-  MAP_BOUNDS: [[-72.7, 41.2], [-69.5, 43.6]],
+  // Navigation guardrail with enough margin for a wide screen to fit all six
+  // states at once (a tight New England box forces MapLibre to over-zoom).
+  MAP_BOUNDS: [[-80, 38], [-61, 50.5]],
 
   // The Silver Line is GTFS route_type 3 ("bus") but belongs with rapid
   // transit — these six route IDs get their own layer group.
@@ -43,23 +50,18 @@ export const CONFIG = {
   SHAPE_CACHE_KEY: 'bim-shapes-v3',
   SHAPE_CACHE_TTL_MS: 24 * 3600 * 1000,
 
-  // Amtrak via the community Amtraker API (CORS-open, no key). We show trains
-  // inside the map region only.
+  // Amtrak via the community Amtraker API (CORS-open, no key). Exact region
+  // clipping is handled by the shared Census boundary filter.
   AMTRAK_URL: 'https://api-v3.amtraker.com/v3/trains',
-  AMTRAK_BBOX: { latMin: 41.2, latMax: 43.6, lonMin: -72.7, lonMax: -69.5 },
+  AMTRAK_BBOX: { latMin: 40.7, latMax: 47.75, lonMin: -74.1, lonMax: -65.8 },
   AMTRAK_COLOR: '#5b9bd5',
 
-  // Live aircraft via airplanes.live community ADS-B API (CORS-open, no key,
-  // ~1 req/s courtesy limit — we poll every 45 s). Radius is nautical miles.
-  PLANES_URL: 'https://api.airplanes.live/v2/point/42.36/-71.01/30',
+  // Aircraft are fetched server-side from ADSB.lol. The selected geography
+  // controls overlapping probes, then exact Census polygons clip the results.
   PLANE_COLOR: '#9be1ff',
 
-  // Live harbor AIS via aisstream.io WebSocket. Needs a free key
-  // (sign in with GitHub at https://aisstream.io) — paste it below, or pass
-  // ?ais_key=YOUR_KEY once (it persists in this browser via localStorage).
-  AIS_KEY: params.get('ais_key') || localStorage.getItem('bim-ais-key') || '',
-  AIS_URL: 'wss://stream.aisstream.io/v0/stream',
-  AIS_BBOX: [[41.2, -72.7], [43.6, -69.5]], // [[latMin, lonMin], [latMax, lonMax]]
+  // AIS and protected traffic tiles also pass through the gateway, so vendor
+  // keys never enter browser storage or the public JavaScript bundle.
   AIS_STALE_MS: 3 * 60_000, // dim vessels silent for 3 min
   AIS_PRUNE_MS: 10 * 60_000, // drop vessels silent for 10 min
   VESSEL_COLOR: '#63d8c8',
@@ -77,12 +79,9 @@ export const CONFIG = {
   BUS_COLOR: '#ffc72c', // MBTA bus yellow
   FERRY_COLOR: '#008eaa', // MBTA ferry teal
 
-  // Live road congestion via TomTom traffic flow tiles. Needs a free key
-  // (https://developer.tomtom.com — no credit card) — paste it below, or pass
-  // ?tomtom_key=YOUR_KEY once (it persists in this browser via localStorage).
-  TOMTOM_KEY: params.get('tomtom_key') || localStorage.getItem('bim-tomtom-key') || '',
-  TRAFFIC_TILE_TEMPLATE:
-    'https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key={key}&thickness=10',
+  TRAFFIC_TILE_TEMPLATE: gatewayBase
+    ? `${gatewayBase}/api/traffic/{z}/{x}/{y}.png`
+    : '',
 
   // Layer groups that start switched off (dense layers — one tap turns them
   // on: ~400 buses, ~600 bike stations, wall-to-wall traffic color).
@@ -91,16 +90,11 @@ export const CONFIG = {
   BASEMAP_STYLE: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
 };
 
-// Persist keys passed via URL so they survive future visits.
-for (const [param, storageKey] of [
-  ['ais_key', 'bim-ais-key'],
-  ['tomtom_key', 'bim-tomtom-key'],
-]) {
-  if (params.get(param)) {
-    try {
-      localStorage.setItem(storageKey, params.get(param));
-    } catch {
-      /* private mode — session-only */
-    }
+// Persist only the gateway address. Provider credentials are Worker secrets.
+if (params.get('gateway')) {
+  try {
+    localStorage.setItem('motion-gateway', gatewayBase);
+  } catch {
+    /* private mode — session-only */
   }
 }

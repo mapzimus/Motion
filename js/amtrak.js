@@ -60,8 +60,8 @@ export function startAmtrak(onCounts) {
         };
       });
 
-      fleet.update(items);
-      onCounts({ amtrak: items.length });
+      const visible = fleet.update(items);
+      onCounts({ amtrak: visible.length });
     } catch (err) {
       console.warn('Amtrak feed unavailable:', err.message);
     }
