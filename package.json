@@ -1,13 +1,13 @@
 {
   "name": "new-england-in-motion",
-  "version": "0.9.2",
+  "version": "0.9.3",
   "private": true,
   "description": "Live transportation map for Boston and New England",
   "scripts": {
     "dev": "node server.js",
     "gateway:dev": "wrangler dev",
     "gateway:types": "wrangler types",
-    "check": "tsc --noEmit",
+    "check": "tsc --noEmit && node scripts/check-route-geometry.mjs",
     "test": "vitest run",
     "deploy:dry-run": "wrangler deploy --dry-run --env=\"\""
   },

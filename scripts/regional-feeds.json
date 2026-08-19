@@ -41,7 +41,7 @@
   {"id":"blue-apple","agency":"Blue Apple Bus Company","states":["ma"],"url":"https://files.mobilitydatabase.org/mdb-2299/latest.zip"},
   {"id":"bay-state-cruise","agency":"Bay State Cruise Company","states":["ma"],"url":"https://files.mobilitydatabase.org/mdb-435/latest.zip","source_url":"https://baystatecruisecompany.com/"},
   {"id":"cuttyhunk-ferry","agency":"Cuttyhunk Ferry Company","states":["ma"],"url":"https://files.mobilitydatabase.org/mdb-423/latest.zip","source_url":"https://www.cuttyhunkferryco.com/"},
-  {"id":"vineyard-fast-ferry","agency":"Vineyard Fast Ferry","states":["ma","ri"],"url":"https://files.mobilitydatabase.org/mdb-419/latest.zip","source_url":"https://vineyardfastferry.com/"},
+  {"id":"vineyard-fast-ferry","agency":"Vineyard Fast Ferry","states":["ma","ri"],"url":"https://files.mobilitydatabase.org/mdb-419/latest.zip","source_url":"https://vineyardfastferry.com/","route_type_override":4},
   {"id":"yankee-line","agency":"Yankee Line","states":["ma"],"url":"https://files.mobilitydatabase.org/mdb-443/latest.zip","source_url":"https://yankeeline.us/"},
 
   {"id":"ripta","agency":"Rhode Island Public Transit Authority","states":["ri","ma"],"url":"https://files.mobilitydatabase.org/mdb-624/latest.zip"},
