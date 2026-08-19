@@ -5,6 +5,7 @@ import { AIS_BOUNDS, isRegionId, PLANE_PROBES, type RegionId } from './regions';
 const ADSB_LOL_BASE = 'https://api.adsb.lol/v2/point';
 const ADSB_FI_BASE = 'https://opendata.adsb.fi/api/v3';
 const AISSTREAM_URL = 'wss://stream.aisstream.io/v0/stream';
+const MASSDOT_WORK_ZONE_URL = 'https://feed.massdot-swzm.com/massdot_wzdx_v4.1_work_zone_feed.geojson';
 const NEW_ENGLAND_BBOX = { west: -74, south: 40.8, east: -66, north: 47.7 };
 const PLANE_STALE_TTL_SECONDS = 5 * 60;
 
@@ -277,6 +278,76 @@ async function transit(request: Request, url: URL, env: Env, ctx: ExecutionConte
   });
 }
 
+type WorkZoneFeature = {
+  id?: string;
+  type?: string;
+  geometry?: { type?: string; coordinates?: unknown };
+  properties?: {
+    core_details?: {
+      road_names?: string[];
+      direction?: string;
+      update_date?: string;
+    };
+    start_date?: string;
+    end_date?: string;
+    vehicle_impact?: string;
+  };
+};
+
+async function roadwork(request: Request, ctx: ExecutionContext): Promise<Response> {
+  return cachedJson(request, ctx, 60, async () => {
+    const upstream = await fetch(MASSDOT_WORK_ZONE_URL, {
+      headers: { accept: 'application/geo+json, application/json' },
+      cf: { cacheEverything: true, cacheTtl: 60 },
+    });
+    if (!upstream.ok) return json({ error: `MassDOT work-zone feed ${upstream.status}` }, 502);
+    const source = await upstream.json() as { features?: WorkZoneFeature[] };
+    const now = Date.now();
+    const horizon = now + 24 * 60 * 60 * 1000;
+    const features = (source.features ?? []).flatMap((feature) => {
+      const properties = feature.properties;
+      const geometry = feature.geometry;
+      const startAt = Date.parse(properties?.start_date ?? '');
+      const endAt = Date.parse(properties?.end_date ?? '');
+      if (!Number.isFinite(startAt) || !Number.isFinite(endAt)) return [];
+      if (endAt < now - 15 * 60_000 || startAt > horizon) return [];
+      if (!geometry?.coordinates || !['LineString', 'MultiLineString'].includes(geometry.type ?? '')) return [];
+
+      const active = startAt <= now && endAt >= now;
+      const impact = properties?.vehicle_impact ?? 'unknown-impact';
+      const direction = properties?.core_details?.direction?.replace(/-/g, ' ') ?? '';
+      const impactText = impact.replace(/-/g, ' ');
+      const roadNames = properties?.core_details?.road_names?.filter(Boolean) ?? [];
+      const color = impact.includes('closed')
+        ? '#ef5b5b'
+        : impact.includes('some') || impact.includes('reduced')
+          ? '#ffb454'
+          : '#ff8a4c';
+      return [{
+        type: 'Feature',
+        id: feature.id,
+        geometry,
+        properties: {
+          group: 'roadwork',
+          color,
+          active,
+          title: roadNames.join(' / ') || 'MassDOT work zone',
+          status: [direction, impactText].filter(Boolean).join(' · '),
+          startAt: new Date(startAt).toISOString(),
+          endAt: new Date(endAt).toISOString(),
+          updatedAt: properties?.core_details?.update_date ?? new Date().toISOString(),
+        },
+      }];
+    });
+    return json({
+      type: 'FeatureCollection',
+      provider: 'MassDOT Connected Work Zones',
+      coverage: ['ma'],
+      features,
+    });
+  });
+}
+
 async function trafficTile(
   request: Request,
   path: string,
@@ -368,6 +439,7 @@ export default {
         providers: {
           aircraft: true,
           regionalTransit: true,
+          roadwork: true,
           ais: configured(secret(env, 'AISSTREAM_API_KEY')),
           traffic: configured(secret(env, 'TOMTOM_API_KEY')),
           swiftly: configured(secret(env, 'SWIFTLY_API_KEY')),
@@ -377,6 +449,8 @@ export default {
       response = await planes(request, url, ctx);
     } else if (url.pathname === '/api/transit') {
       response = await transit(request, url, env, ctx);
+    } else if (url.pathname === '/api/roadwork') {
+      response = await roadwork(request, ctx);
     } else if (url.pathname.startsWith('/api/traffic/')) {
       response = await trafficTile(request, url.pathname, env, ctx);
     } else if (url.pathname === '/api/ais') {
