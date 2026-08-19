@@ -1,0 +1,5 @@
+# Copy to .dev.vars for local gateway development. Never commit .dev.vars.
+AISSTREAM_API_KEY=replace-with-aisstream-key
+TOMTOM_API_KEY=replace-with-tomtom-key
+# Optional. Swiftly expects the complete Authorization header value.
+SWIFTLY_API_KEY=replace-with-swiftly-authorization-value

@@ -1,60 +1,77 @@
-// Live aircraft around Logan via the airplanes.live community ADS-B API
-// (CORS-open, keyless, ~1 req/s courtesy cap — we poll every 45 s).
+// Live New England aircraft via the Motion gateway and ADSB.lol.
 
 import { CONFIG } from './config.js';
 import { createFleet } from './fleet.js';
 
 const KNOTS_TO_MPH = 1.15078;
 
-export function startPlanes(onCounts) {
+export function startPlanes(onCounts, initialRegion, enabled = true) {
+  if (!CONFIG.GATEWAY_BASE || !enabled) {
+    onCounts({ plane: null });
+    return { setRegion() {} };
+  }
+
   const fleet = createFleet('plane');
+  let region = initialRegion;
+  let timer = null;
 
   const poll = async () => {
-    if (document.hidden) return;
+    clearTimeout(timer);
+    if (document.hidden) {
+      timer = setTimeout(poll, CONFIG.PLANE_POLL_MS);
+      return;
+    }
     try {
-      const res = await fetch(CONFIG.PLANES_URL);
-      if (!res.ok) throw new Error(`airplanes.live ${res.status}`);
+      const res = await fetch(
+        `${CONFIG.GATEWAY_BASE}/api/planes?region=${encodeURIComponent(region)}`,
+      );
+      if (!res.ok) throw new Error(`Motion aircraft gateway ${res.status}`);
       const json = await res.json();
-      const aircraft = (json.ac ?? []).filter(
-        (a) => Number.isFinite(a.lat) && Number.isFinite(a.lon),
+      const aircraft = (json.aircraft ?? []).filter(
+        (a) => Number.isFinite(a.lat) && Number.isFinite(a.lng),
       );
 
       const items = aircraft.map((a) => {
-        const onGround = a.alt_baro === 'ground';
-        const seenSec = Number.isFinite(a.seen) ? a.seen : 0;
         return {
-          id: `plane-${a.hex}`,
-          lng: a.lon,
+          id: `plane-${a.id}`,
+          lng: a.lng,
           lat: a.lat,
           props: {
             group: 'plane',
             color: CONFIG.PLANE_COLOR,
-            bearing: a.track ?? 0,
-            hasBearing: Number.isFinite(a.track),
-            stale: onGround, // taxiing aircraft render dimmed
-            title: a.flight?.trim() || a.hex.toUpperCase(),
-            dest: a.t ?? '',
-            status: onGround
+            bearing: a.bearing ?? 0,
+            hasBearing: Number.isFinite(a.bearing),
+            stale: a.onGround, // taxiing aircraft render dimmed
+            title: a.callsign || a.id.toUpperCase(),
+            dest: a.aircraftType ?? '',
+            status: a.onGround
               ? 'On the ground'
               : [
-                  Number.isFinite(a.alt_baro) ? `${a.alt_baro.toLocaleString()} ft` : '',
-                  Number.isFinite(a.gs) ? `${Math.round(a.gs * KNOTS_TO_MPH)} mph` : '',
+                  Number.isFinite(a.altitudeFeet) ? `${a.altitudeFeet.toLocaleString()} ft` : '',
+                  Number.isFinite(a.groundSpeedKnots) ? `${Math.round(a.groundSpeedKnots * KNOTS_TO_MPH)} mph` : '',
                 ]
                   .filter(Boolean)
                   .join(' · '),
-            meta: `icao ${a.hex}`,
-            updatedAt: new Date(Date.now() - seenSec * 1000).toISOString(),
+            meta: `icao ${a.id}`,
+            updatedAt: a.updatedAt,
           },
         };
       });
 
-      fleet.update(items);
-      onCounts({ plane: items.length });
+      const visible = fleet.update(items);
+      onCounts({ plane: visible.length });
     } catch (err) {
       console.warn('Plane feed unavailable:', err.message);
     }
+    timer = setTimeout(poll, CONFIG.PLANE_POLL_MS);
   };
 
   poll();
-  setInterval(poll, CONFIG.PLANE_POLL_MS);
+  return {
+    setRegion(nextRegion) {
+      region = nextRegion;
+      clearTimeout(timer);
+      poll();
+    },
+  };
 }

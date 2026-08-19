@@ -6,6 +6,7 @@
 
 import { CONFIG } from './config.js';
 import { setFleetData } from './map.js';
+import { filterItems } from './regions.js';
 
 export function createFleet(fleetId) {
   const latest = new Map(); // id -> { lng, lat, props }
@@ -30,6 +31,7 @@ export function createFleet(fleetId) {
     }
     if (moves.length) animate(moves);
     else render();
+    return filterItems(items);
   }
 
   function animate(moves) {

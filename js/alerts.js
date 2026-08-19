@@ -6,6 +6,7 @@
 
 import { CONFIG } from './config.js';
 import { fetchAlerts, fetchStopCoords } from './api.js';
+import { containsPoint, getActiveRegion } from './regions.js';
 
 const stopCoordCache = new Map(); // stop id -> [lng, lat], stable across polls
 
@@ -38,6 +39,17 @@ async function attachFocus(alerts) {
 }
 
 export function startAlertPolling(routeInfo, onAlerts) {
+  let latest = [];
+  const renderForRegion = () => {
+    const region = getActiveRegion();
+    const visible = ['boston', 'ma', 'new-england'].includes(region)
+      ? latest
+      : latest.filter((alert) =>
+          alert.focus?.points?.some((point) => containsPoint(region, point)),
+        );
+    onAlerts(visible);
+  };
+
   const poll = async () => {
     if (document.hidden) return;
     try {
@@ -45,7 +57,8 @@ export function startAlertPolling(routeInfo, onAlerts) {
       const alerts = all.filter((a) => isRelevant(a, routeInfo));
       alerts.sort((a, b) => b.severity - a.severity);
       await attachFocus(alerts);
-      onAlerts(alerts);
+      latest = alerts;
+      renderForRegion();
     } catch (err) {
       // Non-fatal: keep showing the last known alerts; the MBTA poller owns
       // the visible connection-status reporting.
@@ -54,4 +67,5 @@ export function startAlertPolling(routeInfo, onAlerts) {
   };
   poll();
   setInterval(poll, CONFIG.ALERT_POLL_MS);
+  return { setRegion: renderForRegion };
 }

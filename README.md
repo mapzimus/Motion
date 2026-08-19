@@ -1,105 +1,143 @@
-# Boston in Motion
+# New England in Motion
 
-**One live map of everything moving through Boston.** Subway trains, commuter
-rail, buses, ferries, Amtrak, aircraft over Logan, and real harbor traffic —
-all polled or streamed straight into the browser and rendered on a dark
-MapLibre basemap. No backend at all.
+One live map of transportation moving across Connecticut, Maine,
+Massachusetts, New Hampshire, Rhode Island, and Vermont. Start with Boston,
+switch to a single state, or zoom out to all New England.
 
-## Layers
+The map combines MBTA vehicles and alerts, regional GTFS-realtime buses,
+Amtrak, ADS-B aircraft, AIS harbor/coastal traffic, ferries, Bluebikes, and
+TomTom road congestion. Live points are clipped to generalized 2025 U.S.
+Census TIGERweb boundaries, so “Boston only” and state filters are geographic,
+not guesses based on agency names.
+
+## What works
 
 | Layer | Source | Cadence |
 |---|---|---|
-| Subway (Red/Orange/Green/Blue), Silver Line, Mattapan Trolley | [MBTA V3 API](https://www.mbta.com/developers/v3-api) | 10 s |
-| Commuter Rail (13 lines) | MBTA V3 API — same single request | 10 s |
-| Bus network (~150 routes) | MBTA V3 API — same single request | 10 s |
-| MBTA Ferries (8 routes) | MBTA V3 API — same single request | 10 s |
-| Amtrak (trains inside the map region) | [Amtraker API](https://amtraker.com) (community, keyless) | 90 s |
-| Planes (30 nm around Logan) | [airplanes.live](https://airplanes.live) ADS-B (community, keyless) | 45 s |
-| Harbor traffic (live AIS) | [aisstream.io](https://aisstream.io) WebSocket — needs free key | streaming |
-| Bluebikes (~600 stations, live fill levels) | [Bluebikes GBFS](https://gbfs.bluebikes.com/gbfs/gbfs.json) (keyless) | 60 s |
-| Road traffic (congestion coloring) | [TomTom flow tiles](https://developer.tomtom.com) — needs free key | live tiles |
+| MBTA subway, Silver Line, buses, commuter rail, ferries | [MBTA V3 API](https://www.mbta.com/developers/v3-api) | 10 s |
+| Regional buses | Agency GTFS-realtime feeds, normalized by the gateway | 20 s |
+| Amtrak | [Amtraker](https://amtraker.com) community API | 90 s |
+| Aircraft | [ADSB.lol](https://api.adsb.lol/) through the gateway | 45 s |
+| Harbor/coastal vessels and identifiable passenger ferries | [AISStream](https://aisstream.io) through a protected WebSocket relay | streaming |
+| Bluebikes stations | [Bluebikes GBFS](https://gbfs.bluebikes.com/gbfs/gbfs.json) | 60 s |
+| Road congestion | [TomTom Traffic Flow](https://developer.tomtom.com/traffic-api) through protected raster tiles | live tiles |
 
-The entire MBTA fleet (~500-900 vehicles) arrives in **one** `/vehicles`
-request per poll, classified into layers client-side. The Silver Line is
-GTFS-type "bus", but no Boston rapid-transit map is complete without it, so
-it rides with the subway group.
+The aircraft layer no longer calls airplanes.live. That service now rejects
+this project with HTTP 403, and ADSB.lol does not expose browser CORS headers.
+The Worker gateway fixes both problems without weakening browser security.
 
-## Features
+## Regional transit coverage
 
-- Vehicles glide between polls instead of teleporting; chevrons show heading
-- Click anything — train, bus, ferry, plane, ship — for destination, next stop
-  / altitude / speed, car number, crowding, and data age
-- **Click a service alert to fly the map to the affected stops** (red ping)
-- Per-line subway toggles + per-mode toggles, with live counts
-- Alert feed with severity badges on affected lines; routine single-bus-route
-  alerts are filtered out unless severe
-- Honest telemetry: stale fixes render dimmed; status line shows
-  live / paused / retrying with exponential backoff; polling pauses in hidden tabs
-- Route ribbons for rail/SL/ferry cached locally for 24 h (buses stay
-  ribbon-free on purpose — 150 overlapping routes would bury the map)
+The gateway currently knows these vehicle-position feeds:
 
-## Run it
+- Massachusetts: MBTA and Pioneer Valley Transit Authority; Merrimack Valley
+  Transit is included through the optional Swiftly authorization
+- Connecticut: CTtransit, HARTransit, River Valley Transit, and Norwalk
+  Transit District
+- Rhode Island: RIPTA
+- Maine: Greater Portland METRO and Island Explorer
+- New Hampshire/Vermont: Advance Transit plus Vermont's GMT, GMCN, Marble
+  Valley, MOOver!, RCT, Tri-Valley, and The Current feeds
 
+The NH/VT providers above use Swiftly's authorized realtime API. Their adapters
+are included, but they report `needs-key` until `SWIFTLY_API_KEY` is configured.
+Agencies that publish only schedules (static GTFS), use a closed tracker, or do
+not expose a current vehicle feed are intentionally not drawn as “live.”
+
+## Run the map
+
+The MBTA, Amtrak, and Bluebikes layers work with only the static server:
+
+```powershell
+npm install
+npm run dev
+# http://localhost:5500
 ```
-node server.js        # -> http://localhost:5500
+
+### Gateway setup
+
+Aircraft and public regional-bus feeds need the gateway. AIS and traffic also
+need their provider secrets.
+
+```powershell
+Copy-Item .dev.vars.example .dev.vars
+# Edit .dev.vars; AIS/TomTom/Swiftly are optional for local development.
+npm run gateway:dev
 ```
 
-Any static file server works — there is no build step and no backend.
-Deployment is copying these files to any static host (GitHub Pages, Vercel, …).
+In a second terminal:
 
-### Keys
+```powershell
+npm run dev
+# Open http://localhost:5500/?gateway=http://localhost:8787
+```
 
-- **MBTA** — a key ships in `js/config.js` (rate-limit-only, no billing,
-  regenerate anytime at [api-v3.mbta.com](https://api-v3.mbta.com)). Override
-  with `?api_key=YOUR_KEY`.
-- **Live harbor traffic (AIS)** — needs a free [aisstream.io](https://aisstream.io)
-  key (GitHub sign-in). Either paste it into `AIS_KEY` in `js/config.js`, or
-  visit once with `?ais_key=YOUR_KEY` — it persists in that browser via
-  localStorage. Until then the layer shows a "free key" link; MBTA ferries
-  still appear regardless. Note: MBTA ferries also broadcast AIS, so with both
-  layers on, a ferry can appear twice (two independent sources).
-- **Road traffic** — needs a free [developer.tomtom.com](https://developer.tomtom.com)
-  key (no credit card). Paste it into `TOMTOM_KEY` in `js/config.js`, or visit
-  once with `?tomtom_key=YOUR_KEY` (persists the same way). Renders live
-  congestion coloring (green→red) under the transit layers, off by default.
+The gateway URL persists in localStorage, so it only needs to be supplied once.
+Provider keys never enter the page URL, localStorage, or the frontend bundle.
+
+### Deploy the gateway
+
+The Worker has separate staging and production environments. Create secrets in
+the environment where they will be used:
+
+```powershell
+npx wrangler login
+npx wrangler secret put AISSTREAM_API_KEY --env production
+npx wrangler secret put TOMTOM_API_KEY --env production
+npx wrangler secret put SWIFTLY_API_KEY --env production
+npx wrangler deploy --env production
+```
+
+AISStream and TomTom are optional; omit those secrets if their layers should
+stay unavailable. `SWIFTLY_API_KEY` must be the complete value expected by the
+Swiftly `Authorization` header. Add any custom production frontend origin to
+`ALLOWED_ORIGINS` in `wrangler.jsonc` before deployment.
+
+## Gateway API
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /health` | Configuration status without exposing secrets |
+| `GET /api/planes?region=ma` | Deduplicated, normalized ADS-B aircraft |
+| `GET /api/transit?region=ct` | Normalized GTFS-realtime bus positions and per-feed health |
+| `GET /api/traffic/{z}/{x}/{y}.png` | Cached TomTom congestion tile |
+| `GET /api/ais?region=new-england` with WebSocket upgrade | AISStream relay scoped to the selected region |
+
+Supported region IDs are `boston`, `ma`, `ct`, `ri`, `nh`, `vt`, `me`, and
+`new-england`. Browser origins are allowlisted. Provider responses are cached
+briefly at the edge to avoid multiplying load.
 
 ## Architecture
 
-```
-MBTA V3 API ──── /routes /shapes /vehicles /alerts /stops   (poll)
-Amtraker ─────── all US trains, filtered to the map region  (poll)
-airplanes.live ─ ADS-B aircraft within 30 nm of Logan       (poll)
-aisstream.io ─── AIS position reports over WebSocket        (stream)
-Bluebikes GBFS ─ station fill levels                        (poll)
-TomTom ───────── traffic flow raster tiles                  (tiles)
-        │
-  js/api.js      MBTA JSON:API -> plain objects (sparse fieldsets)
-  js/mbta.js     one-request full-fleet poller + group classifier
-  js/amtrak.js   Amtrak poller          js/planes.js  ADS-B poller
-  js/ais.js      AIS stream -> roster   js/alerts.js  alerts + stop coords
-  js/fleet.js    generic animated fleet (glide between updates)
-  js/map.js      MapLibre: ribbons, fleet layers, popups, alert fly-to
-  js/ui.js       console panel: toggles, alert feed, status line
-  js/config.js   every tunable knob in one place
+```text
+Public browser-safe APIs ───────────────┐
+  MBTA · Amtraker · Bluebikes          │
+                                       ├─ MapLibre fleets ─ Census region filter
+Cloudflare Worker gateway ─────────────┘
+  ADSB.lol · agency GTFS-RT · AISStream · TomTom
 ```
 
-## Roadmap
+The frontend remains plain HTML/CSS/JavaScript. The gateway is TypeScript and
+runs on Cloudflare Workers. Tests execute inside the Workers runtime with
+Cloudflare's Vitest integration.
 
-| Version | Scope | Status |
-|---|---|---|
-| v1 | Subway + Silver Line, live map, alerts | ✅ |
-| v2 | Commuter rail, buses, ferries | ✅ |
-| v3 | Amtrak, planes, harbor AIS, alert→map focus | ✅ |
-| v4 | Road traffic (TomTom), Bluebikes, click-row-to-zoom | ✅ |
-| v5 | All-of-New-England expansion, weather radar, regional GTFS-RT | ideas |
+## Verify changes
 
-## Credits
+```powershell
+npm run check
+npm test
+npm run deploy:dry-run
+```
 
-Data: [MBTA V3 API](https://www.mbta.com/developers/v3-api) ·
-[Amtraker](https://amtraker.com) · [airplanes.live](https://airplanes.live) ·
-[aisstream.io](https://aisstream.io) · [Bluebikes GBFS](https://gbfs.bluebikes.com/gbfs/gbfs.json) ·
-[TomTom Traffic](https://developer.tomtom.com) ·
-Basemap: [CARTO Dark Matter](https://carto.com/basemaps/) © OpenStreetMap contributors ·
-Map engine: [MapLibre GL JS](https://maplibre.org/)
+## Remaining data gaps
+
+- Many rural agencies publish schedules but no open live vehicle positions.
+- Non-MBTA ferry operators generally publish schedules, not GTFS-realtime
+  positions. AIS supplies actual vessel movement when a ship is broadcasting,
+  and passenger-ship metadata is used to classify ferries when available.
+- Traffic requires a TomTom key; New England 511 systems expose incidents and
+  road conditions, but not one uniform public congestion-tile feed.
+- Bluebikes is Boston-specific. Other New England GBFS systems can be added to
+  the same bike adapter next.
 
 Built by Max Howe — [github.com/mapzimus](https://github.com/mapzimus)

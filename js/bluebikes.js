@@ -58,8 +58,8 @@ export function startBluebikes(onCounts) {
           },
         });
       }
-      fleet.update(items);
-      onCounts({ bike: items.length });
+      const visible = fleet.update(items);
+      onCounts({ bike: visible.length });
     } catch (err) {
       console.warn('Bluebikes unavailable:', err.message);
     }

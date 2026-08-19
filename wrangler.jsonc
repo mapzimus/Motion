@@ -1,0 +1,28 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "motion-gateway-dev",
+  "main": "worker/src/index.ts",
+  "compatibility_date": "2026-08-18",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "vars": {
+    "ALLOWED_ORIGINS": "http://localhost:5500,http://127.0.0.1:5500"
+  },
+  "env": {
+    "staging": {
+      "name": "motion-gateway-staging",
+      "vars": {
+        "ALLOWED_ORIGINS": "http://localhost:5500,http://127.0.0.1:5500,https://mapzimus.github.io"
+      }
+    },
+    "production": {
+      "name": "motion-gateway",
+      "vars": {
+        "ALLOWED_ORIGINS": "https://mapzimus.github.io"
+      }
+    }
+  }
+}

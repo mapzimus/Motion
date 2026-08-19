@@ -2,11 +2,17 @@
 // vehicle fleet, source-agnostic popups, and alert-focus navigation.
 
 import { CONFIG } from './config.js';
+import {
+  boundaryForRegion,
+  boundsForRegion,
+  filterFeatureCollection,
+  setActiveRegion,
+} from './regions.js';
 
 const EMPTY_FC = { type: 'FeatureCollection', features: [] };
 
 // Draw order, bottom to top: bike docks under boats under trains under planes.
-const FLEETS = ['bike', 'vessel', 'amtrak', 'mbta', 'plane'];
+const FLEETS = ['bike', 'vessel', 'amtrak', 'regional', 'mbta', 'plane'];
 
 // The visual language: SHAPE says what kind of vehicle it is, COLOR says whose
 // service it is. Rail keeps the classic dot + heading chevron; every other
@@ -16,8 +22,14 @@ const ICON_GROUPS = ['bus', 'ferry', 'plane', 'vessel', 'bike'];
 
 export let map;
 let routeShapesFC = EMPTY_FC; // kept for alert-focus bounds math
+let allRouteShapesFC = EMPTY_FC;
 let pingMarker = null;
 let pingTimer = null;
+let trafficAvailable = false;
+
+export function configureGateway(capabilities) {
+  trafficAvailable = Boolean(capabilities?.traffic);
+}
 
 export function initMap() {
   map = new maplibregl.Map({
@@ -25,7 +37,7 @@ export function initMap() {
     style: CONFIG.BASEMAP_STYLE,
     center: CONFIG.MAP_CENTER,
     zoom: CONFIG.MAP_ZOOM,
-    minZoom: 7.5,
+    minZoom: 5,
     maxZoom: 17.5,
     maxBounds: CONFIG.MAP_BOUNDS,
     attributionControl: false,
@@ -36,7 +48,7 @@ export function initMap() {
     new maplibregl.AttributionControl({
       compact: true,
       customAttribution:
-        'Data <a href="https://www.mbta.com/developers/v3-api" target="_blank" rel="noopener">MBTA</a> · <a href="https://amtraker.com" target="_blank" rel="noopener">Amtraker</a> · <a href="https://airplanes.live" target="_blank" rel="noopener">airplanes.live</a> · <a href="https://aisstream.io" target="_blank" rel="noopener">AISStream</a>',
+        'Data <a href="https://www.mbta.com/developers/v3-api" target="_blank" rel="noopener">MBTA</a> · <a href="https://amtraker.com" target="_blank" rel="noopener">Amtraker</a> · <a href="https://api.adsb.lol" target="_blank" rel="noopener">ADSB.lol</a> · <a href="https://aisstream.io" target="_blank" rel="noopener">AISStream</a> · boundaries U.S. Census Bureau',
     }),
     'bottom-right',
   );
@@ -48,6 +60,7 @@ export function initMap() {
       wirePopups();
       layersReady = true;
       if (pendingGroups) applyGroupFilter(pendingGroups);
+      applyRegion(false);
       resolve(map);
     });
   });
@@ -133,10 +146,10 @@ function setupLayers() {
 
   // Live congestion raster under everything else we draw — only when a
   // TomTom key is configured (see config.js).
-  if (CONFIG.TOMTOM_KEY) {
+  if (CONFIG.TRAFFIC_TILE_TEMPLATE && trafficAvailable) {
     map.addSource('traffic-flow', {
       type: 'raster',
-      tiles: [CONFIG.TRAFFIC_TILE_TEMPLATE.replace('{key}', CONFIG.TOMTOM_KEY)],
+      tiles: [CONFIG.TRAFFIC_TILE_TEMPLATE],
       tileSize: 256,
       attribution: '© TomTom',
     });
@@ -148,6 +161,28 @@ function setupLayers() {
       paint: { 'raster-opacity': 0.7 },
     });
   }
+
+  map.addSource('region-boundary', { type: 'geojson', data: EMPTY_FC });
+  map.addLayer({
+    id: 'region-boundary-fill',
+    type: 'fill',
+    source: 'region-boundary',
+    paint: {
+      'fill-color': '#9aa3ad',
+      'fill-opacity': 0.025,
+    },
+  });
+  map.addLayer({
+    id: 'region-boundary-line',
+    type: 'line',
+    source: 'region-boundary',
+    paint: {
+      'line-color': '#c6ccd3',
+      'line-opacity': 0.45,
+      'line-width': ['interpolate', ['linear'], ['zoom'], 5, 0.8, 12, 1.8],
+      'line-dasharray': [3, 2],
+    },
+  });
 
   map.addSource('route-shapes', { type: 'geojson', data: EMPTY_FC });
 
@@ -294,25 +329,85 @@ function wirePopupLayer(layerId) {
 }
 
 export function setRouteShapes(featureCollection) {
-  routeShapesFC = featureCollection;
-  map.getSource('route-shapes')?.setData(featureCollection);
+  allRouteShapesFC = featureCollection;
+  renderRouteShapes();
 }
 
-const fleetData = new Map(); // fleetId -> latest FeatureCollection, for focusGroup
+function renderRouteShapes() {
+  // The checked-in ribbons are MBTA-only. Outside MA/Boston, hiding them is
+  // more truthful than showing Boston geometry under another state's filter.
+  routeShapesFC = ['boston', 'ma', 'new-england'].includes(activeRegion)
+    ? allRouteShapesFC
+    : EMPTY_FC;
+  map?.getSource('route-shapes')?.setData(routeShapesFC);
+}
+
+const rawFleetData = new Map(); // unfiltered provider output
+const fleetData = new Map(); // visible FeatureCollections, for focusGroup
 
 export function setFleetData(fleetId, featureCollection) {
-  fleetData.set(fleetId, featureCollection);
-  map.getSource(`veh-${fleetId}`)?.setData(featureCollection);
+  rawFleetData.set(fleetId, featureCollection);
+  renderFleetData(fleetId);
+}
+
+function renderFleetData(fleetId) {
+  const collection = rawFleetData.get(fleetId) ?? EMPTY_FC;
+  const filtered = filterFeatureCollection(collection, activeRegion);
+  fleetData.set(fleetId, filtered);
+  map?.getSource(`veh-${fleetId}`)?.setData(filtered);
 }
 
 // The UI can emit visibility before the map finishes loading — queue the
 // latest request and apply it once layers exist.
 let pendingGroups = null;
 let layersReady = false;
+let activeRegion = 'boston';
 
 export function setVisibleGroups(groups) {
   pendingGroups = groups;
   if (layersReady) applyGroupFilter(groups);
+}
+
+export function setRegion(regionKey, { fit = true } = {}) {
+  activeRegion = regionKey;
+  setActiveRegion(regionKey);
+  if (layersReady) applyRegion(fit);
+}
+
+export function fleetCountsForRegion() {
+  const sourceNames = {
+    bike: 'bluebikes',
+    vessel: 'ais',
+    amtrak: 'amtrak',
+    regional: 'regional',
+    mbta: 'mbta',
+    plane: 'planes',
+  };
+  return Object.fromEntries(
+    [...rawFleetData.entries()].map(([fleetId, collection]) => {
+      const counts = {};
+      for (const feature of filterFeatureCollection(collection, activeRegion).features) {
+        const group = feature.properties.group;
+        counts[group] = (counts[group] ?? 0) + 1;
+      }
+      return [sourceNames[fleetId] ?? fleetId, counts];
+    }),
+  );
+}
+
+function applyRegion(fit) {
+  map.getSource('region-boundary')?.setData(boundaryForRegion(activeRegion));
+  renderRouteShapes();
+  for (const fleetId of rawFleetData.keys()) renderFleetData(fleetId);
+  if (!fit) return;
+  const bounds = boundsForRegion(activeRegion);
+  if (bounds) {
+    map.fitBounds(bounds, {
+      padding: fitPadding(),
+      maxZoom: activeRegion === 'boston' ? 11.4 : 8.8,
+      duration: 1100,
+    });
+  }
 }
 
 function applyGroupFilter(groups) {
