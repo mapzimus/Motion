@@ -7,6 +7,7 @@ import {
   configureGateway,
   fleetCountsForRegion,
   initMap,
+  scheduledRouteCountsForRegion,
   setRegion,
   setRouteShapes,
   setVisibleGroups,
@@ -71,6 +72,7 @@ async function main() {
   };
   const changeRegion = (region) => {
     setRegion(region);
+    ui.setScheduledCounts(scheduledRouteCountsForRegion());
     for (const [source, counts] of Object.entries(fleetCountsForRegion())) {
       ui.replaceCounts(counts, source);
     }
@@ -139,6 +141,7 @@ async function main() {
       loadRegionalRouteFeatures(),
     ])).flat(),
   });
+  ui.setScheduledCounts(scheduledRouteCountsForRegion());
   setVisibleGroups(ui.getVisibleGroups()); // re-apply to the fresh ribbon data
 }
 

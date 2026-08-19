@@ -228,9 +228,17 @@ def process_feed(feed, region_geometries):
         points = [point for point in points if valid_point(*point)]
         if len(points) < 2:
             continue
-        for region, geometry in region_geometries.items():
-            if any(point_in_geometry(point, geometry) for point in points):
-                route_regions[route_id].add(region)
+        path_regions = {
+            region for region, geometry in region_geometries.items()
+            if any(point_in_geometry(point, geometry) for point in points)
+        }
+        # National intercity feeds reuse route IDs across many trip patterns.
+        # Keep only paths that actually touch New England so a Boston/NYC
+        # service cannot pull unrelated southern or western variants onto the
+        # regional map.
+        if feed.get("require_region_match") and not path_regions:
+            continue
+        route_regions[route_id].update(path_regions)
         points = [(round(lon, 5), round(lat, 5)) for lon, lat in simplify(points)]
         signature = (route_id, tuple(points))
         if signature in seen:
@@ -248,7 +256,7 @@ def process_feed(feed, region_geometries):
             "route": f"{feed['id']}:{route_id}",
             "group": GROUP_BY_ROUTE_TYPE[route_type],
             "color": parse_color(route, feed),
-            "agency": feed["agency"],
+            "agency": feed.get("agency_names", {}).get(route.get("agency_id"), feed["agency"]),
             "name": route_label(route),
             "kind": "regional-static",
             "regions": regions,
@@ -304,7 +312,7 @@ def main():
     all_features.extend(supplemental_features)
     successes.append({
         "id": "supplemental-official-schedules",
-        "agency": "Carriers without public GTFS",
+        "agency": "Official schedule corridors without usable GTFS",
         "routes": len(supplemental_features),
         "features": len(supplemental_features),
     })
