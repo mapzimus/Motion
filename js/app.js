@@ -19,6 +19,7 @@ import { startAis } from './ais.js';
 import { startRegional } from './regional.js';
 import { startSharedMobility } from './shared-mobility.js';
 import { startRoadwork } from './roadwork.js';
+import { startRoadConditions } from './road-conditions.js';
 import { startMetroNorth } from './metro-north.js';
 import { startAlertPolling } from './alerts.js';
 import { initialRegion, loadRegions } from './regions.js';
@@ -91,7 +92,7 @@ async function main() {
   ui.setLoading('RENDERING BASEMAP…');
   await initMap();
   setRegion(selectedRegion);
-  setVisibleGroups(ui.getVisibleGroups());
+  setVisibleGroups(ui.getVisibleGroups(), ui.getVisibleStatuses());
 
   // Listeners registered before polling starts so the first tick lands in the UI.
   onStats(ui.updateStats);
@@ -121,6 +122,10 @@ async function main() {
       selectedRegion,
       capabilities.roadwork,
     ),
+    startRoadConditions(
+      (counts) => ui.updateCounts(counts, 'road-conditions'),
+      capabilities,
+    ),
     startMetroNorth(
       (counts) => ui.updateCounts(counts, 'mnr'),
       updateAlerts('mnr'),
@@ -142,7 +147,7 @@ async function main() {
     ])).flat(),
   });
   ui.setScheduledCounts(scheduledRouteCountsForRegion());
-  setVisibleGroups(ui.getVisibleGroups()); // re-apply to the fresh ribbon data
+  setVisibleGroups(ui.getVisibleGroups(), ui.getVisibleStatuses()); // re-apply to the fresh ribbon data
 }
 
 async function loadRegionalRouteFeatures() {
@@ -176,6 +181,8 @@ async function loadShapeFeatures(ribbonRoutes, routeInfo) {
           group: set.group,
           color: set.color,
           kind: 'mbta',
+          dataStatus: 'scheduled',
+          provider: 'MBTA static route geometry',
           regions: ['boston', 'ma'],
         },
       })),

@@ -40,6 +40,7 @@ export function startAmtrak(onCounts) {
           lat: t.lat,
           props: {
             group: 'amtrak',
+            dataStatus: 'live',
             color: CONFIG.AMTRAK_COLOR,
             bearing: heading ?? 0,
             hasBearing: heading !== undefined,
@@ -55,6 +56,8 @@ export function startAmtrak(onCounts) {
             ]
               .filter(Boolean)
               .join(' · '),
+            provider: 'Amtraker community Amtrak telemetry',
+            sourceUrl: 'https://amtraker.com/',
             updatedAt: t.updatedAt ?? new Date().toISOString(),
           },
         };

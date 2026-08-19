@@ -40,6 +40,15 @@
 
       <section class="panel-section">
         <h2>Layers</h2>
+        <div class="data-status-wrap">
+          <div class="filter-caption">Data truth</div>
+          <div id="data-status-filters" class="data-status-filters" aria-label="Filter by data status">
+            <label><input type="checkbox" value="live" checked><span class="live">Live</span></label>
+            <label><input type="checkbox" value="estimated" checked><span class="estimated">Estimated</span></label>
+            <label><input type="checkbox" value="scheduled" checked><span class="scheduled">Scheduled</span></label>
+            <label><input type="checkbox" value="reference" checked><span class="reference">Reference</span></label>
+          </div>
+        </div>
         <div class="master-row line-row">
           <span class="bullet bullet-t">T</span>
           <span class="line-name">Subway</span>
@@ -66,8 +75,8 @@
         <span id="status-text">CONNECTING…</span>
       </div>
       <div class="credits">
-        Data MBTA · MTA Metro-North · agency GTFS · ADSB.lol · MassDOT · GBFS<br>
-        Boundaries U.S. Census · Basemap © OSM / CARTO<br>
+        Data MBTA · agency GTFS · 511 · WZDx · ADS-B · AIS · GBFS<br>
+        Roads Census · rail FRA · trails OSM · basemap CARTO<br>
         Built by Max Howe · <a href="https://github.com/mapzimus" target="_blank" rel="noopener">github.com/mapzimus</a>
       </div>
     </footer>

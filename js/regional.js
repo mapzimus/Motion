@@ -39,6 +39,7 @@ export function startRegional(onCounts, initialRegion, enabled = true) {
         lat: vehicle.lat,
         props: {
           group: 'bus',
+          dataStatus: 'live',
           color: CONFIG.BUS_COLOR,
           bearing: vehicle.bearing ?? 0,
           hasBearing: Number.isFinite(vehicle.bearing),
@@ -49,6 +50,7 @@ export function startRegional(onCounts, initialRegion, enabled = true) {
             ? `${Math.round(vehicle.speedMps * MPS_TO_MPH)} mph`
             : 'In service',
           meta: `GTFS-RT · ${vehicle.feed}`,
+          provider: `${vehicle.agency} GTFS-Realtime`,
           updatedAt: vehicle.updatedAt,
         },
       }));

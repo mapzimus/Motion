@@ -28,15 +28,8 @@ MNR_STOPS_PATH = ROOT / "data" / "mnr-stops.json"
 
 NE_BOUNDS = (-75.0, 40.0, -65.0, 48.5)
 TOLERANCE = 0.00022  # roughly 18–25 m in New England
-STATE_COLORS = {
-    "ct": "#49a6ff",
-    "ma": "#ffc72c",
-    "me": "#39c58a",
-    "nh": "#b58cff",
-    "ri": "#ff8e72",
-    "vt": "#8fcf5b",
-}
 GROUP_BY_ROUTE_TYPE = {2: "commuter", 3: "bus", 4: "ferry"}
+MODE_COLORS = {2: "#a58add", 3: "#f2b84b", 4: "#2eb7c5"}
 
 
 def download(url: str) -> bytes:
@@ -139,11 +132,8 @@ def route_label(route: dict[str, str]) -> str:
     return short or long or route.get("route_id", "Route")
 
 
-def parse_color(route, feed):
-    candidate = (route.get("route_color") or "").strip().lstrip("#")
-    if re.fullmatch(r"[0-9A-Fa-f]{6}", candidate) and candidate.lower() not in {"ffffff", "000000"}:
-        return f"#{candidate.lower()}"
-    return feed.get("color") or STATE_COLORS.get(feed["states"][0], "#ffc72c")
+def mode_color(route_type):
+    return MODE_COLORS.get(route_type, "#8a949f")
 
 
 def coordinates_from_stops(archive, selected_trip_ids):
@@ -255,14 +245,16 @@ def process_feed(feed, region_geometries):
         properties = {
             "route": f"{feed['id']}:{route_id}",
             "group": GROUP_BY_ROUTE_TYPE[route_type],
-            "color": parse_color(route, feed),
+            "color": mode_color(route_type),
             "agency": feed.get("agency_names", {}).get(route.get("agency_id"), feed["agency"]),
             "name": route_label(route),
             "kind": "regional-static",
+            "dataStatus": "scheduled",
+            "provider": "Agency schedule · GTFS",
+            "scheduleNote": "Published schedule route · live vehicle position shown separately when available",
             "regions": regions,
         }
-        if feed.get("source_url"):
-            properties["sourceUrl"] = feed["source_url"]
+        properties["sourceUrl"] = feed.get("source_url") or "https://mobilitydatabase.org/"
         features.append({
             "type": "Feature",
             "geometry": {"type": "MultiLineString", "coordinates": paths},
@@ -309,6 +301,13 @@ def main():
         ordered = [key for key in ("ct", "ma", "me", "nh", "ri", "vt", "boston") if key in combined]
         ordered.extend(key for key in declared if key not in ordered)
         feature["properties"]["regions"] = ordered
+        feature["properties"]["dataStatus"] = "scheduled"
+        feature["properties"]["color"] = {
+            "bus": MODE_COLORS[3],
+            "ferry": MODE_COLORS[4],
+            "commuter": MODE_COLORS[2],
+        }.get(feature["properties"].get("group"), "#8a949f")
+        feature["properties"].setdefault("provider", "Official carrier schedule")
     all_features.extend(supplemental_features)
     successes.append({
         "id": "supplemental-official-schedules",

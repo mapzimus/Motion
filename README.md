@@ -4,12 +4,13 @@ One live map of transportation moving across Connecticut, Maine,
 Massachusetts, New Hampshire, Rhode Island, and Vermont. Start with Boston,
 switch to a single state, or zoom out to all New England.
 
-The map combines MBTA vehicles and alerts, regional transit routes and live
-positions, Amtrak, ADS-B aircraft, AIS harbor/coastal traffic, ferries, shared
-bikes and scooters, Massachusetts road work, and optional live congestion.
-Live points are clipped to generalized 2025 U.S. Census TIGERweb boundaries,
-so “Boston only” and state filters are geographic, not guesses based on agency
-names.
+The map combines live and scheduled public transportation, aircraft, boats,
+shared mobility, traffic, road events, public traffic cameras, major roads,
+freight rail, and walking/cycling networks. Live points are clipped to
+generalized 2025 U.S. Census TIGERweb boundaries, so “Boston only,” each state,
+and “All New England” are geographic filters rather than agency-name guesses.
+Every feature is labeled **live**, **estimated**, **scheduled**, or
+**reference** so a published route never masquerades as a moving vehicle.
 
 ## What works
 
@@ -18,13 +19,17 @@ names.
 | MBTA subway, Silver Line, buses, commuter rail, ferries | [MBTA V3 API](https://www.mbta.com/developers/v3-api) | 10 s |
 | Regional buses | Agency GTFS-realtime feeds, normalized by the gateway | 20 s |
 | Metro-North New Haven branches | [MTA GTFS-Realtime](https://www.mta.info/developers) trip predictions and alerts; positions are explicitly estimated between stations | 30 s |
-| Scheduled bus, rail, ferry, and passenger-boat routes | 55 static GTFS sources plus nine official-schedule corridors, including Metro-North, Concord Coach, Dartmouth Coach, Greyhound/FlixBus, Lake Champlain Ferries, and Lake Winnipesaukee services | built snapshot |
+| Scheduled bus, rail, ferry, and passenger-boat routes | 69 GTFS sources plus 15 official-schedule corridors, including Metro-North, Concord Coach, Dartmouth Coach, Greyhound/FlixBus, Lake Champlain, Lake Winnipesaukee, and Maine State Ferry Service | built snapshot |
+| Small-town, county, flex, volunteer, and microtransit service catalog | 45 official-directory service markers across all six states | built snapshot |
 | Amtrak | [Amtraker](https://amtraker.com) community API | 90 s |
 | Aircraft | [ADSB.lol](https://api.adsb.lol/) with [adsb.fi](https://adsb.fi/) failover; click a plane for its best-effort origin and destination | 45 s |
 | Harbor/coastal vessels and identifiable passenger ferries | [AISStream](https://aisstream.io) through a protected WebSocket relay | streaming |
 | Bike and scooter share | GBFS feeds for Bluebikes across 13 Greater Boston municipalities, Veo Hartford, Veo New Haven, and Spin Providence | 60 s |
-| Road work | [MassDOT WZDx](https://feed.massdot-swzm.com/) | 60 s |
-| Live congestion speeds | [TomTom Traffic Flow](https://developer.tomtom.com/traffic-api) through protected raster tiles | optional live tiles |
+| Work zones and closures | MassDOT WZDx plus the multi-state New England 511 WZDx feed for Maine, New Hampshire, and Vermont | 60 s |
+| Traffic incidents and public cameras | New England 511, CTroads, and the MassDOT CCTV asset inventory | 60–90 s |
+| Live congestion speeds | Public 511 traffic-flow tiles through the gateway; TomTom remains an optional configured fallback | live tiles |
+| Major roads and freight rail | U.S. Census TIGERweb primary roads and the FRA North American Rail Network | built snapshot |
+| Marked walking and cycling routes | OpenStreetMap route relations via Waymarked Trails | live map tiles |
 
 The aircraft layer no longer calls airplanes.live. That service now rejects
 this project with HTTP 403, and ADS-B providers do not expose browser CORS
@@ -39,8 +44,8 @@ private, repositioning, and irregular flights may not have an itinerary.
 
 ## Regional transit coverage
 
-The checked-in route snapshot contains 947 bus, commuter-rail, ferry, and
-passenger-boat route features assembled from 55 static GTFS sources plus nine
+The checked-in route snapshot contains 998 bus, commuter-rail, ferry, and
+passenger-boat route features assembled from 69 GTFS sources plus 15
 official-schedule corridors. Scheduled routes remain visible when an operator
 publishes no live positions. State views start with the scheduled bus layer on,
 and the sidebar reports scheduled route counts separately from live vehicles,
@@ -58,12 +63,15 @@ corridors follow the stop order on the carrier's official schedules and link
 back to those schedules from the map popup. These intercity carriers are shown
 as schedules, not invented live vehicle positions.
 
-Vermont includes 98 scheduled bus routes in the current snapshot, including 16
-Green Mountain Transit routes, Vermont Translines, and intercity Greyhound/
-FlixBus connections. Lake Champlain's current Grand Isle–Plattsburgh and
+Vermont includes regional routes from every discoverable public GTFS source in
+the current audit, including Green Mountain Transit, Vermont Translines, and
+intercity Greyhound/FlixBus connections. Lake Champlain's current Grand
+Isle–Plattsburgh and
 Charlotte–Essex crossings are included. In New Hampshire, the ferry/passenger-
 boat layer also includes published 2026 Mount Washington Cruises corridors and
-the seasonal Sophie C island mailboat itinerary on Lake Winnipesaukee. These
+the seasonal Sophie C island mailboat itinerary on Lake Winnipesaukee. Maine's
+six state-ferry links to Vinalhaven, North Haven, Matinicus, Swan's Island,
+Frenchboro, and Islesboro are also mapped from official schedules. These
 inland-water lines are schedule context; AIS may add a live marker only when a
 vessel is independently broadcasting and received by the configured provider.
 
@@ -73,6 +81,14 @@ Medford, Newton, Revere, Salem, Somerville, and Watertown. The same regional
 layer also includes the separately operated Hartford, New Haven, and Providence
 systems. No discoverable public GBFS system is currently cataloged for Vermont,
 New Hampshire, or Maine, so the map does not fabricate stations there.
+
+The **Local & on-demand services** layer fills a different gap. It currently
+catalogs 45 services that do not have reliable route geometry or public live
+positions: Maine county transportation, Sullivan County and New Hampshire
+community providers, Massachusetts microtransit, Connecticut's nine CTDOT
+microtransit programs, RIPTA Flex zones, and Vermont's regional
+demand-response providers. These are service-area reference points with links
+to the official provider—not pretend bus paths.
 
 Metro-North is different: the MTA publishes keyless realtime trip updates and
 alerts, but not GPS vehicle positions. Motion interpolates active New Haven,
@@ -115,15 +131,16 @@ npm run dev
 
 ### Gateway setup
 
-Aircraft and public regional-bus feeds need a gateway. Massachusetts road work
-is keyless. AIS and live congestion need provider secrets. The live site uses
+Aircraft, public regional-bus feeds, road events, cameras, and traffic tiles
+use a gateway. The public 511 sources are keyless; AIS and some optional
+regional realtime adapters need provider credentials. The live site uses
 the deployed gateway at
 `https://motion-gateway.mapzimus.workers.dev` and the aircraft relay at
 `https://motion-aircraft-gateway.vercel.app` automatically.
 
 ```powershell
 Copy-Item .dev.vars.example .dev.vars
-# Edit .dev.vars; AIS/TomTom/Swiftly are optional for local development.
+# Edit .dev.vars; AIS, TomTom, and Swiftly are all optional.
 npm run gateway:dev
 ```
 
@@ -156,8 +173,8 @@ npx wrangler secret put SWIFTLY_API_KEY --env production
 npx wrangler deploy --env production
 ```
 
-AISStream and TomTom are optional; omit those secrets if their layers should
-stay unavailable. `SWIFTLY_API_KEY` must be the complete value expected by the
+AISStream, TomTom, and Swiftly are optional. Without TomTom the traffic layer
+uses public New England 511 tiles. `SWIFTLY_API_KEY` must be the complete value expected by the
 Swiftly `Authorization` header. Add any custom production frontend origin to
 `ALLOWED_ORIGINS` in `wrangler.jsonc` before deployment.
 
@@ -178,8 +195,11 @@ npx vercel --prod --yes
 | `GET /api/route?callsign=AAL108` | Best-effort aircraft origin and destination (Vercel relay) |
 | `GET /api/transit?region=ct` | Normalized GTFS-realtime bus positions and per-feed health |
 | `GET /api/mnr` | Metro-North active trip segments and service alerts from official MTA GTFS-Realtime |
-| `GET /api/roadwork` | Active and upcoming MassDOT WZDx road-work geometry |
-| `GET /api/traffic/{z}/{x}/{y}.png` | Cached TomTom congestion tile |
+| `GET /api/roadwork` | Active/upcoming MassDOT and northern New England WZDx geometry |
+| `GET /api/road-events` | Official New England 511 and CTroads incidents |
+| `GET /api/cameras` | Public camera locations from 511, CTroads, and MassDOT |
+| `GET /api/camera-detail?provider=north&id=…` | Latest public 511 camera image and official viewer details |
+| `GET /api/traffic/{z}/{x}/{y}.png` | Cached public 511 congestion tile, with optional TomTom source |
 | `GET /api/ais?region=new-england` with WebSocket upgrade | AISStream relay scoped to the selected region |
 
 Supported region IDs are `boston`, `ma`, `ct`, `ri`, `nh`, `vt`, `me`, and
@@ -193,7 +213,7 @@ Public browser-safe APIs ───────────────┐
   MBTA · static GTFS · Amtraker · GBFS │
                                        ├─ MapLibre fleets ─ Census region filter
 Cloudflare Worker gateway ─────────────┤
-  agency GTFS-RT · MTA MNR · MassDOT · AIS · TomTom│
+  agency GTFS-RT · MTA MNR · 511 · WZDx · cameras · AIS│
 Vercel aircraft relay ─────────────────┘
   ADSB.lol · adsb.fi · route lookup
 ```
@@ -218,11 +238,20 @@ npm run deploy:dry-run
 - Non-MBTA ferry operators generally publish schedules, not GTFS-realtime
   positions. AIS supplies actual vessel movement when a ship is broadcasting,
   and passenger-ship metadata is used to classify ferries when available.
-- Massachusetts work zones are keyless, but continuous congestion speeds still
-  need a traffic data source. New England 511 systems expose incidents and road
-  conditions, but not one uniform, keyless congestion-speed feed.
+- Work-zone geometry is currently strongest in Massachusetts, Maine, New
+  Hampshire, and Vermont. Connecticut and Rhode Island road disruptions still
+  appear through their public incident/event feeds rather than a uniform WZDx
+  layer.
 - Current GBFS coverage is Bluebikes' 13 Greater Boston municipalities plus
   Hartford, New Haven, and Providence. Other systems can be added as soon as
   they publish discoverable public feeds.
+- Public truck, delivery, and company-fleet positions are generally private
+  telematics, and there is no national public live freight-train position feed.
+  Motion maps the public FRA rail network instead of claiming scheduled or
+  live freight locations it cannot verify.
+- Flock/ALPR camera locations and live emergency-responder positions are not
+  collected. Motion uses official public traffic cameras and public 511
+  incidents without turning the map into a surveillance or responder-tracking
+  tool.
 
 Built by Max Howe — [github.com/mapzimus](https://github.com/mapzimus)

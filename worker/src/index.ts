@@ -6,6 +6,21 @@ const ADSB_LOL_BASE = 'https://api.adsb.lol/v2/point';
 const ADSB_FI_BASE = 'https://opendata.adsb.fi/api/v3';
 const AISSTREAM_URL = 'wss://stream.aisstream.io/v0/stream';
 const MASSDOT_WORK_ZONE_URL = 'https://feed.massdot-swzm.com/massdot_wzdx_v4.1_work_zone_feed.geojson';
+const NORTHERN_WORK_ZONE_URL = 'https://api.dx.ne-compass.com/wzdx-latest/';
+const IBI_TRAFFIC_TILE_URL = 'https://tiles.ibi511.com/Geoservice/GetTrafficTile';
+const MASSDOT_CAMERA_URL = 'https://gis.massdot.state.ma.us/arcgis/rest/services/Assets/CCTV/FeatureServer/0/query?where=1%3D1&outFields=OBJECTID%2CHOC_Display%2CRoadway%2CDirection%2CMM%2CMunicipality%2CDescription%2CStatus&returnGeometry=true&outSR=4326&f=geojson';
+const IBI_511_SOURCES = [
+  {
+    key: 'north',
+    base: 'https://newengland511.org',
+    provider: 'New England 511 · MaineDOT / NHDOT / VTrans',
+  },
+  {
+    key: 'ct',
+    base: 'https://prod-ct.ibi511.com',
+    provider: 'CTroads · Connecticut DOT',
+  },
+] as const;
 const MNR_TRIP_UPDATES_URL = 'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/mnr%2Fgtfs-mnr';
 const MNR_ALERTS_URL = 'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/camsys%2Fmnr-alerts';
 const NEW_ENGLAND_BBOX = { west: -74, south: 40.8, east: -66, north: 47.7 };
@@ -421,64 +436,333 @@ type WorkZoneFeature = {
       road_names?: string[];
       direction?: string;
       update_date?: string;
+      description?: string;
     };
     start_date?: string;
     end_date?: string;
     vehicle_impact?: string;
+    lanes?: Array<{ status?: string; type?: string }>;
+    restrictions?: Array<Record<string, unknown>>;
+    types_of_work?: Array<{ type_name?: string }>;
   };
 };
 
+type WorkZoneCollection = {
+  features?: WorkZoneFeature[];
+  road_event_feed_info?: { update_date?: string };
+  feed_info?: { update_date?: string };
+};
+
+function workZoneProvider(feature: WorkZoneFeature, fallback: string): string {
+  const id = String(feature.id ?? '');
+  if (/^VT/i.test(id)) return 'VTrans · New England 511 WZDx';
+  if (/^NH/i.test(id)) return 'NHDOT · New England 511 WZDx';
+  if (/^ME/i.test(id)) return 'MaineDOT · New England 511 WZDx';
+  return fallback;
+}
+
+function validIso(value: string | undefined, fallback: string): string {
+  const timestamp = Date.parse(value ?? '');
+  return Number.isFinite(timestamp) && timestamp > Date.UTC(2000, 0, 1)
+    ? new Date(timestamp).toISOString()
+    : fallback;
+}
+
+function normalizeWorkZones(
+  source: WorkZoneCollection,
+  fallbackProvider: string,
+  sourceUrl: string,
+): Array<Record<string, unknown>> {
+  const now = Date.now();
+  const horizon = now + 7 * 24 * 60 * 60 * 1000;
+  const feedUpdatedAt = validIso(
+    source.road_event_feed_info?.update_date ?? source.feed_info?.update_date,
+    new Date().toISOString(),
+  );
+  return (source.features ?? []).flatMap((feature) => {
+    const properties = feature.properties;
+    const geometry = feature.geometry;
+    const startAt = Date.parse(properties?.start_date ?? '');
+    const endAt = Date.parse(properties?.end_date ?? '');
+    if (!Number.isFinite(startAt) || !Number.isFinite(endAt)) return [];
+    if (endAt < now - 15 * 60_000 || startAt > horizon) return [];
+    if (!geometry?.coordinates || !['LineString', 'MultiLineString'].includes(geometry.type ?? '')) return [];
+
+    const active = startAt <= now && endAt >= now;
+    const impact = properties?.vehicle_impact ?? 'unknown-impact';
+    const direction = properties?.core_details?.direction?.replace(/-/g, ' ') ?? '';
+    const impactText = impact.replace(/-/g, ' ');
+    const roadNames = properties?.core_details?.road_names?.filter(Boolean) ?? [];
+    const closedLanes = (properties?.lanes ?? []).filter((lane) => lane.status === 'closed');
+    const laneText = closedLanes.length
+      ? `${closedLanes.length} closed lane${closedLanes.length === 1 ? '' : 's'}`
+      : '';
+    const workTypes = (properties?.types_of_work ?? [])
+      .map((work) => work.type_name?.replace(/-/g, ' '))
+      .filter(Boolean)
+      .join(', ');
+    const color = impact.includes('all-lanes-closed')
+      ? '#ff5c5c'
+      : impact.includes('some') || impact.includes('reduced')
+        ? '#ffb454'
+        : '#ff8a4c';
+    const provider = workZoneProvider(feature, fallbackProvider);
+    return [{
+      type: 'Feature',
+      id: feature.id,
+      geometry,
+      properties: {
+        group: 'roadwork',
+        dataStatus: 'live',
+        color,
+        active,
+        title: roadNames.join(' / ') || 'Official work zone',
+        status: [direction, impactText, laneText].filter(Boolean).join(' · '),
+        details: properties?.core_details?.description ?? '',
+        workTypes,
+        provider,
+        sourceUrl,
+        startAt: new Date(startAt).toISOString(),
+        endAt: new Date(endAt).toISOString(),
+        updatedAt: validIso(properties?.core_details?.update_date, feedUpdatedAt),
+      },
+    }];
+  });
+}
+
 async function roadwork(request: Request, ctx: ExecutionContext): Promise<Response> {
   return cachedJson(request, ctx, 60, async () => {
-    const upstream = await fetch(MASSDOT_WORK_ZONE_URL, {
-      headers: { accept: 'application/geo+json, application/json' },
-      cf: { cacheEverything: true, cacheTtl: 60 },
-    });
-    if (!upstream.ok) return json({ error: `MassDOT work-zone feed ${upstream.status}` }, 502);
-    const source = await upstream.json() as { features?: WorkZoneFeature[] };
-    const now = Date.now();
-    const horizon = now + 24 * 60 * 60 * 1000;
-    const features = (source.features ?? []).flatMap((feature) => {
-      const properties = feature.properties;
-      const geometry = feature.geometry;
-      const startAt = Date.parse(properties?.start_date ?? '');
-      const endAt = Date.parse(properties?.end_date ?? '');
-      if (!Number.isFinite(startAt) || !Number.isFinite(endAt)) return [];
-      if (endAt < now - 15 * 60_000 || startAt > horizon) return [];
-      if (!geometry?.coordinates || !['LineString', 'MultiLineString'].includes(geometry.type ?? '')) return [];
-
-      const active = startAt <= now && endAt >= now;
-      const impact = properties?.vehicle_impact ?? 'unknown-impact';
-      const direction = properties?.core_details?.direction?.replace(/-/g, ' ') ?? '';
-      const impactText = impact.replace(/-/g, ' ');
-      const roadNames = properties?.core_details?.road_names?.filter(Boolean) ?? [];
-      const color = impact.includes('closed')
-        ? '#ef5b5b'
-        : impact.includes('some') || impact.includes('reduced')
-          ? '#ffb454'
-          : '#ff8a4c';
-      return [{
-        type: 'Feature',
-        id: feature.id,
-        geometry,
-        properties: {
-          group: 'roadwork',
-          color,
-          active,
-          title: roadNames.join(' / ') || 'MassDOT work zone',
-          status: [direction, impactText].filter(Boolean).join(' · '),
-          startAt: new Date(startAt).toISOString(),
-          endAt: new Date(endAt).toISOString(),
-          updatedAt: properties?.core_details?.update_date ?? new Date().toISOString(),
-        },
-      }];
-    });
+    const settled = await Promise.allSettled([
+      fetch(MASSDOT_WORK_ZONE_URL, {
+        headers: { accept: 'application/geo+json, application/json' },
+        cf: { cacheEverything: true, cacheTtl: 60 },
+      }),
+      fetch(NORTHERN_WORK_ZONE_URL, {
+        headers: { accept: 'application/geo+json, application/json' },
+        cf: { cacheEverything: true, cacheTtl: 60 },
+      }),
+    ]);
+    const inputs: Array<{ source: WorkZoneCollection; provider: string; sourceUrl: string }> = [];
+    for (let index = 0; index < settled.length; index += 1) {
+      const result = settled[index];
+      if (result.status !== 'fulfilled' || !result.value.ok) continue;
+      inputs.push({
+        source: await result.value.json() as WorkZoneCollection,
+        provider: index === 0 ? 'MassDOT Connected Work Zones' : 'New England 511 WZDx',
+        sourceUrl: index === 0 ? MASSDOT_WORK_ZONE_URL : NORTHERN_WORK_ZONE_URL,
+      });
+    }
+    if (!inputs.length) return json({ error: 'Official work-zone feeds unavailable' }, 502);
+    const features = inputs.flatMap((input) =>
+      normalizeWorkZones(input.source, input.provider, input.sourceUrl),
+    );
     return json({
       type: 'FeatureCollection',
-      provider: 'MassDOT Connected Work Zones',
-      coverage: ['ma'],
+      provider: 'MassDOT + MaineDOT + NHDOT + VTrans WZDx',
+      coverage: ['ma', 'me', 'nh', 'vt'],
       features,
     });
+  });
+}
+
+type IbiIcon = { itemId?: string; location?: [number, number] };
+type IbiIcons = { item2?: IbiIcon[] };
+
+function decodeHtml(value: string): string {
+  const entities: Record<string, string> = {
+    amp: '&', quot: '"', apos: "'", lt: '<', gt: '>', nbsp: ' ', '#39': "'",
+  };
+  return value
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&([a-z]+|#\d+);/gi, (match, key) => {
+      if (key.startsWith('#')) return String.fromCharCode(Number(key.slice(1)));
+      return entities[key.toLowerCase()] ?? match;
+    })
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function htmlCell(html: string, label: string): string {
+  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = html.match(new RegExp(`<th[^>]*>\\s*${escaped}\\s*</th>\\s*<td[^>]*>([\\s\\S]*?)</td>`, 'i'));
+  return match ? decodeHtml(match[1]) : '';
+}
+
+async function incidentFeature(source: typeof IBI_511_SOURCES[number], icon: IbiIcon) {
+  const id = String(icon.itemId ?? '');
+  const location = icon.location;
+  if (!/^\d+$/.test(id) || !location || location.length !== 2) return null;
+  const detailUrl = `${source.base}/Event/Incidents/${id}?lang=en`;
+  let description = '';
+  let startAt = '';
+  let endAt = '';
+  let updatedAt = new Date().toISOString();
+  try {
+    const response = await fetch(`${source.base}/tooltip/Incidents/${id}?lang=en`, {
+      cf: { cacheEverything: true, cacheTtl: 60 },
+    });
+    if (response.ok) {
+      const html = await response.text();
+      const descriptionMatch = html.match(/<td[^>]*colspan=["']?2["']?[^>]*>([\s\S]*?)<\/td>/i);
+      description = descriptionMatch ? decodeHtml(descriptionMatch[1]) : '';
+      startAt = htmlCell(html, 'Start Time');
+      endAt = htmlCell(html, 'Anticipated End Time');
+      const lastUpdated = htmlCell(html, 'Last Updated');
+      const parsed = Date.parse(lastUpdated || startAt);
+      if (Number.isFinite(parsed)) updatedAt = new Date(parsed).toISOString();
+    }
+  } catch {
+    // The point and official detail link are still useful if tooltip markup changes.
+  }
+  return {
+    type: 'Feature',
+    id: `${source.key}-${id}`,
+    geometry: { type: 'Point', coordinates: [Number(location[1]), Number(location[0])] },
+    properties: {
+      group: 'incident',
+      dataStatus: 'live',
+      color: '#ff5c5c',
+      title: description || 'Official 511 road incident',
+      status: [startAt && `Started ${startAt}`, endAt && `Expected through ${endAt}`].filter(Boolean).join(' · '),
+      details: description,
+      provider: source.provider,
+      sourceUrl: detailUrl,
+      updatedAt,
+    },
+  };
+}
+
+async function roadEvents(request: Request, ctx: ExecutionContext): Promise<Response> {
+  return cachedJson(request, ctx, 60, async () => {
+    const feeds = await Promise.allSettled(
+      IBI_511_SOURCES.map(async (source) => {
+        const response = await fetch(`${source.base}/map/mapIcons/Incidents`, {
+          headers: { accept: 'application/json' },
+          cf: { cacheEverything: true, cacheTtl: 60 },
+        });
+        if (!response.ok) throw new Error(`${source.key} incidents ${response.status}`);
+        const icons = await response.json() as IbiIcons;
+        return Promise.all((icons.item2 ?? []).map((icon) => incidentFeature(source, icon)));
+      }),
+    );
+    const features = feeds.flatMap((result) =>
+      result.status === 'fulfilled' ? result.value.filter(Boolean) : [],
+    );
+    if (!features.length && feeds.every((result) => result.status === 'rejected')) {
+      return json({ error: 'Official 511 incident feeds unavailable' }, 502);
+    }
+    return json({
+      type: 'FeatureCollection',
+      provider: 'Official 511 incident feeds',
+      coverage: ['ct', 'me', 'nh', 'vt'],
+      features,
+    });
+  });
+}
+
+async function cameras(request: Request, ctx: ExecutionContext): Promise<Response> {
+  return cachedJson(request, ctx, 5 * 60, async () => {
+    const [ibiResult, massResult] = await Promise.allSettled([
+      Promise.all(IBI_511_SOURCES.map(async (source) => {
+        const response = await fetch(`${source.base}/map/mapIcons/Cameras`, {
+          headers: { accept: 'application/json' },
+          cf: { cacheEverything: true, cacheTtl: 5 * 60 },
+        });
+        if (!response.ok) throw new Error(`${source.key} cameras ${response.status}`);
+        const icons = await response.json() as IbiIcons;
+        return (icons.item2 ?? []).flatMap((icon) => {
+          const id = String(icon.itemId ?? '');
+          const location = icon.location;
+          if (!/^\d+$/.test(id) || !location || location.length !== 2) return [];
+          return [{
+            type: 'Feature',
+            id: `${source.key}-${id}`,
+            geometry: { type: 'Point', coordinates: [Number(location[1]), Number(location[0])] },
+            properties: {
+              group: 'camera',
+              dataStatus: 'live',
+              color: '#d2d7dd',
+              title: 'Official traffic camera',
+              status: 'Click to load the latest public image',
+              provider: source.provider,
+              providerKey: source.key,
+              cameraId: id,
+              sourceUrl: `${source.base}/`,
+              updatedAt: new Date().toISOString(),
+            },
+          }];
+        });
+      })),
+      fetch(MASSDOT_CAMERA_URL, {
+        headers: { accept: 'application/geo+json, application/json' },
+        cf: { cacheEverything: true, cacheTtl: 24 * 60 * 60 },
+      }).then(async (response) => {
+        if (!response.ok) throw new Error(`MassDOT cameras ${response.status}`);
+        return response.json() as Promise<{ features?: Array<{
+          id?: string | number;
+          geometry?: { type?: string; coordinates?: unknown };
+          properties?: Record<string, unknown>;
+        }> }>;
+      }),
+    ]);
+
+    const ibiFeatures = ibiResult.status === 'fulfilled' ? ibiResult.value.flat() : [];
+    const massFeatures = massResult.status === 'fulfilled'
+      ? (massResult.value.features ?? []).flatMap((feature) => {
+        if (feature.geometry?.type !== 'Point' || !Array.isArray(feature.geometry.coordinates)) return [];
+        const p = feature.properties ?? {};
+        const roadway = p.Roadway ? `Route ${p.Roadway}` : '';
+        const direction = String(p.Direction ?? '');
+        const mile = p.MM !== null && p.MM !== undefined ? `mile ${p.MM}` : '';
+        return [{
+          type: 'Feature',
+          id: `ma-${feature.id ?? p.OBJECTID}`,
+          geometry: feature.geometry,
+          properties: {
+            group: 'camera',
+            dataStatus: 'live',
+            color: '#d2d7dd',
+            title: String(p.HOC_Display ?? p.Description ?? 'MassDOT traffic camera'),
+            status: [roadway, direction, mile, p.Status].filter(Boolean).join(' · '),
+            details: 'MassDOT publishes the camera location; open Mass511 for the public viewer.',
+            provider: 'MassDOT CCTV asset inventory',
+            sourceUrl: 'https://www.mass511.com/',
+            updatedAt: new Date().toISOString(),
+          },
+        }];
+      })
+      : [];
+    const features = [...ibiFeatures, ...massFeatures];
+    if (!features.length) return json({ error: 'Official camera sources unavailable' }, 502);
+    return json({
+      type: 'FeatureCollection',
+      provider: 'Official New England traffic camera sources',
+      coverage: ['ct', 'ma', 'me', 'nh', 'vt'],
+      features,
+    });
+  });
+}
+
+async function cameraDetail(url: URL): Promise<Response> {
+  const providerKey = url.searchParams.get('provider');
+  const id = url.searchParams.get('id') ?? '';
+  const source = IBI_511_SOURCES.find((item) => item.key === providerKey);
+  if (!source || !/^\d+$/.test(id)) return json({ error: 'Invalid camera request' }, 400);
+  const upstream = await fetch(`${source.base}/tooltip/Cameras/${id}?lang=en`, {
+    cf: { cacheEverything: true, cacheTtl: 30 },
+  });
+  if (!upstream.ok) return json({ error: `Camera detail ${upstream.status}` }, 502);
+  const html = await upstream.text();
+  const titleMatch = html.match(/<strong[^>]*>([\s\S]*?)<\/strong>/i);
+  const imageMatch = html.match(/data-lazy=["']([^"']+)["']/i);
+  const directionMatch = html.match(/class=["']dirDescHeader["'][^>]*>([\s\S]*?)<\/div>/i);
+  return json({
+    title: titleMatch ? decodeHtml(titleMatch[1]) : 'Official traffic camera',
+    direction: directionMatch ? decodeHtml(directionMatch[1]) : '',
+    imageUrl: imageMatch ? new URL(imageMatch[1], source.base).toString() : '',
+    sourceUrl: `${source.base}/`,
+    provider: source.provider,
+    updatedAt: new Date().toISOString(),
   });
 }
 
@@ -488,8 +772,6 @@ async function trafficTile(
   env: Env,
   ctx: ExecutionContext,
 ): Promise<Response> {
-  const tomtomKey = secret(env, 'TOMTOM_API_KEY');
-  if (!configured(tomtomKey)) return json({ error: 'Traffic key is not configured' }, 503);
   const match = path.match(/^\/api\/traffic\/(\d+)\/(\d+)\/(\d+)\.png$/);
   if (!match) return json({ error: 'Invalid traffic tile path' }, 400);
   const [z, x, y] = match.slice(1).map(Number);
@@ -499,7 +781,10 @@ async function trafficTile(
   const cacheKey = new Request(request.url, { method: 'GET' });
   const cached = await caches.default.match(cacheKey);
   if (cached) return cached;
-  const target = `https://api.tomtom.com/traffic/map/4/tile/flow/relative0/${z}/${x}/${y}.png?key=${encodeURIComponent(tomtomKey ?? '')}&thickness=10`;
+  const tomtomKey = secret(env, 'TOMTOM_API_KEY');
+  const target = configured(tomtomKey)
+    ? `https://api.tomtom.com/traffic/map/4/tile/flow/relative0/${z}/${x}/${y}.png?key=${encodeURIComponent(tomtomKey ?? '')}&thickness=10`
+    : `${IBI_TRAFFIC_TILE_URL}?x=${x}&y=${y}&z=${z}`;
   const upstream = await fetch(target, { cf: { cacheEverything: true, cacheTtl: 60 } });
   if (!upstream.ok) return json({ error: `Traffic provider ${upstream.status}` }, 502);
 
@@ -575,8 +860,10 @@ export default {
           regionalTransit: true,
           metroNorth: true,
           roadwork: true,
+          roadEvents: true,
+          cameras: true,
           ais: configured(secret(env, 'AISSTREAM_API_KEY')),
-          traffic: configured(secret(env, 'TOMTOM_API_KEY')),
+          traffic: true,
           swiftly: configured(secret(env, 'SWIFTLY_API_KEY')),
         },
       });
@@ -588,6 +875,12 @@ export default {
       response = await metroNorth(request, ctx);
     } else if (url.pathname === '/api/roadwork') {
       response = await roadwork(request, ctx);
+    } else if (url.pathname === '/api/road-events') {
+      response = await roadEvents(request, ctx);
+    } else if (url.pathname === '/api/cameras') {
+      response = await cameras(request, ctx);
+    } else if (url.pathname === '/api/camera-detail') {
+      response = await cameraDetail(url);
     } else if (url.pathname.startsWith('/api/traffic/')) {
       response = await trafficTile(request, url.pathname, env, ctx);
     } else if (url.pathname === '/api/ais') {
