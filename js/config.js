@@ -1,8 +1,17 @@
 // Central knobs for the whole app. Everything tunable lives here.
 
 const params = new URLSearchParams(window.location.search);
+const DEFAULT_GATEWAY_BASE = 'https://motion-gateway.mapzimus.workers.dev';
+const DEFAULT_AIRCRAFT_GATEWAY_BASE = 'https://motion-aircraft-gateway.vercel.app';
+const explicitGatewayBase = params.get('gateway');
 const gatewayBase = (
-  params.get('gateway') || localStorage.getItem('motion-gateway') || ''
+  explicitGatewayBase || localStorage.getItem('motion-gateway') || DEFAULT_GATEWAY_BASE
+).replace(/\/+$/, '');
+const aircraftGatewayBase = (
+  params.get('aircraft_gateway') ||
+  explicitGatewayBase ||
+  localStorage.getItem('motion-aircraft-gateway') ||
+  DEFAULT_AIRCRAFT_GATEWAY_BASE
 ).replace(/\/+$/, '');
 
 export const CONFIG = {
@@ -15,8 +24,10 @@ export const CONFIG = {
   API_KEY: params.get('api_key') || 'd9bab356c0644656a933fd24f356b45f',
 
   // Worker gateway for feeds that cannot safely or reliably run in a browser.
-  // Override once with ?gateway=http://localhost:8787; it persists.
+  // Production uses the deployed Worker. Override once for local development
+  // with ?gateway=http://localhost:8787; the override persists.
   GATEWAY_BASE: gatewayBase,
+  AIRCRAFT_GATEWAY_BASE: aircraftGatewayBase,
 
   // Polling cadence per feed.
   VEHICLE_POLL_MS: 10_000, // one request covers the entire MBTA fleet
@@ -94,6 +105,15 @@ export const CONFIG = {
 if (params.get('gateway')) {
   try {
     localStorage.setItem('motion-gateway', gatewayBase);
+    localStorage.setItem('motion-aircraft-gateway', aircraftGatewayBase);
+  } catch {
+    /* private mode — session-only */
+  }
+}
+
+if (params.get('aircraft_gateway')) {
+  try {
+    localStorage.setItem('motion-aircraft-gateway', aircraftGatewayBase);
   } catch {
     /* private mode — session-only */
   }

@@ -17,14 +17,17 @@ not guesses based on agency names.
 | MBTA subway, Silver Line, buses, commuter rail, ferries | [MBTA V3 API](https://www.mbta.com/developers/v3-api) | 10 s |
 | Regional buses | Agency GTFS-realtime feeds, normalized by the gateway | 20 s |
 | Amtrak | [Amtraker](https://amtraker.com) community API | 90 s |
-| Aircraft | [ADSB.lol](https://api.adsb.lol/) through the gateway | 45 s |
+| Aircraft | [ADSB.lol](https://api.adsb.lol/) with [adsb.fi](https://adsb.fi/) failover through the aircraft relay | 45 s |
 | Harbor/coastal vessels and identifiable passenger ferries | [AISStream](https://aisstream.io) through a protected WebSocket relay | streaming |
 | Bluebikes stations | [Bluebikes GBFS](https://gbfs.bluebikes.com/gbfs/gbfs.json) | 60 s |
 | Road congestion | [TomTom Traffic Flow](https://developer.tomtom.com/traffic-api) through protected raster tiles | live tiles |
 
 The aircraft layer no longer calls airplanes.live. That service now rejects
-this project with HTTP 403, and ADSB.lol does not expose browser CORS headers.
-The Worker gateway fixes both problems without weakening browser security.
+this project with HTTP 403, and ADS-B providers do not expose browser CORS
+headers. The server-side aircraft relay fixes both problems without weakening
+browser security, fails over from ADSB.lol to adsb.fi, and uses CDN stale-
+while-revalidate caching to keep the last good positions during a provider
+interruption.
 
 ## Regional transit coverage
 
@@ -57,7 +60,9 @@ npm run dev
 ### Gateway setup
 
 Aircraft and public regional-bus feeds need the gateway. AIS and traffic also
-need their provider secrets.
+need their provider secrets. The live site uses the deployed gateway at
+`https://motion-gateway.mapzimus.workers.dev` and the aircraft relay at
+`https://motion-aircraft-gateway.vercel.app` automatically.
 
 ```powershell
 Copy-Item .dev.vars.example .dev.vars
@@ -72,8 +77,14 @@ npm run dev
 # Open http://localhost:5500/?gateway=http://localhost:8787
 ```
 
-The gateway URL persists in localStorage, so it only needs to be supplied once.
-Provider keys never enter the page URL, localStorage, or the frontend bundle.
+Local gateway overrides persist in localStorage, so they only need to be
+supplied once. Provider keys never enter the page URL, localStorage, or the
+frontend bundle.
+
+The `aircraft-gateway/` Vercel Function gives the aircraft feed separate
+outbound networking because both public ADS-B providers rate-limit or block
+Cloudflare's shared Worker egress. Successful responses are cached for 30
+seconds and can be served stale for five minutes while a refresh retries.
 
 ### Deploy the gateway
 
@@ -92,6 +103,14 @@ AISStream and TomTom are optional; omit those secrets if their layers should
 stay unavailable. `SWIFTLY_API_KEY` must be the complete value expected by the
 Swiftly `Authorization` header. Add any custom production frontend origin to
 `ALLOWED_ORIGINS` in `wrangler.jsonc` before deployment.
+
+Deploy the separate aircraft relay from its own project directory:
+
+```powershell
+Set-Location aircraft-gateway
+npx vercel link --yes --project motion-aircraft-gateway
+npx vercel --prod --yes
+```
 
 ## Gateway API
 
@@ -113,13 +132,15 @@ briefly at the edge to avoid multiplying load.
 Public browser-safe APIs ───────────────┐
   MBTA · Amtraker · Bluebikes          │
                                        ├─ MapLibre fleets ─ Census region filter
-Cloudflare Worker gateway ─────────────┘
-  ADSB.lol · agency GTFS-RT · AISStream · TomTom
+Cloudflare Worker gateway ─────────────┤
+  agency GTFS-RT · AISStream · TomTom  │
+Vercel aircraft relay ─────────────────┘
+  ADSB.lol · adsb.fi
 ```
 
-The frontend remains plain HTML/CSS/JavaScript. The gateway is TypeScript and
-runs on Cloudflare Workers. Tests execute inside the Workers runtime with
-Cloudflare's Vitest integration.
+The frontend remains plain HTML/CSS/JavaScript. The gateways are TypeScript and
+run on Cloudflare Workers and Vercel Functions. Cloudflare gateway tests execute
+inside the Workers runtime with Cloudflare's Vitest integration.
 
 ## Verify changes
 

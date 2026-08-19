@@ -2,9 +2,11 @@ import { transit_realtime } from 'gtfs-realtime-bindings';
 import { feedsForRegion, type TransitFeed } from './feeds';
 import { AIS_BOUNDS, isRegionId, PLANE_PROBES, type RegionId } from './regions';
 
-const ADSB_BASE = 'https://api.adsb.lol/v2/point';
+const ADSB_LOL_BASE = 'https://api.adsb.lol/v2/point';
+const ADSB_FI_BASE = 'https://opendata.adsb.fi/api/v3';
 const AISSTREAM_URL = 'wss://stream.aisstream.io/v0/stream';
 const NEW_ENGLAND_BBOX = { west: -74, south: 40.8, east: -66, north: 47.7 };
+const PLANE_STALE_TTL_SECONDS = 5 * 60;
 
 type JsonValue = Record<string, unknown> | unknown[];
 
@@ -89,31 +91,87 @@ function regionFrom(url: URL): RegionId | null {
   return isRegionId(region) ? region : null;
 }
 
+type AircraftPayload = { ac?: Array<Record<string, unknown>> };
+type AircraftProbeResult = { payload: AircraftPayload; provider: string };
+
+async function fetchAircraft(
+  provider: string,
+  endpoint: string,
+  cacheTtl: number,
+): Promise<AircraftProbeResult> {
+  const upstream = await fetch(endpoint, {
+    headers: {
+      accept: 'application/json',
+      'user-agent': 'Motion/0.5 (+https://github.com/mapzimus/Motion)',
+    },
+    cf: { cacheEverything: true, cacheTtl },
+  });
+  if (!upstream.ok) throw new Error(`${provider} ${upstream.status}`);
+  return { payload: (await upstream.json()) as AircraftPayload, provider };
+}
+
 async function planes(request: Request, url: URL, ctx: ExecutionContext): Promise<Response> {
   const region = regionFrom(url);
   if (!region) return json({ error: 'Unknown region' }, 400);
 
+  const staleCacheKey = new Request(
+    `${url.origin}${url.pathname}?region=${region}&cache=last-good`,
+    { method: 'GET' },
+  );
+
   return cachedJson(request, ctx, 15, async () => {
-    const results = await Promise.allSettled(
-      PLANE_PROBES[region].map(async ({ lat, lon, radius }) => {
-        const upstream = await fetch(`${ADSB_BASE}/${lat}/${lon}/${radius}`, {
-          headers: { accept: 'application/json', 'user-agent': 'Motion/0.5 mapzimus/Motion' },
-          cf: { cacheEverything: true, cacheTtl: 15 },
-        });
-        if (!upstream.ok) throw new Error(`ADSB.lol ${upstream.status}`);
-        return (await upstream.json()) as { ac?: Array<Record<string, unknown>> };
-      }),
+    const probes = PLANE_PROBES[region];
+    const primary = await Promise.allSettled(
+      probes.map(({ lat, lon, radius }) =>
+        fetchAircraft('ADSB.lol', `${ADSB_LOL_BASE}/${lat}/${lon}/${radius}`, 15),
+      ),
     );
 
-    const successful = results.filter(
-      (result): result is PromiseFulfilledResult<{ ac?: Array<Record<string, unknown>> }> =>
-        result.status === 'fulfilled',
+    const results: Array<AircraftProbeResult | null> = primary.map((result) =>
+      result.status === 'fulfilled' ? result.value : null,
     );
-    if (!successful.length) return json({ error: 'Aircraft provider unavailable' }, 502);
+    const failures = primary.flatMap((result) =>
+      result.status === 'rejected'
+        ? [result.reason instanceof Error ? result.reason.message : String(result.reason)]
+        : [],
+    );
+
+    // adsb.fi permits one public request per second. Only failed ADSB.lol probes
+    // fall back, and multi-probe regions are serialized to respect that limit.
+    let fallbackRequests = 0;
+    for (let index = 0; index < probes.length; index += 1) {
+      if (results[index]) continue;
+      if (fallbackRequests > 0) {
+        await new Promise((resolve) => setTimeout(resolve, 1_050));
+      }
+      fallbackRequests += 1;
+      const { lat, lon, radius } = probes[index];
+      try {
+        results[index] = await fetchAircraft(
+          'adsb.fi',
+          `${ADSB_FI_BASE}/lat/${lat}/lon/${lon}/dist/${radius}`,
+          45,
+        );
+      } catch (error) {
+        failures.push(error instanceof Error ? error.message : String(error));
+        // A last-known-good response below covers short outages of both feeds.
+      }
+    }
+
+    const successful = results.filter((result): result is AircraftProbeResult => Boolean(result));
+    if (!successful.length) {
+      const stale = await caches.default.match(staleCacheKey);
+      if (stale) {
+        const response = new Response(stale.body, stale);
+        response.headers.set('x-motion-data', 'last-good');
+        return response;
+      }
+      return json({ error: 'Aircraft providers unavailable', failures }, 502);
+    }
 
     const unique = new Map<string, Record<string, unknown>>();
     for (const result of successful) {
-      for (const aircraft of result.value.ac ?? []) {
+      for (const aircraft of result.payload.ac ?? []) {
         const hex = String(aircraft.hex ?? '');
         if (hex) unique.set(hex, aircraft);
       }
@@ -138,7 +196,17 @@ async function planes(request: Request, url: URL, ctx: ExecutionContext): Promis
       }];
     });
 
-    return json({ provider: 'ADSB.lol', region, aircraft, failedProbes: results.length - successful.length });
+    const providers = [...new Set(successful.map((result) => result.provider))];
+    const response = json({
+      provider: providers.join(' + '),
+      region,
+      aircraft,
+      failedProbes: results.length - successful.length,
+    });
+    const lastGood = response.clone();
+    lastGood.headers.set('cache-control', `public, max-age=${PLANE_STALE_TTL_SECONDS}`);
+    ctx.waitUntil(caches.default.put(staleCacheKey, lastGood));
+    return response;
   });
 }
 

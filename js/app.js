@@ -22,17 +22,32 @@ import { initialRegion, loadRegions } from './regions.js';
 import * as ui from './ui.js';
 
 async function loadGatewayCapabilities() {
-  if (!CONFIG.GATEWAY_BASE) return {};
+  let capabilities = {};
   try {
-    const response = await fetch(`${CONFIG.GATEWAY_BASE}/health`, {
-      signal: AbortSignal.timeout(5000),
-    });
-    if (!response.ok) throw new Error(`gateway ${response.status}`);
-    return (await response.json()).providers ?? {};
+    if (CONFIG.GATEWAY_BASE) {
+      const response = await fetch(`${CONFIG.GATEWAY_BASE}/health`, {
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!response.ok) throw new Error(`gateway ${response.status}`);
+      capabilities = (await response.json()).providers ?? {};
+    }
   } catch (error) {
     console.warn('Motion gateway unavailable:', error.message);
-    return {};
   }
+
+  try {
+    if (CONFIG.AIRCRAFT_GATEWAY_BASE) {
+      const response = await fetch(`${CONFIG.AIRCRAFT_GATEWAY_BASE}/api/health`, {
+        signal: AbortSignal.timeout(5000),
+      });
+      capabilities.aircraft = response.ok;
+    }
+  } catch (error) {
+    console.warn('Motion aircraft gateway unavailable:', error.message);
+    capabilities.aircraft = false;
+  }
+
+  return capabilities;
 }
 
 async function main() {
