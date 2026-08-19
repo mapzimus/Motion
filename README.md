@@ -18,11 +18,11 @@ names.
 | MBTA subway, Silver Line, buses, commuter rail, ferries | [MBTA V3 API](https://www.mbta.com/developers/v3-api) | 10 s |
 | Regional buses | Agency GTFS-realtime feeds, normalized by the gateway | 20 s |
 | Metro-North New Haven branches | [MTA GTFS-Realtime](https://www.mta.info/developers) trip predictions and alerts; positions are explicitly estimated between stations | 30 s |
-| Scheduled bus, rail, and ferry routes | 54 static GTFS sources plus two official-schedule corridors, including Metro-North, Concord Coach, and Dartmouth Coach | built snapshot |
+| Scheduled bus, rail, ferry, and passenger-boat routes | 55 static GTFS sources plus nine official-schedule corridors, including Metro-North, Concord Coach, Dartmouth Coach, Greyhound/FlixBus, Lake Champlain Ferries, and Lake Winnipesaukee services | built snapshot |
 | Amtrak | [Amtraker](https://amtraker.com) community API | 90 s |
 | Aircraft | [ADSB.lol](https://api.adsb.lol/) with [adsb.fi](https://adsb.fi/) failover; click a plane for its best-effort origin and destination | 45 s |
 | Harbor/coastal vessels and identifiable passenger ferries | [AISStream](https://aisstream.io) through a protected WebSocket relay | streaming |
-| Bike and scooter share | GBFS feeds for Bluebikes, Veo Hartford, Veo New Haven, and Spin Providence | 60 s |
+| Bike and scooter share | GBFS feeds for Bluebikes across 13 Greater Boston municipalities, Veo Hartford, Veo New Haven, and Spin Providence | 60 s |
 | Road work | [MassDOT WZDx](https://feed.massdot-swzm.com/) | 60 s |
 | Live congestion speeds | [TomTom Traffic Flow](https://developer.tomtom.com/traffic-api) through protected raster tiles | optional live tiles |
 
@@ -39,19 +39,40 @@ private, repositioning, and irregular flights may not have an itinerary.
 
 ## Regional transit coverage
 
-The checked-in route snapshot contains 917 bus, commuter-rail, and ferry route
-features assembled from 54 static GTFS sources plus two official-schedule
-corridors. Scheduled routes remain visible when an operator publishes no live
-positions. Metro-North's New Haven, New Canaan, Danbury, and Waterbury lines are
-included in Connecticut; connected routes are allowed to continue outside the
-selected boundary so riders can see the full trip into New York City.
+The checked-in route snapshot contains 947 bus, commuter-rail, ferry, and
+passenger-boat route features assembled from 55 static GTFS sources plus nine
+official-schedule corridors. Scheduled routes remain visible when an operator
+publishes no live positions. State views start with the scheduled bus layer on,
+and the sidebar reports scheduled route counts separately from live vehicles,
+so a missing realtime credential no longer makes service look absent.
+Metro-North's New Haven, New Canaan, Danbury, and Waterbury lines are included
+in Connecticut; connected routes are allowed to continue outside the selected
+boundary so riders can see the full trip into New York City.
 
 Concord Coach's seven intercity routes use a community-maintained GTFS feed
-cataloged and continuously validated by Transitland. Dartmouth Coach does not
-publish a discoverable GTFS feed, so its Upper Valley–Boston/Logan and Upper
-Valley–NYC corridors follow the stop order on the carrier's official schedules
-and link back to those schedules from the map popup. Neither carrier is shown
-as a live vehicle feed.
+cataloged and continuously validated by Transitland. Greyhound and FlixBus use
+their current official U.S. GTFS feed; the build keeps only trip patterns that
+actually touch a New England state. Dartmouth Coach does not publish a
+discoverable GTFS feed, so its Upper Valley–Boston/Logan and Upper Valley–NYC
+corridors follow the stop order on the carrier's official schedules and link
+back to those schedules from the map popup. These intercity carriers are shown
+as schedules, not invented live vehicle positions.
+
+Vermont includes 98 scheduled bus routes in the current snapshot, including 16
+Green Mountain Transit routes, Vermont Translines, and intercity Greyhound/
+FlixBus connections. Lake Champlain's current Grand Isle–Plattsburgh and
+Charlotte–Essex crossings are included. In New Hampshire, the ferry/passenger-
+boat layer also includes published 2026 Mount Washington Cruises corridors and
+the seasonal Sophie C island mailboat itinerary on Lake Winnipesaukee. These
+inland-water lines are schedule context; AIS may add a live marker only when a
+vessel is independently broadcasting and received by the configured provider.
+
+Bluebikes is a Greater Boston system rather than a statewide brand. Its public
+feed covers Arlington, Boston, Brookline, Cambridge, Chelsea, Everett, Malden,
+Medford, Newton, Revere, Salem, Somerville, and Watertown. The same regional
+layer also includes the separately operated Hartford, New Haven, and Providence
+systems. No discoverable public GBFS system is currently cataloged for Vermont,
+New Hampshire, or Maine, so the map does not fabricate stations there.
 
 Metro-North is different: the MTA publishes keyless realtime trip updates and
 alerts, but not GPS vehicle positions. Motion interpolates active New Haven,
@@ -200,7 +221,8 @@ npm run deploy:dry-run
 - Massachusetts work zones are keyless, but continuous congestion speeds still
   need a traffic data source. New England 511 systems expose incidents and road
   conditions, but not one uniform, keyless congestion-speed feed.
-- Current GBFS coverage is Boston, Hartford, New Haven, and Providence. Other
-  systems can be added as soon as they publish discoverable public feeds.
+- Current GBFS coverage is Bluebikes' 13 Greater Boston municipalities plus
+  Hartford, New Haven, and Providence. Other systems can be added as soon as
+  they publish discoverable public feeds.
 
 Built by Max Howe — [github.com/mapzimus](https://github.com/mapzimus)

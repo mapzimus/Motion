@@ -87,7 +87,7 @@ export const CONFIG = {
   SHARED_MOBILITY_SYSTEMS: [
     {
       id: 'bluebikes',
-      name: 'Bluebikes',
+      name: 'Bluebikes · 13 Greater Boston municipalities',
       discoveryUrl: 'https://gbfs.bluebikes.com/gbfs/gbfs.json',
       color: '#4d9fec',
       stationOnly: true,

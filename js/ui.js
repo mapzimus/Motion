@@ -9,6 +9,9 @@ const el = (id) => document.getElementById(id);
 let GROUPS = [];
 const groupState = new Map();
 const countsBySource = new Map(); // source -> Map(group key, count)
+const manualGroupOverrides = new Set();
+const STATE_BUS_DEFAULT_ON = new Set(['ct', 'ri', 'nh', 'vt', 'me']);
+let scheduledCounts = new Map();
 let onVisibleChange = () => {};
 let onRegionChange = () => {};
 let status = { state: 'connecting', lastUpdate: null, retryAtMs: null, message: '' };
@@ -33,14 +36,30 @@ function buildGroups(routeInfo, capabilities) {
     // The wider fleet.
     { key: 'commuter', name: 'Commuter & regional rail', initial: 'CR', section: 'modal', routes: routesOfType(2), color: colorOf(routesOfType(2)[0]) },
     { key: 'bus', name: 'Buses & scheduled routes', initial: 'B', section: 'modal', routes: routesOfType(3).filter((id) => !CONFIG.SILVER_ROUTES.includes(id)), color: '#ffc72c', darkText: true },
-    { key: 'ferry', name: 'Ferries', initial: 'F', section: 'modal', routes: routesOfType(4), color: colorOf(routesOfType(4)[0]) ?? '#008eaa' },
+    { key: 'ferry', name: 'Ferries & passenger boats', initial: 'F', section: 'modal', routes: routesOfType(4), color: colorOf(routesOfType(4)[0]) ?? '#008eaa' },
     { key: 'amtrak', name: 'Amtrak', initial: 'A', section: 'modal', routes: [], color: CONFIG.AMTRAK_COLOR },
     { key: 'plane', name: 'Aircraft', initial: '✈', section: 'modal', routes: [], color: CONFIG.PLANE_COLOR, needsKey: !capabilities?.aircraft, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'setup' },
     { key: 'vessel', name: 'Harbor & coastal traffic', initial: '⚓', section: 'modal', routes: [], color: CONFIG.VESSEL_COLOR, needsKey: !capabilities?.ais, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'setup' },
-    { key: 'bike', name: 'Bike & scooter share', initial: 'b', section: 'modal', routes: [], color: CONFIG.BIKE_COLOR },
+    { key: 'bike', name: 'Regional bike & scooter share', initial: 'b', section: 'modal', routes: [], color: CONFIG.BIKE_COLOR },
     { key: 'roadwork', name: 'Road work (MassDOT)', initial: '!', section: 'modal', routes: [], color: CONFIG.ROADWORK_COLOR, needsKey: !capabilities?.roadwork, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false, zoomable: false },
     { key: 'traffic', name: 'Live congestion speeds', initial: '≋', section: 'modal', routes: [], color: '#e05d5d', needsKey: !capabilities?.traffic, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'optional', countAsVehicle: false, zoomable: false },
   ];
+}
+
+function groupStartsOn(group, region) {
+  if (group.needsKey) return false;
+  if (group.key === 'bus' && STATE_BUS_DEFAULT_ON.has(region)) return true;
+  return !CONFIG.DEFAULT_OFF_GROUPS.includes(group.key);
+}
+
+function applyRegionDefaults(region) {
+  const bus = GROUPS.find((group) => group.key === 'bus');
+  if (!bus || manualGroupOverrides.has(bus.key)) return;
+  const startOn = groupStartsOn(bus, region);
+  groupState.set(bus.key, startOn);
+  rowInput(bus.key).checked = startOn;
+  syncMaster();
+  emitVisible();
 }
 
 /*
@@ -83,6 +102,7 @@ export function initPanel(routeInfo, visibleChangeHandler, regionChangeHandler, 
   renderRegionCopy(selectedRegion);
   regionSelect.addEventListener('change', () => {
     renderRegionCopy(regionSelect.value);
+    applyRegionDefaults(regionSelect.value);
     onRegionChange(regionSelect.value);
     if (window.matchMedia('(max-width: 760px)').matches) {
       document.body.classList.remove('panel-open');
@@ -90,7 +110,7 @@ export function initPanel(routeInfo, visibleChangeHandler, regionChangeHandler, 
   });
 
   for (const group of GROUPS) {
-    const startOn = !CONFIG.DEFAULT_OFF_GROUPS.includes(group.key) && !group.needsKey;
+    const startOn = groupStartsOn(group, selectedRegion);
     groupState.set(group.key, startOn);
 
     const row = document.createElement('div');
@@ -109,6 +129,7 @@ export function initPanel(routeInfo, visibleChangeHandler, regionChangeHandler, 
         <span class="knob"></span>
       </label>`;
     row.querySelector('input').addEventListener('change', (e) => {
+      manualGroupOverrides.add(group.key);
       groupState.set(group.key, e.target.checked);
       syncMaster();
       emitVisible();
@@ -123,6 +144,7 @@ export function initPanel(routeInfo, visibleChangeHandler, regionChangeHandler, 
       row.addEventListener('click', (e) => {
         if (e.target.closest('.switch') || e.target.closest('a')) return;
         if (!groupState.get(group.key)) {
+          manualGroupOverrides.add(group.key);
           groupState.set(group.key, true);
           row.querySelector('input').checked = true;
           syncMaster();
@@ -197,6 +219,11 @@ export function replaceCounts(partialByGroup, source) {
   renderCounts();
 }
 
+export function setScheduledCounts(partialByGroup) {
+  scheduledCounts = new Map(Object.entries(partialByGroup));
+  renderCounts();
+}
+
 function renderCounts() {
   for (const group of GROUPS) {
     const cell = document.querySelector(
@@ -206,7 +233,15 @@ function renderCounts() {
     const values = [...countsBySource.values()]
       .map((sourceMap) => sourceMap.get(group.key))
       .filter((value) => value !== null && value !== undefined);
-    cell.textContent = values.length ? values.reduce((sum, value) => sum + value, 0) : '–';
+    const live = values.length ? values.reduce((sum, value) => sum + value, 0) : null;
+    const scheduled = scheduledCounts.get(group.key) ?? 0;
+    if (scheduled) {
+      cell.textContent = live ? `${live} live · ${scheduled}r` : `${scheduled} routes`;
+      cell.title = `${live ?? 0} live vehicle${live === 1 ? '' : 's'} · ${scheduled} scheduled route${scheduled === 1 ? '' : 's'}`;
+    } else {
+      cell.textContent = live ?? '–';
+      cell.removeAttribute('title');
+    }
   }
   hideOverlay();
   renderStatus();

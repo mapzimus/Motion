@@ -422,6 +422,20 @@ export function setRouteShapes(featureCollection) {
   renderRouteShapes();
 }
 
+export function scheduledRouteCountsForRegion() {
+  const routesByGroup = new Map();
+  for (const feature of routeShapesFC.features) {
+    const group = feature.properties.group;
+    const route = feature.properties.route;
+    if (!group || !route) continue;
+    if (!routesByGroup.has(group)) routesByGroup.set(group, new Set());
+    routesByGroup.get(group).add(route);
+  }
+  return Object.fromEntries(
+    [...routesByGroup.entries()].map(([group, routes]) => [group, routes.size]),
+  );
+}
+
 function wireRoutePopups() {
   map.on('click', 'route-lines', (event) => {
     const properties = event.features[0].properties;

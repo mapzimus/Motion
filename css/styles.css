@@ -213,6 +213,7 @@ h2 {
   color: var(--text-faint);
   min-width: 20px;
   text-align: right;
+  white-space: nowrap;
 }
 
 /* toggle switch */

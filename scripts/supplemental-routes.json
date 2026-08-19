@@ -1,6 +1,6 @@
 {
   "type": "FeatureCollection",
-  "description": "Scheduled corridors for carriers without a discoverable public GTFS feed. Stop order comes from the carrier; checked-in geometry follows OpenStreetMap road routing.",
+  "description": "Scheduled corridors from official carrier timetables when a usable public GTFS feed is unavailable. Road routes use checked-in OpenStreetMap routing; water routes connect official ports and published stops.",
   "features": [
     {
       "type": "Feature",
@@ -36,6 +36,135 @@
         "regions": ["nh","ny"],
         "sourceUrl": "https://dartmouthcoach.com/route/upper-valley-new-york-city/",
         "scheduleNote": "Official carrier schedule · no public live vehicle feed"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [[-73.349567,44.688159],[-73.365655,44.693105],[-73.381693,44.698052]]
+      },
+      "properties": {
+        "route": "lake-champlain-ferries:grand-isle-plattsburgh",
+        "group": "ferry",
+        "color": "#43b7c7",
+        "agency": "Lake Champlain Ferries",
+        "name": "Grand Isle, VT ↔ Plattsburgh, NY",
+        "kind": "regional-static",
+        "regions": ["vt","ny"],
+        "sourceUrl": "https://ferries.com/vt-ny-ferry-routes/grand-isle-vt-to-plattsburgh-ny/schedules/",
+        "scheduleNote": "Year-round 24-hour vehicle and passenger ferry · about 15 minutes · scheduled, not live"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [[-73.296724,44.301666],[-73.323946,44.306124],[-73.35187,44.310551]]
+      },
+      "properties": {
+        "route": "lake-champlain-ferries:charlotte-essex",
+        "group": "ferry",
+        "color": "#43b7c7",
+        "agency": "Lake Champlain Ferries",
+        "name": "Charlotte, VT ↔ Essex, NY",
+        "kind": "regional-static",
+        "regions": ["vt","ny"],
+        "sourceUrl": "https://ferries.com/vt-ny-ferry-routes/charlotte-vt-essex-ny/current-ferry-schedule/",
+        "scheduleNote": "Year-round vehicle and passenger ferry, weather permitting · about 30 minutes · scheduled, not live"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [[-71.458979,43.60753],[-71.3998,43.611],[-71.329,43.604],[-71.263,43.594],[-71.209,43.583]]
+      },
+      "properties": {
+        "route": "mount-washington:weirs-wolfeboro",
+        "group": "ferry",
+        "color": "#68c6df",
+        "agency": "Mount Washington Cruises",
+        "name": "M/S Mount Washington · Weirs Beach ↔ Wolfeboro",
+        "kind": "regional-static",
+        "regions": ["nh"],
+        "sourceUrl": "https://www.msmountwashington.com/blogs/news/mount-washington-cruises-announces-historic-schedule-expansion",
+        "scheduleNote": "Seasonal scheduled passenger cruise with point-to-point travel · not a live vessel position"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [[-71.4613,43.708628],[-71.408,43.678],[-71.346,43.646],[-71.274,43.611],[-71.209,43.583]]
+      },
+      "properties": {
+        "route": "winnipesaukee-spirit:center-harbor-wolfeboro",
+        "group": "ferry",
+        "color": "#68c6df",
+        "agency": "Mount Washington Cruises",
+        "name": "Winnipesaukee Spirit · Center Harbor ↔ Wolfeboro",
+        "kind": "regional-static",
+        "regions": ["nh"],
+        "sourceUrl": "https://www.msmountwashington.com/blogs/news/mount-washington-cruises-announces-historic-schedule-expansion",
+        "scheduleNote": "Seasonal scheduled passenger cruise · not a live vessel position"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [[-71.497242,43.655039],[-71.486,43.64],[-71.475,43.622],[-71.458979,43.60753]]
+      },
+      "properties": {
+        "route": "winnipesaukee-belle:meredith-weirs",
+        "group": "ferry",
+        "color": "#68c6df",
+        "agency": "Mount Washington Cruises",
+        "name": "Winnipesaukee Belle · Meredith ↔ Weirs Beach",
+        "kind": "regional-static",
+        "regions": ["nh"],
+        "sourceUrl": "https://www.msmountwashington.com/blogs/news/mount-washington-cruises-announces-historic-schedule-expansion",
+        "scheduleNote": "Seasonal scheduled passenger cruise · not a live vessel position"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [[-71.458979,43.60753],[-71.4205,43.566],[-71.373,43.531],[-71.31,43.5],[-71.237,43.472]]
+      },
+      "properties": {
+        "route": "mount-washington:weirs-alton-bay",
+        "group": "ferry",
+        "color": "#68c6df",
+        "agency": "Mount Washington Cruises",
+        "name": "M/S Mount Washington · Weirs Beach ↔ Alton Bay",
+        "kind": "regional-static",
+        "regions": ["nh"],
+        "sourceUrl": "https://www.msmountwashington.com/blogs/news/the-mount-washington-is-returning-to-alton-bay-and-were-not-doing-it-alone",
+        "scheduleNote": "Selected seasonal passenger-cruise dates · not a live vessel position"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "MultiLineString",
+        "coordinates": [
+          [[-71.458979,43.60753],[-71.427295,43.65452],[-71.402294,43.64452],[-71.421944,43.671111],[-71.393683,43.643132],[-71.458979,43.60753]],
+          [[-71.458979,43.60753],[-71.387,43.64],[-71.373683,43.634521],[-71.333682,43.623132],[-71.310348,43.62841],[-71.377294,43.628965],[-71.458979,43.60753]]
+        ]
+      },
+      "properties": {
+        "route": "sophie-c:mailboat",
+        "group": "ferry",
+        "color": "#f2b84b",
+        "agency": "Mount Washington Cruises / U.S. Mail",
+        "name": "M/V Sophie C · Lake Winnipesaukee mailboat",
+        "kind": "regional-static",
+        "regions": ["nh"],
+        "sourceUrl": "https://www.msmountwashington.com/pages/mailboat-cruises",
+        "scheduleNote": "Seasonal working mailboat with scheduled island stops · passenger cruise · not a live vessel position"
       }
     }
   ]
