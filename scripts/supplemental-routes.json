@@ -256,6 +256,24 @@
         "sourceUrl": "https://www.maine.gov/dot/programs-services/ferry",
         "scheduleNote": "Year-round island passenger and vehicle ferry · official schedule · not a live vessel position"
       }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [[-72.094116,41.356869],[-72.151,41.292],[-72.198,41.223],[-72.241702,41.155177]]
+      },
+      "properties": {
+        "route": "cross-sound-ferry:new-london-orient-point",
+        "group": "ferry",
+        "color": "#2eb7c5",
+        "agency": "Cross Sound Ferry",
+        "name": "New London, CT ↔ Orient Point, NY",
+        "kind": "regional-static",
+        "regions": ["ct","ny"],
+        "sourceUrl": "https://www.longislandferry.com/Schedules/Schedules.aspx",
+        "scheduleNote": "Year-round vehicle/passenger ferry · about 1 hr 20 min; seasonal high-speed passenger sailings · scheduled, not live"
+      }
     }
   ]
 }
