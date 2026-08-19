@@ -503,6 +503,8 @@ h2 {
 .popup-meta { font-family: var(--font-mono); font-size: 10px; color: var(--text-faint); margin-top: 7px; }
 .popup-route { font-family: var(--font-display); font-size: 18px; font-weight: 800; color: var(--text); margin: 5px 0 2px; }
 .popup-route-note { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-faint); margin: 3px 0 6px; }
+.popup-route-link { display: inline-block; margin-top: 7px; color: #8fcfff; font-size: 11px; text-decoration: none; }
+.popup-route-link:hover { text-decoration: underline; }
 
 .maplibregl-ctrl-group {
   background: rgba(13, 17, 23, 0.92);

@@ -1,0 +1,42 @@
+{
+  "type": "FeatureCollection",
+  "description": "Scheduled corridors for carriers without a discoverable public GTFS feed. Stop order comes from the carrier; checked-in geometry follows OpenStreetMap road routing.",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "MultiLineString",
+        "coordinates": [[[-72.288447,43.701403],[-72.24197,43.653565],[-72.166295,43.599021],[-72.130343,43.492636],[-72.03915,43.421645],[-71.937373,43.37238],[-71.906345,43.327991],[-71.848349,43.311738],[-71.830793,43.281329],[-71.757224,43.260646],[-71.695611,43.18229],[-71.58468,43.184373],[-71.509393,43.15673],[-71.475266,43.107009],[-71.474208,43.051271],[-71.417966,42.993958],[-71.409104,42.958697],[-71.269101,42.788624],[-71.204875,42.73784],[-71.20928,42.696875],[-71.102803,42.461965],[-71.103519,42.41103],[-71.055877,42.350048],[-71.01759,42.365918]]]
+      },
+      "properties": {
+        "route": "dartmouth-coach:boston-logan",
+        "group": "bus",
+        "color": "#4f8fd6",
+        "agency": "Dartmouth Coach",
+        "name": "Upper Valley ↔ Boston / Logan",
+        "kind": "regional-static",
+        "regions": ["nh","ma","boston"],
+        "sourceUrl": "https://dartmouthcoach.com/route/upper-valley-to-boston-logan-airport/",
+        "scheduleNote": "Official carrier schedule · no public live vehicle feed"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "MultiLineString",
+        "coordinates": [[[-72.24197,43.653565],[-72.288447,43.701403],[-72.408873,43.521038],[-72.468556,43.001295],[-72.580488,42.864281],[-72.541812,42.681388],[-72.628199,42.534559],[-72.642536,42.345916],[-72.605803,42.274639],[-72.648699,42.155155],[-72.579156,42.081742],[-72.591893,41.959997],[-72.662268,41.878285],[-72.653215,41.681518],[-72.87593,41.39228],[-73.078771,41.249416],[-73.179636,41.221986],[-73.194165,41.170718],[-73.722831,40.974157],[-73.833705,40.878535],[-73.825907,40.83447],[-73.931144,40.801376],[-73.970784,40.749229]]]
+      },
+      "properties": {
+        "route": "dartmouth-coach:nyc",
+        "group": "bus",
+        "color": "#4f8fd6",
+        "agency": "Dartmouth Coach",
+        "name": "Upper Valley ↔ New York City",
+        "kind": "regional-static",
+        "regions": ["nh","ny"],
+        "sourceUrl": "https://dartmouthcoach.com/route/upper-valley-new-york-city/",
+        "scheduleNote": "Official carrier schedule · no public live vehicle feed"
+      }
+    }
+  ]
+}
