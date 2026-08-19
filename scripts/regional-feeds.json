@@ -26,6 +26,7 @@
   {"id":"vta","agency":"Martha's Vineyard Transit Authority","states":["ma"],"url":"https://files.mobilitydatabase.org/mdb-420/latest.zip"},
   {"id":"wrta","agency":"Worcester Regional Transit Authority","states":["ma"],"url":"https://files.mobilitydatabase.org/mdb-432/latest.zip"},
   {"id":"massport","agency":"Massport shuttles & Logan Express","states":["ma"],"url":"https://files.mobilitydatabase.org/mdb-441/latest.zip"},
+  {"id":"concord-coach","agency":"Concord Coach Lines","states":["ma","nh","me","ny"],"url":"https://github.com/maxtkc/concord-coach-gtfs/raw/refs/heads/main/concord_coach_gtfs.zip","source_url":"https://concordcoachlines.com/routes/","color":"#e05b34"},
   {"id":"boston-express","agency":"Boston Express","states":["ma","nh"],"url":"https://files.mobilitydatabase.org/mdb-3033/latest.zip"},
   {"id":"boston-harbor-islands","agency":"Boston Harbor Islands Ferry","states":["ma"],"url":"https://files.mobilitydatabase.org/mdb-2679/latest.zip"},
   {"id":"hy-line","agency":"Hy-Line Cruises","states":["ma"],"url":"https://files.mobilitydatabase.org/mdb-427/latest.zip"},

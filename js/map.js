@@ -14,7 +14,7 @@ import {
 const EMPTY_FC = { type: 'FeatureCollection', features: [] };
 
 // Draw order, bottom to top: bike docks under boats under trains under planes.
-const FLEETS = ['bike', 'vessel', 'amtrak', 'regional', 'mbta', 'plane'];
+const FLEETS = ['bike', 'vessel', 'amtrak', 'regional', 'mnr', 'mbta', 'plane'];
 
 // The visual language: SHAPE says what kind of vehicle it is, COLOR says whose
 // service it is. Rail keeps the classic dot + heading chevron; every other
@@ -52,7 +52,7 @@ export function initMap() {
     new maplibregl.AttributionControl({
       compact: true,
       customAttribution:
-        'Data <a href="https://www.mbta.com/developers/v3-api" target="_blank" rel="noopener">MBTA</a> · agency GTFS / <a href="https://mobilitydatabase.org" target="_blank" rel="noopener">Mobility Database</a> · <a href="https://amtraker.com" target="_blank" rel="noopener">Amtraker</a> · <a href="https://api.adsb.lol" target="_blank" rel="noopener">ADSB.lol</a> / <a href="https://adsb.fi" target="_blank" rel="noopener">adsb.fi</a> · MassDOT · GBFS · boundaries U.S. Census Bureau',
+        'Data <a href="https://www.mbta.com/developers/v3-api" target="_blank" rel="noopener">MBTA</a> · <a href="https://www.mta.info/developers" target="_blank" rel="noopener">MTA Metro-North</a> · agency GTFS / <a href="https://mobilitydatabase.org" target="_blank" rel="noopener">Mobility Database</a> · <a href="https://amtraker.com" target="_blank" rel="noopener">Amtraker</a> · <a href="https://api.adsb.lol" target="_blank" rel="noopener">ADSB.lol</a> / <a href="https://adsb.fi" target="_blank" rel="noopener">adsb.fi</a> · MassDOT · GBFS · boundaries U.S. Census Bureau',
     }),
     'bottom-right',
   );
@@ -426,10 +426,14 @@ function wireRoutePopups() {
   map.on('click', 'route-lines', (event) => {
     const properties = event.features[0].properties;
     if (properties.kind !== 'regional-static') return;
+    const sourceUrl = /^https:\/\//.test(properties.sourceUrl ?? '')
+      ? properties.sourceUrl
+      : '';
     const html = `
       <div class="popup-title" style="color:${esc(properties.color)}">${esc(properties.name)}</div>
       <div class="popup-dest">${esc(properties.agency)}</div>
-      <div class="popup-status">Scheduled route · visible even without live vehicle positions</div>`;
+      <div class="popup-status">${esc(properties.scheduleNote ?? 'Scheduled route · visible even without live vehicle positions')}</div>
+      ${sourceUrl ? `<a class="popup-route-link" href="${esc(sourceUrl)}" target="_blank" rel="noopener">View carrier schedule ↗</a>` : ''}`;
     new maplibregl.Popup({ offset: 10, maxWidth: '310px' })
       .setLngLat(event.lngLat)
       .setHTML(html)
@@ -530,6 +534,7 @@ export function fleetCountsForRegion() {
     vessel: 'ais',
     amtrak: 'amtrak',
     regional: 'regional',
+    mnr: 'mnr',
     mbta: 'mbta',
     plane: 'planes',
   };

@@ -18,6 +18,7 @@ import { startAis } from './ais.js';
 import { startRegional } from './regional.js';
 import { startSharedMobility } from './shared-mobility.js';
 import { startRoadwork } from './roadwork.js';
+import { startMetroNorth } from './metro-north.js';
 import { startAlertPolling } from './alerts.js';
 import { initialRegion, loadRegions } from './regions.js';
 import * as ui from './ui.js';
@@ -61,6 +62,13 @@ async function main() {
   const routeInfo = new Map(routes.map((r) => [r.id, r]));
   const selectedRegion = initialRegion();
   const regionalControllers = [];
+  const alertsBySource = new Map();
+  const updateAlerts = (source) => (alerts) => {
+    alertsBySource.set(source, alerts);
+    ui.renderAlerts(
+      [...alertsBySource.values()].flat().sort((a, b) => b.severity - a.severity),
+    );
+  };
   const changeRegion = (region) => {
     setRegion(region);
     for (const [source, counts] of Object.entries(fleetCountsForRegion())) {
@@ -111,9 +119,15 @@ async function main() {
       selectedRegion,
       capabilities.roadwork,
     ),
+    startMetroNorth(
+      (counts) => ui.updateCounts(counts, 'mnr'),
+      updateAlerts('mnr'),
+      selectedRegion,
+      capabilities.metroNorth,
+    ),
   );
   startSharedMobility((counts) => ui.updateCounts(counts, 'shared-mobility'));
-  regionalControllers.push(startAlertPolling(routeInfo, ui.renderAlerts));
+  regionalControllers.push(startAlertPolling(routeInfo, updateAlerts('mbta')));
 
   // Route ribbons load after polling kicks off; vehicles shouldn't wait on
   // them. Every route gets a ribbon — the ~150 bus routes render thin and

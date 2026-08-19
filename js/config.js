@@ -33,6 +33,7 @@ export const CONFIG = {
   ALERT_POLL_MS: 60_000,
   AMTRAK_POLL_MS: 90_000, // Amtraker returns every US train (~1 MB) — be kind
   PLANE_POLL_MS: 45_000,
+  MNR_POLL_MS: 30_000,
 
   // How long markers glide between polled positions.
   ANIMATE_MS: 900,
@@ -60,6 +61,9 @@ export const CONFIG = {
   SHAPE_CACHE_KEY: 'bim-shapes-v3',
   SHAPE_CACHE_TTL_MS: 24 * 3600 * 1000,
   REGIONAL_ROUTE_URL: './data/regional-routes.geojson',
+  MNR_STOPS_URL: './data/mnr-stops.json',
+  MNR_COLOR: '#ee0034',
+  MNR_STALE_MS: 2 * 60_000,
 
   // Amtrak via the community Amtraker API (CORS-open, no key). Exact region
   // clipping is handled by the shared Census boundary filter.

@@ -6,6 +6,8 @@ const ADSB_LOL_BASE = 'https://api.adsb.lol/v2/point';
 const ADSB_FI_BASE = 'https://opendata.adsb.fi/api/v3';
 const AISSTREAM_URL = 'wss://stream.aisstream.io/v0/stream';
 const MASSDOT_WORK_ZONE_URL = 'https://feed.massdot-swzm.com/massdot_wzdx_v4.1_work_zone_feed.geojson';
+const MNR_TRIP_UPDATES_URL = 'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/mnr%2Fgtfs-mnr';
+const MNR_ALERTS_URL = 'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/camsys%2Fmnr-alerts';
 const NEW_ENGLAND_BBOX = { west: -74, south: 40.8, east: -66, north: 47.7 };
 const PLANE_STALE_TTL_SECONDS = 5 * 60;
 
@@ -278,6 +280,138 @@ async function transit(request: Request, url: URL, env: Env, ctx: ExecutionConte
   });
 }
 
+const MNR_ROUTES: Record<string, { name: string; color: string }> = {
+  '3': { name: 'New Haven', color: '#ee0034' },
+  '4': { name: 'New Canaan', color: '#ee0034' },
+  '5': { name: 'Danbury', color: '#ee0034' },
+  '6': { name: 'Waterbury', color: '#ee0034' },
+};
+
+function translatedText(value: {
+  translation?: Array<{ text?: string | null; language?: string | null }> | null;
+} | null | undefined): string {
+  return value?.translation?.find((entry) => entry.language === 'en')?.text ??
+    value?.translation?.find((entry) => !entry.language?.includes('html'))?.text ??
+    value?.translation?.[0]?.text ?? '';
+}
+
+function realtimeEventTime(update: {
+  arrival?: { time?: unknown } | null;
+  departure?: { time?: unknown } | null;
+}): number | null {
+  return numberValue(update.departure?.time) ?? numberValue(update.arrival?.time);
+}
+
+function mnrAlertSeverity(text: string): number {
+  if (/suspend|no service|cancel/i.test(text)) return 8;
+  if (/delay|late|reduced|modified|replacement bus/i.test(text)) return 6;
+  return 4;
+}
+
+async function metroNorth(request: Request, ctx: ExecutionContext): Promise<Response> {
+  return cachedJson(request, ctx, 15, async () => {
+    const [tripsResponse, alertsResponse] = await Promise.all([
+      fetch(MNR_TRIP_UPDATES_URL, {
+        headers: { accept: 'application/x-protobuf' },
+        cf: { cacheEverything: true, cacheTtl: 15 },
+      }),
+      fetch(MNR_ALERTS_URL, {
+        headers: { accept: 'application/x-protobuf' },
+        cf: { cacheEverything: true, cacheTtl: 30 },
+      }),
+    ]);
+    if (!tripsResponse.ok) return json({ error: `MTA Metro-North trip updates ${tripsResponse.status}` }, 502);
+    if (!alertsResponse.ok) return json({ error: `MTA Metro-North alerts ${alertsResponse.status}` }, 502);
+
+    const tripMessage = transit_realtime.FeedMessage.decode(
+      new Uint8Array(await tripsResponse.arrayBuffer()),
+    );
+    const alertMessage = transit_realtime.FeedMessage.decode(
+      new Uint8Array(await alertsResponse.arrayBuffer()),
+    );
+    const feedTimestamp = numberValue(tripMessage.header.timestamp) ?? Math.floor(Date.now() / 1000);
+
+    const trips = tripMessage.entity.flatMap((entity) => {
+      const update = entity.tripUpdate;
+      const routeId = update?.trip?.routeId ?? '';
+      const route = MNR_ROUTES[routeId];
+      if (!update || !route) return [];
+      const timedStops = (update.stopTimeUpdate ?? []).flatMap((stop) => {
+        const time = realtimeEventTime(stop);
+        return time === null || !stop.stopId ? [] : [{ stopId: stop.stopId, time }];
+      });
+      if (timedStops.length < 2) return [];
+
+      let previousIndex = -1;
+      for (let index = 0; index < timedStops.length; index += 1) {
+        if (timedStops[index].time <= feedTimestamp) previousIndex = index;
+        else break;
+      }
+      if (previousIndex < 0 || previousIndex >= timedStops.length - 1) return [];
+      const previous = timedStops[previousIndex];
+      const next = timedStops[previousIndex + 1];
+      const duration = Math.max(1, next.time - previous.time);
+      const progress = Math.max(0, Math.min(1, (feedTimestamp - previous.time) / duration));
+      const label = entity.vehicle?.vehicle?.label || entity.vehicle?.vehicle?.id || entity.id;
+      return [{
+        id: entity.id,
+        tripId: update.trip?.tripId ?? '',
+        label,
+        routeId,
+        routeName: route.name,
+        color: route.color,
+        previousStopId: previous.stopId,
+        previousTime: previous.time,
+        nextStopId: next.stopId,
+        nextTime: next.time,
+        destinationStopId: timedStops.at(-1)?.stopId ?? next.stopId,
+        progress,
+        updatedAt: new Date(feedTimestamp * 1000).toISOString(),
+      }];
+    });
+
+    const alertNow = numberValue(alertMessage.header.timestamp) ?? feedTimestamp;
+    const alerts = alertMessage.entity.flatMap((entity) => {
+      const alert = entity.alert;
+      if (!alert) return [];
+      const activePeriods = alert.activePeriod ?? [];
+      const informedEntities = alert.informedEntity ?? [];
+      const active = !activePeriods.length || activePeriods.some((period) => {
+        const start = numberValue(period.start) ?? 0;
+        const end = numberValue(period.end);
+        return start <= alertNow && (end === null || end >= alertNow);
+      });
+      if (!active) return [];
+      const allRouteIds = [...new Set(
+        informedEntities.map((item) => item.routeId).filter((routeId): routeId is string => Boolean(routeId)),
+      )];
+      const routeIds = allRouteIds.filter((routeId) => Boolean(MNR_ROUTES[routeId]));
+      if (allRouteIds.length && !routeIds.length) return [];
+      const header = translatedText(alert.headerText);
+      if (!header) return [];
+      return [{
+        id: entity.id,
+        effect: 'Metro-North',
+        severity: mnrAlertSeverity(header),
+        header,
+        description: translatedText(alert.descriptionText),
+        routes: routeIds.map((routeId) => `metro-north:${routeId}`),
+        stopIds: [...new Set(
+          informedEntities.map((item) => item.stopId).filter((stopId): stopId is string => Boolean(stopId)),
+        )],
+      }];
+    });
+
+    return json({
+      provider: 'MTA Metro-North GTFS-Realtime',
+      positioning: 'estimated-between-stations',
+      updatedAt: new Date(feedTimestamp * 1000).toISOString(),
+      trips,
+      alerts,
+    });
+  });
+}
+
 type WorkZoneFeature = {
   id?: string;
   type?: string;
@@ -439,6 +573,7 @@ export default {
         providers: {
           aircraft: true,
           regionalTransit: true,
+          metroNorth: true,
           roadwork: true,
           ais: configured(secret(env, 'AISSTREAM_API_KEY')),
           traffic: configured(secret(env, 'TOMTOM_API_KEY')),
@@ -449,6 +584,8 @@ export default {
       response = await planes(request, url, ctx);
     } else if (url.pathname === '/api/transit') {
       response = await transit(request, url, env, ctx);
+    } else if (url.pathname === '/api/mnr') {
+      response = await metroNorth(request, ctx);
     } else if (url.pathname === '/api/roadwork') {
       response = await roadwork(request, ctx);
     } else if (url.pathname.startsWith('/api/traffic/')) {

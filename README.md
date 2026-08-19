@@ -17,7 +17,8 @@ names.
 |---|---|---|
 | MBTA subway, Silver Line, buses, commuter rail, ferries | [MBTA V3 API](https://www.mbta.com/developers/v3-api) | 10 s |
 | Regional buses | Agency GTFS-realtime feeds, normalized by the gateway | 20 s |
-| Scheduled bus, rail, and ferry routes | 53 agency static GTFS feeds, including Metro-North | built snapshot |
+| Metro-North New Haven branches | [MTA GTFS-Realtime](https://www.mta.info/developers) trip predictions and alerts; positions are explicitly estimated between stations | 30 s |
+| Scheduled bus, rail, and ferry routes | 54 static GTFS sources plus two official-schedule corridors, including Metro-North, Concord Coach, and Dartmouth Coach | built snapshot |
 | Amtrak | [Amtraker](https://amtraker.com) community API | 90 s |
 | Aircraft | [ADSB.lol](https://api.adsb.lol/) with [adsb.fi](https://adsb.fi/) failover; click a plane for its best-effort origin and destination | 45 s |
 | Harbor/coastal vessels and identifiable passenger ferries | [AISStream](https://aisstream.io) through a protected WebSocket relay | streaming |
@@ -38,12 +39,24 @@ private, repositioning, and irregular flights may not have an itinerary.
 
 ## Regional transit coverage
 
-The checked-in route snapshot contains 908 bus, commuter-rail, and ferry route
-features assembled from 53 public static GTFS feeds. Scheduled routes remain
-visible when an operator publishes no live positions. Metro-North's New Haven,
-New Canaan, Danbury, and Waterbury lines are included in Connecticut; connected
-routes are allowed to continue outside the selected boundary so riders can see
-the full trip into New York City.
+The checked-in route snapshot contains 917 bus, commuter-rail, and ferry route
+features assembled from 54 static GTFS sources plus two official-schedule
+corridors. Scheduled routes remain visible when an operator publishes no live
+positions. Metro-North's New Haven, New Canaan, Danbury, and Waterbury lines are
+included in Connecticut; connected routes are allowed to continue outside the
+selected boundary so riders can see the full trip into New York City.
+
+Concord Coach's seven intercity routes use a community-maintained GTFS feed
+cataloged and continuously validated by Transitland. Dartmouth Coach does not
+publish a discoverable GTFS feed, so its Upper Valley–Boston/Logan and Upper
+Valley–NYC corridors follow the stop order on the carrier's official schedules
+and link back to those schedules from the map popup. Neither carrier is shown
+as a live vehicle feed.
+
+Metro-North is different: the MTA publishes keyless realtime trip updates and
+alerts, but not GPS vehicle positions. Motion interpolates active New Haven,
+New Canaan, Danbury, and Waterbury trains between their reported stations and
+labels every popup “Estimated position from MTA trip updates.”
 
 The gateway currently knows these live vehicle-position feeds:
 
@@ -143,6 +156,7 @@ npx vercel --prod --yes
 | `GET /api/planes?region=ma` | Deduplicated, normalized ADS-B aircraft |
 | `GET /api/route?callsign=AAL108` | Best-effort aircraft origin and destination (Vercel relay) |
 | `GET /api/transit?region=ct` | Normalized GTFS-realtime bus positions and per-feed health |
+| `GET /api/mnr` | Metro-North active trip segments and service alerts from official MTA GTFS-Realtime |
 | `GET /api/roadwork` | Active and upcoming MassDOT WZDx road-work geometry |
 | `GET /api/traffic/{z}/{x}/{y}.png` | Cached TomTom congestion tile |
 | `GET /api/ais?region=new-england` with WebSocket upgrade | AISStream relay scoped to the selected region |
@@ -158,7 +172,7 @@ Public browser-safe APIs ───────────────┐
   MBTA · static GTFS · Amtraker · GBFS │
                                        ├─ MapLibre fleets ─ Census region filter
 Cloudflare Worker gateway ─────────────┤
-  agency GTFS-RT · MassDOT · AIS · TomTom│
+  agency GTFS-RT · MTA MNR · MassDOT · AIS · TomTom│
 Vercel aircraft relay ─────────────────┘
   ADSB.lol · adsb.fi · route lookup
 ```
@@ -178,6 +192,8 @@ npm run deploy:dry-run
 ## Remaining data gaps
 
 - Many rural agencies publish schedules but no open live vehicle positions.
+- Metro-North train locations are estimates between realtime station
+  predictions, not direct train GPS coordinates.
 - Non-MBTA ferry operators generally publish schedules, not GTFS-realtime
   positions. AIS supplies actual vessel movement when a ship is broadcasting,
   and passenger-ship metadata is used to classify ferries when available.

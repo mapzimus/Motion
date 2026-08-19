@@ -12,7 +12,7 @@ describe('Motion gateway', () => {
     expect(body).toMatchObject({
       service: 'Motion gateway',
       status: 'ok',
-      providers: { aircraft: true, regionalTransit: true },
+      providers: { aircraft: true, regionalTransit: true, metroNorth: true },
     });
     expect(JSON.stringify(body)).not.toContain('API_KEY');
   });

@@ -21,8 +21,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = ROOT / "scripts" / "regional-feeds.json"
+SUPPLEMENTAL_PATH = ROOT / "scripts" / "supplemental-routes.json"
 BOUNDARIES_PATH = ROOT / "data" / "regions.geojson"
 OUTPUT_PATH = ROOT / "data" / "regional-routes.geojson"
+MNR_STOPS_PATH = ROOT / "data" / "mnr-stops.json"
 
 NE_BOUNDS = (-75.0, 40.0, -65.0, 48.5)
 TOLERANCE = 0.00022  # roughly 18–25 m in New England
@@ -60,6 +62,26 @@ def read_rows(archive: zipfile.ZipFile, wanted: str) -> list[dict[str, str]]:
         return []
     raw = archive.read(name).decode("utf-8-sig", errors="replace")
     return list(csv.DictReader(io.StringIO(raw)))
+
+
+def write_mnr_stops(archive: zipfile.ZipFile) -> None:
+    stops = {}
+    for row in read_rows(archive, "stops.txt"):
+        try:
+            stop_id = row["stop_id"]
+            stops[stop_id] = {
+                "name": row.get("stop_name") or stop_id,
+                "lng": round(float(row["stop_lon"]), 6),
+                "lat": round(float(row["stop_lat"]), 6),
+            }
+        except (KeyError, TypeError, ValueError):
+            continue
+    payload = {
+        "source": "MTA Metro-North static GTFS",
+        "sourceUrl": "https://rrgtfsfeeds.s3.amazonaws.com/gtfsmnr.zip",
+        "stops": stops,
+    }
+    MNR_STOPS_PATH.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
 
 
 def perpendicular_distance(point, start, end) -> float:
@@ -145,9 +167,11 @@ def coordinates_from_stops(archive, selected_trip_ids):
     return {trip_id: [point for _, point in sorted(values)] for trip_id, values in sequences.items()}
 
 
-def process_feed(feed, boston_geometry):
+def process_feed(feed, region_geometries):
     payload = download(feed["url"])
     archive = zipfile.ZipFile(io.BytesIO(payload))
+    if feed["id"] == "metro-north":
+        write_mnr_stops(archive)
     routes = {row.get("route_id"): row for row in read_rows(archive, "routes.txt") if row.get("route_id")}
     pattern = re.compile(feed["route_name_pattern"], re.I) if feed.get("route_name_pattern") else None
     selected_routes = {}
@@ -199,39 +223,42 @@ def process_feed(feed, boston_geometry):
 
     seen = set()
     paths_by_route = defaultdict(list)
-    boston_routes = set()
+    route_regions = defaultdict(set)
     for route_id, points in geometries:
         points = [point for point in points if valid_point(*point)]
         if len(points) < 2:
             continue
+        for region, geometry in region_geometries.items():
+            if any(point_in_geometry(point, geometry) for point in points):
+                route_regions[route_id].add(region)
         points = [(round(lon, 5), round(lat, 5)) for lon, lat in simplify(points)]
         signature = (route_id, tuple(points))
         if signature in seen:
             continue
         seen.add(signature)
         paths_by_route[route_id].append(points)
-        if any(point_in_geometry(point, boston_geometry) for point in points):
-            boston_routes.add(route_id)
 
     features = []
     for route_id, paths in paths_by_route.items():
         route = selected_routes[route_id]
         route_type = int(route.get("route_type") or 3)
-        regions = list(feed["states"])
-        if route_id in boston_routes:
-            regions.append("boston")
+        detected_regions = route_regions.get(route_id) or set(feed["states"])
+        regions = [key for key in ("ct", "ma", "me", "nh", "ri", "vt", "boston") if key in detected_regions]
+        properties = {
+            "route": f"{feed['id']}:{route_id}",
+            "group": GROUP_BY_ROUTE_TYPE[route_type],
+            "color": parse_color(route, feed),
+            "agency": feed["agency"],
+            "name": route_label(route),
+            "kind": "regional-static",
+            "regions": regions,
+        }
+        if feed.get("source_url"):
+            properties["sourceUrl"] = feed["source_url"]
         features.append({
             "type": "Feature",
             "geometry": {"type": "MultiLineString", "coordinates": paths},
-            "properties": {
-                "route": f"{feed['id']}:{route_id}",
-                "group": GROUP_BY_ROUTE_TYPE[route_type],
-                "color": parse_color(route, feed),
-                "agency": feed["agency"],
-                "name": route_label(route),
-                "kind": "regional-static",
-                "regions": regions,
-            },
+            "properties": properties,
         })
     return features, len(selected_routes)
 
@@ -239,14 +266,17 @@ def process_feed(feed, boston_geometry):
 def main():
     feeds = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
     boundaries = json.loads(BOUNDARIES_PATH.read_text(encoding="utf-8"))
-    boston_geometry = next(feature["geometry"] for feature in boundaries["features"] if feature["properties"]["key"] == "boston")
+    region_geometries = {
+        feature["properties"]["key"]: feature["geometry"]
+        for feature in boundaries["features"]
+    }
     all_features = []
     successes = []
     failures = []
     for index, feed in enumerate(feeds, 1):
         print(f"[{index:02}/{len(feeds)}] {feed['agency']}...", flush=True)
         try:
-            features, route_count = process_feed(feed, boston_geometry)
+            features, route_count = process_feed(feed, region_geometries)
             all_features.extend(features)
             successes.append({"id": feed["id"], "agency": feed["agency"], "routes": route_count, "features": len(features)})
             print(f"     {route_count} routes, {len(features)} shapes")
@@ -254,10 +284,35 @@ def main():
             failures.append({"id": feed["id"], "agency": feed["agency"], "error": str(error)})
             print(f"     skipped: {error}")
 
+    supplemental = json.loads(SUPPLEMENTAL_PATH.read_text(encoding="utf-8"))
+    supplemental_features = supplemental.get("features", [])
+    for feature in supplemental_features:
+        geometry = feature.get("geometry", {})
+        paths = geometry.get("coordinates", [])
+        if geometry.get("type") == "LineString":
+            paths = [paths]
+        points = [tuple(point) for path in paths for point in path]
+        detected = {
+            key for key, region_geometry in region_geometries.items()
+            if any(point_in_geometry(point, region_geometry) for point in points)
+        }
+        declared = feature.get("properties", {}).get("regions", [])
+        combined = set(declared) | detected
+        ordered = [key for key in ("ct", "ma", "me", "nh", "ri", "vt", "boston") if key in combined]
+        ordered.extend(key for key in declared if key not in ordered)
+        feature["properties"]["regions"] = ordered
+    all_features.extend(supplemental_features)
+    successes.append({
+        "id": "supplemental-official-schedules",
+        "agency": "Carriers without public GTFS",
+        "routes": len(supplemental_features),
+        "features": len(supplemental_features),
+    })
+
     collection = {
         "type": "FeatureCollection",
         "metadata": {
-            "description": "Scheduled New England transit routes; generated from agency GTFS feeds.",
+            "description": "Scheduled New England transit routes generated from GTFS and clearly labeled official schedule corridors.",
             "sources": successes,
             "failed_sources": failures,
         },
