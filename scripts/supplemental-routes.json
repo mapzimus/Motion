@@ -53,7 +53,9 @@
         "kind": "regional-static",
         "regions": ["vt","ny"],
         "sourceUrl": "https://ferries.com/vt-ny-ferry-routes/grand-isle-vt-to-plattsburgh-ny/schedules/",
-        "scheduleNote": "Year-round 24-hour vehicle and passenger ferry · about 15 minutes · scheduled, not live"
+        "scheduleNote": "Year-round 24-hour vehicle and passenger ferry · about 15 minutes · water-following terminal geometry · scheduled, not live",
+        "waterGeometrySource": "OpenStreetMap Lake Champlain water polygon",
+        "waterGeometryReviewed": "2026-08-20"
       }
     },
     {
@@ -71,14 +73,16 @@
         "kind": "regional-static",
         "regions": ["vt","ny"],
         "sourceUrl": "https://ferries.com/vt-ny-ferry-routes/charlotte-vt-essex-ny/current-ferry-schedule/",
-        "scheduleNote": "Year-round vehicle and passenger ferry, weather permitting · about 30 minutes · scheduled, not live"
+        "scheduleNote": "Year-round vehicle and passenger ferry, weather permitting · about 30 minutes · water-following terminal geometry · scheduled, not live",
+        "waterGeometrySource": "OpenStreetMap Lake Champlain water polygon",
+        "waterGeometryReviewed": "2026-08-20"
       }
     },
     {
       "type": "Feature",
       "geometry": {
         "type": "LineString",
-        "coordinates": [[-71.458979,43.60753],[-71.3998,43.611],[-71.329,43.604],[-71.263,43.594],[-71.209,43.583]]
+        "coordinates": [[-71.458979,43.60753],[-71.458519,43.607385],[-71.457632,43.607762],[-71.436832,43.618163],[-71.404032,43.611762],[-71.368832,43.585363],[-71.233632,43.570163],[-71.223232,43.570963],[-71.211232,43.582163],[-71.21057,43.582469],[-71.209,43.583]]
       },
       "properties": {
         "route": "mount-washington:weirs-wolfeboro",
@@ -89,14 +93,16 @@
         "kind": "regional-static",
         "regions": ["nh"],
         "sourceUrl": "https://www.msmountwashington.com/blogs/news/mount-washington-cruises-announces-historic-schedule-expansion",
-        "scheduleNote": "Seasonal scheduled passenger cruise with point-to-point travel · not a live vessel position"
+        "scheduleNote": "Seasonal scheduled passenger cruise with point-to-point travel · water-following path avoids mapped islands and shoreline · not a live vessel position",
+        "waterGeometrySource": "OpenStreetMap Lake Winnipesaukee water polygon",
+        "waterGeometryReviewed": "2026-08-20"
       }
     },
     {
       "type": "Feature",
       "geometry": {
         "type": "LineString",
-        "coordinates": [[-71.4613,43.708628],[-71.408,43.678],[-71.346,43.646],[-71.274,43.611],[-71.209,43.583]]
+        "coordinates": [[-71.4613,43.708628],[-71.460439,43.707658],[-71.460832,43.706963],[-71.444832,43.696562],[-71.369632,43.640563],[-71.264832,43.578162],[-71.240032,43.570163],[-71.223232,43.570963],[-71.211232,43.582163],[-71.21057,43.582469],[-71.209,43.583]]
       },
       "properties": {
         "route": "winnipesaukee-spirit:center-harbor-wolfeboro",
@@ -107,14 +113,16 @@
         "kind": "regional-static",
         "regions": ["nh"],
         "sourceUrl": "https://www.msmountwashington.com/blogs/news/mount-washington-cruises-announces-historic-schedule-expansion",
-        "scheduleNote": "Seasonal scheduled passenger cruise · not a live vessel position"
+        "scheduleNote": "Seasonal scheduled passenger cruise · water-following path avoids mapped islands and shoreline · not a live vessel position",
+        "waterGeometrySource": "OpenStreetMap Lake Winnipesaukee water polygon",
+        "waterGeometryReviewed": "2026-08-20"
       }
     },
     {
       "type": "Feature",
       "geometry": {
         "type": "LineString",
-        "coordinates": [[-71.497242,43.655039],[-71.486,43.64],[-71.475,43.622],[-71.458979,43.60753]]
+        "coordinates": [[-71.497242,43.655039],[-71.496884,43.655283],[-71.496832,43.655763],[-71.482432,43.643763],[-71.457632,43.607762],[-71.458519,43.607385],[-71.458979,43.60753]]
       },
       "properties": {
         "route": "winnipesaukee-belle:meredith-weirs",
@@ -125,14 +133,16 @@
         "kind": "regional-static",
         "regions": ["nh"],
         "sourceUrl": "https://www.msmountwashington.com/blogs/news/mount-washington-cruises-announces-historic-schedule-expansion",
-        "scheduleNote": "Seasonal scheduled passenger cruise · not a live vessel position"
+        "scheduleNote": "Seasonal scheduled passenger cruise · water-following path avoids mapped islands and shoreline · not a live vessel position",
+        "waterGeometrySource": "OpenStreetMap Lake Winnipesaukee water polygon",
+        "waterGeometryReviewed": "2026-08-20"
       }
     },
     {
       "type": "Feature",
       "geometry": {
         "type": "LineString",
-        "coordinates": [[-71.458979,43.60753],[-71.4205,43.566],[-71.373,43.531],[-71.31,43.5],[-71.237,43.472]]
+        "coordinates": [[-71.458979,43.60753],[-71.458519,43.607385],[-71.457632,43.607762],[-71.436832,43.618163],[-71.424832,43.615763],[-71.303232,43.556562],[-71.282432,43.543762],[-71.272032,43.542963],[-71.261632,43.534962],[-71.252832,43.502162],[-71.238432,43.480562],[-71.235232,43.472563],[-71.235914,43.47249],[-71.237,43.472]]
       },
       "properties": {
         "route": "mount-washington:weirs-alton-bay",
@@ -143,7 +153,9 @@
         "kind": "regional-static",
         "regions": ["nh"],
         "sourceUrl": "https://www.msmountwashington.com/blogs/news/the-mount-washington-is-returning-to-alton-bay-and-were-not-doing-it-alone",
-        "scheduleNote": "Selected seasonal passenger-cruise dates · not a live vessel position"
+        "scheduleNote": "Selected seasonal passenger-cruise dates · water-following path avoids mapped islands and shoreline · not a live vessel position",
+        "waterGeometrySource": "OpenStreetMap Lake Winnipesaukee water polygon",
+        "waterGeometryReviewed": "2026-08-20"
       }
     },
     {
@@ -151,8 +163,8 @@
       "geometry": {
         "type": "MultiLineString",
         "coordinates": [
-          [[-71.458979,43.60753],[-71.427295,43.65452],[-71.402294,43.64452],[-71.421944,43.671111],[-71.393683,43.643132],[-71.458979,43.60753]],
-          [[-71.458979,43.60753],[-71.387,43.64],[-71.373683,43.634521],[-71.333682,43.623132],[-71.310348,43.62841],[-71.377294,43.628965],[-71.458979,43.60753]]
+          [[-71.458979,43.60753],[-71.458519,43.607385],[-71.457632,43.607762],[-71.411232,43.630963],[-71.421632,43.649363],[-71.428032,43.654963],[-71.427452,43.654622],[-71.427295,43.65452],[-71.427452,43.654622],[-71.428032,43.654963],[-71.417632,43.660562],[-71.404032,43.656562],[-71.398432,43.649363],[-71.401632,43.646163],[-71.402065,43.645476],[-71.402294,43.64452],[-71.402065,43.645476],[-71.401632,43.646163],[-71.398432,43.649363],[-71.404832,43.657362],[-71.421632,43.670963],[-71.421694,43.671128],[-71.421944,43.671111],[-71.421694,43.671128],[-71.421632,43.670963],[-71.397632,43.650163],[-71.393632,43.644562],[-71.39375,43.64428],[-71.393683,43.643132],[-71.39375,43.64428],[-71.393632,43.644562],[-71.392032,43.643763],[-71.384832,43.632562],[-71.386432,43.625363],[-71.399232,43.629362],[-71.438432,43.617362],[-71.457632,43.607762],[-71.458519,43.607385],[-71.458979,43.60753]],
+          [[-71.458979,43.60753],[-71.458519,43.607385],[-71.457632,43.607762],[-71.436832,43.618163],[-71.396032,43.629362],[-71.386432,43.625363],[-71.384832,43.634963],[-71.387232,43.639763],[-71.387,43.64],[-71.387232,43.639763],[-71.372832,43.635762],[-71.373466,43.635749],[-71.373683,43.634521],[-71.373466,43.635749],[-71.372832,43.635762],[-71.331232,43.625363],[-71.331232,43.623762],[-71.331463,43.623592],[-71.333682,43.623132],[-71.331463,43.623592],[-71.331232,43.623762],[-71.312032,43.617362],[-71.305632,43.618163],[-71.304032,43.620562],[-71.310432,43.624563],[-71.310765,43.625454],[-71.310348,43.62841],[-71.310765,43.625454],[-71.310432,43.624563],[-71.304032,43.620562],[-71.308032,43.616563],[-71.359232,43.622962],[-71.377632,43.632562],[-71.378432,43.631763],[-71.378481,43.631198],[-71.377294,43.628965],[-71.378481,43.631198],[-71.378432,43.631763],[-71.387232,43.625363],[-71.399232,43.629362],[-71.438432,43.617362],[-71.457632,43.607762],[-71.458519,43.607385],[-71.458979,43.60753]]
         ]
       },
       "properties": {
@@ -164,7 +176,9 @@
         "kind": "regional-static",
         "regions": ["nh"],
         "sourceUrl": "https://www.msmountwashington.com/pages/mailboat-cruises",
-        "scheduleNote": "Seasonal working mailboat with scheduled island stops · passenger cruise · not a live vessel position"
+        "scheduleNote": "Seasonal working mailboat with scheduled island stops · water-following paths avoid mapped islands and shoreline · passenger cruise · not a live vessel position",
+        "waterGeometrySource": "OpenStreetMap Lake Winnipesaukee water polygon",
+        "waterGeometryReviewed": "2026-08-20"
       }
     },
     {

@@ -25,7 +25,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = ROOT / "scripts" / "regional-feeds.json"
-SUPPLEMENTAL_PATH = ROOT / "scripts" / "supplemental-routes.json"
+SUPPLEMENTAL_PATHS = (
+    ROOT / "scripts" / "supplemental-routes.json",
+    ROOT / "scripts" / "supplemental-ferry-routes.json",
+)
 ROAD_ROUTE_CACHE_PATH = ROOT / "scripts" / "road-route-cache.json"
 ROAD_ROUTE_CONTROLS_PATH = ROOT / "scripts" / "road-route-controls.json"
 BOUNDARIES_PATH = ROOT / "data" / "regions.geojson"
@@ -919,8 +922,16 @@ def main(update_road_cache=False, refresh_road_cache=False):
             if feed.get("required"):
                 raise RuntimeError(f"Required feed {feed['agency']} failed; existing snapshot was preserved") from error
 
-    supplemental = json.loads(SUPPLEMENTAL_PATH.read_text(encoding="utf-8"))
-    supplemental_features = supplemental.get("features", [])
+    supplemental_features = []
+    supplemental_sources = []
+    for supplemental_path in SUPPLEMENTAL_PATHS:
+        supplemental = json.loads(supplemental_path.read_text(encoding="utf-8"))
+        features = supplemental.get("features", [])
+        supplemental_features.extend(features)
+        supplemental_sources.append({
+            "file": supplemental_path.name,
+            "routes": len(features),
+        })
     for feature in supplemental_features:
         geometry = feature.get("geometry", {})
         paths = geometry.get("coordinates", [])
@@ -962,6 +973,12 @@ def main(update_road_cache=False, refresh_road_cache=False):
         ordered.extend(key for key in declared if key not in ordered)
         feature["properties"]["regions"] = ordered
         feature["properties"]["dataStatus"] = "scheduled"
+        if feature["properties"].get("group") == "ferry":
+            feature["properties"].setdefault("geometryAccuracy", "approximate")
+            feature["properties"].setdefault(
+                "geometryNote",
+                "Approximate water path between published terminals; actual vessel tracks vary.",
+            )
         feature["properties"]["color"] = {
             "bus": MODE_COLORS[3],
             "ferry": MODE_COLORS[4],
@@ -974,6 +991,7 @@ def main(update_road_cache=False, refresh_road_cache=False):
         "agency": "Official schedule corridors without usable GTFS",
         "routes": len(supplemental_features),
         "features": len(supplemental_features),
+        "files": supplemental_sources,
     })
 
     if routing_state["missing"]:

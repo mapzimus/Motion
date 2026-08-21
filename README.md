@@ -19,8 +19,8 @@ Every feature is labeled **live**, **estimated**, **scheduled**, or
 | MBTA subway, Silver Line, buses, commuter rail, ferries | [MBTA V3 API](https://www.mbta.com/developers/v3-api) | 10 s |
 | Regional buses | Agency GTFS-realtime feeds, normalized by the gateway | 20 s |
 | Metro-North New Haven branches | [MTA GTFS-Realtime](https://www.mta.info/developers) trip predictions and alerts; positions are explicitly estimated between stations | 30 s |
-| Scheduled bus, rail, ferry, and passenger-boat routes | 70 GTFS sources plus 17 official-schedule corridors, including Amtrak, Metro-North, Concord Coach, Dartmouth Coach, Greyhound/FlixBus, Salem Ferry, Cross Sound Ferry, Lake Champlain, Lake Winnipesaukee, and Maine State Ferry Service | built snapshot |
-| Small-town, county, flex, volunteer, and microtransit service catalog | 45 official-directory service markers across all six states | built snapshot |
+| Scheduled bus, rail, ferry, and passenger-boat routes | 70 GTFS sources plus 73 official-schedule corridors, including Amtrak, Metro-North, regional coaches, 92 ferry routes, municipal water shuttles, and small-island lifelines | built snapshot |
+| Small-town, county, flex, volunteer, and microtransit service catalog | 44 official-directory service markers across all six states | built snapshot |
 | Amtrak | [Amtrak official static GTFS](https://content.amtrak.com/content/gtfs/GTFS.zip) for scheduled routes/stations; [Amtraker](https://amtraker.com) community API for live trains | built snapshot + 90 s |
 | Aircraft | [ADSB.lol](https://api.adsb.lol/) with [adsb.fi](https://adsb.fi/) failover; click a plane for its best-effort origin and destination | 45 s |
 | Harbor/coastal vessels and identifiable passenger ferries | [AISStream](https://aisstream.io) through a protected WebSocket relay | streaming |
@@ -44,9 +44,9 @@ private, repositioning, and irregular flights may not have an itinerary.
 
 ## Regional transit coverage
 
-The checked-in route snapshot contains 1,008 bus, commuter-rail, Amtrak,
+The checked-in route snapshot contains 1,082 bus, commuter-rail, Amtrak,
 ferry, and passenger-boat route features plus 53 New England Amtrak stations,
-assembled from 70 GTFS sources and 17 official-schedule corridors. Scheduled
+assembled from 70 GTFS sources and 73 official-schedule corridors. Scheduled
 routes remain visible when an operator publishes no live positions. State
 views start with the scheduled bus layer on,
 and the sidebar reports scheduled route counts separately from live vehicles,
@@ -71,17 +71,30 @@ the Vermonter and Ethan Allen Express as persistent rail-following ribbons and
 all 14 Vermont stations. Burlington Union Station (`BTN`) is kept distinct
 from Essex Junction–Burlington (`ESX`) because they serve different routes.
 Amtraker remains the separately attributed community source for live train
-positions. Lake Champlain's current Grand
-Isle–Plattsburgh and
-Charlotte–Essex crossings are included. In New Hampshire, the ferry/passenger-
-boat layer also includes published 2026 Mount Washington Cruises corridors and
-the seasonal Sophie C island mailboat itinerary on Lake Winnipesaukee. Maine's
-six state-ferry links to Vinalhaven, North Haven, Matinicus, Swan's Island,
-Frenchboro, and Islesboro are also mapped from official schedules. These
-inland-water lines are schedule context; AIS may add a live marker only when a
-vessel is independently broadcasting and received by the configured provider.
-Cross Sound Ferry's New London–Orient Point corridor is included as a
-year-round vehicle/passenger route with seasonal high-speed service.
+positions. Lake Champlain's current Grand Isle–Plattsburgh and Charlotte–Essex
+crossings are joined by the seasonal Shoreham–Ticonderoga ferry. New Hampshire
+includes both public Star Island approaches, published 2026 Mount Washington
+Cruises corridors, and the Sophie C island mailboat itinerary on Lake
+Winnipesaukee. Maine includes the six state-ferry links plus Chebeague, Isle au
+Haut, Monhegan, the Cranberry Isles, Schoodic, Eastport–Lubec, Frye Island,
+Swan Island WMA, Mount Kineo, and The CAT to Nova Scotia.
+
+Connecticut coverage now includes all four current regional Long Island Sound
+connections: New London–Orient Point, Bridgeport–Port Jefferson, New
+London–Montauk, and New London–Fishers Island, plus Block Island, both state
+river ferries, and municipal island/water-taxi services. Rhode Island adds
+Prudence Island, Providence–Bristol–Newport, Newport–Block Island, and the
+Jamestown/Newport harbor network. Massachusetts adds the non-MBTA Boston
+Seaport routes, Seastreak's three South Coast/islands corridors, Island Queen,
+Patriot, Pied Piper, Chappy Ferry, Harwich–Nantucket, two additional
+Provincetown services, and smaller public harbor and island shuttles. Each
+official-schedule popup identifies its service type and season and labels the
+line as an approximate water path rather than a live vessel track. AIS may add
+a live marker only when a vessel is independently broadcasting and received by
+the configured provider. Lake Winnipesaukee, Lake Champlain, Sebago Lake, and
+Moosehead Lake paths are additionally checked against OpenStreetMap water
+polygons with island holes; reviewed coordinate fingerprints are locked by the
+geometry check so a later rebuild cannot silently restore over-land chords.
 The active MBTA `Boat-Lynn` feed supplies Lynn–Boston service directly, while
 the seasonal Salem–Boston Long Wharf service is retained as an explicit
 official-schedule corridor so it remains visible without live vessel data.
@@ -94,7 +107,7 @@ systems. No discoverable public GBFS system is currently cataloged for Vermont,
 New Hampshire, or Maine, so the map does not fabricate stations there.
 
 The **Local & on-demand services** layer fills a different gap. It currently
-catalogs 45 services that do not have reliable route geometry or public live
+catalogs 44 services that do not have reliable route geometry or public live
 positions: Maine county transportation, Sullivan County and New Hampshire
 community providers, Massachusetts microtransit, Connecticut's nine CTDOT
 microtransit programs, RIPTA Flex zones, and Vermont's regional

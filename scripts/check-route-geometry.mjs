@@ -11,6 +11,12 @@ const cacheRaw = readFileSync(new URL('./road-route-cache.json', import.meta.url
 const controlsRaw = readFileSync(new URL('./road-route-controls.json', import.meta.url));
 const cache = JSON.parse(cacheRaw);
 const collection = JSON.parse(readFileSync(new URL('../data/regional-routes.geojson', import.meta.url), 'utf8'));
+const supplementalRoutes = JSON.parse(
+  readFileSync(new URL('./supplemental-routes.json', import.meta.url), 'utf8'),
+);
+const supplementalFerries = JSON.parse(
+  readFileSync(new URL('./supplemental-ferry-routes.json', import.meta.url), 'utf8'),
+);
 
 function normalizedSha256(raw) {
   return createHash('sha256').update(raw.toString('utf8').replaceAll('\r\n', '\n')).digest('hex');
@@ -283,9 +289,109 @@ const missingRepairs = requiredRoadRoutedRoutes.filter((route) => !approximateRo
 if (missingRepairs.length) {
   throw new Error(`Expected road-routed geometry is missing for: ${missingRepairs.join(', ')}`);
 }
+
+const supplementalFerryIds = supplementalFerries.features.map(
+  (feature) => feature.properties?.route,
+);
+const duplicateSupplementalFerryIds = supplementalFerryIds.filter(
+  (route, index) => supplementalFerryIds.indexOf(route) !== index,
+);
+if (supplementalFerries.features.length < 50 || duplicateSupplementalFerryIds.length) {
+  throw new Error(
+    `Supplemental ferry inventory is incomplete or duplicated: ${duplicateSupplementalFerryIds.join(', ')}`,
+  );
+}
+const allowedFerryServiceClasses = new Set([
+  'international', 'island-access', 'lifeline', 'municipal', 'regional', 'venue-access',
+]);
+const invalidSupplementalFerries = supplementalFerries.features.filter((feature) => {
+  const properties = feature.properties ?? {};
+  return properties.group !== 'ferry'
+    || !allowedFerryServiceClasses.has(properties.serviceClass)
+    || !properties.serviceType
+    || !properties.season
+    || !/^https:\/\//.test(properties.sourceUrl ?? '')
+    || !['LineString', 'MultiLineString'].includes(feature.geometry?.type);
+});
+if (invalidSupplementalFerries.length) {
+  throw new Error(
+    `Supplemental ferry metadata is invalid for: ${invalidSupplementalFerries.map((feature) => feature.properties?.route).join(', ')}`,
+  );
+}
+const generatedRouteIds = new Set(collection.features.map((feature) => feature.properties?.route));
+const missingSupplementalFerries = supplementalFerryIds.filter(
+  (route) => !generatedRouteIds.has(route),
+);
+if (missingSupplementalFerries.length) {
+  throw new Error(
+    `Generated regional data is missing supplemental ferries: ${missingSupplementalFerries.join(', ')}`,
+  );
+}
+const invalidGeneratedFerries = supplementalFerryIds.filter((route) => {
+  const matches = collection.features.filter((feature) => feature.properties?.route === route);
+  const properties = matches[0]?.properties ?? {};
+  return matches.length !== 1
+    || properties.kind !== 'regional-static'
+    || properties.dataStatus !== 'scheduled'
+    || properties.geometryAccuracy !== 'approximate'
+    || !properties.geometryNote
+    || !properties.serviceType
+    || !properties.season;
+});
+if (invalidGeneratedFerries.length) {
+  throw new Error(
+    `Generated supplemental ferry metadata is invalid for: ${invalidGeneratedFerries.join(', ')}`,
+  );
+}
+
+// These inland-water paths were checked against current OpenStreetMap water
+// polygons, including island holes. Lock their coordinate fingerprints so a
+// later cleanup cannot quietly restore straight chords across land.
+const reviewedWaterGeometry = new Map(Object.entries({
+  'lake-champlain-ferries:grand-isle-plattsburgh': '80795dc54cffe3dc5351741b33f827c1b38cf8af0e82ef867631858b5419fa0d',
+  'lake-champlain-ferries:charlotte-essex': '0925aca5390ffb8237a67911cc40ce2145f9e2500728109d16e332522ecaa02f',
+  'mount-washington:weirs-wolfeboro': '9dce4733b14114098565b8753363153ec069bbcee911c1fdcd410f8f1538c61e',
+  'winnipesaukee-spirit:center-harbor-wolfeboro': 'cb08e5731fe12a334295a2ab25327f1d00ec7594ebc9859ee13a83809228c50d',
+  'winnipesaukee-belle:meredith-weirs': 'b4d0d6523276db2ddd9df8953a20d1354187bc20ce68645e60b62f07fe94e22d',
+  'mount-washington:weirs-alton-bay': '5f35853e1e0b6757a653a96978088f026d205e06ec6e929c78103ad53b384c0b',
+  'sophie-c:mailboat': 'd0c1eebf26b13afbbd07f2b7eb799cad93e897a2eebf49fecba8338845e28eb5',
+  'fort-ti-ferry:shoreham-ticonderoga': '25a49cc7997a03b3bebb71ae6063085012fd71416bba3839936f8b5d2631587e',
+  'frye-island-ferry:raymond-cape-frye': 'e46f9caa14c06f5dffc2fdfde4f2b60546bbc03475f0395311bb7c52b0dc5a53',
+  'mount-kineo-shuttle:rockwood-kineo': '148b91dcd97af191fa470c03e957d8873a804da38d44ed5b48427d4d4fef97b9',
+}));
+const allSupplementalFeatures = [
+  ...supplementalRoutes.features,
+  ...supplementalFerries.features,
+];
+const invalidWaterGeometry = [];
+for (const [route, expectedHash] of reviewedWaterGeometry) {
+  const sourceFeature = allSupplementalFeatures.find(
+    (feature) => feature.properties?.route === route,
+  );
+  const generatedFeature = collection.features.find(
+    (feature) => feature.properties?.route === route,
+  );
+  const actualHash = sourceFeature
+    ? createHash('sha256').update(JSON.stringify(sourceFeature.geometry.coordinates)).digest('hex')
+    : '';
+  if (actualHash !== expectedHash
+      || sourceFeature?.properties?.waterGeometryReviewed !== '2026-08-20'
+      || !sourceFeature?.properties?.waterGeometrySource
+      || JSON.stringify(generatedFeature?.geometry?.coordinates)
+        !== JSON.stringify(sourceFeature?.geometry?.coordinates)) {
+    invalidWaterGeometry.push(route);
+  }
+}
+if (invalidWaterGeometry.length) {
+  throw new Error(
+    `Reviewed water-following geometry changed without a new shoreline audit: ${invalidWaterGeometry.join(', ')}`,
+  );
+}
 console.log(
-  `Route geometry check passed: ${approximate.length} road-routed scheduled features; `
+  `Route geometry check passed: ${approximate.length} approximate-geometry scheduled features; `
   + `${Object.keys(cache.segments ?? {}).length} loop-free cache segments; `
   + `${amtrakRoutes.length} official Amtrak routes; `
+  + `${supplementalFerries.features.length} verified supplemental ferry routes; `
+  + `${reviewedWaterGeometry.size} shoreline-reviewed inland-water routes; `
   + `no bus or Amtrak chord exceeds ${MAX_BUS_CHORD_KM} km.`,
 );

@@ -653,10 +653,13 @@ function wireRoutePopups() {
     const sourceUrl = /^https:\/\//.test(properties.sourceUrl ?? '')
       ? properties.sourceUrl
       : '';
+    const serviceDetails = [properties.serviceType, properties.season].filter(Boolean);
     const html = `
       <div class="popup-title" style="color:${esc(properties.color)}">${esc(properties.name)}</div>
       <div class="popup-dest">${esc(properties.agency)}</div>
+      ${serviceDetails.length ? `<div class="popup-meta">${serviceDetails.map(esc).join(' · ')}</div>` : ''}
       <div class="popup-status">${esc(properties.scheduleNote ?? 'Scheduled route · visible even without live vehicle positions')}</div>
+      ${properties.geometryNote ? `<div class="popup-meta">${esc(properties.geometryNote)}</div>` : ''}
       <div class="popup-meta"><span class="popup-data-status scheduled">scheduled</span> · ${esc(properties.provider ?? 'Published schedule')}</div>
       ${sourceUrl ? `<a class="popup-route-link" href="${esc(sourceUrl)}" target="_blank" rel="noopener">View carrier schedule ↗</a>` : ''}`;
     new maplibregl.Popup({ offset: 10, maxWidth: '310px' })
