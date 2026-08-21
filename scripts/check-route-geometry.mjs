@@ -438,14 +438,14 @@ const airRouteIds = new Set(supplementalAir.features.map((feature) => feature.pr
 const invalidAirRoutes = supplementalAir.features.filter((feature) => {
   const properties = feature.properties ?? {};
   return feature.geometry?.type !== 'LineString'
-    || properties.group !== 'plane'
+    || properties.group !== 'air-service'
     || !['scheduled', 'reference'].includes(properties.dataStatus ?? 'scheduled')
     || !properties.serviceType
     || !properties.season
     || !properties.geometryNote
     || !/^https:\/\//.test(properties.sourceUrl ?? '');
 });
-if (supplementalAir.features.length !== 12
+if (supplementalAir.features.length !== 11
     || airRouteIds.size !== supplementalAir.features.length
     || invalidAirRoutes.length
     || [...airRouteIds].filter((route) => route.startsWith('penobscot-island-air:')).length !== 4

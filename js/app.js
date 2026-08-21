@@ -139,27 +139,51 @@ async function main() {
   // Route ribbons load after polling kicks off; vehicles shouldn't wait on
   // them. Every route gets a ribbon — the ~150 bus routes render thin and
   // faint and toggle with the bus layer.
-  setRouteShapes({
-    type: 'FeatureCollection',
-    features: (await Promise.all([
-      loadShapeFeatures(routes, routeInfo),
-      loadRegionalRouteFeatures(),
-    ])).flat(),
-  });
-  ui.setScheduledCounts(scheduledRouteCountsForRegion());
-  setVisibleGroups(ui.getVisibleGroups(), ui.getVisibleStatuses()); // re-apply to the fresh ribbon data
+  const routeFeatureSets = [[], []];
+  const publishRouteFeatures = () => {
+    setRouteShapes({
+      type: 'FeatureCollection',
+      features: routeFeatureSets.flat(),
+    });
+    ui.setScheduledCounts(scheduledRouteCountsForRegion());
+    setVisibleGroups(ui.getVisibleGroups(), ui.getVisibleStatuses());
+  };
+  await Promise.allSettled([
+    loadShapeFeatures(routes, routeInfo).then((features) => {
+      routeFeatureSets[0] = features;
+      publishRouteFeatures();
+    }),
+    loadRegionalRouteFeatures().then((features) => {
+      routeFeatureSets[1] = features;
+      publishRouteFeatures();
+    }),
+  ]);
 }
 
 async function loadRegionalRouteFeatures() {
-  try {
-    const response = await fetch(CONFIG.REGIONAL_ROUTE_URL);
-    if (!response.ok) throw new Error(`regional routes ${response.status}`);
-    const collection = await response.json();
-    return collection.features ?? [];
-  } catch (error) {
-    console.warn('Scheduled regional route ribbons unavailable:', error.message);
-    return [];
+  const attempts = 3;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const response = await fetch(CONFIG.REGIONAL_ROUTE_URL, {
+        cache: attempt === 1 ? 'default' : 'reload',
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (!response.ok) throw new Error(`regional routes ${response.status}`);
+      const collection = await response.json();
+      if (!Array.isArray(collection.features) || !collection.features.length) {
+        throw new Error('regional routes contained no features');
+      }
+      return collection.features;
+    } catch (error) {
+      if (attempt === attempts) {
+        console.warn('Scheduled regional route ribbons unavailable after retries:', error.message);
+        return [];
+      }
+      console.warn(`Scheduled regional route ribbons retry ${attempt}/${attempts}:`, error.message);
+      await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
+    }
   }
+  return [];
 }
 
 // Shapes are static geometry, but ~180 routes = ~180 requests on a cold load —

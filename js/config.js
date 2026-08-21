@@ -156,7 +156,7 @@ export const CONFIG = {
   // on: ~400 buses, ~600 bike stations, wall-to-wall traffic color).
   DEFAULT_OFF_GROUPS: [
     'bus', 'bike', 'roadwork', 'traffic', 'incident', 'camera',
-    'roads', 'freight', 'walking', 'cycling', 'local', 'airport', 'border',
+    'roads', 'freight', 'walking', 'cycling', 'local', 'airport', 'border', 'air-service',
   ],
 
   BASEMAP_STYLE: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',

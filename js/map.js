@@ -456,14 +456,14 @@ function setupLayers() {
     layout: { 'line-cap': 'round', 'line-join': 'round' },
     paint: {
       'line-color': ['get', 'color'],
-      // The ~150 bus ribbons render thin and faint so they inform without
-      // burying the rail network.
+      // Dense bus ribbons and straight-line air-service references stay subtle
+      // so they inform without burying rail and water routes.
       'line-width': [
         'interpolate', ['linear'], ['zoom'],
-        10, ['case', ['==', ['get', 'group'], 'bus'], 0.7, 1.8],
-        15, ['case', ['==', ['get', 'group'], 'bus'], 2.2, 4.5],
+        10, ['match', ['get', 'group'], 'bus', 0.7, 'air-service', 0.8, 1.8],
+        15, ['match', ['get', 'group'], 'bus', 2.2, 'air-service', 2.2, 4.5],
       ],
-      'line-opacity': ['case', ['==', ['get', 'group'], 'bus'], 0.45, 0.9],
+      'line-opacity': ['match', ['get', 'group'], 'bus', 0.45, 'air-service', 0.42, 0.9],
     },
   });
   map.addLayer({
@@ -985,8 +985,12 @@ function applyGroupFilter(groups, statuses) {
   const railVisible = ['all', visibleByStatus, ['in', ['get', 'group'], ['literal', RAIL_GROUPS]]];
   const iconVisible = ['all', visibleByStatus, ['in', ['get', 'group'], ['literal', ICON_GROUPS]]];
 
-  // Bus ribbons skip the halo pass — 150 glowing routes would wash the map.
-  map.setFilter('route-halo', ['all', visibleByStatus, ['!=', ['get', 'group'], 'bus']]);
+  // Bus ribbons and conceptual air corridors skip the halo pass.
+  map.setFilter('route-halo', [
+    'all',
+    visibleByStatus,
+    ['!', ['in', ['get', 'group'], ['literal', ['bus', 'air-service']]]],
+  ]);
   map.setFilter('route-lines', visibleByStatus);
   map.setFilter('scheduled-stations', [
     'all',

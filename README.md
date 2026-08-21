@@ -19,10 +19,10 @@ Every feature is labeled **live**, **estimated**, **scheduled**, or
 | MBTA subway, Silver Line, buses, commuter rail, ferries | [MBTA V3 API](https://www.mbta.com/developers/v3-api) | 10 s |
 | Regional buses | Agency GTFS-realtime feeds, normalized by the gateway | 20 s |
 | Metro-North New Haven branches | [MTA GTFS-Realtime](https://www.mta.info/developers) trip predictions and alerts; positions are explicitly estimated between stations | 30 s |
-| Scheduled/reference bus, rail, ferry, boat, and air-service routes | 70 GTFS sources plus 86 official-service corridors, including Amtrak, Metro-North, regional coaches, 93 ferry routes, municipal water shuttles, small-island lifelines, and island air taxis | built snapshot |
+| Scheduled/reference bus, rail, ferry, boat, and air-service routes | 70 GTFS sources plus 85 official-service corridors, including Amtrak, Metro-North, regional coaches, 93 ferry routes, municipal water shuttles, small-island lifelines, and island air taxis | built snapshot |
 | Small-town, county, flex, volunteer, microtransit, and on-demand water-service catalog | 53 official-directory service markers across all six states | built snapshot |
 | Amtrak | [Amtrak official static GTFS](https://content.amtrak.com/content/gtfs/GTFS.zip) for scheduled routes/stations; [Amtraker](https://amtraker.com) community API for live trains | built snapshot + 90 s |
-| Aircraft and air services | [ADSB.lol](https://api.adsb.lol/) with [adsb.fi](https://adsb.fi/) failover; official Cape Air/Tradewind schedules and Penobscot Island Air on-demand corridors | 45 s + built snapshot |
+| Aircraft and air services | [ADSB.lol](https://api.adsb.lol/) with [adsb.fi](https://adsb.fi/) failover; 11 optional official Cape Air/Tradewind schedules and Penobscot Island Air on-demand corridors | 45 s + built snapshot |
 | Airports and landing facilities | 778 open airports, heliports, seaplane bases, and other facilities from the [FAA NASR subscription](https://www.faa.gov/air_traffic/flight_info/aeronav/aero_data/NASR_Subscription/) | 28-day built snapshot |
 | Harbor/coastal vessels and identifiable passenger ferries | [AISStream](https://aisstream.io) through a protected WebSocket relay | streaming |
 | Bike and scooter share | GBFS feeds for Bluebikes across 13 Greater Boston municipalities, Veo Hartford, Veo New Haven, and Spin Providence | 60 s |
@@ -46,9 +46,9 @@ private, repositioning, and irregular flights may not have an itinerary.
 
 ## Regional transit coverage
 
-The checked-in route snapshot contains 1,099 bus, commuter-rail, Amtrak,
+The checked-in route snapshot contains 1,098 bus, commuter-rail, Amtrak,
 ferry, passenger-boat, and air-service route features plus 53 New England
-Amtrak stations, assembled from 70 GTFS sources and 86 official-service
+Amtrak stations, assembled from 70 GTFS sources and 85 official-service
 corridors. Scheduled
 routes remain visible when an operator publishes no live positions. State
 views start with the scheduled bus layer on,
@@ -190,7 +190,8 @@ facilities, with private sites held back until a closer zoom. The air-service
 ribbons distinguish scheduled Cape Air/Tradewind routes from Penobscot Island
 Air's on-demand links between Knox County Regional Airport and Matinicus,
 Vinalhaven, North Haven, and Islesboro. Those lines show service relationships,
-not actual or live flight tracks.
+not actual or live flight tracks, and start switched off so they do not obscure
+surface and water routes or live aircraft.
 
 The **Canada border crossings** layer uses the current CBSA office directory
 for New England's Maine, New Hampshire, and Vermont frontier. It includes
