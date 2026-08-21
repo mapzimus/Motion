@@ -38,6 +38,10 @@ let allInfrastructureFC = EMPTY_FC;
 let infrastructureFC = EMPTY_FC;
 let allLocalServicesFC = EMPTY_FC;
 let localServicesFC = EMPTY_FC;
+let allAirportsFC = EMPTY_FC;
+let airportsFC = EMPTY_FC;
+let allBorderCrossingsFC = EMPTY_FC;
+let borderCrossingsFC = EMPTY_FC;
 let referenceLoadPromise = null;
 
 export function configureGateway(capabilities) {
@@ -61,7 +65,7 @@ export function initMap() {
     new maplibregl.AttributionControl({
       compact: true,
       customAttribution:
-        'Data <a href="https://www.mbta.com/developers/v3-api" target="_blank" rel="noopener">MBTA</a> · <a href="https://www.mta.info/developers" target="_blank" rel="noopener">MTA Metro-North</a> · agency GTFS / <a href="https://mobilitydatabase.org" target="_blank" rel="noopener">Mobility Database</a> · <a href="https://content.amtrak.com/content/gtfs/GTFS.zip" target="_blank" rel="noopener">Amtrak schedule GTFS</a> / <a href="https://amtraker.com" target="_blank" rel="noopener">Amtraker live</a> · <a href="https://api.adsb.lol" target="_blank" rel="noopener">ADSB.lol</a> / <a href="https://adsb.fi" target="_blank" rel="noopener">adsb.fi</a> · MassDOT · GBFS · boundaries U.S. Census Bureau',
+        'Data <a href="https://www.mbta.com/developers/v3-api" target="_blank" rel="noopener">MBTA</a> · <a href="https://www.mta.info/developers" target="_blank" rel="noopener">MTA Metro-North</a> · agency GTFS / <a href="https://mobilitydatabase.org" target="_blank" rel="noopener">Mobility Database</a> · <a href="https://content.amtrak.com/content/gtfs/GTFS.zip" target="_blank" rel="noopener">Amtrak schedule GTFS</a> / <a href="https://amtraker.com" target="_blank" rel="noopener">Amtraker live</a> · <a href="https://api.adsb.lol" target="_blank" rel="noopener">ADSB.lol</a> / <a href="https://adsb.fi" target="_blank" rel="noopener">adsb.fi</a> · <a href="https://www.faa.gov/air_traffic/flight_info/aeronav/aero_data/NASR_Subscription/" target="_blank" rel="noopener">FAA NASR</a> · <a href="https://www.cbsa-asfc.gc.ca/do-rb/menu-eng.html" target="_blank" rel="noopener">CBSA</a> · MassDOT · GBFS · boundaries U.S. Census Bureau',
     }),
     'bottom-right',
   );
@@ -290,6 +294,89 @@ function setupLayers() {
     },
   });
 
+  map.addSource('airports', { type: 'geojson', data: EMPTY_FC });
+  map.addLayer({
+    id: 'airport-public-points',
+    type: 'circle',
+    source: 'airports',
+    filter: ['==', ['get', 'facilityUse'], 'public'],
+    layout: { visibility: 'none' },
+    paint: {
+      'circle-color': CONFIG.AIRPORT_COLOR,
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 2.5, 12, 6.5],
+      'circle-stroke-color': '#f4f6f8',
+      'circle-stroke-width': 1.1,
+      'circle-opacity': 0.85,
+    },
+  });
+  map.addLayer({
+    id: 'airport-private-points',
+    type: 'circle',
+    source: 'airports',
+    minzoom: 9,
+    filter: ['==', ['get', 'facilityUse'], 'private'],
+    layout: { visibility: 'none' },
+    paint: {
+      'circle-color': CONFIG.AIRPORT_COLOR,
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 2, 14, 5],
+      'circle-stroke-color': '#151a21',
+      'circle-stroke-width': 1,
+      'circle-opacity': 0.58,
+    },
+  });
+  map.addLayer({
+    id: 'airport-labels',
+    type: 'symbol',
+    source: 'airports',
+    minzoom: 8,
+    filter: ['==', ['get', 'facilityUse'], 'public'],
+    layout: {
+      visibility: 'none',
+      'text-field': ['get', 'faaId'],
+      'text-size': 10,
+      'text-offset': [0, 1.1],
+      'text-allow-overlap': false,
+    },
+    paint: {
+      'text-color': CONFIG.AIRPORT_COLOR,
+      'text-halo-color': '#10151b',
+      'text-halo-width': 1.5,
+    },
+  });
+
+  map.addSource('border-crossings', { type: 'geojson', data: EMPTY_FC });
+  map.addLayer({
+    id: 'border-crossing-points',
+    type: 'circle',
+    source: 'border-crossings',
+    layout: { visibility: 'none' },
+    paint: {
+      'circle-color': CONFIG.BORDER_COLOR,
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 3, 11, 7],
+      'circle-stroke-color': '#151a21',
+      'circle-stroke-width': 1.2,
+      'circle-opacity': 0.92,
+    },
+  });
+  map.addLayer({
+    id: 'border-crossing-labels',
+    type: 'symbol',
+    source: 'border-crossings',
+    minzoom: 8,
+    layout: {
+      visibility: 'none',
+      'text-field': ['get', 'usPort'],
+      'text-size': 10,
+      'text-offset': [0, 1.2],
+      'text-allow-overlap': false,
+    },
+    paint: {
+      'text-color': CONFIG.BORDER_COLOR,
+      'text-halo-color': '#10151b',
+      'text-halo-width': 1.5,
+    },
+  });
+
   map.addSource('road-events', { type: 'geojson', data: EMPTY_FC });
   map.addLayer({
     id: 'incident-points',
@@ -498,6 +585,9 @@ function wirePopups() {
   wireRoadworkPopups();
   wireInformationPopup('incident-points');
   wireInformationPopup('local-service-points');
+  wireInformationPopup('airport-public-points');
+  wireInformationPopup('airport-private-points');
+  wireInformationPopup('border-crossing-points');
   wireInformationPopup('major-roads-lines');
   wireInformationPopup('freight-rail-lines');
   wireCameraPopups();
@@ -650,6 +740,7 @@ function wireRoutePopups() {
     if (map.queryRenderedFeatures(event.point, { layers: ['scheduled-stations'] }).length) return;
     const properties = event.features[0].properties;
     if (properties.kind !== 'regional-static') return;
+    const dataStatus = properties.dataStatus ?? 'scheduled';
     const sourceUrl = /^https:\/\//.test(properties.sourceUrl ?? '')
       ? properties.sourceUrl
       : '';
@@ -660,8 +751,8 @@ function wireRoutePopups() {
       ${serviceDetails.length ? `<div class="popup-meta">${serviceDetails.map(esc).join(' · ')}</div>` : ''}
       <div class="popup-status">${esc(properties.scheduleNote ?? 'Scheduled route · visible even without live vehicle positions')}</div>
       ${properties.geometryNote ? `<div class="popup-meta">${esc(properties.geometryNote)}</div>` : ''}
-      <div class="popup-meta"><span class="popup-data-status scheduled">scheduled</span> · ${esc(properties.provider ?? 'Published schedule')}</div>
-      ${sourceUrl ? `<a class="popup-route-link" href="${esc(sourceUrl)}" target="_blank" rel="noopener">View carrier schedule ↗</a>` : ''}`;
+      <div class="popup-meta"><span class="popup-data-status ${esc(dataStatus)}">${esc(dataStatus)}</span> · ${esc(properties.provider ?? 'Official carrier information')}</div>
+      ${sourceUrl ? `<a class="popup-route-link" href="${esc(sourceUrl)}" target="_blank" rel="noopener">View official source ↗</a>` : ''}`;
     new maplibregl.Popup({ offset: 10, maxWidth: '310px' })
       .setLngLat(event.lngLat)
       .setHTML(html)
@@ -759,8 +850,19 @@ function renderCameras() {
 function renderReferenceData() {
   infrastructureFC = filterSpatialFeatureCollection(allInfrastructureFC, activeRegion);
   localServicesFC = filterSpatialFeatureCollection(allLocalServicesFC, activeRegion);
+  airportsFC = filterSpatialFeatureCollection(allAirportsFC, activeRegion);
+  borderCrossingsFC = {
+    ...allBorderCrossingsFC,
+    features: activeRegion === 'new-england'
+      ? (allBorderCrossingsFC.features ?? [])
+      : (allBorderCrossingsFC.features ?? []).filter(
+        (feature) => feature.properties?.regions?.includes(activeRegion),
+      ),
+  };
   map?.getSource('infrastructure')?.setData(infrastructureFC);
   map?.getSource('local-services')?.setData(localServicesFC);
+  map?.getSource('airports')?.setData(airportsFC);
+  map?.getSource('border-crossings')?.setData(borderCrossingsFC);
 }
 
 async function ensureReferenceData() {
@@ -774,11 +876,23 @@ async function ensureReferenceData() {
       if (!response.ok) throw new Error(`local services ${response.status}`);
       return response.json();
     }),
-  ]).then(([infrastructure, local]) => {
+    fetch(CONFIG.AIRPORTS_URL).then((response) => {
+      if (!response.ok) throw new Error(`airports ${response.status}`);
+      return response.json();
+    }),
+    fetch(CONFIG.BORDER_CROSSINGS_URL).then((response) => {
+      if (!response.ok) throw new Error(`border crossings ${response.status}`);
+      return response.json();
+    }),
+  ]).then(([infrastructure, local, airports, borders]) => {
     if (infrastructure.status === 'fulfilled') allInfrastructureFC = infrastructure.value;
     else console.warn('Reference road/rail data unavailable:', infrastructure.reason);
     if (local.status === 'fulfilled') allLocalServicesFC = local.value;
     else console.warn('Local-service catalog unavailable:', local.reason);
+    if (airports.status === 'fulfilled') allAirportsFC = airports.value;
+    else console.warn('FAA airport catalog unavailable:', airports.reason);
+    if (borders.status === 'fulfilled') allBorderCrossingsFC = borders.value;
+    else console.warn('CBSA border-crossing catalog unavailable:', borders.reason);
     renderReferenceData();
   });
   return referenceLoadPromise;
@@ -807,7 +921,7 @@ let activeRegion = 'boston';
 
 export function setVisibleGroups(groups, statuses = ['live', 'estimated', 'scheduled', 'reference']) {
   pendingFilters = { groups, statuses };
-  if (groups.some((group) => ['roads', 'freight', 'local'].includes(group))) {
+  if (groups.some((group) => ['roads', 'freight', 'local', 'airport', 'border'].includes(group))) {
     ensureReferenceData();
   }
   if (layersReady) applyGroupFilter(groups, statuses);
@@ -908,6 +1022,20 @@ function applyGroupFilter(groups, statuses) {
   map.setFilter('incident-points', ['all', ['==', ['get', 'group'], 'incident'], statusVisible]);
   map.setFilter('camera-points', ['all', ['==', ['get', 'group'], 'camera'], statusVisible]);
   map.setFilter('local-service-points', ['all', ['==', ['get', 'group'], 'local'], statusVisible]);
+  for (const layerId of ['airport-public-points', 'airport-private-points', 'airport-labels']) {
+    map.setLayoutProperty(
+      layerId,
+      'visibility',
+      groups.includes('airport') && statuses.includes('reference') ? 'visible' : 'none',
+    );
+  }
+  for (const layerId of ['border-crossing-points', 'border-crossing-labels']) {
+    map.setLayoutProperty(
+      layerId,
+      'visibility',
+      groups.includes('border') && statuses.includes('reference') ? 'visible' : 'none',
+    );
+  }
   for (const [layerId, group] of [
     ['major-roads-halo', 'roads'],
     ['major-roads-lines', 'roads'],
@@ -984,7 +1112,10 @@ export function focusAlert(alert) {
 // answer to "where are the commuter rail trains?" when they're all out in
 // the suburbs. Falls back to the group's route ribbons when no vehicle is
 // reporting (e.g. ferries between rush hours).
-export function focusGroup(groupKey, routeIds = []) {
+export async function focusGroup(groupKey, routeIds = []) {
+  if (['roads', 'freight', 'local', 'airport', 'border'].includes(groupKey)) {
+    await ensureReferenceData();
+  }
   let coords = [...fleetData.values()]
     .flatMap((fc) => fc.features)
     .filter((f) => f.properties.group === groupKey)
@@ -1000,7 +1131,7 @@ export function focusGroup(groupKey, routeIds = []) {
       .flatMap(lineCoordinates);
   }
   if (!coords.length) {
-    coords = [roadworkFC, roadEventsFC, camerasFC, infrastructureFC, localServicesFC]
+    coords = [roadworkFC, roadEventsFC, camerasFC, infrastructureFC, localServicesFC, airportsFC, borderCrossingsFC]
       .flatMap((collection) => collection.features)
       .filter((feature) => feature.properties.group === groupKey)
       .flatMap((feature) => feature.geometry.type === 'Point'

@@ -28,6 +28,7 @@ CONFIG_PATH = ROOT / "scripts" / "regional-feeds.json"
 SUPPLEMENTAL_PATHS = (
     ROOT / "scripts" / "supplemental-routes.json",
     ROOT / "scripts" / "supplemental-ferry-routes.json",
+    ROOT / "scripts" / "supplemental-air-routes.json",
 )
 ROAD_ROUTE_CACHE_PATH = ROOT / "scripts" / "road-route-cache.json"
 ROAD_ROUTE_CONTROLS_PATH = ROOT / "scripts" / "road-route-controls.json"
@@ -972,7 +973,7 @@ def main(update_road_cache=False, refresh_road_cache=False):
         ordered = [key for key in ("ct", "ma", "me", "nh", "ri", "vt", "boston") if key in combined]
         ordered.extend(key for key in declared if key not in ordered)
         feature["properties"]["regions"] = ordered
-        feature["properties"]["dataStatus"] = "scheduled"
+        feature["properties"].setdefault("dataStatus", "scheduled")
         if feature["properties"].get("group") == "ferry":
             feature["properties"].setdefault("geometryAccuracy", "approximate")
             feature["properties"].setdefault(
@@ -983,6 +984,7 @@ def main(update_road_cache=False, refresh_road_cache=False):
             "bus": MODE_COLORS[3],
             "ferry": MODE_COLORS[4],
             "commuter": MODE_COLORS[2],
+            "plane": "#9be1ff",
         }.get(feature["properties"].get("group"), "#8a949f")
         feature["properties"].setdefault("provider", "Official carrier schedule")
     all_features.extend(supplemental_features)

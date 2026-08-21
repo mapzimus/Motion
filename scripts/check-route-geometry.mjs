@@ -11,11 +11,21 @@ const cacheRaw = readFileSync(new URL('./road-route-cache.json', import.meta.url
 const controlsRaw = readFileSync(new URL('./road-route-controls.json', import.meta.url));
 const cache = JSON.parse(cacheRaw);
 const collection = JSON.parse(readFileSync(new URL('../data/regional-routes.geojson', import.meta.url), 'utf8'));
-const supplementalRoutes = JSON.parse(
-  readFileSync(new URL('./supplemental-routes.json', import.meta.url), 'utf8'),
+const airports = JSON.parse(readFileSync(new URL('../data/airports.geojson', import.meta.url), 'utf8'));
+const borderCrossings = JSON.parse(
+  readFileSync(new URL('../data/border-crossings.geojson', import.meta.url), 'utf8'),
+);
+const localServices = JSON.parse(
+  readFileSync(new URL('../data/local-services.geojson', import.meta.url), 'utf8'),
 );
 const supplementalFerries = JSON.parse(
   readFileSync(new URL('./supplemental-ferry-routes.json', import.meta.url), 'utf8'),
+);
+const supplementalAir = JSON.parse(
+  readFileSync(new URL('./supplemental-air-routes.json', import.meta.url), 'utf8'),
+);
+const ferryWaterAudit = JSON.parse(
+  readFileSync(new URL('./ferry-water-audit.json', import.meta.url), 'utf8'),
 );
 
 function normalizedSha256(raw) {
@@ -290,6 +300,15 @@ if (missingRepairs.length) {
   throw new Error(`Expected road-routed geometry is missing for: ${missingRepairs.join(', ')}`);
 }
 
+function canonicalCoordinates(value) {
+  if (Array.isArray(value)
+      && value.length === 2
+      && value.every((item) => Number.isFinite(item))) {
+    return `${Number(value[0]).toFixed(6)},${Number(value[1]).toFixed(6)}`;
+  }
+  return `[${value.map(canonicalCoordinates).join('|')}]`;
+}
+
 const supplementalFerryIds = supplementalFerries.features.map(
   (feature) => feature.properties?.route,
 );
@@ -344,54 +363,114 @@ if (invalidGeneratedFerries.length) {
   );
 }
 
-// These inland-water paths were checked against current OpenStreetMap water
-// polygons, including island holes. Lock their coordinate fingerprints so a
-// later cleanup cannot quietly restore straight chords across land.
-const reviewedWaterGeometry = new Map(Object.entries({
-  'lake-champlain-ferries:grand-isle-plattsburgh': '80795dc54cffe3dc5351741b33f827c1b38cf8af0e82ef867631858b5419fa0d',
-  'lake-champlain-ferries:charlotte-essex': '0925aca5390ffb8237a67911cc40ce2145f9e2500728109d16e332522ecaa02f',
-  'mount-washington:weirs-wolfeboro': '9dce4733b14114098565b8753363153ec069bbcee911c1fdcd410f8f1538c61e',
-  'winnipesaukee-spirit:center-harbor-wolfeboro': 'cb08e5731fe12a334295a2ab25327f1d00ec7594ebc9859ee13a83809228c50d',
-  'winnipesaukee-belle:meredith-weirs': 'b4d0d6523276db2ddd9df8953a20d1354187bc20ce68645e60b62f07fe94e22d',
-  'mount-washington:weirs-alton-bay': '5f35853e1e0b6757a653a96978088f026d205e06ec6e929c78103ad53b384c0b',
-  'sophie-c:mailboat': 'd0c1eebf26b13afbbd07f2b7eb799cad93e897a2eebf49fecba8338845e28eb5',
-  'fort-ti-ferry:shoreham-ticonderoga': '25a49cc7997a03b3bebb71ae6063085012fd71416bba3839936f8b5d2631587e',
-  'frye-island-ferry:raymond-cape-frye': 'e46f9caa14c06f5dffc2fdfde4f2b60546bbc03475f0395311bb7c52b0dc5a53',
-  'mount-kineo-shuttle:rockwood-kineo': '148b91dcd97af191fa470c03e957d8873a804da38d44ed5b48427d4d4fef97b9',
-}));
-const allSupplementalFeatures = [
-  ...supplementalRoutes.features,
-  ...supplementalFerries.features,
-];
+// Every generated ferry path is locked after the external shoreline/water
+// audit. Provider or hand-authored geometry cannot change silently and put a
+// line back across land.
+const reviewedWaterGeometry = new Map(Object.entries(ferryWaterAudit.geometrySha256 ?? {}));
 const invalidWaterGeometry = [];
-for (const [route, expectedHash] of reviewedWaterGeometry) {
-  const sourceFeature = allSupplementalFeatures.find(
-    (feature) => feature.properties?.route === route,
-  );
-  const generatedFeature = collection.features.find(
-    (feature) => feature.properties?.route === route,
-  );
-  const actualHash = sourceFeature
-    ? createHash('sha256').update(JSON.stringify(sourceFeature.geometry.coordinates)).digest('hex')
-    : '';
-  if (actualHash !== expectedHash
-      || sourceFeature?.properties?.waterGeometryReviewed !== '2026-08-20'
-      || !sourceFeature?.properties?.waterGeometrySource
-      || JSON.stringify(generatedFeature?.geometry?.coordinates)
-        !== JSON.stringify(sourceFeature?.geometry?.coordinates)) {
-    invalidWaterGeometry.push(route);
-  }
+const generatedFerries = collection.features.filter(
+  (feature) => feature.properties?.group === 'ferry',
+);
+for (const feature of generatedFerries) {
+  const route = feature.properties?.route;
+  const actualHash = createHash('sha256')
+    .update(canonicalCoordinates(feature.geometry.coordinates))
+    .digest('hex');
+  if (reviewedWaterGeometry.get(route) !== actualHash) invalidWaterGeometry.push(route);
 }
-if (invalidWaterGeometry.length) {
+if (ferryWaterAudit.auditVersion !== 'gshhg-census-water-v1'
+    || ferryWaterAudit.routeCount !== generatedFerries.length
+    || reviewedWaterGeometry.size !== generatedFerries.length
+    || invalidWaterGeometry.length) {
   throw new Error(
-    `Reviewed water-following geometry changed without a new shoreline audit: ${invalidWaterGeometry.join(', ')}`,
+    `Ferry geometry changed without a complete shoreline/water audit: ${invalidWaterGeometry.join(', ')}`,
   );
+}
+const airportIds = new Set();
+for (const feature of airports.features ?? []) {
+  const properties = feature.properties ?? {};
+  const [longitude, latitude] = feature.geometry?.coordinates ?? [];
+  if (feature.geometry?.type !== 'Point'
+      || !Number.isFinite(longitude)
+      || !Number.isFinite(latitude)
+      || properties.group !== 'airport'
+      || properties.dataStatus !== 'reference'
+      || !properties.faaId
+      || !['public', 'private'].includes(properties.facilityUse)) {
+    throw new Error(`Invalid FAA landing-facility feature: ${properties.faaId ?? 'unknown'}`);
+  }
+  if (airportIds.has(properties.faaId)) throw new Error(`Duplicate FAA facility: ${properties.faaId}`);
+  airportIds.add(properties.faaId);
+}
+if (airports.features.length < 750
+    || airports.metadata?.publicUseCount < 170
+    || !airportIds.has('35ME')
+    || !airportIds.has('BOS')) {
+  throw new Error('FAA New England landing-facility coverage is incomplete');
+}
+
+const borderKeys = new Set();
+for (const feature of borderCrossings.features ?? []) {
+  const properties = feature.properties ?? {};
+  const [longitude, latitude] = feature.geometry?.coordinates ?? [];
+  const key = `${properties.title}|${properties.usPort}`;
+  if (feature.geometry?.type !== 'Point'
+      || !Number.isFinite(longitude)
+      || !Number.isFinite(latitude)
+      || properties.group !== 'border'
+      || properties.dataStatus !== 'reference'
+      || !properties.title
+      || !properties.usPort
+      || !['NB', 'QC'].includes(properties.province)
+      || borderKeys.has(key)) {
+    throw new Error(`Invalid or duplicate Canada border crossing: ${key}`);
+  }
+  borderKeys.add(key);
+}
+if (borderCrossings.features.length !== 38
+    || ![...borderKeys].some((key) => key.includes('Pittsburg'))
+    || ![...borderKeys].some((key) => key.includes('Madawaska'))
+    || ![...borderKeys].some((key) => key.includes('Derby'))) {
+  throw new Error('CBSA New England border-crossing coverage is incomplete');
+}
+
+const airRouteIds = new Set(supplementalAir.features.map((feature) => feature.properties?.route));
+const invalidAirRoutes = supplementalAir.features.filter((feature) => {
+  const properties = feature.properties ?? {};
+  return feature.geometry?.type !== 'LineString'
+    || properties.group !== 'plane'
+    || !['scheduled', 'reference'].includes(properties.dataStatus ?? 'scheduled')
+    || !properties.serviceType
+    || !properties.season
+    || !properties.geometryNote
+    || !/^https:\/\//.test(properties.sourceUrl ?? '');
+});
+if (supplementalAir.features.length !== 12
+    || airRouteIds.size !== supplementalAir.features.length
+    || invalidAirRoutes.length
+    || [...airRouteIds].filter((route) => route.startsWith('penobscot-island-air:')).length !== 4
+    || [...airRouteIds].some((route) => !generatedRouteIds.has(route))) {
+  throw new Error('Scheduled/on-demand New England air-service coverage is incomplete');
+}
+
+const localServiceNames = new Set(
+  localServices.features.map((feature) => feature.properties?.title),
+);
+for (const required of [
+  'Boston Water Taxi', 'Red Top Boats water taxi', 'Island Transporter',
+  'Quicksilver Water Taxi', 'Bass Harbor Island Cruises', 'Cadillac Water Taxi',
+  'Spring Beach Ferry', 'Spirit of Ethan Allen', 'Buttercup Cruises',
+]) {
+  if (!localServiceNames.has(required)) throw new Error(`Missing on-demand water service: ${required}`);
 }
 console.log(
   `Route geometry check passed: ${approximate.length} approximate-geometry scheduled features; `
   + `${Object.keys(cache.segments ?? {}).length} loop-free cache segments; `
   + `${amtrakRoutes.length} official Amtrak routes; `
   + `${supplementalFerries.features.length} verified supplemental ferry routes; `
-  + `${reviewedWaterGeometry.size} shoreline-reviewed inland-water routes; `
+  + `${reviewedWaterGeometry.size} shoreline/water-reviewed ferry routes; `
+  + `${airports.features.length} FAA landing facilities; `
+  + `${borderCrossings.features.length} Canada border crossings; `
+  + `${supplementalAir.features.length} scheduled/on-demand air corridors; `
   + `no bus or Amtrak chord exceeds ${MAX_BUS_CHORD_KM} km.`,
 );

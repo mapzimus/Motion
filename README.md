@@ -19,16 +19,18 @@ Every feature is labeled **live**, **estimated**, **scheduled**, or
 | MBTA subway, Silver Line, buses, commuter rail, ferries | [MBTA V3 API](https://www.mbta.com/developers/v3-api) | 10 s |
 | Regional buses | Agency GTFS-realtime feeds, normalized by the gateway | 20 s |
 | Metro-North New Haven branches | [MTA GTFS-Realtime](https://www.mta.info/developers) trip predictions and alerts; positions are explicitly estimated between stations | 30 s |
-| Scheduled bus, rail, ferry, and passenger-boat routes | 70 GTFS sources plus 73 official-schedule corridors, including Amtrak, Metro-North, regional coaches, 92 ferry routes, municipal water shuttles, and small-island lifelines | built snapshot |
-| Small-town, county, flex, volunteer, and microtransit service catalog | 44 official-directory service markers across all six states | built snapshot |
+| Scheduled/reference bus, rail, ferry, boat, and air-service routes | 70 GTFS sources plus 86 official-service corridors, including Amtrak, Metro-North, regional coaches, 93 ferry routes, municipal water shuttles, small-island lifelines, and island air taxis | built snapshot |
+| Small-town, county, flex, volunteer, microtransit, and on-demand water-service catalog | 53 official-directory service markers across all six states | built snapshot |
 | Amtrak | [Amtrak official static GTFS](https://content.amtrak.com/content/gtfs/GTFS.zip) for scheduled routes/stations; [Amtraker](https://amtraker.com) community API for live trains | built snapshot + 90 s |
-| Aircraft | [ADSB.lol](https://api.adsb.lol/) with [adsb.fi](https://adsb.fi/) failover; click a plane for its best-effort origin and destination | 45 s |
+| Aircraft and air services | [ADSB.lol](https://api.adsb.lol/) with [adsb.fi](https://adsb.fi/) failover; official Cape Air/Tradewind schedules and Penobscot Island Air on-demand corridors | 45 s + built snapshot |
+| Airports and landing facilities | 778 open airports, heliports, seaplane bases, and other facilities from the [FAA NASR subscription](https://www.faa.gov/air_traffic/flight_info/aeronav/aero_data/NASR_Subscription/) | 28-day built snapshot |
 | Harbor/coastal vessels and identifiable passenger ferries | [AISStream](https://aisstream.io) through a protected WebSocket relay | streaming |
 | Bike and scooter share | GBFS feeds for Bluebikes across 13 Greater Boston municipalities, Veo Hartford, Veo New Haven, and Spin Providence | 60 s |
 | Work zones and closures | MassDOT WZDx plus the multi-state New England 511 WZDx feed for Maine, New Hampshire, and Vermont | 60 s |
 | Traffic incidents and public cameras | New England 511, CTroads, and the MassDOT CCTV asset inventory | 60–90 s |
 | Live congestion speeds | Public 511 traffic-flow tiles through the gateway; TomTom remains an optional configured fallback | live tiles |
 | Major roads and freight rail | U.S. Census TIGERweb primary roads and the FRA North American Rail Network | built snapshot |
+| Canada border crossings | 38 road, rail, ferry, and remote-traveller facilities from the [CBSA Directory of Offices](https://www.cbsa-asfc.gc.ca/do-rb/menu-eng.html) | built snapshot |
 | Marked walking and cycling routes | OpenStreetMap route relations via Waymarked Trails | live map tiles |
 
 The aircraft layer no longer calls airplanes.live. That service now rejects
@@ -44,9 +46,10 @@ private, repositioning, and irregular flights may not have an itinerary.
 
 ## Regional transit coverage
 
-The checked-in route snapshot contains 1,082 bus, commuter-rail, Amtrak,
-ferry, and passenger-boat route features plus 53 New England Amtrak stations,
-assembled from 70 GTFS sources and 73 official-schedule corridors. Scheduled
+The checked-in route snapshot contains 1,099 bus, commuter-rail, Amtrak,
+ferry, passenger-boat, and air-service route features plus 53 New England
+Amtrak stations, assembled from 70 GTFS sources and 86 official-service
+corridors. Scheduled
 routes remain visible when an operator publishes no live positions. State
 views start with the scheduled bus layer on,
 and the sidebar reports scheduled route counts separately from live vehicles,
@@ -72,7 +75,12 @@ all 14 Vermont stations. Burlington Union Station (`BTN`) is kept distinct
 from Essex Junction–Burlington (`ESX`) because they serve different routes.
 Amtraker remains the separately attributed community source for live train
 positions. Lake Champlain's current Grand Isle–Plattsburgh and Charlotte–Essex
-crossings are joined by the seasonal Shoreham–Ticonderoga ferry. New Hampshire
+crossings are joined by the seasonal Shoreham–Ticonderoga ferry. Lake Champlain
+Transportation does not currently list Burlington–Port Kent as an operating
+crossing, so Burlington is not given a fictional ferry line. The map instead
+marks Burlington's real Spirit of Ethan Allen and Buttercup passenger cruises,
+the Inland Sea's on-demand Spring Beach Ferry, and Vermont State Parks'
+restricted 2026 Kill Kare–Burton Island passenger ferry. New Hampshire
 includes both public Star Island approaches, published 2026 Mount Washington
 Cruises corridors, and the Sophie C island mailboat itinerary on Lake
 Winnipesaukee. Maine includes the six state-ferry links plus Chebeague, Isle au
@@ -91,10 +99,11 @@ Provincetown services, and smaller public harbor and island shuttles. Each
 official-schedule popup identifies its service type and season and labels the
 line as an approximate water path rather than a live vessel track. AIS may add
 a live marker only when a vessel is independently broadcasting and received by
-the configured provider. Lake Winnipesaukee, Lake Champlain, Sebago Lake, and
-Moosehead Lake paths are additionally checked against OpenStreetMap water
-polygons with island holes; reviewed coordinate fingerprints are locked by the
-geometry check so a later rebuild cannot silently restore over-land chords.
+the configured provider. Every generated ferry path is audited against the
+full-resolution GSHHG shoreline hierarchy and Census TIGERweb areal
+hydrography. All ferry coordinate fingerprints are locked by the geometry
+check, so a feed update or manual edit cannot silently restore an over-land
+ocean, lake, harbor, or river chord.
 The active MBTA `Boat-Lynn` feed supplies Lynn–Boston service directly, while
 the seasonal Salem–Boston Long Wharf service is retained as an explicit
 official-schedule corridor so it remains visible without live vessel data.
@@ -107,11 +116,12 @@ systems. No discoverable public GBFS system is currently cataloged for Vermont,
 New Hampshire, or Maine, so the map does not fabricate stations there.
 
 The **Local & on-demand services** layer fills a different gap. It currently
-catalogs 44 services that do not have reliable route geometry or public live
+catalogs 53 services that do not have reliable route geometry or public live
 positions: Maine county transportation, Sullivan County and New Hampshire
 community providers, Massachusetts microtransit, Connecticut's nine CTDOT
-microtransit programs, RIPTA Flex zones, and Vermont's regional
-demand-response providers. These are service-area reference points with links
+microtransit programs, RIPTA Flex zones, Vermont's regional demand-response
+providers, and on-demand Boston Harbor and Maine coastal water taxis. These
+are service-area reference points with links
 to the official provider—not pretend bus paths.
 
 Metro-North is different: the MTA publishes keyless realtime trip updates and
@@ -149,6 +159,8 @@ Rebuild the static route snapshot after agencies update their schedules:
 
 ```powershell
 py -3 -X utf8 scripts\build-regional-routes.py
+py -3 -X utf8 scripts\build-airports.py
+py -3 -X utf8 scripts\build-border-crossings.py
 ```
 
 Normal rebuilds make no road-router requests: that portion uses the checked-in
@@ -172,6 +184,19 @@ Approximate repaired geometry is derived from
 [OpenStreetMap contributors](https://www.openstreetmap.org/copyright) using the
 [Project OSRM route service](https://project-osrm.org/docs/v5.7.0/api/); an
 operator's actual roadway may vary.
+
+The **Airports & landing facilities** layer includes public and private FAA
+facilities, with private sites held back until a closer zoom. The air-service
+ribbons distinguish scheduled Cape Air/Tradewind routes from Penobscot Island
+Air's on-demand links between Knox County Regional Airport and Matinicus,
+Vinalhaven, North Haven, and Islesboro. Those lines show service relationships,
+not actual or live flight tracks.
+
+The **Canada border crossings** layer uses the current CBSA office directory
+for New England's Maine, New Hampshire, and Vermont frontier. It includes
+ordinary roads, rail inspection points, the Campobello–Lubec crossing, and
+remote-traveller pilot facilities. Canadian-side control points retain their
+adjacent U.S. state tag, so state filters keep the correct crossings in view.
 
 ## Run the map
 

@@ -45,7 +45,8 @@ function buildGroups(routeInfo, capabilities) {
     { key: 'amtrak', name: 'Amtrak', initial: 'A', section: 'ground', routes: [], color: CONFIG.AMTRAK_COLOR, truth: 'live + schedule' },
     { key: 'local', name: 'Local & on-demand services', initial: 'L', section: 'ground', routes: [], color: CONFIG.LOCAL_COLOR, darkText: true, truth: 'catalog', countAsVehicle: false },
     { key: 'ferry', name: 'Ferries & passenger boats', initial: 'F', section: 'airwater', sectionName: 'Air & water', routes: routesOfType(4), color: CONFIG.FERRY_COLOR, truth: 'live + schedule' },
-    { key: 'plane', name: 'Aircraft', initial: '✈', section: 'airwater', routes: [], color: CONFIG.PLANE_COLOR, truth: 'live', needsKey: !capabilities?.aircraft, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'setup' },
+    { key: 'plane', name: 'Aircraft & air services', initial: '✈', section: 'airwater', routes: [], color: CONFIG.PLANE_COLOR, truth: 'live + schedule/catalog', needsKey: !capabilities?.aircraft, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'setup' },
+    { key: 'airport', name: 'Airports & landing facilities', initial: 'AP', section: 'airwater', routes: [], color: CONFIG.AIRPORT_COLOR, truth: 'FAA reference', countAsVehicle: false },
     { key: 'vessel', name: 'Live vessels (AIS)', initial: '⚓', section: 'airwater', routes: [], color: CONFIG.VESSEL_COLOR, truth: 'live', needsKey: !capabilities?.ais, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'AIS key' },
     { key: 'bike', name: 'Public bike & scooter share', initial: 'b', section: 'shared', sectionName: 'Shared & active travel', routes: [], color: CONFIG.BIKE_COLOR, truth: 'live' },
     { key: 'walking', name: 'Marked walking & hiking routes', initial: 'W', section: 'shared', routes: [], color: CONFIG.WALK_COLOR, truth: 'OSM routes', countAsVehicle: false, zoomable: false },
@@ -56,6 +57,7 @@ function buildGroups(routeInfo, capabilities) {
     { key: 'camera', name: 'Public traffic cameras', initial: '◉', section: 'conditions', routes: [], color: CONFIG.CAMERA_COLOR, truth: 'live / viewer', needsKey: !capabilities?.cameras, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false },
     { key: 'roads', name: 'Major roadways', initial: 'R', section: 'infrastructure', sectionName: 'Movement infrastructure', routes: [], color: CONFIG.ROAD_COLOR, truth: 'reference', countAsVehicle: false },
     { key: 'freight', name: 'Freight rail network', initial: 'FR', section: 'infrastructure', routes: [], color: CONFIG.FREIGHT_COLOR, truth: 'FRA reference', countAsVehicle: false },
+    { key: 'border', name: 'Canada border crossings', initial: 'CB', section: 'infrastructure', routes: [], color: CONFIG.BORDER_COLOR, darkText: true, truth: 'CBSA reference', countAsVehicle: false },
   ];
 }
 
@@ -164,7 +166,7 @@ export function initPanel(routeInfo, visibleChangeHandler, regionChangeHandler, 
     if (!group.needsKey && group.zoomable !== false) {
       row.classList.add('zoomable');
       row.title = `Zoom to ${group.name}`;
-      row.addEventListener('click', (e) => {
+      row.addEventListener('click', async (e) => {
         if (e.target.closest('.switch') || e.target.closest('a')) return;
         if (!groupState.get(group.key)) {
           manualGroupOverrides.add(group.key);
@@ -173,7 +175,7 @@ export function initPanel(routeInfo, visibleChangeHandler, regionChangeHandler, 
           syncMaster();
           emitVisible();
         }
-        const flew = focusGroup(group.key, group.routes);
+        const flew = await focusGroup(group.key, group.routes);
         if (flew && window.matchMedia('(max-width: 760px)').matches) {
           document.body.classList.remove('panel-open');
         }

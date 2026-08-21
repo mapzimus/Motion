@@ -58,11 +58,13 @@ export const CONFIG = {
   // Route ribbons are drawn for every MBTA route — including all ~150 bus
   // routes (thin + faint, toggling with the bus layer). Geometry is static,
   // so it's cached as encoded polylines (compact enough for localStorage).
-  SHAPE_CACHE_KEY: 'bim-shapes-v3',
+  SHAPE_CACHE_KEY: 'bim-shapes-v4',
   SHAPE_CACHE_TTL_MS: 24 * 3600 * 1000,
   REGIONAL_ROUTE_URL: './data/regional-routes.geojson',
   INFRASTRUCTURE_URL: './data/infrastructure.geojson',
   LOCAL_SERVICES_URL: './data/local-services.geojson',
+  AIRPORTS_URL: './data/airports.geojson',
+  BORDER_CROSSINGS_URL: './data/border-crossings.geojson',
   MNR_STOPS_URL: './data/mnr-stops.json',
   MNR_COLOR: '#ee0034',
   MNR_STALE_MS: 2 * 60_000,
@@ -138,6 +140,8 @@ export const CONFIG = {
   WALK_COLOR: '#8bdc78',
   CYCLE_COLOR: '#45b7e8',
   LOCAL_COLOR: '#9fc36a',
+  AIRPORT_COLOR: '#9be1ff',
+  BORDER_COLOR: '#f0d27a',
 
   CAMERA_POLL_MS: 5 * 60_000,
   ROAD_EVENT_POLL_MS: 60_000,
@@ -152,7 +156,7 @@ export const CONFIG = {
   // on: ~400 buses, ~600 bike stations, wall-to-wall traffic color).
   DEFAULT_OFF_GROUPS: [
     'bus', 'bike', 'roadwork', 'traffic', 'incident', 'camera',
-    'roads', 'freight', 'walking', 'cycling', 'local',
+    'roads', 'freight', 'walking', 'cycling', 'local', 'airport', 'border',
   ],
 
   BASEMAP_STYLE: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
