@@ -29,9 +29,13 @@ from shapely.strtree import STRtree
 ROOT = Path(__file__).resolve().parents[1]
 REGIONAL_ROUTES = ROOT / "data" / "regional-routes.geojson"
 AUDIT_MANIFEST = ROOT / "scripts" / "ferry-water-audit.json"
+AUDIT_VERSION = "gshhg-census-water-v2-strict"
+MAX_INTERIOR_LAND_DEGREES = 0.00025  # roughly 20–28 m across New England
+MAX_TERMINAL_LAND_DEGREES = 0.0012   # shoreline/landing tolerance, roughly 95–133 m
 SUPPLEMENTAL_FILES = [
     ROOT / "scripts" / "supplemental-routes.json",
     ROOT / "scripts" / "supplemental-ferry-routes.json",
+    ROOT / "scripts" / "ferry-route-overrides.json",
 ]
 NE_BOUNDS = (-75.0, 40.0, -64.0, 48.0)
 TERMINAL_OVERRIDES = {
@@ -73,6 +77,38 @@ ROUTE_CONTROL_OVERRIDES = {
         [-71.0445, 42.370881],
         [-71.042122, 42.365613],
         [-71.043021, 42.354138],
+    ]],
+    # Old Harbor is on Block Island's east shore. Westbound service must first
+    # clear the island around its north or south end instead of cutting across
+    # the island toward Long Island Sound.
+    "block-island-express:new-london-block-island": [[
+        [-72.0941, 41.3569],
+        [-71.89, 41.245],
+        [-71.68, 41.225],
+        [-71.600, 41.238],
+        [-71.555, 41.240],
+        [-71.535, 41.225],
+        [-71.535, 41.190],
+        [-71.545, 41.174],
+        [-71.5558, 41.1733],
+    ]],
+    "viking-fleet:block-island-montauk": [[
+        [-71.5558, 41.1733],
+        [-71.542, 41.168],
+        [-71.542, 41.150],
+        [-71.565, 41.135],
+        [-71.630, 41.140],
+        [-71.81, 41.11],
+        [-71.942, 41.075],
+    ]],
+    "block-island-express:block-island-orient-point": [[
+        [-71.5558, 41.1733],
+        [-71.542, 41.168],
+        [-71.542, 41.150],
+        [-71.565, 41.135],
+        [-71.630, 41.140],
+        [-71.96, 41.15],
+        [-72.2417, 41.1552],
     ]],
 }
 DROP_COORDINATES = {
@@ -175,7 +211,7 @@ class WaterModel:
                 part.distance(Point(coordinates[0])),
                 part.distance(Point(coordinates[-1])),
             ) < 0.0007
-            threshold = 0.0045 if terminal else 0.0018
+            threshold = MAX_TERMINAL_LAND_DEGREES if terminal else MAX_INTERIOR_LAND_DEGREES
             if length > threshold:
                 failures.append((length, terminal, list(part.coords)[0], list(part.coords)[-1]))
         return failures
@@ -334,7 +370,7 @@ def repair_path(model, coordinates):
         coordinate for coordinate in candidates[1:-1]
         if not (
             route_obstacle.covers(Point(coordinate))
-            and route_obstacle.boundary.distance(Point(coordinate)) > 0.0015
+            and route_obstacle.boundary.distance(Point(coordinate)) > MAX_INTERIOR_LAND_DEGREES * 0.5
         )
     )
     controls.append(candidates[-1])
@@ -352,13 +388,43 @@ def repair_path(model, coordinates):
     return repaired, changed
 
 
+def snap_dry_endpoints(model, coordinates):
+    """Move an inland catalog endpoint to the adjacent shoreline crossing.
+
+    This only acts when the audited dry run actually touches the first or last
+    coordinate. Near-terminal interior crossings are routed instead, so a
+    nearby peninsula or breakwater cannot pull a valid landing away from its
+    published waterfront.
+    """
+    snapped = list(coordinates)
+    changed = False
+    for _, terminal, run_start, run_end in model.failing_runs(snapped):
+        if not terminal:
+            continue
+        for index in (0, -1):
+            endpoint = snapped[index]
+            distances = [math.dist(endpoint, run_start), math.dist(endpoint, run_end)]
+            if min(distances) > 0.00002:
+                continue
+            replacement = run_start if distances[0] > distances[1] else run_end
+            if math.dist(endpoint, replacement) > 0.012:
+                raise RuntimeError(f"Endpoint snap exceeds review limit: {endpoint} -> {replacement}")
+            snapped[index] = [round(replacement[0], 6), round(replacement[1], 6)]
+            changed = True
+    return snapped, changed
+
+
 def route_id(feature):
     return feature.get("properties", {}).get("route", "unknown")
 
 
 def audit_collection(model, collection):
     failures = []
-    ferries = [f for f in collection["features"] if f.get("properties", {}).get("group") == "ferry"]
+    ferries = [
+        feature for feature in collection["features"]
+        if feature.get("properties", {}).get("group") == "ferry"
+        and feature.get("geometry", {}).get("type") in {"LineString", "MultiLineString"}
+    ]
     for feature in ferries:
         geometry = feature["geometry"]
         paths = geometry["coordinates"] if geometry["type"] == "MultiLineString" else [geometry["coordinates"]]
@@ -384,7 +450,7 @@ def write_manifest(ferries, path):
         payload = canonical_coordinates(feature["geometry"]["coordinates"])
         entries[identifier] = hashlib.sha256(payload.encode("utf-8")).hexdigest()
     document = {
-        "auditVersion": "gshhg-census-water-v1",
+        "auditVersion": AUDIT_VERSION,
         "reviewedAt": datetime.date.today().isoformat(),
         "routeCount": len(entries),
         "geometrySha256": entries,
@@ -431,9 +497,27 @@ def repair_manual_files(model, write, only_routes=None):
             changed = candidate_paths != old_paths
             try:
                 for coordinates in candidate_paths:
-                    repaired, path_changed = repair_path(model, coordinates)
+                    repaired = coordinates
+                    path_changed = False
+                    endpoint_changed = False
+                    for _ in range(5):
+                        if not model.failing_runs(repaired):
+                            break
+                        repaired, pass_changed = repair_path(model, repaired)
+                        repaired, pass_endpoint_changed = snap_dry_endpoints(model, repaired)
+                        path_changed = path_changed or pass_changed
+                        endpoint_changed = endpoint_changed or pass_endpoint_changed
+                        if not pass_changed and not pass_endpoint_changed:
+                            break
+                    remaining = model.failing_runs(repaired)
+                    if remaining:
+                        longest = max(remaining, key=lambda item: item[0])
+                        raise RuntimeError(
+                            f"Strict audit still fails after five repair passes "
+                            f"({longest[0] * 82:.2f} km dry run)"
+                        )
                     new_paths.append(repaired)
-                    changed = changed or path_changed
+                    changed = changed or path_changed or endpoint_changed
             except RuntimeError as error:
                 errors.append(f"{route_id(feature)}: {error}")
                 print(f"  unable to repair: {error}", flush=True)

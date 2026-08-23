@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs';
 
 const MAX_BUS_CHORD_KM = 20.05;
 const MAX_AMTRAK_CHORD_KM = 20.05;
+const MAX_RAIL_CHORD_KM = 20.05;
+const MAX_FERRY_TERMINAL_KM = 1.5;
 const MAX_ROAD_DETOUR_RATIO = 1.6;
 const MAX_ROAD_DETOUR_ALLOWANCE_KM = 5;
 const ROAD_ROUTING_VERSION = 'osrm-driving-bus-controls-v4';
@@ -23,6 +25,9 @@ const supplementalFerries = JSON.parse(
 );
 const supplementalAir = JSON.parse(
   readFileSync(new URL('./supplemental-air-routes.json', import.meta.url), 'utf8'),
+);
+const ferryRouteOverrides = JSON.parse(
+  readFileSync(new URL('./ferry-route-overrides.json', import.meta.url), 'utf8'),
 );
 const ferryWaterAudit = JSON.parse(
   readFileSync(new URL('./ferry-water-audit.json', import.meta.url), 'utf8'),
@@ -338,6 +343,19 @@ if (invalidSupplementalFerries.length) {
   );
 }
 const generatedRouteIds = new Set(collection.features.map((feature) => feature.properties?.route));
+const ferryOverrideIds = ferryRouteOverrides.features.map((feature) => feature.properties?.route);
+if (ferryOverrideIds.length !== 2
+    || new Set(ferryOverrideIds).size !== ferryOverrideIds.length
+    || JSON.stringify(collection.metadata?.ferryRouteOverrides) !== JSON.stringify([...ferryOverrideIds].sort())) {
+  throw new Error('Audited provider ferry-route overrides are missing or stale');
+}
+for (const route of ferryOverrideIds) {
+  const generated = collection.features.find((feature) => feature.properties?.route === route);
+  if (generated?.properties?.geometryProvider !== 'Project shoreline audit'
+      || generated.properties?.geometryAccuracy !== 'approximate') {
+    throw new Error(`Provider ferry override was not applied: ${route}`);
+  }
+}
 const missingSupplementalFerries = supplementalFerryIds.filter(
   (route) => !generatedRouteIds.has(route),
 );
@@ -369,7 +387,8 @@ if (invalidGeneratedFerries.length) {
 const reviewedWaterGeometry = new Map(Object.entries(ferryWaterAudit.geometrySha256 ?? {}));
 const invalidWaterGeometry = [];
 const generatedFerries = collection.features.filter(
-  (feature) => feature.properties?.group === 'ferry',
+  (feature) => feature.properties?.group === 'ferry'
+    && ['LineString', 'MultiLineString'].includes(feature.geometry?.type),
 );
 for (const feature of generatedFerries) {
   const route = feature.properties?.route;
@@ -378,13 +397,109 @@ for (const feature of generatedFerries) {
     .digest('hex');
   if (reviewedWaterGeometry.get(route) !== actualHash) invalidWaterGeometry.push(route);
 }
-if (ferryWaterAudit.auditVersion !== 'gshhg-census-water-v1'
+if (ferryWaterAudit.auditVersion !== 'gshhg-census-water-v2-strict'
     || ferryWaterAudit.routeCount !== generatedFerries.length
     || reviewedWaterGeometry.size !== generatedFerries.length
     || invalidWaterGeometry.length) {
   throw new Error(
     `Ferry geometry changed without a complete shoreline/water audit: ${invalidWaterGeometry.join(', ')}`,
   );
+}
+
+const scheduledStops = collection.features.filter(
+  (feature) => feature.properties?.kind === 'regional-station'
+    && feature.geometry?.type === 'Point',
+);
+const stopsByGroup = new Map();
+for (const stop of scheduledStops) {
+  const properties = stop.properties ?? {};
+  const [longitude, latitude] = stop.geometry.coordinates ?? [];
+  if (!Number.isFinite(longitude)
+      || !Number.isFinite(latitude)
+      || !properties.title
+      || !properties.stopKind
+      || !Array.isArray(properties.routeIds)
+      || !properties.routeIds.length) {
+    throw new Error(`Invalid scheduled stop: ${properties.title ?? properties.stationCode ?? 'unknown'}`);
+  }
+  stopsByGroup.set(properties.group, (stopsByGroup.get(properties.group) ?? 0) + 1);
+}
+for (const [group, minimum] of Object.entries({
+  bus: 30000,
+  ferry: 100,
+  commuter: 140,
+  amtrak: 45,
+  red: 20,
+  orange: 15,
+  green: 55,
+  blue: 10,
+  silver: 30,
+  mattapan: 8,
+})) {
+  if ((stopsByGroup.get(group) ?? 0) < minimum) {
+    throw new Error(`Scheduled ${group} stop coverage is incomplete`);
+  }
+}
+
+const ferryStops = scheduledStops.filter((feature) => feature.properties?.group === 'ferry');
+const ferryTerminalOffenders = [];
+for (const ferry of generatedFerries) {
+  const route = ferry.properties?.route;
+  const paths = ferry.geometry.type === 'LineString'
+    ? [ferry.geometry.coordinates]
+    : ferry.geometry.coordinates;
+  const uniqueEndpoints = new Map();
+  for (const path of paths) {
+    for (const endpoint of [path[0], path.at(-1)]) {
+      uniqueEndpoints.set(coordinateToken(endpoint), endpoint);
+    }
+  }
+  for (const endpoint of uniqueEndpoints.values()) {
+      const nearest = Math.min(...ferryStops.map(
+        (stop) => distanceKm(endpoint, stop.geometry.coordinates),
+      ));
+      if (nearest > MAX_FERRY_TERMINAL_KM) {
+        ferryTerminalOffenders.push(`${route}: endpoint is ${nearest.toFixed(2)} km from a named landing`);
+      }
+  }
+}
+if (ferryTerminalOffenders.length) {
+  throw new Error(`Ferry endpoint/landing audit failed:\n${ferryTerminalOffenders.join('\n')}`);
+}
+
+const requiredLocalRoutes = [
+  'concord-area-transit:crosstown',
+  'concord-area-transit:heights',
+  'concord-area-transit:penacook',
+];
+for (const route of requiredLocalRoutes) {
+  if (!generatedRouteIds.has(route)) throw new Error(`Missing current local bus route: ${route}`);
+}
+const unhRoutes = collection.features.filter(
+  (feature) => feature.properties?.kind === 'regional-static'
+    && feature.properties?.route?.startsWith('unh-wildcat:'),
+);
+if (unhRoutes.length !== 8) throw new Error('UNH Wildcat Transit must contain all eight published route shapes');
+
+const railChordOffenders = [];
+for (const feature of collection.features.filter(
+  (item) => item.properties?.kind === 'regional-static'
+    && ['commuter', 'amtrak'].includes(item.properties?.group),
+)) {
+  const paths = feature.geometry.type === 'LineString'
+    ? [feature.geometry.coordinates]
+    : feature.geometry.coordinates;
+  for (const path of paths) {
+    for (let index = 1; index < path.length; index += 1) {
+      const distance = distanceKm(path[index - 1], path[index]);
+      if (distance > MAX_RAIL_CHORD_KM) {
+        railChordOffenders.push(`${feature.properties.route}: ${distance.toFixed(1)} km`);
+      }
+    }
+  }
+}
+if (railChordOffenders.length) {
+  throw new Error(`Straight-line rail geometry exceeds ${MAX_RAIL_CHORD_KM} km:\n${railChordOffenders.join('\n')}`);
 }
 const airportIds = new Set();
 for (const feature of airports.features ?? []) {
@@ -469,8 +584,9 @@ console.log(
   + `${amtrakRoutes.length} official Amtrak routes; `
   + `${supplementalFerries.features.length} verified supplemental ferry routes; `
   + `${reviewedWaterGeometry.size} shoreline/water-reviewed ferry routes; `
+  + `${scheduledStops.length} scheduled stops with named ferry endpoints; `
   + `${airports.features.length} FAA landing facilities; `
   + `${borderCrossings.features.length} Canada border crossings; `
   + `${supplementalAir.features.length} scheduled/on-demand air corridors; `
-  + `no bus or Amtrak chord exceeds ${MAX_BUS_CHORD_KM} km.`,
+  + `no bus or rail chord exceeds ${MAX_BUS_CHORD_KM} km.`,
 );

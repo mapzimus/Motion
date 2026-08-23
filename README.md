@@ -1,13 +1,14 @@
 # New England in Motion
 
 One live map of transportation moving across Connecticut, Maine,
-Massachusetts, New Hampshire, Rhode Island, and Vermont. Start with Boston,
+Massachusetts, New Hampshire, Rhode Island, and Vermont. Start with the
+17-municipality Greater Boston / MBTA core,
 switch to a single state, or zoom out to all New England.
 
 The map combines live and scheduled public transportation, aircraft, boats,
 shared mobility, traffic, road events, public traffic cameras, major roads,
 freight rail, and walking/cycling networks. Live points are clipped to
-generalized 2025 U.S. Census TIGERweb boundaries, so “Boston only,” each state,
+generalized 2025 U.S. Census TIGERweb boundaries, so the practical Greater Boston / MBTA core, each state,
 and “All New England” are geographic filters rather than agency-name guesses.
 Every feature is labeled **live**, **estimated**, **scheduled**, or
 **reference** so a published route never masquerades as a moving vehicle.
@@ -19,7 +20,7 @@ Every feature is labeled **live**, **estimated**, **scheduled**, or
 | MBTA subway, Silver Line, buses, commuter rail, ferries | [MBTA V3 API](https://www.mbta.com/developers/v3-api) | 10 s |
 | Regional buses | Agency GTFS-realtime feeds, normalized by the gateway | 20 s |
 | Metro-North New Haven branches | [MTA GTFS-Realtime](https://www.mta.info/developers) trip predictions and alerts; positions are explicitly estimated between stations | 30 s |
-| Scheduled/reference bus, rail, ferry, boat, and air-service routes | 70 GTFS sources plus 85 official-service corridors, including Amtrak, Metro-North, regional coaches, 93 ferry routes, municipal water shuttles, small-island lifelines, and island air taxis | built snapshot |
+| Scheduled/reference bus, rail, ferry, boat, and air-service routes and stops | 72 GTFS sources plus 88 official-service corridors, including Amtrak, Metro-North, regional coaches, 93 ferry routes, municipal water shuttles, small-island lifelines, island air taxis, and 38,000+ scheduled stops | built snapshot |
 | Small-town, county, flex, volunteer, microtransit, and on-demand water-service catalog | 53 official-directory service markers across all six states | built snapshot |
 | Amtrak | [Amtrak official static GTFS](https://content.amtrak.com/content/gtfs/GTFS.zip) for scheduled routes/stations; [Amtraker](https://amtraker.com) community API for live trains | built snapshot + 90 s |
 | Aircraft and air services | [ADSB.lol](https://api.adsb.lol/) with [adsb.fi](https://adsb.fi/) failover; 11 optional official Cape Air/Tradewind schedules and Penobscot Island Air on-demand corridors | 45 s + built snapshot |
@@ -46,14 +47,21 @@ private, repositioning, and irregular flights may not have an itinerary.
 
 ## Regional transit coverage
 
-The checked-in route snapshot contains 1,098 bus, commuter-rail, Amtrak,
-ferry, passenger-boat, and air-service route features plus 53 New England
-Amtrak stations, assembled from 70 GTFS sources and 85 official-service
-corridors. Scheduled
+The checked-in route snapshot contains more than 1,100 bus, commuter-rail,
+Amtrak, ferry, passenger-boat, and air-service route features plus more than
+38,000 scheduled bus stops, ferry landings, T stops, and rail stations,
+assembled from 72 GTFS sources and 88 official-service corridors. Scheduled
 routes remain visible when an operator publishes no live positions. State
 views start with the scheduled bus layer on,
 and the sidebar reports scheduled route counts separately from live vehicles,
 so a missing realtime credential no longer makes service look absent.
+Rail and T stops are visible first, named ferry landings appear at harbor
+zoom, and tiny collision-aware bus-stop labels appear only at close street
+zoom. Every stop opens a source-attributed popup with its routes and published
+accessibility information. The default Greater Boston filter is a practical
+MBTA inner core: Boston, Cambridge, Somerville, Brookline, Newton, Quincy,
+Braintree, Chelsea, Everett, Revere, Malden, Medford, Arlington, Belmont,
+Watertown, Milton, and Winthrop.
 Metro-North's New Haven, New Canaan, Danbury, and Waterbury lines are included
 in Connecticut; connected routes are allowed to continue outside the selected
 boundary so riders can see the full trip into New York City.
@@ -101,9 +109,11 @@ line as an approximate water path rather than a live vessel track. AIS may add
 a live marker only when a vessel is independently broadcasting and received by
 the configured provider. Every generated ferry path is audited against the
 full-resolution GSHHG shoreline hierarchy and Census TIGERweb areal
-hydrography. All ferry coordinate fingerprints are locked by the geometry
-check, so a feed update or manual edit cannot silently restore an over-land
-ocean, lake, harbor, or river chord.
+hydrography. Interior dry runs longer than roughly 20–28 metres and terminal
+dry runs longer than roughly 95–133 metres fail the strict audit. Every route
+must also resolve to at least two named landing points, and all ferry coordinate
+fingerprints are locked by the geometry check, so a feed update or manual edit
+cannot silently restore an over-land ocean, lake, harbor, or river chord.
 The active MBTA `Boat-Lynn` feed supplies Lynn–Boston service directly, while
 the seasonal Salem–Boston Long Wharf service is retained as an explicit
 official-schedule corridor so it remains visible without live vessel data.
@@ -159,8 +169,19 @@ Rebuild the static route snapshot after agencies update their schedules:
 
 ```powershell
 py -3 -X utf8 scripts\build-regional-routes.py
+py -3 -X utf8 scripts\build-regions.py
 py -3 -X utf8 scripts\build-airports.py
 py -3 -X utf8 scripts\build-border-crossings.py
+```
+
+The ferry audit fetches only current Census hydrography tiles touching ferry
+corridors. Pair that output with the full-resolution GSHHG shapefiles, then run
+the read-only audit and write its reviewed geometry manifest only after it
+passes:
+
+```powershell
+py -3 -X utf8 scripts\fetch-ferry-audit-data.py
+py -3 -X utf8 scripts\audit-ferry-water.py --gshhg-dir <GSHHS_shp\f> --gshhg-cache <gshhg-ne.pkl> --hydro .codex-research\water-audit\tigerweb-hydro-ne.geojson --write-manifest
 ```
 
 Normal rebuilds make no road-router requests: that portion uses the checked-in

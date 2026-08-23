@@ -7,7 +7,10 @@ import {
   configureGateway,
   fleetCountsForRegion,
   initMap,
+  loadReferenceData,
+  referenceCountsForRegion,
   scheduledRouteCountsForRegion,
+  scheduledStationCountsForRegion,
   setRegion,
   setRouteShapes,
   setVisibleGroups,
@@ -74,6 +77,8 @@ async function main() {
   const changeRegion = (region) => {
     setRegion(region);
     ui.setScheduledCounts(scheduledRouteCountsForRegion());
+    ui.setStationCounts(scheduledStationCountsForRegion());
+    ui.setReferenceCounts(referenceCountsForRegion());
     for (const [source, counts] of Object.entries(fleetCountsForRegion())) {
       ui.replaceCounts(counts, source);
     }
@@ -93,6 +98,7 @@ async function main() {
   await initMap();
   setRegion(selectedRegion);
   setVisibleGroups(ui.getVisibleGroups(), ui.getVisibleStatuses());
+  loadReferenceData().then((counts) => ui.setReferenceCounts(counts));
 
   // Listeners registered before polling starts so the first tick lands in the UI.
   onStats(ui.updateStats);
@@ -146,6 +152,7 @@ async function main() {
       features: routeFeatureSets.flat(),
     });
     ui.setScheduledCounts(scheduledRouteCountsForRegion());
+    ui.setStationCounts(scheduledStationCountsForRegion());
     setVisibleGroups(ui.getVisibleGroups(), ui.getVisibleStatuses());
   };
   await Promise.allSettled([

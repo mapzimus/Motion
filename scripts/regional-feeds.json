@@ -1,10 +1,10 @@
 [
   {"id":"amtrak","agency":"Amtrak","states":["ct","ma","me","nh","ri","vt","ny"],"url":"https://content.amtrak.com/content/gtfs/GTFS.zip","source_url":"https://www.amtrak.com/regions/northeast","route_name_pattern":"^(Acela|Amtrak Hartford Line|Downeaster|Ethan Allen Express|Lake Shore Limited|Northeast Regional|Valley Flyer|Vermonter)$","route_name_field":"route_long_name","group_override":"amtrak","group_color":"#5b9bd5","provider":"Amtrak official static GTFS","use_route_urls":true,"include_stations":true,"shape_only":true,"require_region_match":true,"record_feed_info":true,"required":true},
   {"id":"cttransit","agency":"CTtransit","states":["ct"],"url":"https://files.mobilitydatabase.org/mdb-553/latest.zip"},
-  {"id":"hartford-line","agency":"Hartford Line","states":["ct"],"url":"https://files.mobilitydatabase.org/mdb-2840/latest.zip"},
+  {"id":"hartford-line","agency":"Hartford Line","states":["ct"],"url":"https://files.mobilitydatabase.org/mdb-2840/latest.zip","include_stations":true},
   {"id":"greater-bridgeport","agency":"Greater Bridgeport Transit","states":["ct"],"url":"https://files.mobilitydatabase.org/mdb-530/latest.zip"},
   {"id":"hart","agency":"HARTransit","states":["ct"],"url":"https://files.mobilitydatabase.org/tld-4385/latest.zip"},
-  {"id":"metro-north","agency":"Metro-North Railroad","states":["ct"],"url":"https://rrgtfsfeeds.s3.amazonaws.com/gtfsmnr.zip","route_name_pattern":"New Haven|New Canaan|Danbury|Waterbury","color":"#0070c0"},
+  {"id":"metro-north","agency":"Metro-North Railroad","states":["ct"],"url":"https://rrgtfsfeeds.s3.amazonaws.com/gtfsmnr.zip","route_name_pattern":"New Haven|New Canaan|Danbury|Waterbury","group_color":"#0070c0","include_stations":true},
   {"id":"river-valley","agency":"River Valley Transit","states":["ct"],"url":"https://files.mobilitydatabase.org/tld-5750/latest.zip"},
   {"id":"norwalk","agency":"Norwalk Transit District","states":["ct"],"url":"https://files.mobilitydatabase.org/mdb-2242/latest.zip"},
   {"id":"milford","agency":"Milford Transit District","states":["ct"],"url":"https://files.mobilitydatabase.org/ntd-10107/latest.zip"},
@@ -47,11 +47,13 @@
 
   {"id":"ripta","agency":"Rhode Island Public Transit Authority","states":["ri","ma"],"url":"https://files.mobilitydatabase.org/mdb-624/latest.zip"},
 
+  {"id":"mbta-stations","agency":"MBTA","states":["ma","ri"],"url":"https://cdn.mbta.com/MBTA_GTFS.zip","source_url":"https://www.mbta.com/schedules","provider":"MBTA official static GTFS","include_stations":true,"stations_only":true,"station_group_by_route":{"Red":"red","Orange":"orange","Blue":"blue","Green-B":"green","Green-C":"green","Green-D":"green","Green-E":"green","Mattapan":"mattapan","741":"silver","742":"silver","743":"silver","746":"silver","749":"silver","751":"silver"},"station_color_by_group":{"red":"#da291c","orange":"#ed8b00","blue":"#003da5","green":"#00843d","mattapan":"#da291c","silver":"#7c878e","commuter":"#8b5ca6","bus":"#f2b84b","ferry":"#2eb7c5"}},
   {"id":"advance-transit","agency":"Advance Transit","states":["nh","vt"],"url":"https://files.mobilitydatabase.org/mdb-631/latest.zip"},
   {"id":"coast","agency":"COAST","states":["nh","me"],"url":"https://files.mobilitydatabase.org/tld-4668/latest.zip"},
   {"id":"manchester","agency":"Manchester Transit Authority","states":["nh"],"url":"https://files.mobilitydatabase.org/mdb-3432/latest.zip"},
   {"id":"nashua","agency":"Nashua Transit System","states":["nh","ma"],"url":"https://files.mobilitydatabase.org/ntd-10087/latest.zip"},
   {"id":"city-express","agency":"City Express","states":["nh"],"url":"https://files.mobilitydatabase.org/ntd-10159/latest.zip"},
+  {"id":"unh-wildcat","agency":"UNH Wildcat Transit","states":["nh","me"],"url":"https://rapid.nationalrtap.org/GTFSFileManagement/UserUploadFiles/11637/google_transit.zip","source_url":"https://www.unh.edu/transportation/buses-shuttles/wildcat-transit-routes-stops","provider":"University of New Hampshire official static GTFS"},
   {"id":"dartmouth-college","agency":"Dartmouth College shuttles","states":["nh","vt"],"url":"https://files.mobilitydatabase.org/mdb-1958/latest.zip","source_url":"https://www.dartmouth.edu/transportation/"},
 
   {"id":"gmt","agency":"Green Mountain Transit","states":["vt"],"url":"https://files.mobilitydatabase.org/mdb-629/latest.zip"},

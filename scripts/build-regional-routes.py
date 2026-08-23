@@ -30,6 +30,7 @@ SUPPLEMENTAL_PATHS = (
     ROOT / "scripts" / "supplemental-ferry-routes.json",
     ROOT / "scripts" / "supplemental-air-routes.json",
 )
+FERRY_ROUTE_OVERRIDES_PATH = ROOT / "scripts" / "ferry-route-overrides.json"
 ROAD_ROUTE_CACHE_PATH = ROOT / "scripts" / "road-route-cache.json"
 ROAD_ROUTE_CONTROLS_PATH = ROOT / "scripts" / "road-route-controls.json"
 BOUNDARIES_PATH = ROOT / "data" / "regions.geojson"
@@ -44,6 +45,18 @@ ROAD_ROUTING_VERSION = "osrm-driving-bus-controls-v4"
 MAX_ROAD_DETOUR_RATIO = 1.6
 MAX_ROAD_DETOUR_ALLOWANCE_KM = 5.0
 ROAD_GEOMETRY_NOTE = "Approximate road-following path from published stops; the carrier may use a different roadway."
+RAIL_GEOMETRY_NOTE = "Approximate rail-following controls replace a sparse provider-shape gap."
+RAIL_SEGMENT_CONTROLS = {
+    "metro-north:6": {
+        ((-73.18708, 41.17868), (-73.54285, 41.04661)): [
+            (-73.18708, 41.17868),
+            (-73.2647, 41.1430),
+            (-73.3713, 41.1180),
+            (-73.4219, 41.0960),
+            (-73.54285, 41.04661),
+        ],
+    },
+}
 RESTRICTED_BUS_ROAD_PATTERN = re.compile(
     r"\b(?:Merritt|Wilbur Cross|Hutchinson River|Saw Mill River|Henry Hudson|Mosholu|"
     r"Palisades Interstate|Taconic State|Bronx River|Belt|Cross Island|Jackie Robinson|"
@@ -53,7 +66,9 @@ RESTRICTED_BUS_ROAD_PATTERN = re.compile(
     re.I,
 )
 RESTRICTED_BUS_REF_PATTERN = re.compile(r"(?:^|[;,\s])CT[- ]?15(?:$|[;,\s])", re.I)
-GROUP_BY_ROUTE_TYPE = {2: "commuter", 3: "bus", 4: "ferry"}
+# Route types 0/1 are included for station-only feeds (notably the MBTA rapid
+# transit network); per-route station mappings assign their branded line group.
+GROUP_BY_ROUTE_TYPE = {0: "commuter", 1: "commuter", 2: "commuter", 3: "bus", 4: "ferry"}
 MODE_COLORS = {2: "#a58add", 3: "#f2b84b", 4: "#2eb7c5"}
 GROUP_COLORS = {"amtrak": "#5b9bd5"}
 
@@ -177,6 +192,25 @@ def simplify_bus_path(points):
     left = simplify_bus_path(points[: index + 1])
     right = simplify_bus_path(points[index:])
     return left[:-1] + right
+
+
+def apply_rail_segment_controls(points, route_key):
+    controls = RAIL_SEGMENT_CONTROLS.get(route_key, {})
+    if not controls:
+        return points, False
+    expanded = [points[0]]
+    changed = False
+    for start, end in zip(points, points[1:]):
+        replacement = controls.get((start, end))
+        if replacement is None:
+            reverse = controls.get((end, start))
+            replacement = list(reversed(reverse)) if reverse else None
+        if replacement:
+            expanded.extend(replacement[1:])
+            changed = True
+        else:
+            expanded.append(end)
+    return expanded, changed
 
 
 def road_loop_metrics(points):
@@ -645,8 +679,8 @@ def station_features(
     included_route_ids,
     region_geometries,
 ):
-    """Build scheduled station points for feeds that explicitly opt in."""
-    if not feed.get("include_stations") or not included_route_ids:
+    """Build scheduled stops, grouped by the modes that serve each location."""
+    if feed.get("include_stations", True) is False or not included_route_ids:
         return []
 
     route_by_trip = {
@@ -662,12 +696,21 @@ def station_features(
             routes_by_stop[stop_id].add(route_id)
 
     stops = {row.get("stop_id"): row for row in read_rows(archive, "stops.txt") if row.get("stop_id")}
+    routes_by_station = defaultdict(set)
+    platforms_by_station = defaultdict(set)
+    for stop_id, route_ids in routes_by_stop.items():
+        stop = stops.get(stop_id) or {}
+        station_id = (stop.get("parent_station") or stop_id).strip()
+        routes_by_station[station_id].update(route_ids)
+        platforms_by_station[station_id].add(stop_id)
     features = []
-    group = feed.get("group_override")
-    color = feed.get("group_color") or GROUP_COLORS.get(group, "#8a949f")
+    station_group_by_route = feed.get("station_group_by_route", {})
+    station_color_by_group = feed.get("station_color_by_group", {})
     region_order = ("ct", "ma", "me", "nh", "ri", "vt", "boston")
-    for stop_id, route_ids in sorted(routes_by_stop.items()):
-        stop = stops.get(stop_id)
+    for station_id, route_ids in sorted(routes_by_station.items()):
+        stop = stops.get(station_id)
+        if not stop:
+            stop = next((stops.get(child_id) for child_id in platforms_by_station[station_id] if stops.get(child_id)), None)
         if not stop:
             continue
         try:
@@ -680,27 +723,102 @@ def station_features(
         ]
         if not regions:
             continue
-        route_names = sorted({route_label(selected_routes[route_id]) for route_id in route_ids})
-        stop_code = (stop.get("stop_code") or stop_id).strip()
-        features.append({
-            "type": "Feature",
-            "geometry": {"type": "Point", "coordinates": [round(point[0], 6), round(point[1], 6)]},
-            "properties": {
-                "group": group,
-                "color": color,
-                "kind": "regional-station",
-                "dataStatus": "scheduled",
-                "title": stop.get("stop_name") or f"{feed['agency']} station",
-                "status": f"{feed['agency']} station · {stop_code}",
-                "details": "Routes: " + ", ".join(route_names),
-                "stationCode": stop_code,
-                "routeIds": [f"{feed['id']}:{route_id}" for route_id in sorted(route_ids)],
-                "provider": feed.get("provider") or "Agency schedule · GTFS",
-                "sourceUrl": source_url(stop.get("stop_url"), feed.get("source_url")),
-                "regions": regions,
-            },
-        })
+        stop_code = (stop.get("stop_code") or station_id).strip()
+        wheelchair_value = (stop.get("wheelchair_boarding") or "0").strip()
+        accessibility = {
+            "1": "Wheelchair boarding indicated",
+            "2": "Wheelchair boarding not indicated",
+        }.get(wheelchair_value, "Accessibility information not published")
+        platform_count = len(platforms_by_station[station_id])
+        route_ids_by_group = defaultdict(set)
+        for route_id in route_ids:
+            route = selected_routes.get(route_id)
+            if not route:
+                continue
+            group = station_group_by_route.get(route_id) or feature_group(
+                feed,
+                effective_route_type(feed, route),
+            )
+            route_ids_by_group[group].add(route_id)
+        for group, grouped_route_ids in sorted(route_ids_by_group.items()):
+            route_names = sorted({route_label(selected_routes[route_id]) for route_id in grouped_route_ids})
+            color = (
+                station_color_by_group.get(group)
+                or feed.get("group_color")
+                or GROUP_COLORS.get(group, "#8a949f")
+            )
+            place_kind = "landing" if group == "ferry" else "station" if group in {"commuter", "amtrak", "red", "orange", "blue", "green", "mattapan", "silver"} else "stop"
+            features.append({
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": [round(point[0], 6), round(point[1], 6)]},
+                "properties": {
+                    "group": group,
+                    "color": color,
+                    "kind": "regional-station",
+                    "stopKind": place_kind,
+                    "dataStatus": "scheduled",
+                    "title": stop.get("stop_name") or f"{feed['agency']} {place_kind}",
+                    "status": f"{feed['agency']} {place_kind} · {stop_code}",
+                    "details": "Routes: " + ", ".join(route_names) + f" · {accessibility}",
+                    "stationCode": stop_code,
+                    "wheelchairBoarding": wheelchair_value,
+                    "platformCount": platform_count,
+                    "routeIds": [f"{feed['id']}:{route_id}" for route_id in sorted(grouped_route_ids)],
+                    "provider": feed.get("provider") or "Agency schedule · GTFS",
+                    "sourceUrl": source_url(stop.get("stop_url"), feed.get("source_url")),
+                    "regions": regions,
+                },
+            })
     return features
+
+
+def supplemental_ferry_stop_features(features):
+    """Create named landing points from every checked-in ferry path endpoint."""
+    stops_by_coordinate = {}
+    for feature in features:
+        properties = feature.get("properties", {})
+        if properties.get("group") != "ferry":
+            continue
+        geometry = feature.get("geometry", {})
+        paths = geometry.get("coordinates", [])
+        if geometry.get("type") == "LineString":
+            paths = [paths]
+        names = [part.strip(" ,") for part in re.split(r"\s*[↔→]\s*", properties.get("name", "")) if part.strip(" ,")]
+        for path_index, path in enumerate(paths):
+            if len(path) < 2:
+                continue
+            endpoints = ((path[0], names[0] if names else "Origin"), (path[-1], names[-1] if len(names) > 1 else "Destination"))
+            for endpoint_index, (coordinate, endpoint_name) in enumerate(endpoints):
+                title = endpoint_name if re.search(r"\b(?:ferry|landing|terminal|wharf|pier|dock)\b", endpoint_name, re.I) else f"{endpoint_name} ferry landing"
+                dedupe_key = (round(float(coordinate[0]), 4), round(float(coordinate[1]), 4))
+                route_id = properties.get("route", "ferry")
+                if dedupe_key in stops_by_coordinate:
+                    existing = stops_by_coordinate[dedupe_key]["properties"]
+                    if route_id not in existing["routeIds"]:
+                        existing["routeIds"].append(route_id)
+                        existing["details"] += f" · Also serves {properties.get('name', route_id)}"
+                    continue
+                stops_by_coordinate[dedupe_key] = {
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": [round(float(coordinate[0]), 6), round(float(coordinate[1]), 6)]},
+                    "properties": {
+                        "group": "ferry",
+                        "color": MODE_COLORS[4],
+                        "kind": "regional-station",
+                        "stopKind": "landing",
+                        "dataStatus": properties.get("dataStatus", "scheduled"),
+                        "title": title,
+                        "status": f"{properties.get('agency', 'Ferry')} landing",
+                        "details": f"Endpoint for {properties.get('name', 'scheduled ferry route')}",
+                        "stationCode": f"{properties.get('route', 'ferry')}:{path_index}:{endpoint_index}",
+                        "platformCount": 1,
+                        "routeIds": [route_id],
+                        "provider": properties.get("provider", "Official carrier schedule"),
+                        "sourceUrl": properties.get("sourceUrl", ""),
+                        "regions": properties.get("regions", []),
+                    },
+                }
+    return list(stops_by_coordinate.values())
 
 
 def process_feed(
@@ -719,6 +837,7 @@ def process_feed(
         write_mnr_stops(archive)
     routes = {row.get("route_id"): row for row in read_rows(archive, "routes.txt") if row.get("route_id")}
     pattern = re.compile(feed["route_name_pattern"], re.I) if feed.get("route_name_pattern") else None
+    route_id_pattern = re.compile(feed["route_id_pattern"], re.I) if feed.get("route_id_pattern") else None
     selected_routes = {}
     for route_id, route in routes.items():
         try:
@@ -726,6 +845,10 @@ def process_feed(
         except ValueError:
             continue
         if route_type not in GROUP_BY_ROUTE_TYPE:
+            continue
+        if feed.get("route_type_filter") is not None and route_type != int(feed["route_type_filter"]):
+            continue
+        if route_id_pattern and not route_id_pattern.search(route_id):
             continue
         match_value = route.get(feed.get("route_name_field"), "") if feed.get("route_name_field") else route_label(route)
         if pattern and not pattern.search(match_value or ""):
@@ -776,6 +899,7 @@ def process_feed(
     paths_by_route = defaultdict(list)
     route_regions = defaultdict(set)
     approximate_routes = set()
+    approximate_rail_routes = set()
     for route_id, source_points in geometries:
         for points in contiguous_valid_runs(source_points):
             source_path_regions = {
@@ -802,6 +926,14 @@ def process_feed(
                     refresh_road_cache,
                     routing_state,
                 )
+            elif route_type == 2:
+                controlled, rail_changed = apply_rail_segment_controls(
+                    points,
+                    f"{feed['id']}:{route_id}",
+                )
+                routed_paths = [controlled]
+                if rail_changed:
+                    approximate_rail_routes.add(route_id)
             if repair_count:
                 approximate_routes.add(route_id)
             for routed_points in routed_paths:
@@ -840,16 +972,22 @@ def process_feed(
             properties["geometryProvider"] = "OpenStreetMap / Project OSRM"
             properties["geometryNote"] = ROAD_GEOMETRY_NOTE
             properties["scheduleNote"] += f" · {ROAD_GEOMETRY_NOTE}"
+        elif route_id in approximate_rail_routes:
+            properties["geometryAccuracy"] = "approximate"
+            properties["geometryProvider"] = "Reviewed rail corridor controls"
+            properties["geometryNote"] = RAIL_GEOMETRY_NOTE
+            properties["scheduleNote"] += f" · {RAIL_GEOMETRY_NOTE}"
         route_url = route.get("route_url") if feed.get("use_route_urls") else None
         properties["sourceUrl"] = source_url(
             route_url,
             feed.get("source_url") or "https://mobilitydatabase.org/",
         )
-        features.append({
-            "type": "Feature",
-            "geometry": {"type": "MultiLineString", "coordinates": paths},
-            "properties": properties,
-        })
+        if not feed.get("stations_only"):
+            features.append({
+                "type": "Feature",
+                "geometry": {"type": "MultiLineString", "coordinates": paths},
+                "properties": properties,
+            })
     features.extend(station_features(
         archive,
         feed,
@@ -923,6 +1061,27 @@ def main(update_road_cache=False, refresh_road_cache=False):
             if feed.get("required"):
                 raise RuntimeError(f"Required feed {feed['agency']} failed; existing snapshot was preserved") from error
 
+    ferry_overrides = json.loads(FERRY_ROUTE_OVERRIDES_PATH.read_text(encoding="utf-8"))
+    override_by_route = {
+        feature["properties"]["route"]: feature["geometry"]
+        for feature in ferry_overrides.get("features", [])
+    }
+    applied_overrides = set()
+    for feature in all_features:
+        identifier = feature.get("properties", {}).get("route")
+        if identifier not in override_by_route:
+            continue
+        feature["geometry"] = json.loads(json.dumps(override_by_route[identifier]))
+        feature["properties"]["geometryAccuracy"] = "approximate"
+        feature["properties"]["geometryProvider"] = "Project shoreline audit"
+        feature["properties"]["geometryNote"] = (
+            "Provider shape replaced by a full-resolution shoreline-audited water path."
+        )
+        applied_overrides.add(identifier)
+    missing_overrides = set(override_by_route) - applied_overrides
+    if missing_overrides:
+        raise RuntimeError(f"Ferry route overrides did not match generated routes: {sorted(missing_overrides)}")
+
     supplemental_features = []
     supplemental_sources = []
     for supplemental_path in SUPPLEMENTAL_PATHS:
@@ -987,12 +1146,15 @@ def main(update_road_cache=False, refresh_road_cache=False):
             "plane": "#9be1ff",
         }.get(feature["properties"].get("group"), "#8a949f")
         feature["properties"].setdefault("provider", "Official carrier schedule")
+    supplemental_stops = supplemental_ferry_stop_features(supplemental_features)
     all_features.extend(supplemental_features)
+    all_features.extend(supplemental_stops)
     successes.append({
         "id": "supplemental-official-schedules",
         "agency": "Official schedule corridors without usable GTFS",
         "routes": len(supplemental_features),
-        "features": len(supplemental_features),
+        "features": len(supplemental_features) + len(supplemental_stops),
+        "stops": len(supplemental_stops),
         "files": supplemental_sources,
     })
 
@@ -1040,6 +1202,7 @@ def main(update_road_cache=False, refresh_road_cache=False):
             "roadGeometryRoutingVersion": ROAD_ROUTING_VERSION,
             "roadGeometryControlsSha256": controls_sha256,
             "roadGeometryCacheSha256": road_cache_sha256,
+            "ferryRouteOverrides": sorted(applied_overrides),
         },
         "features": all_features,
     }

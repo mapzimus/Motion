@@ -2,7 +2,7 @@
 // generalized Census TIGERweb 2025 features checked into data/regions.geojson.
 
 export const REGIONS = [
-  { key: 'boston', name: 'Boston only' },
+  { key: 'boston', name: 'Greater Boston / MBTA core' },
   { key: 'ma', name: 'Massachusetts' },
   { key: 'ct', name: 'Connecticut' },
   { key: 'ri', name: 'Rhode Island' },

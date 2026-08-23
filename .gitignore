@@ -1,6 +1,7 @@
 node_modules/
 __pycache__/
 .wrangler/
+.codex-research/
 .vercel/
 .dev.vars
 .dev.vars.*

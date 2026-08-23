@@ -18,9 +18,16 @@ const statusState = new Map([
   ['reference', true],
 ]);
 let scheduledCounts = new Map();
+let stationCounts = new Map();
+let referenceCounts = new Map();
 let onVisibleChange = () => {};
 let onRegionChange = () => {};
 let status = { state: 'connecting', lastUpdate: null, retryAtMs: null, message: '' };
+
+function setPanelOpen(open) {
+  document.body.classList.toggle('panel-open', open);
+  el('panel-toggle')?.setAttribute('aria-expanded', String(open));
+}
 
 // Layer groups are built at init because route membership and colors come from
 // the API (e.g. "every type-3 route that isn't Silver Line" = the bus group).
@@ -78,6 +85,37 @@ function applyRegionDefaults(region) {
   emitVisible();
 }
 
+function setGroupChecked(group, checked, manual = false) {
+  if (!group || group.needsKey) return;
+  groupState.set(group.key, checked);
+  const input = rowInput(group.key);
+  if (input) input.checked = checked;
+  if (manual) manualGroupOverrides.add(group.key);
+}
+
+function applyLayerPreset(preset) {
+  const region = getRegion();
+  if (preset === 'default') {
+    manualGroupOverrides.clear();
+    for (const group of GROUPS) setGroupChecked(group, groupStartsOn(group, region));
+    for (const [key] of statusState) statusState.set(key, true);
+  } else if (preset === 'routes') {
+    const routeGroups = new Set(['commuter', 'bus', 'amtrak', 'ferry']);
+    if (['boston', 'ma', 'new-england'].includes(region)) {
+      for (const key of ['red', 'orange', 'green', 'blue', 'silver', 'mattapan']) routeGroups.add(key);
+    }
+    for (const group of GROUPS) setGroupChecked(group, routeGroups.has(group.key), true);
+    for (const [key] of statusState) statusState.set(key, key !== 'reference');
+  } else if (preset === 'clear') {
+    for (const group of GROUPS) setGroupChecked(group, false, true);
+  }
+  for (const input of document.querySelectorAll('#data-status-filters input')) {
+    input.checked = statusState.get(input.value);
+  }
+  syncMaster();
+  emitVisible();
+}
+
 /*
  * TODO(Max) — YOUR CALL: how should a vehicle's status read in its popup?
  *
@@ -121,7 +159,7 @@ export function initPanel(routeInfo, visibleChangeHandler, regionChangeHandler, 
     applyRegionDefaults(regionSelect.value);
     onRegionChange(regionSelect.value);
     if (window.matchMedia('(max-width: 760px)').matches) {
-      document.body.classList.remove('panel-open');
+      setPanelOpen(false);
     }
   });
 
@@ -178,19 +216,34 @@ export function initPanel(routeInfo, visibleChangeHandler, regionChangeHandler, 
         }
         const flew = await focusGroup(group.key, group.routes);
         if (flew && window.matchMedia('(max-width: 760px)').matches) {
-          document.body.classList.remove('panel-open');
+          setPanelOpen(false);
         }
       });
     }
     const container = el(group.section === 'subway' ? 'layer-rows' : 'modal-rows');
     if (group.section !== 'subway' && group.section !== lastSection) {
-      const heading = document.createElement('div');
+      const heading = document.createElement('button');
+      heading.type = 'button';
       heading.className = 'layer-subhead';
-      heading.textContent = group.sectionName ?? group.section;
+      heading.dataset.section = group.section;
+      heading.setAttribute('aria-expanded', 'true');
+      heading.innerHTML = `<span>${group.sectionName ?? group.section}</span><span class="section-chevron" aria-hidden="true">⌄</span>`;
+      heading.addEventListener('click', () => {
+        const expanded = heading.getAttribute('aria-expanded') === 'true';
+        heading.setAttribute('aria-expanded', String(!expanded));
+        for (const sectionRow of container.querySelectorAll(`.line-row[data-section="${group.section}"]`)) {
+          sectionRow.hidden = expanded;
+        }
+      });
       container.appendChild(heading);
       lastSection = group.section;
     }
+    row.dataset.section = group.section;
     container.appendChild(row);
+  }
+
+  for (const button of document.querySelectorAll('[data-layer-preset]')) {
+    button.addEventListener('click', () => applyLayerPreset(button.dataset.layerPreset));
   }
 
   el('subway-master').addEventListener('change', (e) => {
@@ -202,19 +255,29 @@ export function initPanel(routeInfo, visibleChangeHandler, regionChangeHandler, 
   });
 
   el('panel-toggle').addEventListener('click', () => {
-    document.body.classList.toggle('panel-open');
+    setPanelOpen(!document.body.classList.contains('panel-open'));
   });
 
   setInterval(renderStatus, 1000);
+  renderRegionAvailability(selectedRegion);
   emitVisible();
 }
 
 function renderRegionCopy(key) {
-  const name = REGIONS.find((region) => region.key === key)?.name ?? 'Boston only';
-  el('region-eyebrow').textContent = `${name.replace(' only', '').toUpperCase()} · REAL-TIME TELEMETRY`;
+  const name = REGIONS.find((region) => region.key === key)?.name ?? 'Greater Boston / MBTA core';
+  el('region-eyebrow').textContent = `${name.toUpperCase()} · REAL-TIME TELEMETRY`;
   el('region-tagline').textContent = key === 'boston'
-    ? 'Boston selected. Switch to any state or all New England.'
+    ? 'Greater Boston selected: Boston plus the MBTA inner core. Switch to any state or all New England.'
     : `${name} selected. Live points outside this boundary are hidden.`;
+  renderRegionAvailability(key);
+}
+
+function renderRegionAvailability(key) {
+  const showSubway = ['boston', 'ma', 'new-england'].includes(key);
+  el('subway-master')?.closest('.master-row')?.classList.toggle('region-hidden', !showSubway);
+  for (const group of GROUPS.filter((item) => item.section === 'subway')) {
+    document.querySelector(`.line-row[data-key="${group.key}"]`)?.classList.toggle('region-hidden', !showSubway);
+  }
 }
 
 export function getRegion() {
@@ -262,20 +325,43 @@ export function setScheduledCounts(partialByGroup) {
   renderCounts();
 }
 
+export function setStationCounts(partialByGroup) {
+  stationCounts = new Map(Object.entries(partialByGroup));
+  renderCounts();
+}
+
+export function setReferenceCounts(partialByGroup) {
+  referenceCounts = new Map(Object.entries(partialByGroup));
+  renderCounts();
+}
+
+function liveCountForGroup(key) {
+  const values = [...countsBySource.values()]
+    .map((sourceMap) => sourceMap.get(key))
+    .filter((value) => value !== null && value !== undefined);
+  return values.length ? values.reduce((sum, value) => sum + value, 0) : null;
+}
+
 function renderCounts() {
   for (const group of GROUPS) {
     const cell = document.querySelector(
       `.line-row[data-key="${group.key}"] [data-count]`,
     );
     if (!cell) continue;
-    const values = [...countsBySource.values()]
-      .map((sourceMap) => sourceMap.get(group.key))
-      .filter((value) => value !== null && value !== undefined);
-    const live = values.length ? values.reduce((sum, value) => sum + value, 0) : null;
+    const live = liveCountForGroup(group.key);
     const scheduled = scheduledCounts.get(group.key) ?? 0;
-    if (scheduled) {
-      cell.textContent = live ? `${live} live · ${scheduled}r` : `${scheduled} routes`;
-      cell.title = `${live ?? 0} live vehicle${live === 1 ? '' : 's'} · ${scheduled} scheduled route${scheduled === 1 ? '' : 's'}`;
+    const stations = stationCounts.get(group.key) ?? 0;
+    const references = referenceCounts.get(group.key) ?? 0;
+    const secondary = [
+      scheduled ? `${scheduled} route${scheduled === 1 ? '' : 's'}` : '',
+      stations ? `${stations} stop${stations === 1 ? '' : 's'}` : '',
+    ].filter(Boolean).join(' · ');
+    if (secondary) {
+      cell.innerHTML = `${live ? `<strong>${live} live</strong>` : ''}<small>${secondary}</small>`;
+      cell.title = `${live ?? 0} live vehicle${live === 1 ? '' : 's'} · ${secondary}`;
+    } else if (references) {
+      cell.innerHTML = `<strong>${references}</strong><small>mapped</small>`;
+      cell.title = `${references} mapped reference feature${references === 1 ? '' : 's'}`;
     } else {
       cell.textContent = live ?? '–';
       cell.removeAttribute('title');
@@ -283,6 +369,7 @@ function renderCounts() {
   }
   hideOverlay();
   renderStatus();
+  renderOverviewStats();
 }
 
 // The MBTA poller is the app's heartbeat: it stamps lastUpdate.
@@ -306,6 +393,14 @@ function totalCount() {
     );
     return total + groupTotal;
   }, 0);
+}
+
+function renderOverviewStats() {
+  const set = (id, value) => { if (el(id)) el(id).textContent = value.toLocaleString(); };
+  set('stat-live', totalCount());
+  set('stat-routes', [...scheduledCounts.values()].reduce((sum, value) => sum + value, 0));
+  set('stat-stations', [...stationCounts.values()].reduce((sum, value) => sum + value, 0));
+  set('stat-reference', [...referenceCounts.values()].reduce((sum, value) => sum + value, 0));
 }
 
 function renderStatus() {
@@ -399,7 +494,7 @@ export function renderAlerts(alerts) {
       const go = () => {
         const flew = focusAlert(a);
         if (flew && window.matchMedia('(max-width: 760px)').matches) {
-          document.body.classList.remove('panel-open');
+          setPanelOpen(false);
         }
       };
       button.addEventListener('click', go);

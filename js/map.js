@@ -21,6 +21,7 @@ const FLEETS = ['bike', 'vessel', 'amtrak', 'regional', 'mnr', 'mbta', 'plane'];
 // mode gets its own silhouette so it reads at first glance.
 const RAIL_GROUPS = ['red', 'orange', 'green', 'blue', 'silver', 'mattapan', 'commuter', 'amtrak'];
 const ICON_GROUPS = ['bus', 'ferry', 'plane', 'vessel', 'bike'];
+const STOP_POINT_LAYERS = ['scheduled-stations', 'scheduled-ferry-stops', 'scheduled-bus-stops'];
 
 export let map;
 let routeShapesFC = EMPTY_FC; // kept for alert-focus bounds math
@@ -467,17 +468,172 @@ function setupLayers() {
     },
   });
   map.addLayer({
+    id: 'scheduled-station-halo',
+    type: 'circle',
+    source: 'route-shapes',
+    filter: [
+      'all',
+      ['==', ['get', 'kind'], 'regional-station'],
+      ['in', ['get', 'group'], ['literal', RAIL_GROUPS]],
+    ],
+    paint: {
+      'circle-color': ['get', 'color'],
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 5.5, 10, 9, 14, 14],
+      'circle-opacity': 0.16,
+      'circle-blur': 0.55,
+    },
+  });
+  map.addLayer({
     id: 'scheduled-stations',
     type: 'circle',
     source: 'route-shapes',
-    filter: ['==', ['get', 'kind'], 'regional-station'],
+    filter: [
+      'all',
+      ['==', ['get', 'kind'], 'regional-station'],
+      ['in', ['get', 'group'], ['literal', RAIL_GROUPS]],
+    ],
     paint: {
       'circle-color': ['get', 'color'],
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 2.2, 10, 4.2, 14, 7],
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 3.2, 10, 5.4, 14, 8],
       'circle-stroke-color': '#f4f6f8',
       'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 5, 0.7, 14, 1.8],
       'circle-opacity': 0.9,
       'circle-stroke-opacity': 0.9,
+    },
+  });
+  map.addLayer({
+    id: 'scheduled-station-labels',
+    type: 'symbol',
+    source: 'route-shapes',
+    minzoom: 8,
+    maxzoom: 14,
+    filter: [
+      'all',
+      ['==', ['get', 'kind'], 'regional-station'],
+      ['in', ['get', 'group'], ['literal', RAIL_GROUPS]],
+    ],
+    layout: {
+      'text-field': ['get', 'title'],
+      'text-size': ['interpolate', ['linear'], ['zoom'], 8, 9, 13, 11.5],
+      'text-offset': [0, 1.15],
+      'text-anchor': 'top',
+      'text-max-width': 12,
+      'text-allow-overlap': false,
+    },
+    paint: {
+      'text-color': '#e8eaed',
+      'text-halo-color': '#0b0f14',
+      'text-halo-width': 1.6,
+    },
+  });
+  map.addLayer({
+    id: 'scheduled-station-labels-close',
+    type: 'symbol',
+    source: 'route-shapes',
+    minzoom: 14,
+    filter: [
+      'all',
+      ['==', ['get', 'kind'], 'regional-station'],
+      ['in', ['get', 'group'], ['literal', RAIL_GROUPS]],
+    ],
+    layout: {
+      'text-field': ['get', 'title'],
+      'text-size': 10.5,
+      'text-offset': [0, 1.2],
+      'text-anchor': 'top',
+      'text-max-width': 12,
+      'text-allow-overlap': true,
+    },
+    paint: {
+      'text-color': '#f4f6f8',
+      'text-halo-color': '#0b0f14',
+      'text-halo-width': 1.8,
+    },
+  });
+  map.addLayer({
+    id: 'scheduled-ferry-stops',
+    type: 'circle',
+    source: 'route-shapes',
+    minzoom: 8.5,
+    filter: [
+      'all',
+      ['==', ['get', 'kind'], 'regional-station'],
+      ['==', ['get', 'group'], 'ferry'],
+    ],
+    paint: {
+      'circle-color': ['get', 'color'],
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 8.5, 2.5, 14, 5],
+      'circle-stroke-color': '#f4f6f8',
+      'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 8.5, 0.7, 14, 1.3],
+      'circle-opacity': 0.88,
+    },
+  });
+  map.addLayer({
+    id: 'scheduled-ferry-stop-labels',
+    type: 'symbol',
+    source: 'route-shapes',
+    minzoom: 10,
+    filter: [
+      'all',
+      ['==', ['get', 'kind'], 'regional-station'],
+      ['==', ['get', 'group'], 'ferry'],
+    ],
+    layout: {
+      'text-field': ['get', 'title'],
+      'text-size': ['interpolate', ['linear'], ['zoom'], 10, 8, 15, 10],
+      'text-offset': [0, 1.05],
+      'text-anchor': 'top',
+      'text-max-width': 11,
+      'text-allow-overlap': false,
+      'text-optional': true,
+    },
+    paint: {
+      'text-color': '#bdeef3',
+      'text-halo-color': '#0b0f14',
+      'text-halo-width': 1.4,
+    },
+  });
+  map.addLayer({
+    id: 'scheduled-bus-stops',
+    type: 'circle',
+    source: 'route-shapes',
+    minzoom: 12.5,
+    filter: [
+      'all',
+      ['==', ['get', 'kind'], 'regional-station'],
+      ['==', ['get', 'group'], 'bus'],
+    ],
+    paint: {
+      'circle-color': ['get', 'color'],
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 12.5, 1.2, 16, 2.6],
+      'circle-stroke-color': '#10151c',
+      'circle-stroke-width': 0.55,
+      'circle-opacity': ['interpolate', ['linear'], ['zoom'], 12.5, 0.42, 15, 0.78],
+    },
+  });
+  map.addLayer({
+    id: 'scheduled-bus-stop-labels',
+    type: 'symbol',
+    source: 'route-shapes',
+    minzoom: 14.25,
+    filter: [
+      'all',
+      ['==', ['get', 'kind'], 'regional-station'],
+      ['==', ['get', 'group'], 'bus'],
+    ],
+    layout: {
+      'text-field': ['get', 'title'],
+      'text-size': ['interpolate', ['linear'], ['zoom'], 14.25, 7.5, 17, 9],
+      'text-offset': [0, 0.9],
+      'text-anchor': 'top',
+      'text-max-width': 9,
+      'text-allow-overlap': false,
+      'text-optional': true,
+    },
+    paint: {
+      'text-color': 'rgba(231, 222, 186, 0.82)',
+      'text-halo-color': 'rgba(11, 15, 20, 0.94)',
+      'text-halo-width': 1.1,
     },
   });
 
@@ -581,7 +737,7 @@ function wirePopups() {
     }
   }
   wireRoutePopups();
-  wireInformationPopup('scheduled-stations');
+  for (const layerId of STOP_POINT_LAYERS) wireInformationPopup(layerId);
   wireRoadworkPopups();
   wireInformationPopup('incident-points');
   wireInformationPopup('local-service-points');
@@ -735,9 +891,26 @@ export function scheduledRouteCountsForRegion() {
   );
 }
 
+export function scheduledStationCountsForRegion() {
+  const stationsByGroup = new Map();
+  for (const feature of routeShapesFC.features) {
+    if (feature.properties.kind !== 'regional-station') continue;
+    const group = feature.properties.group;
+    if (!group) continue;
+    if (!stationsByGroup.has(group)) stationsByGroup.set(group, new Set());
+    const [longitude, latitude] = feature.geometry.coordinates;
+    stationsByGroup.get(group).add(
+      `${feature.properties.title}|${longitude.toFixed(4)},${latitude.toFixed(4)}`,
+    );
+  }
+  return Object.fromEntries(
+    [...stationsByGroup.entries()].map(([group, stations]) => [group, stations.size]),
+  );
+}
+
 function wireRoutePopups() {
   map.on('click', 'route-lines', (event) => {
-    if (map.queryRenderedFeatures(event.point, { layers: ['scheduled-stations'] }).length) return;
+    if (map.queryRenderedFeatures(event.point, { layers: STOP_POINT_LAYERS }).length) return;
     const properties = event.features[0].properties;
     if (properties.kind !== 'regional-static') return;
     const dataStatus = properties.dataStatus ?? 'scheduled';
@@ -898,6 +1071,22 @@ async function ensureReferenceData() {
   return referenceLoadPromise;
 }
 
+export async function loadReferenceData() {
+  await ensureReferenceData();
+  return referenceCountsForRegion();
+}
+
+export function referenceCountsForRegion() {
+  const counts = {};
+  for (const collection of [infrastructureFC, localServicesFC, airportsFC, borderCrossingsFC]) {
+    for (const feature of collection.features ?? []) {
+      const group = feature.properties?.group;
+      if (group) counts[group] = (counts[group] ?? 0) + 1;
+    }
+  }
+  return counts;
+}
+
 const rawFleetData = new Map(); // unfiltered provider output
 const fleetData = new Map(); // visible FeatureCollections, for focusGroup
 
@@ -996,7 +1185,32 @@ function applyGroupFilter(groups, statuses) {
     'all',
     visibleByStatus,
     ['==', ['get', 'kind'], 'regional-station'],
+    ['in', ['get', 'group'], ['literal', RAIL_GROUPS]],
   ]);
+  for (const layerId of ['scheduled-station-halo', 'scheduled-station-labels', 'scheduled-station-labels-close']) {
+    map.setFilter(layerId, [
+      'all',
+      visibleByStatus,
+      ['==', ['get', 'kind'], 'regional-station'],
+      ['in', ['get', 'group'], ['literal', RAIL_GROUPS]],
+    ]);
+  }
+  for (const layerId of ['scheduled-ferry-stops', 'scheduled-ferry-stop-labels']) {
+    map.setFilter(layerId, [
+      'all',
+      visibleByStatus,
+      ['==', ['get', 'kind'], 'regional-station'],
+      ['==', ['get', 'group'], 'ferry'],
+    ]);
+  }
+  for (const layerId of ['scheduled-bus-stops', 'scheduled-bus-stop-labels']) {
+    map.setFilter(layerId, [
+      'all',
+      visibleByStatus,
+      ['==', ['get', 'kind'], 'regional-station'],
+      ['==', ['get', 'group'], 'bus'],
+    ]);
+  }
   for (const fleetId of FLEETS) {
     map.setFilter(`veh-${fleetId}-dots`, railVisible);
     map.setFilter(`veh-${fleetId}-arrows`, [
