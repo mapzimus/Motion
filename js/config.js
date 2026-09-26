@@ -41,9 +41,14 @@ export const CONFIG = {
   // A vehicle whose last report is older than this renders dimmed.
   STALE_AFTER_MS: 90_000,
 
-  // TUNE ME (Max): alert severity (1-10) thresholds for the line badges.
+  // Alert severity (MBTA scale 0-10) thresholds for the line badges.
   // >= major -> red badge, >= minor -> amber badge, below -> listed quietly.
-  ALERT_LEVELS: { major: 7, minor: 4 },
+  // MBTA's own scale: 1-2 informational (elevators, notices), 3-4 minor
+  // delays, 5-6 detours and moderate delays, 7+ suspensions, shuttles, and
+  // station closures. `minor: 5` keeps everyday bus-detour and small-delay
+  // alerts out of the badge so amber still means "this changes your trip";
+  // `major: 7` matches the MBTA's own "significant disruption" cut-off.
+  ALERT_LEVELS: { major: 7, minor: 5 },
 
   MAP_CENTER: [-71.0589, 42.335],
   MAP_ZOOM: 11.5,
