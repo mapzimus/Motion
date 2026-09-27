@@ -196,14 +196,14 @@ The gateway currently knows these live vehicle-position feeds:
   Middletown Area Transit / 9 Town Transit district, via Passio), Norwalk
   Transit District, and UConn / Windham Region Transit District (Passio)
 - Rhode Island: RIPTA and Brown University shuttles (Passio)
-- Maine: Greater Portland METRO and Island Explorer; South Portland Bus
-  Service and Casco Bay Lines ferries are included through the optional
-  Swiftly authorization
+- Maine: Greater Portland METRO (including the former South Portland Bus
+  Service routes) and Island Explorer; Casco Bay Lines ferries are included
+  through the optional Swiftly authorization
 - New Hampshire/Vermont: COAST (Passio) and Advance Transit, plus Nashua
   Transit System and Vermont's GMT, GMCN, Marble Valley, MOOver!, RCT,
   and Tri-Valley feeds
 
-The Swiftly-hosted providers above (Merrimack Valley, South Portland, Casco Bay
+The Swiftly-hosted providers above (Merrimack Valley, Casco Bay
 Lines, Nashua, Advance Transit, and the Vermont agencies) use Swiftly's
 authorized realtime API. Their adapters are included, but they report
 `needs-key` until `SWIFTLY_API_KEY` is configured.

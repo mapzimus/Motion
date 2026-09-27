@@ -134,15 +134,6 @@ export const TRANSIT_FEEDS: TransitFeed[] = [
     url: 'https://islandexplorertracker.availtec.com/InfoPoint/GTFS-Realtime.ashx?&Type=VehiclePosition&serverid=0',
   },
   {
-    id: 'south-portland',
-    agency: 'South Portland Bus Service',
-    states: ['me'],
-    // Mobility Database mdb-2647 lists this Swiftly feed as keyless, but the
-    // endpoint answers 401 without an Authorization header.
-    url: 'https://api.goswift.ly/real-time/south-portland-transit/gtfs-rt-vehicle-positions',
-    authorization: 'swiftly',
-  },
-  {
     id: 'casco-bay',
     agency: 'Casco Bay Lines',
     states: ['me'],
