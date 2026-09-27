@@ -20,7 +20,7 @@ Every feature is labeled **live**, **estimated**, **scheduled**, or
 | MBTA subway, Silver Line, buses, commuter rail, ferries | [MBTA V3 API](https://www.mbta.com/developers/v3-api) | 10 s |
 | Regional buses | Agency GTFS-realtime feeds, normalized by the gateway | 20 s |
 | Metro-North New Haven branches | [MTA GTFS-Realtime](https://www.mta.info/developers) trip predictions and alerts; positions are explicitly estimated between stations | 30 s |
-| Scheduled/reference bus, rail, ferry, boat, and air-service routes and stops | 72 GTFS sources plus 88 official-service corridors, including Amtrak, Metro-North, regional coaches, 93 ferry routes, municipal water shuttles, small-island lifelines, island air taxis, and 38,000+ scheduled stops | built snapshot |
+| Scheduled/reference bus, rail, ferry, boat, and air-service routes and stops | 72 GTFS sources plus 88 official-service corridors, including Amtrak, Metro-North, regional coaches, 93 ferry routes, municipal water shuttles, small-island lifelines, island air taxis, and 37,000+ scheduled stops | built snapshot |
 | Small-town, county, flex, volunteer, microtransit, and on-demand water-service catalog | 53 official-directory service markers across all six states | built snapshot |
 | Amtrak | [Amtrak official static GTFS](https://content.amtrak.com/content/gtfs/GTFS.zip) for scheduled routes/stations; [Amtraker](https://amtraker.com) community API for live trains | built snapshot + 90 s |
 | Aircraft and air services | [ADSB.lol](https://api.adsb.lol/) with [adsb.fi](https://adsb.fi/) failover; 11 optional official Cape Air/Tradewind schedules and Penobscot Island Air on-demand corridors | 45 s + built snapshot |
@@ -49,7 +49,7 @@ private, repositioning, and irregular flights may not have an itinerary.
 
 The checked-in route snapshot contains more than 1,100 bus, commuter-rail,
 Amtrak, ferry, passenger-boat, and air-service route features plus more than
-38,000 scheduled bus stops, ferry landings, T stops, and rail stations,
+37,000 scheduled bus stops, ferry landings, T stops, and rail stations,
 assembled from 72 GTFS sources and 88 official-service corridors. Scheduled
 routes remain visible when an operator publishes no live positions. State
 views start with the scheduled bus layer on,
@@ -69,7 +69,13 @@ boundary so riders can see the full trip into New York City.
 Concord Coach's seven intercity routes use a community-maintained GTFS feed
 cataloged and continuously validated by Transitland. Greyhound and FlixBus use
 their current official U.S. GTFS feed; the build keeps only trip patterns that
-actually touch a New England state. Dartmouth Coach does not publish a
+actually touch a New England state. Peter Pan Bus Lines uses the same
+New England-only trip filter on its Trillium-published GTFS, which keeps 34 of
+its 51 route patterns (Boston, Cape Cod, Providence, Worcester, Springfield,
+Hartford, the Berkshires, and their New York/Newark connections). That file is
+the carrier's last published schedule (feed version June 2024, nominal end
+date 2024-12-31), so Peter Pan ribbons are labeled scheduled corridors rather
+than a current timetable. Dartmouth Coach does not publish a
 discoverable GTFS feed, so its Upper Valley–Boston/Logan and Upper Valley–NYC
 corridors follow the stop order on the carrier's official schedules and link
 back to those schedules from the map popup. These intercity carriers are shown
@@ -114,6 +120,10 @@ dry runs longer than roughly 95–133 metres fail the strict audit. Every route
 must also resolve to at least two named landing points, and all ferry coordinate
 fingerprints are locked by the geometry check, so a feed update or manual edit
 cannot silently restore an over-land ocean, lake, harbor, or river chord.
+When a provider re-publishes a ferry shape after it was audited (as Cuttyhunk
+Ferry did in September 2026), the previously audited path is pinned in
+`scripts/ferry-route-overrides.json` until a new shoreline audit reviews the
+replacement.
 The active MBTA `Boat-Lynn` feed supplies Lynn–Boston service directly, while
 the seasonal Salem–Boston Long Wharf service is retained as an explicit
 official-schedule corridor so it remains visible without live vessel data.
@@ -141,17 +151,25 @@ labels every popup “Estimated position from MTA trip updates.”
 
 The gateway currently knows these live vehicle-position feeds:
 
-- Massachusetts: MBTA and Pioneer Valley Transit Authority; Merrimack Valley
-  Transit is included through the optional Swiftly authorization
-- Connecticut: CTtransit, HARTransit, River Valley Transit, and Norwalk
+- Massachusetts: MBTA, Pioneer Valley Transit Authority, Brockton Area
+  Transit, Montachusett RTA, and Franklin RTA (the last three through Passio's
+  public GTFS-realtime endpoints); Merrimack Valley Transit is included through
+  the optional Swiftly authorization
+- Connecticut: CTtransit, HARTransit, River Valley Transit (the merged
+  Middletown Area Transit / 9 Town Transit district, via Passio), and Norwalk
   Transit District
 - Rhode Island: RIPTA
-- Maine: Greater Portland METRO and Island Explorer
-- New Hampshire/Vermont: Advance Transit plus Vermont's GMT, GMCN, Marble
-  Valley, MOOver!, RCT, Tri-Valley, and The Current feeds
+- Maine: Greater Portland METRO and Island Explorer; South Portland Bus
+  Service and Casco Bay Lines ferries are included through the optional
+  Swiftly authorization
+- New Hampshire/Vermont: COAST (Passio) and Advance Transit, plus Nashua
+  Transit System and Vermont's GMT, GMCN, Marble Valley, MOOver!, RCT,
+  Tri-Valley, and The Current feeds
 
-The NH/VT providers above use Swiftly's authorized realtime API. Their adapters
-are included, but they report `needs-key` until `SWIFTLY_API_KEY` is configured.
+The Swiftly-hosted providers above (Merrimack Valley, South Portland, Casco Bay
+Lines, Nashua, Advance Transit, and the Vermont agencies) use Swiftly's
+authorized realtime API. Their adapters are included, but they report
+`needs-key` until `SWIFTLY_API_KEY` is configured.
 Agencies that publish only schedules, use a closed tracker, or do not expose a
 current vehicle feed still appear as scheduled route ribbons, but are not
 misrepresented as live dots.
@@ -335,6 +353,16 @@ npm run deploy:dry-run
 ## Remaining data gaps
 
 - Many rural agencies publish schedules but no open live vehicle positions.
+  A September 2026 survey of the remaining regional operators found: SRTA
+  (Clever Devices BusTime) and UNH Wildcat Transit (Umo IQ) require a
+  vendor API key; MWRTA and CCRTA expose only a proprietary JSON tracker;
+  WRTA and GATRA (Navineo), LRTA and BRTA (RouteMatch), Manchester Transit
+  (RouteShout), and VTA (Strategic Mapping) run closed trackers with
+  alerts-only or no GTFS-realtime; CATA and Concord Coach have no public
+  tracker at all. Those operators remain scheduled ribbons only.
+- Peter Pan's public GTFS has not been re-published since June 2024, so its
+  corridors are shown as scheduled service relationships rather than a
+  current timetable.
 - Metro-North train locations are estimates between realtime station
   predictions, not direct train GPS coordinates.
 - Non-MBTA ferry operators generally publish schedules, not GTFS-realtime
