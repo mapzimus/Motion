@@ -344,7 +344,7 @@ if (invalidSupplementalFerries.length) {
 }
 const generatedRouteIds = new Set(collection.features.map((feature) => feature.properties?.route));
 const ferryOverrideIds = ferryRouteOverrides.features.map((feature) => feature.properties?.route);
-if (ferryOverrideIds.length !== 2
+if (ferryOverrideIds.length !== 3
     || new Set(ferryOverrideIds).size !== ferryOverrideIds.length
     || JSON.stringify(collection.metadata?.ferryRouteOverrides) !== JSON.stringify([...ferryOverrideIds].sort())) {
   throw new Error('Audited provider ferry-route overrides are missing or stale');
