@@ -27,8 +27,9 @@ Every feature is labeled **live**, **estimated**, **scheduled**, or
 | Airports and landing facilities | 778 open airports, heliports, seaplane bases, and other facilities from the [FAA NASR subscription](https://www.faa.gov/air_traffic/flight_info/aeronav/aero_data/NASR_Subscription/) | 28-day built snapshot |
 | Harbor/coastal vessels and identifiable passenger ferries | [AISStream](https://aisstream.io) through a protected WebSocket relay | streaming |
 | Bike and scooter share | GBFS feeds for Bluebikes across 13 Greater Boston municipalities, Veo Hartford, Veo New Haven, and Spin Providence | 60 s |
-| Work zones and closures | MassDOT WZDx plus the multi-state New England 511 WZDx feed for Maine, New Hampshire, and Vermont | 60 s |
-| Traffic incidents and public cameras | New England 511, CTroads, and the MassDOT CCTV asset inventory | 60–90 s |
+| Work zones and closures | MassDOT WZDx plus the multi-state New England 511 WZDx feed for Maine, New Hampshire, and Vermont | 5 min |
+| Traffic incidents | New England 511 (Maine, New Hampshire, Vermont), CTroads, and MassDOT Highway Division roadway events (crashes, disabled vehicles, weather closures) | 60 s |
+| Public traffic cameras | New England 511, CTroads, and the MassDOT CCTV asset inventory | 5 min |
 | Live congestion speeds | Public 511 traffic-flow tiles through the gateway; TomTom remains an optional configured fallback | live tiles |
 | Weather alerts | [NWS active alerts](https://api.weather.gov/) for the six states, drawn as severity-colored forecast-zone polygons; Extreme/Severe alerts also join the service-alert panel | 120 s (60 s edge cache) |
 | Airport delays | [FAA NAS airport status](https://nasstatus.faa.gov/) ground stops, ground-delay programs, arrival/departure delays, and closures, drawn as rings on the FAA airport markers | 120 s (60 s edge cache) |
@@ -340,6 +341,15 @@ uses public New England 511 tiles. `SWIFTLY_API_KEY` must be the complete value 
 Swiftly `Authorization` header. Add any custom production frontend origin to
 `ALLOWED_ORIGINS` in `wrangler.jsonc` before deployment.
 
+#### Enable live vessels (AIS)
+
+The vessel layer stays empty until the gateway has an AISStream key.
+
+1. Create a free API key at [aisstream.io](https://aisstream.io) (sign in, then "API Keys").
+2. Store it on the production Worker: `npx wrangler secret put AISSTREAM_API_KEY --env production`
+3. Redeploy: `npx wrangler deploy --env production`
+4. Open the gateway's `/health` and confirm it shows `"ais":true`.
+
 Deploy the separate aircraft relay from its own project directory:
 
 ```powershell
@@ -358,7 +368,7 @@ npx vercel --prod --yes
 | `GET /api/transit?region=ct` | Normalized GTFS-realtime bus positions and per-feed health |
 | `GET /api/mnr` | Metro-North active trip segments and service alerts from official MTA GTFS-Realtime |
 | `GET /api/roadwork` | Active/upcoming MassDOT and northern New England WZDx geometry |
-| `GET /api/road-events` | Official New England 511 and CTroads incidents |
+| `GET /api/road-events` | Official New England 511, CTroads, and MassDOT roadway-event incidents (planned MassDOT closures are left to `/api/roadwork`) |
 | `GET /api/cameras` | Public camera locations from 511, CTroads, and MassDOT |
 | `GET /api/camera-detail?provider=north&id=…` | Latest public 511 camera image and official viewer details |
 | `GET /api/traffic/{z}/{x}/{y}.png` | Cached public 511 congestion tile, with optional TomTom source |
@@ -413,9 +423,11 @@ npm run deploy:dry-run
   positions. AIS supplies actual vessel movement when a ship is broadcasting,
   and passenger-ship metadata is used to classify ferries when available.
 - Work-zone geometry is currently strongest in Massachusetts, Maine, New
-  Hampshire, and Vermont. Connecticut and Rhode Island road disruptions still
-  appear through their public incident/event feeds rather than a uniform WZDx
-  layer.
+  Hampshire, and Vermont. Connecticut road disruptions still appear through
+  the CTroads incident feed rather than a uniform WZDx layer.
+- Rhode Island publishes no coordinate-bearing incident or road-event feed:
+  RIDOT's traveler page (dot.ri.gov/travel) is text only, so Rhode Island has
+  no incident markers.
 - Current GBFS coverage is Bluebikes' 13 Greater Boston municipalities plus
   Hartford, New Haven, and Providence. Other systems can be added as soon as
   they publish discoverable public feeds.
