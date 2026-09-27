@@ -37,6 +37,20 @@ export const CONFIG = {
 
   // How long markers glide between polled positions.
   ANIMATE_MS: 900,
+  // Follow mode. A followed vehicle glides across ~90% of its feed's poll
+  // interval at constant speed so the locked camera pans continuously instead
+  // of lurching once per poll. Everything else keeps the 900 ms snap.
+  FOLLOW_POLL_MS: {
+    mbta: 10_000, regional: 20_000, mnr: 30_000, plane: 45_000,
+    amtrak: 90_000, vessel: 2_500, bike: 60_000,
+  },
+  FOLLOW_GLIDE_FACTOR: 0.9,
+  FOLLOW_MIN_ZOOM: { plane: 10, vessel: 13, ferry: 13, amtrak: 12, commuter: 13, bus: 15, default: 14.5 },
+  FOLLOW_LOST_GRACE_POLLS: 3, // wait this many poll intervals before giving up
+  FOLLOW_LOST_MAX_MS: 180_000,
+  FOLLOW_RESTORE_MIN_MS: 30_000,
+  FOLLOW_RESTORE_MAX_MS: 120_000,
+  TRIP_PREDICTION_POLL_MS: 15_000,
 
   // A vehicle whose last report is older than this renders dimmed.
   STALE_AFTER_MS: 90_000,

@@ -14,6 +14,7 @@ import {
   scheduledStationCountsForRegion,
   setRegion,
   setRouteShapes,
+  setVehicleClickHandler,
   setVisibleGroups,
 } from './map.js';
 import { startMbta, groupFor, onStats, onStatus } from './mbta.js';
@@ -30,6 +31,9 @@ import { startAlertPolling } from './alerts.js';
 import { initialRegion, loadRegions } from './regions.js';
 import { initPermalink, readPermalink, schedulePermalinkUpdate } from './permalink.js';
 import { initSearch, setSearchFeatures } from './search.js';
+import { follow, getSelection, initFollow } from './follow.js';
+import { initTripCard, showToast } from './trip-card.js';
+import { fleetLabel } from './trip-data.js';
 import * as ui from './ui.js';
 
 async function loadGatewayCapabilities() {
@@ -120,8 +124,26 @@ async function main() {
     getDefaultGroups: ui.getDefaultGroups,
     getVisibleGroups: ui.getVisibleGroups,
     getVisibleStatuses: ui.getVisibleStatuses,
+    getFollow: () => {
+      const selection = getSelection();
+      return selection ? { fleetId: selection.fleetId, id: selection.id } : null;
+    },
   });
+
+  // Follow mode. A map click selects (card + ring, camera stays put) unless
+  // something is already locked, in which case the lock moves to the new
+  // vehicle. Search picks and shared links lock at once.
+  initTripCard();
+  initFollow({ ensureVisible: ui.ensureGroupVisible, toast: showToast, fleetLabel });
+  setVehicleClickHandler((fleetId, id) => {
+    if (fleetId === 'bike') return false; // docks keep their popup
+    follow(fleetId, id, { mode: getSelection()?.mode === 'following' ? 'following' : 'selected' });
+    return true;
+  });
+  if (permalink.follow) follow(permalink.follow.fleetId, permalink.follow.id, { mode: 'following' });
+
   initSearch({
+    onVehicle: (fleetId, id) => follow(fleetId, id, { mode: 'following' }),
     onRegion: (key) => {
       const select = document.getElementById('region-select');
       if (select && select.value !== key) {

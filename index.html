@@ -42,8 +42,8 @@
             role="combobox"
             autocomplete="off"
             spellcheck="false"
-            placeholder="Stop, station, route, or town…"
-            aria-label="Search stops, stations, routes, towns, and geographies"
+            placeholder="Train number, route, stop, or town…"
+            aria-label="Search live vehicles, stops, stations, routes, towns, and geographies"
             aria-autocomplete="list"
             aria-controls="search-results"
             aria-expanded="false"
@@ -116,6 +116,30 @@
       </div>
     </footer>
   </aside>
+
+  <section id="trip-card" class="trip-card" hidden aria-label="Followed vehicle">
+    <div class="trip-grip" aria-hidden="true"></div>
+    <header class="trip-head">
+      <span class="trip-swatch" aria-hidden="true"></span>
+      <div class="trip-titles">
+        <div class="trip-title"></div>
+        <div class="trip-headsign"></div>
+      </div>
+      <button type="button" class="trip-close" aria-label="Stop following and close">×</button>
+    </header>
+    <div class="trip-badges"></div>
+    <div class="trip-status" aria-live="polite"></div>
+    <div class="trip-actions">
+      <button type="button" class="trip-follow" aria-pressed="false">Follow</button>
+      <button type="button" class="trip-share">Copy link</button>
+    </div>
+    <ol class="trip-stops" aria-label="Next stops"></ol>
+    <p class="trip-note"></p>
+    <div class="trip-meta"></div>
+    <footer class="trip-foot"></footer>
+  </section>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
   <button id="panel-toggle" aria-label="Toggle control panel" aria-controls="panel" aria-expanded="false">☰</button>
 

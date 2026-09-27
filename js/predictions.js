@@ -173,3 +173,75 @@ export function attachStopPredictions(popup, properties, render) {
   }
   tick();
 }
+
+// ---- trip predictions (follow mode) -----------------------------------------
+// The upcoming stops for ONE trip, with delay against the published schedule.
+// Only requested while a vehicle is being followed, so the shared public key
+// sees ~4 extra requests a minute per follower.
+
+function delayMinutes(predicted, scheduled) {
+  const a = Date.parse(predicted);
+  const b = Date.parse(scheduled);
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+  return Math.round((a - b) / 60_000);
+}
+
+export function delayText(minutes) {
+  if (minutes === null || minutes === undefined) return '';
+  if (minutes >= 2) return `${minutes} min late`;
+  if (minutes <= -2) return `${Math.abs(minutes)} min early`;
+  return 'on time';
+}
+
+// `fromSequence`: the vehicle's current_stop_sequence. The stop it is at or
+// heading to has that sequence, so it is listed first.
+export function parseTripPredictions(json, fromSequence = null, now = Date.now(), limit = 6) {
+  const stops = new Map();
+  const schedules = new Map();
+  let trip = {};
+  for (const item of json.included ?? []) {
+    if (item.type === 'stop') stops.set(item.id, item.attributes ?? {});
+    if (item.type === 'schedule') schedules.set(item.id, item.attributes ?? {});
+    if (item.type === 'trip') trip = item.attributes ?? {};
+  }
+  // A trip that serves two route ids comes back once per route; keep one row
+  // per stop_sequence.
+  const bySequence = new Map();
+  for (const item of json.data ?? []) {
+    const attributes = item.attributes ?? {};
+    const sequence = attributes.stop_sequence;
+    if (!Number.isFinite(sequence) || bySequence.has(sequence)) continue;
+    if (Number.isFinite(fromSequence) && sequence < fromSequence) continue;
+    if (attributes.schedule_relationship === 'SKIPPED'
+      || attributes.schedule_relationship === 'CANCELLED') continue;
+    const when = attributes.arrival_time ?? attributes.departure_time;
+    const minutes = minutesUntil(when, now);
+    if (minutes !== null && minutes < -1) continue; // already served
+    const stop = stops.get(item.relationships?.stop?.data?.id) ?? {};
+    const schedule = schedules.get(item.relationships?.schedule?.data?.id) ?? {};
+    const delay = delayMinutes(when, schedule.arrival_time ?? schedule.departure_time);
+    bySequence.set(sequence, {
+      sequence,
+      name: stop.name || 'Stop',
+      platform: stop.platform_code || '',
+      time: when ?? null,
+      eta: etaLabel(attributes, now),
+      delayMinutes: delay,
+      delay: attributes.status || delayText(delay),
+    });
+  }
+  const upcoming = [...bySequence.values()].sort((a, b) => a.sequence - b.sequence).slice(0, limit);
+  return { headsign: trip.headsign || '', trainName: trip.name || '', stops: upcoming };
+}
+
+export async function fetchTripPredictions(tripId, { signal } = {}) {
+  return mbta('/predictions', {
+    'filter[trip]': tripId,
+    include: 'stop,schedule,trip',
+    sort: 'stop_sequence',
+    'fields[prediction]': 'arrival_time,departure_time,status,stop_sequence,schedule_relationship',
+    'fields[stop]': 'name,platform_code',
+    'fields[schedule]': 'arrival_time,departure_time',
+    'fields[trip]': 'headsign,name',
+  }, { signal });
+}

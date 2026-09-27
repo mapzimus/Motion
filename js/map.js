@@ -752,7 +752,7 @@ function setupLayers() {
   });
 
   for (const fleetId of FLEETS) {
-    map.addSource(`veh-${fleetId}`, { type: 'geojson', data: EMPTY_FC });
+    map.addSource(`veh-${fleetId}`, { type: 'geojson', data: EMPTY_FC, promoteId: 'id' });
     map.addLayer({
       id: `veh-${fleetId}-dots`,
       type: 'circle',
@@ -828,6 +828,78 @@ function setupLayers() {
     map.moveLayer(layerId, 'veh-bike-dots');
   }
   setupConditionLayers();
+  setupSelectedLayers();
+}
+
+// ---- selected vehicle ------------------------------------------------------
+// One unclipped point drawn above every fleet: the vehicle being followed.
+// It ignores region clipping and layer toggles on purpose, so a followed
+// train stays visible after it leaves the selected geography.
+
+function setupSelectedLayers() {
+  map.addSource('veh-selected', { type: 'geojson', data: EMPTY_FC });
+  map.addLayer({
+    id: 'veh-selected-halo',
+    type: 'circle',
+    source: 'veh-selected',
+    paint: {
+      'circle-radius': ['interpolate', ['linear'], ['get', 'pulse'], 0, 13, 1, 26],
+      'circle-color': ['get', 'color'],
+      'circle-opacity': ['interpolate', ['linear'], ['get', 'pulse'], 0, 0.28, 1, 0],
+      'circle-stroke-color': ['get', 'color'],
+      'circle-stroke-width': 2,
+      'circle-stroke-opacity': ['interpolate', ['linear'], ['get', 'pulse'], 0, 0.9, 1, 0],
+    },
+  });
+  map.addLayer({
+    id: 'veh-selected-dot',
+    type: 'circle',
+    source: 'veh-selected',
+    paint: {
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 6, 12, 8, 15, 11],
+      'circle-color': ['get', 'color'],
+      'circle-stroke-color': '#ffffff',
+      'circle-stroke-width': 3,
+      'circle-opacity': ['case', ['get', 'stale'], 0.55, 1],
+    },
+  });
+}
+
+export function setSelectedFeature(lngLat, properties = null) {
+  const source = map?.getSource('veh-selected');
+  if (!source) return;
+  if (!lngLat || !properties) {
+    source.setData(EMPTY_FC);
+    return;
+  }
+  source.setData({
+    type: 'FeatureCollection',
+    features: [{
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: lngLat },
+      properties: {
+        color: properties.color || '#2f80ed',
+        stale: Boolean(properties.stale),
+        pulse: properties.pulse ?? 0,
+      },
+    }],
+  });
+}
+
+// Vehicle clicks go to follow mode first; returning true suppresses the
+// legacy popup. Camera takeovers (region fit, alert focus, layer zoom,
+// search fly-to) tell follow mode to let go of the camera.
+let vehicleClickHandler = null;
+export function setVehicleClickHandler(fn) {
+  vehicleClickHandler = fn;
+}
+const cameraTakeoverHandlers = new Set();
+export function onCameraTakeover(fn) {
+  cameraTakeoverHandlers.add(fn);
+  return () => cameraTakeoverHandlers.delete(fn);
+}
+export function takeCamera(reason) {
+  cameraTakeoverHandlers.forEach((fn) => fn(reason));
 }
 
 // ---- conditions layers -----------------------------------------------------
@@ -923,7 +995,7 @@ const esc = (s) =>
 function wirePopups() {
   for (const fleetId of FLEETS) {
     for (const layerId of [`veh-${fleetId}-dots`, `veh-${fleetId}-icons`]) {
-      wirePopupLayer(layerId);
+      wirePopupLayer(layerId, fleetId);
     }
   }
   wireRoutePopups();
@@ -1091,10 +1163,11 @@ function scheduledRouteHtml(route) {
     <div class="popup-route-note">Best-effort scheduled route</div>`;
 }
 
-function wirePopupLayer(layerId) {
+function wirePopupLayer(layerId, fleetId) {
   map.on('click', layerId, (e) => {
       const feature = e.features[0];
       const p = feature.properties;
+      if (p.id && vehicleClickHandler?.(fleetId, p.id, p)) return;
       const popup = new maplibregl.Popup({ offset: 14, maxWidth: '310px' })
         .setLngLat(e.features[0].geometry.coordinates)
         .setHTML(vehiclePopupHtml(p))
@@ -1558,6 +1631,7 @@ function applyRegion(fit) {
   renderWeatherAlerts();
   for (const fleetId of rawFleetData.keys()) renderFleetData(fleetId);
   if (!fit) return;
+  takeCamera('region');
   const bounds = boundsForRegion(activeRegion);
   if (bounds) {
     map.fitBounds(bounds, {
@@ -1718,7 +1792,7 @@ function applyGroupFilter(groups, statuses) {
 
 // ---- alert focus -----------------------------------------------------------
 
-function fitPadding() {
+export function fitPadding() {
   // Keep targets clear of the console on desktop; on mobile the panel closes.
   return window.innerWidth > 760
     ? { top: 70, right: 70, bottom: 70, left: 420 }
@@ -1755,6 +1829,7 @@ export function focusAlert(alert) {
   }
   if (!coords.length) return false;
 
+  takeCamera('alert');
   const bounds = coords.reduce(
     (b, c) => b.extend(c),
     new maplibregl.LngLatBounds(coords[0], coords[0]),
@@ -1801,6 +1876,7 @@ export async function focusGroup(groupKey, routeIds = []) {
   }
   if (!coords.length) return false;
 
+  takeCamera('group');
   const bounds = coords.reduce(
     (b, c) => b.extend(c),
     new maplibregl.LngLatBounds(coords[0], coords[0]),

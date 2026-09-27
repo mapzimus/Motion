@@ -3,7 +3,10 @@
 // exactly where it was: region, map center/zoom, layer groups switched on or
 // off relative to that region's defaults, and the data-truth filter.
 //
-//   #r=ma&c=-71.0589,42.335&z=11.5&on=bus,bike&off=red&s=live,scheduled
+//   #r=ma&c=-71.0589,42.335&z=11.5&on=bus,bike&off=red&s=live,scheduled&f=mbta:1864
+//
+// `f` is the followed vehicle (fleet id, colon, vehicle id). A shared link
+// with `f` opens locked onto that vehicle as soon as its feed reports it.
 //
 // The `?region=`, `?gateway=`, and `?api_key=` query parameters are left
 // untouched; only the fragment is rewritten.
@@ -13,6 +16,7 @@ import { isRegionKey } from './regions.js';
 const ALL_STATUSES = ['live', 'estimated', 'scheduled', 'reference'];
 const DEBOUNCE_MS = 300;
 const GROUP_KEY = /^[a-z][a-z0-9-]*$/;
+const FLEET_KEY = /^[a-z]+$/;
 
 let hooks = null;
 let timer = null;
@@ -40,6 +44,13 @@ export function readPermalink() {
     const statuses = (params.get('s') ?? '').split(',').filter((key) => ALL_STATUSES.includes(key));
     state.statuses = statuses;
   }
+  const follow = params.get('f') ?? '';
+  const colon = follow.indexOf(':');
+  if (colon > 0) {
+    const fleetId = follow.slice(0, colon);
+    const id = follow.slice(colon + 1);
+    if (FLEET_KEY.test(fleetId) && id && id.length <= 120) state.follow = { fleetId, id };
+  }
   return state;
 }
 
@@ -62,6 +73,8 @@ export function buildPermalinkHash() {
   if (off.length) params.set('off', off.join(','));
   const statuses = hooks.getVisibleStatuses();
   if (statuses.length !== ALL_STATUSES.length) params.set('s', statuses.join(','));
+  const follow = hooks.getFollow?.();
+  if (follow) params.set('f', `${follow.fleetId}:${follow.id}`);
   return params.toString();
 }
 
@@ -78,7 +91,7 @@ export function schedulePermalinkUpdate() {
   timer = setTimeout(writeHash, DEBOUNCE_MS);
 }
 
-// `hooks`: { map, getRegion, getDefaultGroups, getVisibleGroups, getVisibleStatuses }
+// `hooks`: { map, getRegion, getDefaultGroups, getVisibleGroups, getVisibleStatuses, getFollow? }
 export function initPermalink(nextHooks) {
   hooks = nextHooks;
   hooks.map?.on('moveend', schedulePermalinkUpdate);
