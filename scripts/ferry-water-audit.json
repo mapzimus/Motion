@@ -2,6 +2,9 @@
   "auditVersion": "gshhg-census-water-v2-strict",
   "reviewedAt": "2026-08-22",
   "routeCount": 93,
+  "pendingReview": [
+    "thimble-islands-ferry:stony-creek-outer-island"
+  ],
   "geometrySha256": {
     "balmy-days:boothbay-monhegan": "0cc4e19ca197e066d437f7cac0b218c7d4c8af66169eab41365b7ef5734c3e41",
     "bay-state-cruise:2057": "c23b08cd6ecc8c3cc14b9e8eaea06236072f3038ad11520b8e9b4bb791630d6d",

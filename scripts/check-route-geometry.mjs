@@ -393,7 +393,21 @@ const generatedFerries = collection.features.filter(
   (feature) => feature.properties?.group === 'ferry'
     && ['LineString', 'MultiLineString'].includes(feature.geometry?.type),
 );
-for (const feature of generatedFerries) {
+// A newly added hand-drawn ferry may wait for the next shoreline audit only
+// when it is both named in the manifest's pendingReview list and flagged
+// geometryPending in its own properties. Pending routes must not also carry a
+// reviewed hash, and every other ferry stays hash-locked.
+const pendingWaterReview = new Set(ferryWaterAudit.pendingReview ?? []);
+const pendingFerries = generatedFerries.filter(
+  (feature) => pendingWaterReview.has(feature.properties?.route)
+    && feature.properties?.geometryPending === true
+    && !reviewedWaterGeometry.has(feature.properties?.route),
+);
+if (pendingFerries.length !== pendingWaterReview.size) {
+  throw new Error('ferry-water-audit.json pendingReview lists routes that are missing, reviewed, or not flagged geometryPending');
+}
+const auditedFerries = generatedFerries.filter((feature) => !pendingFerries.includes(feature));
+for (const feature of auditedFerries) {
   const route = feature.properties?.route;
   const actualHash = createHash('sha256')
     .update(canonicalCoordinates(feature.geometry.coordinates))
@@ -401,8 +415,8 @@ for (const feature of generatedFerries) {
   if (reviewedWaterGeometry.get(route) !== actualHash) invalidWaterGeometry.push(route);
 }
 if (ferryWaterAudit.auditVersion !== 'gshhg-census-water-v2-strict'
-    || ferryWaterAudit.routeCount !== generatedFerries.length
-    || reviewedWaterGeometry.size !== generatedFerries.length
+    || ferryWaterAudit.routeCount !== auditedFerries.length
+    || reviewedWaterGeometry.size !== auditedFerries.length
     || invalidWaterGeometry.length) {
   throw new Error(
     `Ferry geometry changed without a complete shoreline/water audit: ${invalidWaterGeometry.join(', ')}`,
@@ -563,7 +577,7 @@ const invalidAirRoutes = supplementalAir.features.filter((feature) => {
     || !properties.geometryNote
     || !/^https:\/\//.test(properties.sourceUrl ?? '');
 });
-if (supplementalAir.features.length !== 11
+if (supplementalAir.features.length !== 18
     || airRouteIds.size !== supplementalAir.features.length
     || invalidAirRoutes.length
     || [...airRouteIds].filter((route) => route.startsWith('penobscot-island-air:')).length !== 4
