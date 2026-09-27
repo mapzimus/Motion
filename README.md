@@ -20,7 +20,7 @@ Every feature is labeled **live**, **estimated**, **scheduled**, or
 | MBTA subway, Silver Line, buses, commuter rail, ferries | [MBTA V3 API](https://www.mbta.com/developers/v3-api) | 10 s |
 | Regional buses | Agency GTFS-realtime feeds, normalized by the gateway | 20 s |
 | Metro-North New Haven branches | [MTA GTFS-Realtime](https://www.mta.info/developers) trip predictions and alerts; positions are explicitly estimated between stations | 30 s |
-| Scheduled/reference bus, rail, ferry, boat, and air-service routes and stops | 87 GTFS sources plus 96 official-service corridors, including Amtrak, Metro-North, regional coaches, university shuttles, 94 ferry routes, municipal water shuttles, small-island lifelines, island air taxis, and 37,000+ scheduled stops | built snapshot |
+| Scheduled/reference bus, rail, ferry, boat, and air-service routes and stops | 93 GTFS sources plus 80 official-service corridors, including Amtrak, Metro-North, Shore Line East, regional coaches, university shuttles, 93 ferry routes, municipal water shuttles, small-island lifelines, island air taxis, and 38,000+ scheduled stops | built snapshot |
 | Small-town, county, flex, volunteer, microtransit, and on-demand water-service catalog | 50 official-directory service markers across all six states | built snapshot |
 | Amtrak | [Amtrak official static GTFS](https://content.amtrak.com/content/gtfs/GTFS.zip) for scheduled routes/stations; [Amtraker](https://amtraker.com) community API for live trains | built snapshot + 90 s |
 | Aircraft and air services | [ADSB.lol](https://api.adsb.lol/) with [adsb.fi](https://adsb.fi/) failover; 18 optional official Cape Air/Tradewind schedules and Penobscot Island Air on-demand corridors | 45 s + built snapshot |
@@ -54,10 +54,10 @@ private, repositioning, and irregular flights may not have an itinerary.
 
 ## Regional transit coverage
 
-The checked-in route snapshot contains more than 1,100 bus, commuter-rail,
+The checked-in route snapshot contains more than 1,200 bus, commuter-rail,
 Amtrak, ferry, passenger-boat, and air-service route features plus more than
 37,000 scheduled bus stops, ferry landings, T stops, and rail stations,
-assembled from 86 GTFS sources and 96 official-service corridors. Scheduled
+assembled from 93 GTFS sources and 80 official-service corridors. Scheduled
 routes remain visible when an operator publishes no live positions. State
 views start with the scheduled bus layer on,
 and the sidebar reports scheduled route counts separately from live vehicles,

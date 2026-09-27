@@ -67,6 +67,21 @@
       "source": "calendar.txt",
       "url": "https://files.mobilitydatabase.org/ntd-11152/latest.zip"
     },
+    "nectd": {
+      "serviceEnd": "2026-12-31",
+      "source": "calendar.txt",
+      "url": "https://hosted-gtfs-feeds.s3.amazonaws.com/NECTD/gtfs.zip"
+    },
+    "nwctd": {
+      "serviceEnd": "2026-12-31",
+      "source": "calendar.txt",
+      "url": "https://hosted-gtfs-feeds.s3.amazonaws.com/NWCTD/gtfs.zip"
+    },
+    "easternct": {
+      "serviceEnd": "2030-12-30",
+      "source": "calendar.txt",
+      "url": "https://easternct.transloc.com/Secure/Admin/Reports/GTFSDownload.aspx"
+    },
     "brta": {
       "serviceEnd": "2027-03-01",
       "source": "calendar.txt",
@@ -154,7 +169,7 @@
       "url": "https://github.com/maxtkc/concord-coach-gtfs/raw/refs/heads/main/concord_coach_gtfs.zip"
     },
     "greyhound-flix": {
-      "serviceEnd": "2027-03-20",
+      "serviceEnd": "2027-03-27",
       "source": "calendar.txt",
       "url": "https://gtfs.gis.flix.tech/gtfs_generic_us.zip"
     },
@@ -224,15 +239,75 @@
       "source": "calendar.txt",
       "url": "https://files.mobilitydatabase.org/mdb-419/latest.zip"
     },
+    "seastreak": {
+      "serviceEnd": "2026-12-30",
+      "source": "calendar_dates.txt",
+      "url": "https://seastreak.com/api/transit/google_transit.zip"
+    },
+    "patriot-water-shuttle": {
+      "serviceEnd": "2027-03-01",
+      "source": "calendar.txt",
+      "url": "https://data.trilliumtransit.com/gtfs/patriotpartyboats-ma-us/patriotpartyboats-ma-us.zip"
+    },
+    "freedom-cruise": {
+      "serviceEnd": "2026-10-12",
+      "source": "calendar.txt",
+      "url": "https://data.trilliumtransit.com/gtfs/freedomcruiseline-ma-us/freedomcruiseline-ma-us.zip"
+    },
+    "thompson-island-ferry": {
+      "serviceEnd": "2026-10-13",
+      "source": "calendar.txt",
+      "url": "https://www.nps.gov/external-resources/gtfs/boha/cathleen-stone-island-ferry.zip"
+    },
     "yankee-line": {
       "serviceEnd": "2027-04-01",
       "source": "calendar.txt",
       "url": "https://files.mobilitydatabase.org/mdb-443/latest.zip"
     },
+    "harvard": {
+      "serviceEnd": "2027-12-31",
+      "source": "calendar.txt",
+      "url": "https://passio3.com/harvard/passioTransit/gtfs/google_transit.zip"
+    },
+    "mit": {
+      "serviceEnd": "2027-12-31",
+      "source": "calendar.txt",
+      "url": "https://passio3.com/mit/passioTransit/gtfs/google_transit.zip"
+    },
+    "tufts": {
+      "serviceEnd": "2027-12-31",
+      "source": "calendar.txt",
+      "url": "https://passio3.com/tufts/passioTransit/gtfs/google_transit.zip"
+    },
+    "bu": {
+      "serviceEnd": "2050-12-31",
+      "source": "calendar.txt",
+      "url": "https://bu.transloc.com/Secure/Admin/Reports/GTFSDownload.aspx"
+    },
+    "bc": {
+      "serviceEnd": "2027-01-01",
+      "source": "calendar.txt",
+      "url": "https://bc.transloc.com/Secure/Admin/Reports/GTFSDownload.aspx"
+    },
+    "umb": {
+      "serviceEnd": "2050-12-30",
+      "source": "calendar.txt",
+      "url": "https://umb.transloc.com/Secure/Admin/Reports/GTFSDownload.aspx"
+    },
     "ripta": {
       "serviceEnd": "2027-01-15",
       "source": "calendar_dates.txt",
       "url": "https://files.mobilitydatabase.org/mdb-624/latest.zip"
+    },
+    "brown": {
+      "serviceEnd": "2027-12-31",
+      "source": "calendar.txt",
+      "url": "https://passio3.com/brown/passioTransit/gtfs/google_transit.zip"
+    },
+    "uri": {
+      "serviceEnd": "2050-12-30",
+      "source": "calendar.txt",
+      "url": "https://uri.transloc.com/Secure/Admin/Reports/GTFSDownload.aspx"
     },
     "mbta-stations": {
       "serviceEnd": "2026-12-12",
@@ -274,6 +349,16 @@
       "source": "calendar.txt",
       "url": "https://files.mobilitydatabase.org/mdb-1958/latest.zip"
     },
+    "sullivan-county": {
+      "serviceEnd": "2026-12-31",
+      "source": "calendar.txt",
+      "url": "https://rapid.nationalrtap.org/GTFSFileManagement/UserUploadFiles/11917/sct_agency.zip"
+    },
+    "cj-bus": {
+      "serviceEnd": "2034-09-18",
+      "source": "calendar.txt",
+      "url": "https://rapid.nationalrtap.org/GTFSFileManagement/UserUploadFiles/13306/gtfs.zip"
+    },
     "gmt": {
       "serviceEnd": "2027-01-01",
       "source": "calendar.txt",
@@ -308,6 +393,16 @@
       "serviceEnd": "2027-06-30",
       "source": "calendar.txt",
       "url": "https://files.mobilitydatabase.org/mdb-450/latest.zip"
+    },
+    "lake-champlain-ferries": {
+      "serviceEnd": "2026-11-26",
+      "source": "calendar.txt",
+      "url": "https://data.trilliumtransit.com/gtfs/lctferries-vt-us/lctferries-vt-us.zip"
+    },
+    "yankee-trails": {
+      "serviceEnd": "2027-08-13",
+      "source": "calendar.txt",
+      "url": "https://s3.amazonaws.com/datatools-511ny/public/Rensselaer_County_Yankee_Trails.zip"
     },
     "island-explorer": {
       "serviceEnd": "2026-10-12",
@@ -354,10 +449,25 @@
       "source": "calendar.txt",
       "url": "https://files.mobilitydatabase.org/tld-7866/latest.zip"
     },
+    "maine-state-ferry": {
+      "serviceEnd": "2027-01-01",
+      "source": "calendar.txt",
+      "url": "https://rapid.nationalrtap.org/GTFSFileManagement/UserUploadFiles/13667/MSFS_ME_GTFS.zip"
+    },
+    "isle-au-haut-boat": {
+      "serviceEnd": "2027-06-21",
+      "source": "calendar.txt",
+      "url": "https://rapid.nationalrtap.org/GTFSFileManagement/UserUploadFiles/13053/isleauhaut_me_gtfs.zip"
+    },
     "wests-bus": {
       "serviceEnd": "2027-12-31",
       "source": "calendar.txt",
       "url": "https://files.mobilitydatabase.org/tld-7870/latest.zip"
+    },
+    "waldo-dash": {
+      "serviceEnd": "2030-10-01",
+      "source": "calendar.txt",
+      "url": "https://rapid.nationalrtap.org/GTFSFileManagement/UserUploadFiles/12036/WCAP_GTFS_ZIP.zip"
     }
   }
 }
