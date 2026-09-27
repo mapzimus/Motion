@@ -119,7 +119,7 @@ function buildIndex() {
   const muniByNorm = new Map();
   for (const name of MUNICIPALITIES) muniByNorm.set(normalize(name), name);
   const muniHits = new Map(); // name -> [[lng, lat], ...]
-  const seenStops = new Set();
+  const stopByKey = new Map(); // dedupe key -> entry (station wins over stop)
   const routeGeometry = new Map(); // route id -> { name, sub, color, features }
 
   for (const feature of pendingFeatures ?? []) {
@@ -127,11 +127,20 @@ function buildIndex() {
     if (p.kind === 'regional-station' && feature.geometry?.type === 'Point') {
       const [lng, lat] = feature.geometry.coordinates;
       const dedupe = `${p.title}|${lng.toFixed(4)},${lat.toFixed(4)}`;
-      if (seenStops.has(dedupe)) continue;
-      seenStops.add(dedupe);
-      const norm = normalize(p.title);
       const type = p.stopKind === 'landing' ? 'landing' : p.stopKind === 'station' ? 'station' : 'stop';
-      list.push({ type, name: p.title, norm, sub: p.status || '', lng, lat, feature });
+      const existing = stopByKey.get(dedupe);
+      if (existing) {
+        // The same place can appear as a bus stop and a rail station; keep
+        // the richer record so "Alewife" reads as a station.
+        if (TYPE_PRIORITY[type] > TYPE_PRIORITY[existing.type]) {
+          Object.assign(existing, { type, sub: p.status || '', feature });
+        }
+        continue;
+      }
+      const norm = normalize(p.title);
+      const entry = { type, name: p.title, norm, sub: p.status || '', lng, lat, feature };
+      stopByKey.set(dedupe, entry);
+      list.push(entry);
 
       const words = norm.split(' ');
       for (let i = 0; i < words.length; i += 1) {
@@ -337,9 +346,10 @@ function renderResults() {
   } else {
     el.input.removeAttribute('aria-activedescendant');
   }
+  const focused = document.activeElement === el.input;
   el.status.textContent = open
     ? `${results.length} result${results.length === 1 ? '' : 's'}`
-    : el.input.value.trim().length >= 2 ? 'No matches' : '';
+    : focused && el.input.value.trim().length >= 2 ? 'No matches' : '';
 }
 
 function closeResults() {
@@ -353,6 +363,8 @@ function choose(index) {
   if (!entry) return;
   el.input.value = entry.name;
   closeResults();
+  el.status.textContent = '';
+  el.input.blur();
   selectEntry(entry);
 }
 

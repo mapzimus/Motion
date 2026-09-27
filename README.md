@@ -220,6 +220,24 @@ ordinary roads, rail inspection points, the Campobello–Lubec crossing, and
 remote-traveller pilot facilities. Canadian-side control points retain their
 adjacent U.S. state tag, so state filters keep the correct crossings in view.
 
+## Find things and share views
+
+The **Find** box at the top of the console searches everything already loaded
+on the page — 38,000+ stops, stations, and ferry landings, every scheduled
+route ribbon, the eight geographies, and municipalities that appear in stop
+names — with no external geocoder. Arrow keys, Enter, and Esc work as in any
+combobox. Picking a stop flies to it and opens its popup; picking a route
+highlights the ribbon and fits it in view; picking a geography switches the
+region. MBTA stop popups add a **live** "Next arrivals" block from the
+[MBTA V3 predictions](https://www.mbta.com/developers/v3-api) endpoint (up to
+three per route, refreshed every 15 seconds while the popup is open); other
+operators publish schedules only, and their popups say so instead of
+inventing an ETA. The URL hash keeps the region, camera, any layer switched
+away from its default, and the data-truth filter
+(`#r=ct&c=-72.68,41.76&z=12&on=bike&off=commuter&s=live,scheduled`), so
+copying the address shares exactly the view on screen. `?region=` still works
+and takes second place to the hash.
+
 ## Run the map
 
 The MBTA, Amtrak, regional route, and shared-mobility layers work with only the
