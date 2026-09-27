@@ -724,8 +724,7 @@ h2 {
 }
 .line-row.zoomable:hover { background: rgba(255, 255, 255, 0.045); }
 
-/* ==========================================================================
-   Find: sidebar search combobox
+/* ===================================================================   Find: sidebar search combobox
    ========================================================================== */
 
 .search-section { padding-bottom: 12px; }
@@ -819,3 +818,16 @@ h2 {
 .popup-arrival { display: flex; gap: 8px; align-items: baseline; font-size: 12px; line-height: 1.45; }
 .popup-arrival-eta { flex: none; min-width: 52px; font-family: var(--font-mono); font-weight: 600; color: var(--text); }
 .popup-arrival-headsign { color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+=======
+/* ---- conditions (NWS weather · FAA airport status) ----------------------- */
+.alert-source-badge {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 1px 4px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  font-size: 8.5px;
+  letter-spacing: 0.1em;
+  opacity: 0.9;
+}
+.popup-divider { border: 0; border-top: 1px solid var(--hairline); margin: 9px 0; }

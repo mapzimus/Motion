@@ -70,6 +70,9 @@ function buildGroups(routeInfo, capabilities) {
     { key: 'park-ride', name: 'Park & ride lots', initial: 'PR', section: 'infrastructure', routes: [], color: CONFIG.PARK_RIDE_COLOR, darkText: true, truth: 'state DOT reference', countAsVehicle: false },
     { key: 'ev-charging', name: 'Public EV charging (zoom in)', initial: 'EV', section: 'infrastructure', routes: [], color: CONFIG.EV_CHARGING_COLOR, darkText: true, truth: 'AFDC reference', countAsVehicle: false },
     { key: 'drawbridge', name: 'Drawbridges & movable bridges', initial: 'DB', section: 'infrastructure', routes: [], color: CONFIG.DRAWBRIDGE_COLOR, darkText: true, truth: 'USCG reference', countAsVehicle: false },
+    // Conditions: official weather and airport operating status.
+    { key: 'weather', name: 'Weather alerts (NWS)', initial: '⚠', section: 'weather-conditions', sectionName: 'Conditions', routes: [], color: CONFIG.WEATHER_COLORS.moderate, darkText: true, truth: 'live', needsKey: !capabilities?.weatherAlerts, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false },
+    { key: 'airport-status', name: 'Airport delays (FAA)', initial: '✈', section: 'weather-conditions', routes: [], color: CONFIG.AIRPORT_STATUS_COLORS['ground-delay'], truth: 'live', needsKey: !capabilities?.airportStatus, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false },
   ];
 }
 
@@ -498,6 +501,13 @@ export function renderAlerts(alerts) {
     const effect = document.createElement('span');
     effect.className = 'alert-effect';
     effect.textContent = prettyEffect(a.effect);
+    // Non-transit sources (e.g. NWS weather) carry a small origin badge.
+    if (a.badge) {
+      const sourceBadge = document.createElement('span');
+      sourceBadge.className = 'alert-source-badge';
+      sourceBadge.textContent = a.badge;
+      effect.prepend(sourceBadge);
+    }
     const text = document.createElement('span');
     text.className = 'alert-text';
     text.textContent = a.header;

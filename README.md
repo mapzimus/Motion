@@ -30,6 +30,8 @@ Every feature is labeled **live**, **estimated**, **scheduled**, or
 | Work zones and closures | MassDOT WZDx plus the multi-state New England 511 WZDx feed for Maine, New Hampshire, and Vermont | 60 s |
 | Traffic incidents and public cameras | New England 511, CTroads, and the MassDOT CCTV asset inventory | 60–90 s |
 | Live congestion speeds | Public 511 traffic-flow tiles through the gateway; TomTom remains an optional configured fallback | live tiles |
+| Weather alerts | [NWS active alerts](https://api.weather.gov/) for the six states, drawn as severity-colored forecast-zone polygons; Extreme/Severe alerts also join the service-alert panel | 120 s (60 s edge cache) |
+| Airport delays | [FAA NAS airport status](https://nasstatus.faa.gov/) ground stops, ground-delay programs, arrival/departure delays, and closures, drawn as rings on the FAA airport markers | 120 s (60 s edge cache) |
 | Major roads and freight rail | U.S. Census TIGERweb primary roads and the FRA North American Rail Network | built snapshot |
 | Canada border crossings | 38 road, rail, ferry, and remote-traveller facilities from the [CBSA Directory of Offices](https://www.cbsa-asfc.gc.ca/do-rb/menu-eng.html) | built snapshot |
 | Marked walking and cycling routes | OpenStreetMap route relations via Waymarked Trails | live map tiles |
@@ -350,8 +352,8 @@ npx vercel --prod --yes
 
 | Endpoint | Purpose |
 |---|---|
-| `GET /health` | Configuration status without exposing secrets |
-| `GET /api/planes?region=ma` | Deduplicated, normalized ADS-B aircraft |
+| `GET /health` | Provider status without exposing secrets; a provider reads `true` when its last upstream fetch succeeded within 10 minutes (or has not been attempted yet) |
+| `GET /api/planes?region=ma` | Deduplicated, normalized ADS-B aircraft (Vercel relay only; the Worker no longer serves this path) |
 | `GET /api/route?callsign=AAL108` | Best-effort aircraft origin and destination (Vercel relay) |
 | `GET /api/transit?region=ct` | Normalized GTFS-realtime bus positions and per-feed health |
 | `GET /api/mnr` | Metro-North active trip segments and service alerts from official MTA GTFS-Realtime |
@@ -360,6 +362,8 @@ npx vercel --prod --yes
 | `GET /api/cameras` | Public camera locations from 511, CTroads, and MassDOT |
 | `GET /api/camera-detail?provider=north&id=…` | Latest public 511 camera image and official viewer details |
 | `GET /api/traffic/{z}/{x}/{y}.png` | Cached public 511 congestion tile, with optional TomTom source |
+| `GET /api/airport-status` | FAA NAS status (ground stops, ground-delay programs, arrival/departure delays, closures) for New England airports |
+| `GET /api/weather-alerts?region=ma` | NWS active alerts for the region's states as GeoJSON; forecast-zone polygons are resolved, simplified, and capped per request |
 | `GET /api/ais?region=new-england` with WebSocket upgrade | AISStream relay scoped to the selected region |
 
 Supported region IDs are `boston`, `ma`, `ct`, `ri`, `nh`, `vt`, `me`, and
@@ -373,7 +377,7 @@ Public browser-safe APIs ───────────────┐
   MBTA · static GTFS · Amtraker · GBFS │
                                        ├─ MapLibre fleets ─ Census region filter
 Cloudflare Worker gateway ─────────────┤
-  agency GTFS-RT · MTA MNR · 511 · WZDx · cameras · AIS│
+  agency GTFS-RT · MTA MNR · 511 · WZDx · cameras · NWS · FAA · AIS│
 Vercel aircraft relay ─────────────────┘
   ADSB.lol · adsb.fi · route lookup
 ```

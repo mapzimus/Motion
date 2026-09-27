@@ -24,6 +24,7 @@ import { startRegional } from './regional.js';
 import { startSharedMobility } from './shared-mobility.js';
 import { startRoadwork } from './roadwork.js';
 import { startRoadConditions } from './road-conditions.js';
+import { startConditions } from './conditions.js';
 import { startMetroNorth } from './metro-north.js';
 import { startAlertPolling } from './alerts.js';
 import { initialRegion, loadRegions } from './regions.js';
@@ -168,6 +169,12 @@ async function main() {
       updateAlerts('mnr'),
       selectedRegion,
       capabilities.metroNorth,
+    ),
+    startConditions(
+      (counts) => ui.updateCounts(counts, 'conditions'),
+      updateAlerts('nws'),
+      selectedRegion,
+      capabilities,
     ),
   );
   startSharedMobility((counts) => ui.updateCounts(counts, 'shared-mobility'));

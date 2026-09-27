@@ -13,15 +13,29 @@ describe('Motion gateway', () => {
       service: 'Motion gateway',
       status: 'ok',
       providers: {
-        aircraft: true,
         regionalTransit: true,
         metroNorth: true,
         roadEvents: true,
         cameras: true,
         traffic: true,
+        airportStatus: true,
+        weatherAlerts: true,
       },
     });
+    // Aircraft come from the Vercel relay, not this Worker.
+    expect(body.providers).not.toHaveProperty('aircraft');
     expect(JSON.stringify(body)).not.toContain('API_KEY');
+  });
+
+  it('no longer serves the retired Worker aircraft endpoint', async () => {
+    const response = await call('/api/planes?region=ma');
+    expect(response.status).toBe(404);
+  });
+
+  it('validates weather-alert regions before calling NWS', async () => {
+    const response = await call('/api/weather-alerts?region=california');
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: 'Unknown region' });
   });
 
   it('rejects browser origins outside the allowlist', async () => {

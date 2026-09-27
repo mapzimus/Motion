@@ -156,6 +156,21 @@ export const CONFIG = {
   CAMERA_POLL_MS: 5 * 60_000,
   ROAD_EVENT_POLL_MS: 60_000,
 
+  // Conditions: NWS active weather alerts (zone polygons) and FAA airport
+  // ground stops / delays, both relayed by the Worker and edge-cached 60 s.
+  WEATHER_POLL_MS: 120_000,
+  AIRPORT_STATUS_POLL_MS: 120_000,
+  WEATHER_COLORS: { extreme: '#ff5c5c', severe: '#ff5c5c', moderate: '#ffb454', minor: '#9aa3ad' },
+  AIRPORT_STATUS_COLORS: {
+    'ground-stop': '#ff5c5c',
+    closure: '#ff5c5c',
+    'ground-delay': '#ff8a4c',
+    'arrival-delay': '#ffb454',
+    'departure-delay': '#ffb454',
+  },
+  // Only NWS alerts at these severities join the service-alert panel.
+  WEATHER_PANEL_SEVERITIES: ['Extreme', 'Severe'],
+
   TRAFFIC_TILE_TEMPLATE: gatewayBase
     ? `${gatewayBase}/api/traffic/{z}/{x}/{y}.png`
     : '',
@@ -168,6 +183,7 @@ export const CONFIG = {
     'bus', 'bike', 'roadwork', 'traffic', 'incident', 'camera',
     'roads', 'freight', 'walking', 'cycling', 'local', 'airport', 'border', 'air-service',
     'heritage-rail', 'park-ride', 'ev-charging', 'drawbridge',
+    'weather', 'airport-status',
   ],
 
   BASEMAP_STYLE: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
