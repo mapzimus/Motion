@@ -44,6 +44,35 @@ export const TRANSIT_FEEDS: TransitFeed[] = [
     url: 'https://passio3.com/frta/passioTransit/gtfs/realtime/vehiclePositions',
   },
   {
+    // Cadavl producer (same platform as Greater Portland METRO). Route ids match the
+    // gtfs.wrta.cadavl.com static GTFS. Live-verified 2026-09-27: vehicles in Worcester.
+    id: 'wrta',
+    agency: 'Worcester Regional Transit Authority',
+    states: ['ma'],
+    url: 'https://gtfsrt.wrta.cadavl.com/ProfilGtfsRt2_0RSProducer-WRTA/VehiclePosition.pb',
+  },
+  {
+    // Cadavl producer; live-verified 2026-09-27 with vehicles around Taunton/Attleboro.
+    // Vehicle entities currently omit trip.route_id.
+    id: 'gatra',
+    agency: 'Greater Attleboro Taunton Regional Transit Authority',
+    states: ['ma'],
+    url: 'https://gtfsrt.gatra.cadavl.com/ProfilGtfsRt2_0RSProducer-GATRA/VehiclePosition.pb',
+  },
+  {
+    // Campus shuttles; route ids join the passio static GTFS (regional-feeds id "mit").
+    id: 'mit',
+    agency: 'MIT shuttles',
+    states: ['ma'],
+    url: 'https://passio3.com/mit/passioTransit/gtfs/realtime/vehiclePositions',
+  },
+  {
+    id: 'tufts',
+    agency: 'Tufts University shuttles',
+    states: ['ma'],
+    url: 'https://passio3.com/tufts/passioTransit/gtfs/realtime/vehiclePositions',
+  },
+  {
     id: 'cttransit',
     agency: 'CTtransit',
     states: ['ct'],
@@ -74,10 +103,23 @@ export const TRANSIT_FEEDS: TransitFeed[] = [
     url: 'https://mystop.norwalktransit.com/InfoPoint/gtfs-realtime.ashx?type=vehicleposition',
   },
   {
+    // Passio "uconn" system; route ids match the tld-4473 static feed (uconn-wrtd).
+    id: 'uconn-wrtd',
+    agency: 'UConn / Windham Region Transit District',
+    states: ['ct'],
+    url: 'https://passio3.com/uconn/passioTransit/gtfs/realtime/vehiclePositions',
+  },
+  {
     id: 'ripta',
     agency: 'Rhode Island Public Transit Authority',
     states: ['ri'],
     url: 'http://realtime.ripta.com:81/api/vehiclepositions?format=gtfs.proto',
+  },
+  {
+    id: 'brown',
+    agency: 'Brown University shuttles',
+    states: ['ri'],
+    url: 'https://passio3.com/brown/passioTransit/gtfs/realtime/vehiclePositions',
   },
   {
     id: 'greater-portland',
@@ -90,15 +132,6 @@ export const TRANSIT_FEEDS: TransitFeed[] = [
     agency: 'Island Explorer',
     states: ['me'],
     url: 'https://islandexplorertracker.availtec.com/InfoPoint/GTFS-Realtime.ashx?&Type=VehiclePosition&serverid=0',
-  },
-  {
-    id: 'south-portland',
-    agency: 'South Portland Bus Service',
-    states: ['me'],
-    // Mobility Database mdb-2647 lists this Swiftly feed as keyless, but the
-    // endpoint answers 401 without an Authorization header.
-    url: 'https://api.goswift.ly/real-time/south-portland-transit/gtfs-rt-vehicle-positions',
-    authorization: 'swiftly',
   },
   {
     id: 'casco-bay',
@@ -170,13 +203,6 @@ export const TRANSIT_FEEDS: TransitFeed[] = [
     agency: 'Tri-Valley Transit',
     states: ['vt'],
     url: 'https://api.goswift.ly/real-time/trivalleytransit/gtfs-rt-vehicle-positions',
-    authorization: 'swiftly',
-  },
-  {
-    id: 'the-current',
-    agency: 'The Current',
-    states: ['vt'],
-    url: 'https://api.goswift.ly/real-time/thecurrent/gtfs-rt-vehicle-positions',
     authorization: 'swiftly',
   },
 ];

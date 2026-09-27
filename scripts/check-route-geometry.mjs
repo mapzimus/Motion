@@ -687,7 +687,7 @@ const invalidAirRoutes = supplementalAir.features.filter((feature) => {
     || !properties.geometryNote
     || !/^https:\/\//.test(properties.sourceUrl ?? '');
 });
-if (supplementalAir.features.length !== 11
+if (supplementalAir.features.length !== 18
     || airRouteIds.size !== supplementalAir.features.length
     || invalidAirRoutes.length
     || [...airRouteIds].filter((route) => route.startsWith('penobscot-island-air:')).length !== 4
@@ -736,6 +736,47 @@ for (const [group, minimum] of Object.entries(REFERENCE_PLACE_MINIMUMS)) {
   if ((referencePlaceCounts[group] ?? 0) < minimum) {
     throw new Error(`Reference-place coverage for ${group} is incomplete (${referencePlaceCounts[group] ?? 0} < ${minimum})`);
   }
+}
+
+// Feed freshness (offline): scripts/feed-freshness.json is written by
+// build-regional-routes.py / check-feed-freshness.py. Every configured feed must
+// be listed, and each non-exempt feed must publish service at least
+// FRESHNESS_GUARD_DAYS past the date the file was generated.
+{
+  const FRESHNESS_GUARD_DAYS = 7;
+  const regionalFeeds = JSON.parse(readFileSync(new URL('./regional-feeds.json', import.meta.url), 'utf8'));
+  const freshness = JSON.parse(readFileSync(new URL('./feed-freshness.json', import.meta.url), 'utf8'));
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(freshness.checkedAt ?? '')) {
+    throw new Error('scripts/feed-freshness.json has no valid checkedAt date; rerun scripts/check-feed-freshness.py.');
+  }
+  const cutoff = new Date(`${freshness.checkedAt}T00:00:00Z`);
+  cutoff.setUTCDate(cutoff.getUTCDate() + FRESHNESS_GUARD_DAYS);
+  const cutoffDate = cutoff.toISOString().slice(0, 10);
+  const freshnessProblems = [];
+  for (const feed of regionalFeeds) {
+    const record = freshness.feeds?.[feed.id];
+    if (!record) {
+      freshnessProblems.push(`${feed.id}: missing from feed-freshness.json (rerun scripts/check-feed-freshness.py)`);
+      continue;
+    }
+    if (feed.freshness_exempt) continue;
+    if (!record.serviceEnd) {
+      freshnessProblems.push(`${feed.id}: service end date unknown${record.lastError ? ` (${record.lastError})` : ''}`);
+    } else if (record.serviceEnd < cutoffDate) {
+      freshnessProblems.push(
+        `${feed.id} (${feed.agency}): published service ends ${record.serviceEnd}, `
+        + `before ${cutoffDate} (${FRESHNESS_GUARD_DAYS} days after the ${freshness.checkedAt} check); `
+        + 'find a newer GTFS URL or add "freshness_exempt" with a reason in regional-feeds.json',
+      );
+    }
+  }
+  if (freshnessProblems.length) {
+    throw new Error(`Scheduled feed freshness check failed:\n${freshnessProblems.join('\n')}`);
+  }
+  console.log(
+    `Feed freshness check passed: ${regionalFeeds.length} feeds checked ${freshness.checkedAt}, `
+    + `${regionalFeeds.filter((feed) => feed.freshness_exempt).length} exempt, all others run past ${cutoffDate}.`,
+  );
 }
 
 console.log(

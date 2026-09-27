@@ -37,6 +37,11 @@ ROAD_ROUTE_CONTROLS_PATH = ROOT / "scripts" / "road-route-controls.json"
 BOUNDARIES_PATH = ROOT / "data" / "regions.geojson"
 OUTPUT_PATH = ROOT / "data" / "regional-routes.geojson"
 MNR_STOPS_PATH = ROOT / "data" / "mnr-stops.json"
+FRESHNESS_PATH = ROOT / "scripts" / "feed-freshness.json"
+BORROWED_SHAPE_NOTE = (
+    "Track path follows published shapes of other trains on the same corridor between this service's stations."
+)
+BORROWED_SHAPE_MAX_SNAP_KM = 0.6
 
 NE_BOUNDS = (-75.0, 40.0, -65.0, 48.5)
 TOLERANCE = 0.00022  # roughly 18–25 m in New England
@@ -77,9 +82,11 @@ MODE_COLORS = {2: "#a58add", 3: "#f2b84b", 4: "#2eb7c5"}
 GROUP_COLORS = {"amtrak": "#5b9bd5"}
 
 
-def download(url: str) -> bytes:
-    request = urllib.request.Request(url, headers={"User-Agent": "Motion route builder/1.0"})
-    with urllib.request.urlopen(request, timeout=60) as response:
+def download(url: str, user_agent: str | None = None) -> bytes:
+    """Fetch a feed. Some agency CDNs reject non-browser agents, so a feed may
+    carry its own `user_agent` in regional-feeds.json."""
+    request = urllib.request.Request(url, headers={"User-Agent": user_agent or "Motion route builder/1.0"})
+    with urllib.request.urlopen(request, timeout=120) as response:
         payload = response.read(80 * 1024 * 1024 + 1)
     if len(payload) > 80 * 1024 * 1024:
         raise ValueError("feed exceeds the 80 MB safety limit")
@@ -100,6 +107,151 @@ def read_rows(archive: zipfile.ZipFile, wanted: str) -> list[dict[str, str]]:
         return []
     raw = archive.read(name).decode("utf-8-sig", errors="replace")
     return list(csv.DictReader(io.StringIO(raw)))
+
+
+GTFS_DATE_PATTERNS = (
+    re.compile(r"^(?P<y>\d{4})(?P<m>\d{2})(?P<d>\d{2})$"),  # GTFS standard YYYYMMDD
+    re.compile(r"^(?P<m>\d{1,2})/(?P<d>\d{1,2})/(?P<y>\d{4})$"),  # M/D/YYYY (Steamship Authority)
+    re.compile(r"^(?P<y>\d{4})-(?P<m>\d{1,2})-(?P<d>\d{1,2})$"),  # ISO YYYY-MM-DD
+)
+
+
+def parse_gtfs_date(value) -> str | None:
+    """Normalize a GTFS date to YYYYMMDD, accepting common nonstandard forms."""
+    text = (value or "").strip()
+    for pattern in GTFS_DATE_PATTERNS:
+        match = pattern.match(text)
+        if match:
+            year, month, day = int(match["y"]), int(match["m"]), int(match["d"])
+            if 1 <= month <= 12 and 1 <= day <= 31:
+                return f"{year:04d}{month:02d}{day:02d}"
+    return None
+
+
+def service_end_date(archive: zipfile.ZipFile) -> tuple[str | None, str | None]:
+    """Latest date the feed publishes service for, and which file set it.
+
+    Uses the max of calendar.txt end_date and calendar_dates.txt date (added
+    service only). feed_info.txt feed_end_date is only a fallback when the feed
+    publishes no calendar dates: some publishers (e.g. the old Casco Bay Lines
+    feed) set feed_end_date years past the last scheduled trip.
+    """
+    def latest(candidates):
+        best, best_source = None, None
+        for filename, field, keep in candidates:
+            for row in read_rows(archive, filename):
+                if keep and not keep(row):
+                    continue
+                parsed = parse_gtfs_date(row.get(field))
+                if parsed and (best is None or parsed > best):
+                    best, best_source = parsed, filename
+        return best, best_source
+
+    best, best_source = latest((
+        ("calendar.txt", "end_date", None),
+        ("calendar_dates.txt", "date", lambda row: (row.get("exception_type") or "1").strip() == "1"),
+    ))
+    if best is None:
+        best, best_source = latest((("feed_info.txt", "feed_end_date", None),))
+    return best, best_source
+
+
+def iso_date(value: str | None) -> str | None:
+    return f"{value[:4]}-{value[4:6]}-{value[6:8]}" if value else None
+
+
+def freshness_record(feed, archive) -> dict:
+    end, source = service_end_date(archive)
+    return {"serviceEnd": iso_date(end), "source": source, "url": feed["url"]}
+
+
+def write_feed_freshness(records: dict, feeds: list) -> None:
+    """Write scripts/feed-freshness.json.
+
+    `records` maps feed id -> freshness_record(...) or {"error": "..."}.
+    A feed that could not be downloaded keeps its previous serviceEnd (so one
+    flaky server does not erase history) with the failure noted in lastError;
+    check-route-geometry.mjs still judges that carried-over date.
+    """
+    previous = {}
+    if FRESHNESS_PATH.exists():
+        try:
+            previous = json.loads(FRESHNESS_PATH.read_text(encoding="utf-8")).get("feeds", {})
+        except (ValueError, AttributeError):
+            previous = {}
+    output = {}
+    for feed in feeds:
+        record = dict(records.get(feed["id"]) or {"error": "not checked"})
+        if "error" in record:
+            carried = {key: value for key, value in previous.get(feed["id"], {}).items() if key != "lastError"}
+            carried.setdefault("serviceEnd", None)
+            carried.setdefault("url", feed["url"])
+            carried["lastError"] = record["error"]
+            record = carried
+        if feed.get("freshness_exempt"):
+            record["exempt"] = feed["freshness_exempt"]
+        output[feed["id"]] = record
+    payload = {
+        "description": (
+            "Last date each scheduled GTFS feed publishes service for. Written by "
+            "build-regional-routes.py and check-feed-freshness.py; checked offline by "
+            "check-route-geometry.mjs."
+        ),
+        "checkedAt": time.strftime("%Y-%m-%d", time.gmtime()),
+        "feeds": output,
+    }
+    FRESHNESS_PATH.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def nearest_vertex(shape, point):
+    """Index and haversine km of the shape vertex closest to point."""
+    scale = math.cos(math.radians(point[1]))
+    best_index = min(
+        range(len(shape)),
+        key=lambda i: ((shape[i][0] - point[0]) * scale) ** 2 + (shape[i][1] - point[1]) ** 2,
+    )
+    return best_index, haversine_km(shape[best_index], point)
+
+
+def snap_stops_to_donor_shapes(points, donor_shapes):
+    """Replace straight station-to-station chords with the matching slice of a
+    donor shape (another route's published track shape on the same corridor)."""
+    if not donor_shapes or len(points) < 2:
+        return points, False
+    nearest_cache = {}
+
+    def nearest(shape_index, point):
+        key = (shape_index, point)
+        if key not in nearest_cache:
+            nearest_cache[key] = nearest_vertex(donor_shapes[shape_index], point)
+        return nearest_cache[key]
+
+    result = [points[0]]
+    changed = False
+    for start, end in zip(points, points[1:]):
+        direct = haversine_km(start, end)
+        best = None
+        for shape_index, shape in enumerate(donor_shapes):
+            start_index, start_km = nearest(shape_index, start)
+            if start_km > BORROWED_SHAPE_MAX_SNAP_KM:
+                continue
+            end_index, end_km = nearest(shape_index, end)
+            if end_km > BORROWED_SHAPE_MAX_SNAP_KM or start_index == end_index:
+                continue
+            if start_index < end_index:
+                piece = shape[start_index:end_index + 1]
+            else:
+                piece = list(reversed(shape[end_index:start_index + 1]))
+            length = polyline_km(piece)
+            if length > direct * 1.5 + 2:
+                continue
+            if best is None or length < best[0]:
+                best = (length, piece)
+        if best:
+            result.extend(best[1][1:-1])
+            changed = True
+        result.append(end)
+    return result, changed
 
 
 def write_mnr_stops(archive: zipfile.ZipFile) -> None:
@@ -1073,15 +1225,21 @@ def process_feed(
     refresh_road_cache,
     routing_state,
 ):
-    payload = download(feed["url"])
+    payload = download(feed["url"], feed.get("user_agent"))
     archive = zipfile.ZipFile(io.BytesIO(payload))
+    freshness = freshness_record(feed, archive)
     if feed["id"] == "metro-north":
         write_mnr_stops(archive)
     routes = {row.get("route_id"): row for row in read_rows(archive, "routes.txt") if row.get("route_id")}
     pattern = re.compile(feed["route_name_pattern"], re.I) if feed.get("route_name_pattern") else None
     route_id_pattern = re.compile(feed["route_id_pattern"], re.I) if feed.get("route_id_pattern") else None
+    agency_filter = feed.get("agency_id")
+    if agency_filter is not None:
+        agency_filter = {str(value) for value in (agency_filter if isinstance(agency_filter, list) else [agency_filter])}
     selected_routes = {}
     for route_id, route in routes.items():
+        if agency_filter is not None and (route.get("agency_id") or "").strip() not in agency_filter:
+            continue
         try:
             route_type = effective_route_type(feed, route)
         except ValueError:
@@ -1095,26 +1253,45 @@ def process_feed(
         match_value = route.get(feed.get("route_name_field"), "") if feed.get("route_name_field") else route_label(route)
         if pattern and not pattern.search(match_value or ""):
             continue
+        if feed.get("route_name_override"):
+            route = {**route, "route_short_name": "", "route_long_name": feed["route_name_override"]}
         selected_routes[route_id] = route
+
+    # Optional donor shapes: a shapeless service (Shore Line East inside the
+    # Amtrak feed) can borrow the track geometry of other routes in the same
+    # feed that serve the same stations.
+    donor_pattern = re.compile(feed["borrow_shapes_route_pattern"], re.I) if feed.get("borrow_shapes_route_pattern") else None
+    donor_route_ids = {
+        route_id for route_id, route in routes.items()
+        if donor_pattern and route_id not in selected_routes
+        and donor_pattern.search(route.get("route_long_name") or route_label(route))
+    }
+    donor_shape_ids = set()
 
     shape_to_route = {}
     fallback_trip_by_route_direction = {}
     trip_rows = read_rows(archive, "trips.txt")
     for trip in trip_rows:
         route_id = trip.get("route_id")
+        shape_id = (trip.get("shape_id") or "").strip()
+        if route_id in donor_route_ids and shape_id:
+            donor_shape_ids.add(shape_id)
         if route_id not in selected_routes:
             continue
-        shape_id = (trip.get("shape_id") or "").strip()
         if shape_id:
             shape_to_route.setdefault(shape_id, route_id)
         elif not feed.get("shape_only"):
+            # all_stop_patterns keeps every trip (deduplicated by path below) so
+            # short-turn and extension patterns are not dropped.
             key = (route_id, trip.get("direction_id") or "")
+            if feed.get("all_stop_patterns"):
+                key = (*key, trip.get("trip_id"))
             fallback_trip_by_route_direction.setdefault(key, trip.get("trip_id"))
 
     shape_points = defaultdict(list)
     for row in read_rows(archive, "shapes.txt"):
         shape_id = row.get("shape_id")
-        if shape_id not in shape_to_route:
+        if shape_id not in shape_to_route and shape_id not in donor_shape_ids:
             continue
         try:
             lon = float(row["shape_pt_lon"])
@@ -1126,7 +1303,13 @@ def process_feed(
 
     geometries = []
     for shape_id, values in shape_points.items():
-        geometries.append((shape_to_route[shape_id], [point for _, point in sorted(values)]))
+        if shape_id in shape_to_route:
+            geometries.append((shape_to_route[shape_id], [point for _, point in sorted(values)]))
+    donor_shapes = [
+        [point for _, point in sorted(shape_points[shape_id])]
+        for shape_id in sorted(donor_shape_ids)
+        if shape_id in shape_points
+    ]
 
     # Keep blank-shape trip patterns even when another trip on the same route
     # has a shape. National intercity feeds sometimes publish only a short city
@@ -1135,7 +1318,31 @@ def process_feed(
     fallback_trips = {trip_id for trip_id in fallback_trip_by_route_direction.values() if trip_id}
     stop_geometries = coordinates_from_stops(archive, fallback_trips)
     route_for_fallback = {trip_id: key[0] for key, trip_id in fallback_trip_by_route_direction.items()}
-    geometries.extend((route_for_fallback[trip_id], points) for trip_id, points in stop_geometries.items())
+    if feed.get("all_stop_patterns"):
+        # One path per terminal pair (either direction), keeping the pattern
+        # with the most stops, so short-turns and expresses do not stack
+        # near-identical copies of the same corridor.
+        best_by_terminals = {}
+        for trip_id, points in stop_geometries.items():
+            if len(points) < 2:
+                continue
+            key = (route_for_fallback[trip_id], frozenset((points[0], points[-1])))
+            if key not in best_by_terminals or len(points) > len(stop_geometries[best_by_terminals[key]]):
+                best_by_terminals[key] = trip_id
+        keep = set(best_by_terminals.values())
+        stop_geometries = {trip_id: points for trip_id, points in stop_geometries.items() if trip_id in keep}
+    borrowed_shape_routes = set()
+    seen_stop_paths = set()
+    for trip_id, points in stop_geometries.items():
+        signature = (route_for_fallback[trip_id], tuple(points))
+        if signature in seen_stop_paths:
+            continue
+        seen_stop_paths.add(signature)
+        if donor_shapes:
+            points, borrowed = snap_stops_to_donor_shapes(points, donor_shapes)
+            if borrowed:
+                borrowed_shape_routes.add(route_for_fallback[trip_id])
+        geometries.append((route_for_fallback[trip_id], points))
 
     seen = set()
     paths_by_route = defaultdict(list)
@@ -1209,6 +1416,10 @@ def process_feed(
             "scheduleNote": "Published schedule route · live vehicle position shown separately when available",
             "regions": regions,
         }
+        if feed.get("service_class"):
+            # e.g. "campus" for university shuttles, so the map can style or
+            # filter them apart from public transit within the bus group.
+            properties["serviceClass"] = feed["service_class"]
         if route_id in approximate_routes:
             properties["geometryAccuracy"] = "approximate"
             properties["geometryProvider"] = "OpenStreetMap / Project OSRM"
@@ -1219,6 +1430,13 @@ def process_feed(
             properties["geometryProvider"] = "Reviewed rail corridor controls"
             properties["geometryNote"] = RAIL_GEOMETRY_NOTE
             properties["scheduleNote"] += f" · {RAIL_GEOMETRY_NOTE}"
+        elif route_id in borrowed_shape_routes:
+            properties["geometryAccuracy"] = "approximate"
+            properties["geometryProvider"] = feed.get("borrowed_shape_provider") or "Same-feed corridor shapes"
+            properties["geometryNote"] = BORROWED_SHAPE_NOTE
+            properties["scheduleNote"] += f" · {BORROWED_SHAPE_NOTE}"
+        if feed.get("expired_note"):
+            properties["scheduleNote"] += f" · {feed['expired_note']}"
         route_url = route.get("route_url") if feed.get("use_route_urls") else None
         properties["sourceUrl"] = source_url(
             route_url,
@@ -1246,10 +1464,10 @@ def process_feed(
             "feedUrl": feed["url"],
             "feedPublisherName": feed_info.get("feed_publisher_name") or feed["agency"],
             "feedVersion": feed_info.get("feed_version") or "",
-            "feedStartDate": feed_info.get("feed_start_date") or "",
-            "feedEndDate": feed_info.get("feed_end_date") or "",
+            "feedStartDate": parse_gtfs_date(feed_info.get("feed_start_date")) or feed_info.get("feed_start_date") or "",
+            "feedEndDate": parse_gtfs_date(feed_info.get("feed_end_date")) or feed_info.get("feed_end_date") or "",
         }
-    return features, len(selected_routes), source_metadata
+    return features, len(selected_routes), source_metadata, freshness
 
 
 def main(update_road_cache=False, refresh_road_cache=False, update_ferry_cache=False, refresh_ferry_cache=False):
@@ -1275,10 +1493,11 @@ def main(update_road_cache=False, refresh_road_cache=False, update_ferry_cache=F
     all_features = []
     successes = []
     failures = []
+    freshness = {}
     for index, feed in enumerate(feeds, 1):
         print(f"[{index:02}/{len(feeds)}] {feed['agency']}...", flush=True)
         try:
-            features, route_count, source_metadata = process_feed(
+            features, route_count, source_metadata, freshness[feed["id"]] = process_feed(
                 feed,
                 region_geometries,
                 road_cache,
@@ -1296,8 +1515,9 @@ def main(update_road_cache=False, refresh_road_cache=False, update_ferry_cache=F
                 "features": len(features),
                 **source_metadata,
             })
-            print(f"     {route_count} routes, {len(features)} shapes")
+            print(f"     {route_count} routes, {len(features)} shapes, service through {freshness[feed['id']]['serviceEnd']}")
         except Exception as error:  # continue so one seasonal feed cannot erase the regional map
+            freshness[feed["id"]] = {"error": str(error)}
             failures.append({"id": feed["id"], "agency": feed["agency"], "error": str(error)})
             print(f"     skipped: {error}")
             if feed.get("required"):
@@ -1449,7 +1669,9 @@ def main(update_road_cache=False, refresh_road_cache=False, update_ferry_cache=F
         "features": all_features,
     }
     OUTPUT_PATH.write_text(json.dumps(collection, separators=(",", ":")), encoding="utf-8")
+    write_feed_freshness(freshness, feeds)
     print(f"Wrote {len(all_features)} features from {len(successes)} feeds to {OUTPUT_PATH}")
+    print(f"Wrote feed service end dates to {FRESHNESS_PATH}")
     print(
         f"Road geometry: used {routing_state['used']} cached segments; "
         f"fetched {routing_state['fetched']} new segments."
