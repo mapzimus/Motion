@@ -65,6 +65,7 @@ export const CONFIG = {
   LOCAL_SERVICES_URL: './data/local-services.geojson',
   AIRPORTS_URL: './data/airports.geojson',
   BORDER_CROSSINGS_URL: './data/border-crossings.geojson',
+  REFERENCE_PLACES_URL: './data/reference-places.geojson',
   MNR_STOPS_URL: './data/mnr-stops.json',
   MNR_COLOR: '#ee0034',
   MNR_STALE_MS: 2 * 60_000,
@@ -142,6 +143,10 @@ export const CONFIG = {
   LOCAL_COLOR: '#9fc36a',
   AIRPORT_COLOR: '#9be1ff',
   BORDER_COLOR: '#f0d27a',
+  HERITAGE_RAIL_COLOR: '#e07a5f',
+  PARK_RIDE_COLOR: '#7fb7ff',
+  EV_CHARGING_COLOR: '#6ee7a8',
+  DRAWBRIDGE_COLOR: '#f7c948',
 
   CAMERA_POLL_MS: 5 * 60_000,
   ROAD_EVENT_POLL_MS: 60_000,
@@ -157,6 +162,7 @@ export const CONFIG = {
   DEFAULT_OFF_GROUPS: [
     'bus', 'bike', 'roadwork', 'traffic', 'incident', 'camera',
     'roads', 'freight', 'walking', 'cycling', 'local', 'airport', 'border', 'air-service',
+    'heritage-rail', 'park-ride', 'ev-charging', 'drawbridge',
   ],
 
   BASEMAP_STYLE: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',

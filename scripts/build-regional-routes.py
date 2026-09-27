@@ -1144,6 +1144,7 @@ def main(update_road_cache=False, refresh_road_cache=False):
             "ferry": MODE_COLORS[4],
             "commuter": MODE_COLORS[2],
             "plane": "#9be1ff",
+            "air-service": "#9be1ff",
         }.get(feature["properties"].get("group"), "#8a949f")
         feature["properties"].setdefault("provider", "Official carrier schedule")
     supplemental_stops = supplemental_ferry_stop_features(supplemental_features)

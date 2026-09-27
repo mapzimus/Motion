@@ -44,6 +44,12 @@ let airportsFC = EMPTY_FC;
 let allBorderCrossingsFC = EMPTY_FC;
 let borderCrossingsFC = EMPTY_FC;
 let referenceLoadPromise = null;
+// Reference places (heritage rail, park & ride, EV charging, drawbridges) are
+// one ~5 MB file, so they load only when one of their groups is switched on.
+const REFERENCE_PLACE_GROUPS = ['heritage-rail', 'park-ride', 'ev-charging', 'drawbridge'];
+let allReferencePlacesFC = EMPTY_FC;
+let referencePlacesFC = EMPTY_FC;
+let referencePlacesPromise = null;
 
 export function configureGateway(capabilities) {
   trafficAvailable = Boolean(capabilities?.traffic);
@@ -373,6 +379,107 @@ function setupLayers() {
     },
     paint: {
       'text-color': CONFIG.BORDER_COLOR,
+      'text-halo-color': '#10151b',
+      'text-halo-width': 1.5,
+    },
+  });
+
+  map.addSource('reference-places', { type: 'geojson', data: EMPTY_FC });
+  map.addLayer({
+    id: 'heritage-rail-lines',
+    type: 'line',
+    source: 'reference-places',
+    filter: ['==', ['get', 'group'], 'heritage-rail'],
+    layout: { visibility: 'none', 'line-cap': 'round', 'line-join': 'round' },
+    paint: {
+      'line-color': CONFIG.HERITAGE_RAIL_COLOR,
+      'line-width': ['interpolate', ['linear'], ['zoom'], 5, 1.6, 13, 4.5],
+      'line-opacity': 0.9,
+      'line-dasharray': [1.5, 1],
+    },
+  });
+  map.addLayer({
+    id: 'heritage-rail-labels',
+    type: 'symbol',
+    source: 'reference-places',
+    filter: ['==', ['get', 'group'], 'heritage-rail'],
+    minzoom: 8,
+    layout: {
+      visibility: 'none',
+      'symbol-placement': 'line',
+      'text-field': ['get', 'title'],
+      'text-size': 10,
+      'text-max-angle': 30,
+    },
+    paint: {
+      'text-color': CONFIG.HERITAGE_RAIL_COLOR,
+      'text-halo-color': '#10151b',
+      'text-halo-width': 1.5,
+    },
+  });
+  map.addLayer({
+    id: 'park-ride-points',
+    type: 'circle',
+    source: 'reference-places',
+    filter: ['==', ['get', 'group'], 'park-ride'],
+    layout: { visibility: 'none' },
+    paint: {
+      'circle-color': CONFIG.PARK_RIDE_COLOR,
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 2.5, 11, 6.5],
+      'circle-stroke-color': '#151a21',
+      'circle-stroke-width': 1.2,
+      'circle-opacity': 0.9,
+    },
+  });
+  // EV charging is dense (~8,000 stations), so it stays hidden below zoom 10.
+  map.addLayer({
+    id: 'ev-charging-points',
+    type: 'circle',
+    source: 'reference-places',
+    filter: ['==', ['get', 'group'], 'ev-charging'],
+    minzoom: 10,
+    layout: { visibility: 'none' },
+    paint: {
+      'circle-color': CONFIG.EV_CHARGING_COLOR,
+      'circle-radius': [
+        'interpolate', ['linear'], ['zoom'],
+        10, ['case', ['get', 'fastCharge'], 4, 2.5],
+        14, ['case', ['get', 'fastCharge'], 7, 4.5],
+      ],
+      'circle-stroke-color': ['case', ['get', 'fastCharge'], '#f4f6f8', '#151a21'],
+      'circle-stroke-width': 1.2,
+      'circle-opacity': 0.88,
+    },
+  });
+  map.addLayer({
+    id: 'drawbridge-points',
+    type: 'circle',
+    source: 'reference-places',
+    filter: ['==', ['get', 'group'], 'drawbridge'],
+    layout: { visibility: 'none' },
+    paint: {
+      'circle-color': '#151a21',
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 3, 11, 7],
+      'circle-stroke-color': CONFIG.DRAWBRIDGE_COLOR,
+      'circle-stroke-width': 2.2,
+      'circle-opacity': 0.95,
+    },
+  });
+  map.addLayer({
+    id: 'drawbridge-labels',
+    type: 'symbol',
+    source: 'reference-places',
+    filter: ['==', ['get', 'group'], 'drawbridge'],
+    minzoom: 9,
+    layout: {
+      visibility: 'none',
+      'text-field': ['get', 'title'],
+      'text-size': 10,
+      'text-offset': [0, 1.3],
+      'text-allow-overlap': false,
+    },
+    paint: {
+      'text-color': CONFIG.DRAWBRIDGE_COLOR,
       'text-halo-color': '#10151b',
       'text-halo-width': 1.5,
     },
@@ -746,6 +853,10 @@ function wirePopups() {
   wireInformationPopup('border-crossing-points');
   wireInformationPopup('major-roads-lines');
   wireInformationPopup('freight-rail-lines');
+  wireInformationPopup('heritage-rail-lines');
+  wireInformationPopup('park-ride-points');
+  wireInformationPopup('ev-charging-points');
+  wireInformationPopup('drawbridge-points');
   wireCameraPopups();
 }
 
@@ -1036,6 +1147,29 @@ function renderReferenceData() {
   map?.getSource('local-services')?.setData(localServicesFC);
   map?.getSource('airports')?.setData(airportsFC);
   map?.getSource('border-crossings')?.setData(borderCrossingsFC);
+  renderReferencePlaces();
+}
+
+function renderReferencePlaces() {
+  referencePlacesFC = filterSpatialFeatureCollection(allReferencePlacesFC, activeRegion);
+  map?.getSource('reference-places')?.setData(referencePlacesFC);
+}
+
+async function ensureReferencePlaces() {
+  if (referencePlacesPromise) return referencePlacesPromise;
+  referencePlacesPromise = fetch(CONFIG.REFERENCE_PLACES_URL)
+    .then((response) => {
+      if (!response.ok) throw new Error(`reference places ${response.status}`);
+      return response.json();
+    })
+    .then((collection) => {
+      allReferencePlacesFC = collection;
+      renderReferencePlaces();
+    })
+    .catch((error) => {
+      console.warn('Reference-places catalog unavailable:', error);
+    });
+  return referencePlacesPromise;
 }
 
 async function ensureReferenceData() {
@@ -1078,7 +1212,7 @@ export async function loadReferenceData() {
 
 export function referenceCountsForRegion() {
   const counts = {};
-  for (const collection of [infrastructureFC, localServicesFC, airportsFC, borderCrossingsFC]) {
+  for (const collection of [infrastructureFC, localServicesFC, airportsFC, borderCrossingsFC, referencePlacesFC]) {
     for (const feature of collection.features ?? []) {
       const group = feature.properties?.group;
       if (group) counts[group] = (counts[group] ?? 0) + 1;
@@ -1112,6 +1246,9 @@ export function setVisibleGroups(groups, statuses = ['live', 'estimated', 'sched
   pendingFilters = { groups, statuses };
   if (groups.some((group) => ['roads', 'freight', 'local', 'airport', 'border'].includes(group))) {
     ensureReferenceData();
+  }
+  if (groups.some((group) => REFERENCE_PLACE_GROUPS.includes(group))) {
+    ensureReferencePlaces();
   }
   if (layersReady) applyGroupFilter(groups, statuses);
 }
@@ -1255,6 +1392,20 @@ function applyGroupFilter(groups, statuses) {
     );
   }
   for (const [layerId, group] of [
+    ['heritage-rail-lines', 'heritage-rail'],
+    ['heritage-rail-labels', 'heritage-rail'],
+    ['park-ride-points', 'park-ride'],
+    ['ev-charging-points', 'ev-charging'],
+    ['drawbridge-points', 'drawbridge'],
+    ['drawbridge-labels', 'drawbridge'],
+  ]) {
+    map.setLayoutProperty(
+      layerId,
+      'visibility',
+      groups.includes(group) && statuses.includes('reference') ? 'visible' : 'none',
+    );
+  }
+  for (const [layerId, group] of [
     ['major-roads-halo', 'roads'],
     ['major-roads-lines', 'roads'],
     ['freight-rail-lines', 'freight'],
@@ -1334,6 +1485,9 @@ export async function focusGroup(groupKey, routeIds = []) {
   if (['roads', 'freight', 'local', 'airport', 'border'].includes(groupKey)) {
     await ensureReferenceData();
   }
+  if (REFERENCE_PLACE_GROUPS.includes(groupKey)) {
+    await ensureReferencePlaces();
+  }
   let coords = [...fleetData.values()]
     .flatMap((fc) => fc.features)
     .filter((f) => f.properties.group === groupKey)
@@ -1349,7 +1503,7 @@ export async function focusGroup(groupKey, routeIds = []) {
       .flatMap(lineCoordinates);
   }
   if (!coords.length) {
-    coords = [roadworkFC, roadEventsFC, camerasFC, infrastructureFC, localServicesFC, airportsFC, borderCrossingsFC]
+    coords = [roadworkFC, roadEventsFC, camerasFC, infrastructureFC, localServicesFC, airportsFC, borderCrossingsFC, referencePlacesFC]
       .flatMap((collection) => collection.features)
       .filter((feature) => feature.properties.group === groupKey)
       .flatMap((feature) => feature.geometry.type === 'Point'

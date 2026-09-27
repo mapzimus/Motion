@@ -33,6 +33,10 @@ Every feature is labeled **live**, **estimated**, **scheduled**, or
 | Major roads and freight rail | U.S. Census TIGERweb primary roads and the FRA North American Rail Network | built snapshot |
 | Canada border crossings | 38 road, rail, ferry, and remote-traveller facilities from the [CBSA Directory of Offices](https://www.cbsa-asfc.gc.ca/do-rb/menu-eng.html) | built snapshot |
 | Marked walking and cycling routes | OpenStreetMap route relations via Waymarked Trails | live map tiles |
+| Heritage and scenic railroads | 17 hand-curated operator routes (`scripts/heritage-railroads.json`), snapped to the FRA rail network where the tourist line runs on mapped track | built snapshot |
+| Park-and-ride lots | MassDOT GeoDOT, CTDOT, VTrans, and MaineDOT ArcGIS services plus the NHDOT inventory republished by SWRPC | built snapshot |
+| Public EV charging | [NREL/NLR Alternative Fuel Stations API](https://developer.nlr.gov/docs/transportation/alt-fuel-stations-v1/) DC fast and Level 2 stations across all six states | built snapshot |
+| Drawbridges and movable bridges | 25 hand-curated bridges with opening rules from [33 CFR 117 Subpart B](https://www.law.cornell.edu/cfr/text/33/part-117/subpart-B) | built snapshot |
 
 The aircraft layer no longer calls airplanes.live. That service now rejects
 this project with HTTP 403, and ADS-B providers do not expose browser CORS
@@ -190,6 +194,7 @@ py -3 -X utf8 scripts\build-regional-routes.py
 py -3 -X utf8 scripts\build-regions.py
 py -3 -X utf8 scripts\build-airports.py
 py -3 -X utf8 scripts\build-border-crossings.py
+py -3 -X utf8 scripts\build-reference-places.py
 ```
 
 The ferry audit fetches only current Census hydrography tiles touching ferry
@@ -237,6 +242,23 @@ for New England's Maine, New Hampshire, and Vermont frontier. It includes
 ordinary roads, rail inspection points, the Campobello–Lubec crossing, and
 remote-traveller pilot facilities. Canadian-side control points retain their
 adjacent U.S. state tag, so state filters keep the correct crossings in view.
+
+The **Movement infrastructure** section also carries four reference-place
+layers built by `scripts/build-reference-places.py` into
+`data/reference-places.geojson`. Heritage and scenic railroads are a
+hand-curated list of operators confirmed running in 2026 (Conway Scenic, the
+Cog, Hobo/Winnipesaukee, Essex, Naugatuck, Cape Cod Central, Berkshire Scenic,
+Vermont Rail System's Champlain Valley Dinner Train, Maine Narrow Gauge,
+Belfast & Moosehead Lake, Downeast Scenic, WW&F, Seashore Trolley, Shelburne
+Falls Trolley, and the Lowell NHP trolley); ten follow the FRA rail network and
+the two-foot, cog, and streetcar lines are drawn as labeled approximate paths.
+Park-and-ride lots come from each state DOT's ArcGIS service (Rhode Island
+publishes none; New Hampshire's is a 2013 inventory and its popup says so).
+Public EV charging keeps only stations with DC fast or Level 2 ports and is
+hidden below zoom 10 because it is dense. Drawbridges are the major movable
+bridges whose opening rules are published in 33 CFR 117, each popup linking the
+governing section. All four start switched off, are clipped to the selected
+region, and are reference points rather than live status.
 
 ## Run the map
 

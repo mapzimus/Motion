@@ -1,0 +1,254 @@
+{
+  "note": "Hand-curated heritage and scenic railroads confirmed operating in 2026. Coordinates are [lon, lat]. Routes with snapToRail true are snapped to the FRA rail network in data/infrastructure.geojson at build time; others keep the listed waypoints as an approximate path.",
+  "verified": "2026-09-26",
+  "railroads": [
+    {
+      "id": "conway-scenic-valley",
+      "title": "Conway Scenic Railroad · Valley Train",
+      "operator": "Conway Scenic Railroad",
+      "state": "nh",
+      "season": "Mid-April through December; up to five daily departures from late May",
+      "url": "https://www.conwayscenic.com/",
+      "kind": "Standard-gauge heritage railroad",
+      "snapToRail": true,
+      "waypoints": [
+        {"name": "North Conway Station", "coordinates": [-71.128741, 44.051925]},
+        {"name": "Conway", "coordinates": [-71.1198, 43.9793]}
+      ]
+    },
+    {
+      "id": "conway-scenic-mountaineer",
+      "title": "Conway Scenic Railroad · Mountaineer",
+      "operator": "Conway Scenic Railroad",
+      "state": "nh",
+      "season": "Late June through mid-October (Crawford Notch)",
+      "url": "https://www.conwayscenic.com/",
+      "kind": "Standard-gauge heritage railroad",
+      "snapToRail": true,
+      "waypoints": [
+        {"name": "North Conway Station", "coordinates": [-71.128741, 44.051925]},
+        {"name": "Bartlett", "coordinates": [-71.2861, 44.0808]},
+        {"name": "Crawford Depot", "coordinates": [-71.411284, 44.217872]}
+      ]
+    },
+    {
+      "id": "mount-washington-cog",
+      "title": "Mount Washington Cog Railway",
+      "operator": "The Mount Washington Cog Railway",
+      "state": "nh",
+      "season": "Year-round from Marshfield Base Station; summit service in summer and early fall, Waumbek turnaround in winter",
+      "url": "https://www.thecog.com/",
+      "kind": "Rack (cog) railway",
+      "snapToRail": false,
+      "waypoints": [
+        {"name": "Marshfield Base Station", "coordinates": [-71.3527, 44.2698]},
+        {"name": "Waumbek Station", "coordinates": [-71.3300, 44.2700]},
+        {"name": "Mount Washington summit", "coordinates": [-71.3033, 44.2706]}
+      ]
+    },
+    {
+      "id": "hobo-railroad",
+      "title": "Hobo Railroad",
+      "operator": "Hobo & Winnipesaukee Scenic Railroads (Patriot Rail)",
+      "state": "nh",
+      "season": "Mid-May through December",
+      "url": "https://hoborr.com/",
+      "kind": "Standard-gauge heritage railroad",
+      "snapToRail": true,
+      "waypoints": [
+        {"name": "Lincoln Station (Hobo Junction)", "coordinates": [-71.679263, 44.040578]},
+        {"name": "Woodstock turnaround", "coordinates": [-71.6820, 43.9760]}
+      ]
+    },
+    {
+      "id": "winnipesaukee-scenic",
+      "title": "Winnipesaukee Scenic Railroad",
+      "operator": "Hobo & Winnipesaukee Scenic Railroads (Patriot Rail)",
+      "state": "nh",
+      "season": "Mid-May through December",
+      "url": "https://hoborr.com/",
+      "kind": "Standard-gauge heritage railroad",
+      "snapToRail": true,
+      "waypoints": [
+        {"name": "Meredith Station", "coordinates": [-71.499209, 43.650839]},
+        {"name": "Weirs Beach", "coordinates": [-71.459979, 43.60826]},
+        {"name": "Lakeport", "coordinates": [-71.46289, 43.54738]}
+      ]
+    },
+    {
+      "id": "essex-steam-train",
+      "title": "Essex Steam Train & Riverboat",
+      "operator": "Valley Railroad Company",
+      "state": "ct",
+      "season": "Late April through December; steam train and Becky Thatcher riverboat connection at Deep River Landing",
+      "url": "https://essexsteamtrain.com/",
+      "kind": "Standard-gauge heritage railroad",
+      "snapToRail": true,
+      "waypoints": [
+        {"name": "Essex Station", "coordinates": [-72.405531, 41.350334]},
+        {"name": "Deep River Landing", "coordinates": [-72.426415, 41.394176]}
+      ]
+    },
+    {
+      "id": "naugatuck-railroad",
+      "title": "Naugatuck Railroad · Naugatuck River Scenic Train",
+      "operator": "Railroad Museum of New England",
+      "state": "ct",
+      "season": "Spring through December; 20-mile round trips from Thomaston Station",
+      "url": "https://www.rmne.org/",
+      "kind": "Standard-gauge heritage railroad",
+      "snapToRail": true,
+      "waypoints": [
+        {"name": "Thomaston Station", "coordinates": [-73.068081, 41.67358]},
+        {"name": "Waterville (Waterbury) turnaround", "coordinates": [-73.050941, 41.590375]}
+      ]
+    },
+    {
+      "id": "cape-cod-central",
+      "title": "Cape Cod Central Railroad",
+      "operator": "Cape Cod Central Railroad",
+      "state": "ma",
+      "season": "May through October scenic and dining trains, plus holiday specials",
+      "url": "https://www.capetrain.com/",
+      "kind": "Standard-gauge heritage railroad",
+      "snapToRail": true,
+      "waypoints": [
+        {"name": "Hyannis Transportation Center", "coordinates": [-70.279898, 41.656051]},
+        {"name": "West Barnstable", "coordinates": [-70.3711, 41.7056]},
+        {"name": "Buzzards Bay", "coordinates": [-70.615499, 41.744366]}
+      ]
+    },
+    {
+      "id": "berkshire-scenic-hoosac",
+      "title": "Berkshire Scenic Railway · Hoosac Valley Service",
+      "operator": "Berkshire Scenic Railway Museum",
+      "state": "ma",
+      "season": "Weekends and holidays, Memorial Day weekend through October",
+      "url": "https://www.berkshiretrains.org/",
+      "kind": "Standard-gauge heritage railroad",
+      "snapToRail": true,
+      "waypoints": [
+        {"name": "Adams Station", "coordinates": [-73.117041, 42.625216]},
+        {"name": "North Adams", "coordinates": [-73.1112, 42.7017]}
+      ]
+    },
+    {
+      "id": "champlain-valley-dinner-train",
+      "title": "Green Mountain Railroad · Champlain Valley Dinner Train",
+      "operator": "Vermont Rail System (Green Mountain Railroad)",
+      "state": "vt",
+      "season": "July 11 – October 25, 2026 from Burlington Union Station",
+      "url": "https://www.rails-vt.com/",
+      "kind": "Standard-gauge dinner and excursion train",
+      "snapToRail": true,
+      "waypoints": [
+        {"name": "Burlington Union Station", "coordinates": [-73.219508, 44.475783]},
+        {"name": "Middlebury", "coordinates": [-73.1698, 44.0130]}
+      ]
+    },
+    {
+      "id": "maine-narrow-gauge",
+      "title": "Maine Narrow Gauge Railroad",
+      "operator": "Maine Narrow Gauge Railroad Co. & Museum",
+      "state": "me",
+      "season": "Weekends from February; daily late spring through October; Polar Express in November–December",
+      "url": "https://mainenarrowgauge.org/",
+      "kind": "Two-foot narrow-gauge heritage railroad",
+      "snapToRail": false,
+      "waypoints": [
+        {"name": "Ocean Gateway station", "coordinates": [-70.2470, 43.6600]},
+        {"name": "Eastern Promenade", "coordinates": [-70.2440, 43.6632]},
+        {"name": "East End Beach", "coordinates": [-70.2408, 43.6668]},
+        {"name": "Eastern Promenade north", "coordinates": [-70.2385, 43.6705]},
+        {"name": "Tukey's Bridge turnaround", "coordinates": [-70.2378, 43.6735]}
+      ]
+    },
+    {
+      "id": "belfast-moosehead-lake",
+      "title": "Belfast & Moosehead Lake Railroad",
+      "operator": "Belfast & Moosehead Lake Railroad",
+      "state": "me",
+      "season": "Weekend excursions from the Unity venue, late spring through October",
+      "url": "https://bmlrail.com/",
+      "kind": "Standard-gauge heritage railroad",
+      "snapToRail": true,
+      "waypoints": [
+        {"name": "Unity Station", "coordinates": [-69.3370, 44.6135]},
+        {"name": "Thorndike turnaround", "coordinates": [-69.2683, 44.5753]}
+      ]
+    },
+    {
+      "id": "downeast-scenic",
+      "title": "Downeast Scenic Railroad",
+      "operator": "Downeast Rail Heritage Preservation Trust",
+      "state": "me",
+      "season": "Saturdays and Sundays, Memorial Day weekend through the weekend after Columbus Day",
+      "url": "https://downeastscenicrail.org/",
+      "kind": "Standard-gauge heritage railroad",
+      "snapToRail": false,
+      "waypoints": [
+        {"name": "Washington Junction (Hancock)", "coordinates": [-68.3818, 44.5529]},
+        {"name": "Ellsworth (Union River bridge)", "coordinates": [-68.4235, 44.5445]},
+        {"name": "Ellsworth Falls", "coordinates": [-68.44395, 44.566245]}
+      ]
+    },
+    {
+      "id": "wwf-railway",
+      "title": "Wiscasset, Waterville & Farmington Railway",
+      "operator": "WW&F Railway Museum",
+      "state": "me",
+      "season": "Weekends spring through fall from Sheepscot Station, Alna; steam trains to Trout Brook",
+      "url": "https://wwfry.org/",
+      "kind": "Two-foot narrow-gauge heritage railroad",
+      "snapToRail": false,
+      "waypoints": [
+        {"name": "Sheepscot Station", "coordinates": [-69.622819, 44.067547]},
+        {"name": "Alna Center", "coordinates": [-69.6255, 44.0870]},
+        {"name": "Trout Brook / Top of the Mountain", "coordinates": [-69.6270, 44.1050]}
+      ]
+    },
+    {
+      "id": "seashore-trolley-museum",
+      "title": "Seashore Trolley Museum heritage line",
+      "operator": "Seashore Trolley Museum",
+      "state": "me",
+      "season": "Weekends in May; Wednesday–Sunday June through late October; Christmas Prelude weekends in December",
+      "url": "https://trolleymuseum.org/",
+      "kind": "Heritage electric streetcar line",
+      "snapToRail": false,
+      "waypoints": [
+        {"name": "Seashore Trolley Museum", "coordinates": [-70.489135, 43.430135]},
+        {"name": "Talbott Park (Arundel)", "coordinates": [-70.4760, 43.4405]}
+      ]
+    },
+    {
+      "id": "shelburne-falls-trolley",
+      "title": "Shelburne Falls Trolley Museum · Car No. 10",
+      "operator": "Shelburne Falls Trolley Museum",
+      "state": "ma",
+      "season": "Saturdays, Sundays and holidays, May 23 – October 31, 2026",
+      "url": "https://www.sftm.org/",
+      "kind": "Heritage electric streetcar line",
+      "snapToRail": false,
+      "waypoints": [
+        {"name": "Shelburne Falls Trolley Museum", "coordinates": [-72.739866, 42.600663]},
+        {"name": "End of track", "coordinates": [-72.7330, 42.6045]}
+      ]
+    },
+    {
+      "id": "lowell-nhp-trolley",
+      "title": "Lowell National Historical Park trolley",
+      "operator": "National Park Service · Lowell National Historical Park",
+      "state": "ma",
+      "season": "Seasonal free service; 2026 fall schedule September 20 – October 17, Wednesday–Sunday",
+      "url": "https://www.nps.gov/lowe/planyourvisit/trolley-system.htm",
+      "kind": "Heritage electric streetcar line",
+      "snapToRail": false,
+      "waypoints": [
+        {"name": "Suffolk Mill", "coordinates": [-71.315669, 42.648836]},
+        {"name": "Mack Plaza / Visitor Center", "coordinates": [-71.312147, 42.64429]},
+        {"name": "Boott Cotton Mills Museum", "coordinates": [-71.3064, 42.647937]}
+      ]
+    }
+  ]
+}
