@@ -20,10 +20,10 @@ Every feature is labeled **live**, **estimated**, **scheduled**, or
 | MBTA subway, Silver Line, buses, commuter rail, ferries | [MBTA V3 API](https://www.mbta.com/developers/v3-api) | 10 s |
 | Regional buses | Agency GTFS-realtime feeds, normalized by the gateway | 20 s |
 | Metro-North New Haven branches | [MTA GTFS-Realtime](https://www.mta.info/developers) trip predictions and alerts; positions are explicitly estimated between stations | 30 s |
-| Scheduled/reference bus, rail, ferry, boat, and air-service routes and stops | 72 GTFS sources plus 88 official-service corridors, including Amtrak, Metro-North, regional coaches, 93 ferry routes, municipal water shuttles, small-island lifelines, island air taxis, and 37,000+ scheduled stops | built snapshot |
-| Small-town, county, flex, volunteer, microtransit, and on-demand water-service catalog | 53 official-directory service markers across all six states | built snapshot |
+| Scheduled/reference bus, rail, ferry, boat, and air-service routes and stops | 87 GTFS sources plus 96 official-service corridors, including Amtrak, Metro-North, regional coaches, university shuttles, 94 ferry routes, municipal water shuttles, small-island lifelines, island air taxis, and 37,000+ scheduled stops | built snapshot |
+| Small-town, county, flex, volunteer, microtransit, and on-demand water-service catalog | 50 official-directory service markers across all six states | built snapshot |
 | Amtrak | [Amtrak official static GTFS](https://content.amtrak.com/content/gtfs/GTFS.zip) for scheduled routes/stations; [Amtraker](https://amtraker.com) community API for live trains | built snapshot + 90 s |
-| Aircraft and air services | [ADSB.lol](https://api.adsb.lol/) with [adsb.fi](https://adsb.fi/) failover; 11 optional official Cape Air/Tradewind schedules and Penobscot Island Air on-demand corridors | 45 s + built snapshot |
+| Aircraft and air services | [ADSB.lol](https://api.adsb.lol/) with [adsb.fi](https://adsb.fi/) failover; 18 optional official Cape Air/Tradewind schedules and Penobscot Island Air on-demand corridors | 45 s + built snapshot |
 | Airports and landing facilities | 778 open airports, heliports, seaplane bases, and other facilities from the [FAA NASR subscription](https://www.faa.gov/air_traffic/flight_info/aeronav/aero_data/NASR_Subscription/) | 28-day built snapshot |
 | Harbor/coastal vessels and identifiable passenger ferries | [AISStream](https://aisstream.io) through a protected WebSocket relay | streaming |
 | Bike and scooter share | GBFS feeds for Bluebikes across 13 Greater Boston municipalities, Veo Hartford, Veo New Haven, and Spin Providence | 60 s |
@@ -56,7 +56,7 @@ private, repositioning, and irregular flights may not have an itinerary.
 The checked-in route snapshot contains more than 1,100 bus, commuter-rail,
 Amtrak, ferry, passenger-boat, and air-service route features plus more than
 37,000 scheduled bus stops, ferry landings, T stops, and rail stations,
-assembled from 72 GTFS sources and 88 official-service corridors. Scheduled
+assembled from 87 GTFS sources and 96 official-service corridors. Scheduled
 routes remain visible when an operator publishes no live positions. State
 views start with the scheduled bus layer on,
 and the sidebar reports scheduled route counts separately from live vehicles,
@@ -86,6 +86,22 @@ discoverable GTFS feed, so its Upper Valley–Boston/Logan and Upper Valley–NY
 corridors follow the stop order on the carrier's official schedules and link
 back to those schedules from the map popup. These intercity carriers are shown
 as schedules, not invented live vehicle positions.
+
+Small-system and campus coverage (September 2026 additions): Northeastern
+Connecticut Transit District (5 routes) and Northwestern Connecticut Transit
+District (6 routes) now publish static GTFS and draw as scheduled ribbons
+instead of directory markers, as do Sullivan County Transportation in New
+Hampshire (8 routes), Waldo Community Action Partners' Rockland and Belfast
+DASH loops in Maine (2 routes), C&J Bus Lines' Portsmouth–Boston/Logan coach
+(1 route), and Yankee Trails' Albany–Bennington line (1 route, kept only where it
+touches Vermont). University shuttles are drawn in the bus group and tagged
+`serviceClass: "campus"`: Harvard (3 drawn routes), MIT (7), Tufts (7), Boston
+University (5), Boston College (13), UMass Boston (1), Brown (4), the
+University of Rhode Island (3), and Eastern Connecticut State University (3);
+special-event, charter, and out-of-service patterns are filtered out. Tri-County
+Transit's North Country GTFS is reachable but its calendar ended on
+2026-06-30, so its two flex routes stay directory markers until it is
+re-published.
 
 Vermont includes regional routes from every discoverable public GTFS source in
 the current audit, including Green Mountain Transit, Vermont Translines, and
@@ -126,6 +142,10 @@ dry runs longer than roughly 95–133 metres fail the strict audit. Every route
 must also resolve to at least two named landing points, and all ferry coordinate
 fingerprints are locked by the geometry check, so a feed update or manual edit
 cannot silently restore an over-land ocean, lake, harbor, or river chord.
+A newly hand-drawn ferry may wait for the next audit only when it is flagged
+`geometryPending` and named in the manifest's `pendingReview` list; the
+seasonal Thimble Islands Ferry (Stony Creek–Outer Island, Branford) is the
+current pending route.
 When a provider re-publishes a ferry shape after it was audited (as Cuttyhunk
 Ferry did in September 2026), the previously audited path is pinned in
 `scripts/ferry-route-overrides.json` until a new shoreline audit reviews the
@@ -142,9 +162,8 @@ systems. No discoverable public GBFS system is currently cataloged for Vermont,
 New Hampshire, or Maine, so the map does not fabricate stations there.
 
 The **Local & on-demand services** layer fills a different gap. It currently
-catalogs 53 services that do not have reliable route geometry or public live
-positions: Maine county transportation, Sullivan County and New Hampshire
-community providers, Massachusetts microtransit, Connecticut's nine CTDOT
+catalogs 50 services that do not have reliable route geometry or public live
+positions: Maine county transportation, New Hampshire community providers, Massachusetts microtransit, Connecticut's nine CTDOT
 microtransit programs, RIPTA Flex zones, Vermont's regional demand-response
 providers, and on-demand Boston Harbor and Maine coastal water taxis. These
 are service-area reference points with links
@@ -159,12 +178,13 @@ The gateway currently knows these live vehicle-position feeds:
 
 - Massachusetts: MBTA, Pioneer Valley Transit Authority, Brockton Area
   Transit, Montachusett RTA, and Franklin RTA (the last three through Passio's
-  public GTFS-realtime endpoints); Merrimack Valley Transit is included through
-  the optional Swiftly authorization
+  public GTFS-realtime endpoints); WRTA and GATRA (public Cadavl
+  GTFS-realtime producers); MIT and Tufts campus shuttles (Passio); Merrimack
+  Valley Transit is included through the optional Swiftly authorization
 - Connecticut: CTtransit, HARTransit, River Valley Transit (the merged
-  Middletown Area Transit / 9 Town Transit district, via Passio), and Norwalk
-  Transit District
-- Rhode Island: RIPTA
+  Middletown Area Transit / 9 Town Transit district, via Passio), Norwalk
+  Transit District, and UConn / Windham Region Transit District (Passio)
+- Rhode Island: RIPTA and Brown University shuttles (Passio)
 - Maine: Greater Portland METRO and Island Explorer; South Portland Bus
   Service and Casco Bay Lines ferries are included through the optional
   Swiftly authorization
@@ -400,10 +420,14 @@ npm run deploy:dry-run
   A September 2026 survey of the remaining regional operators found: SRTA
   (Clever Devices BusTime) and UNH Wildcat Transit (Umo IQ) require a
   vendor API key; MWRTA and CCRTA expose only a proprietary JSON tracker;
-  WRTA and GATRA (Navineo), LRTA and BRTA (RouteMatch), Manchester Transit
-  (RouteShout), and VTA (Strategic Mapping) run closed trackers with
-  alerts-only or no GTFS-realtime; CATA and Concord Coach have no public
-  tracker at all. Those operators remain scheduled ribbons only.
+  BRTA (RouteMatch), Manchester Transit (RouteShout), and VTA (Strategic
+  Mapping) run closed trackers with alerts-only or no GTFS-realtime; CATA and
+  Concord Coach have no public tracker at all. Those operators remain
+  scheduled ribbons only. WRTA and GATRA turned out to publish public Cadavl
+  GTFS-realtime (now live). LRTA, Bangor Community Connector, Lexpress, and
+  Harvard shuttles publish GTFS-realtime endpoints that answered with zero
+  vehicles during the Sunday 2026-09-27 check; they are left out until a
+  weekday decode confirms in-state vehicles.
 - Peter Pan's public GTFS has not been re-published since June 2024, so its
   corridors are shown as scheduled service relationships rather than a
   current timetable.
