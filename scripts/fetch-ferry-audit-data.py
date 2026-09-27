@@ -1,134 +1,321 @@
 #!/usr/bin/env python3
-"""Fetch Census hydrography tiles touching the generated ferry corridors."""
+"""Fetch the OpenStreetMap water model used to build and audit ferry geometry.
+
+Three local files are written to ``.codex-research/water-audit/`` (gitignored):
+
+``osm-land-ne.wkb.json``
+    OpenStreetMap coastline land polygons (osmdata.openstreetmap.de
+    ``land-polygons-split-4326``), clipped to the New England bounding box.
+``osm-inland-water-ne.wkb.json``
+    Overpass ``natural=water`` / ``waterway=riverbank`` / ``waterway=dock``
+    polygons touching ferry corridors. The coastline treats lakes and rivers
+    behind a coastline closure (hurricane barriers, river mouths) as land, so
+    these polygons are subtracted from the land polygons.
+``osm-ferry-ways.json``
+    Raw Overpass ``route=ferry`` ways in the New England ferry bbox. These are
+    matched to our terminals as a geometry source.
+
+The ~925 MB land-polygon zip is downloaded once and reused; pass
+``--refresh-land`` to download it again.
+"""
 
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import math
+import sys
 import time
 import urllib.parse
 import urllib.request
+import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-ROUTES = ROOT / "data" / "regional-routes.geojson"
-DEFAULT_OUTPUT = ROOT / ".codex-research" / "water-audit" / "tigerweb-hydro-ne.geojson"
-QUERY_URL = "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Hydro/MapServer/1/query"
-CELL = 0.25
-CORRIDOR_BUFFER = 0.025
+sys.path.insert(0, str(ROOT / "scripts"))
+
+OUTPUT_DIR = ROOT / ".codex-research" / "water-audit"
+LAND_URL = "https://osmdata.openstreetmap.de/download/land-polygons-split-4326.zip"
+LAND_ZIP = OUTPUT_DIR / "land-polygons-split-4326.zip"
+LAND_OUTPUT = OUTPUT_DIR / "osm-land-ne.wkb.json"
+WATER_OUTPUT = OUTPUT_DIR / "osm-inland-water-ne.wkb.json"
+FERRY_WAYS_OUTPUT = OUTPUT_DIR / "osm-ferry-ways.json"
+OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+USER_AGENT = "New England in Motion ferry geometry builder (+https://github.com/mapzimus/Motion)"
+
+# west, south, east, north
+LAND_BBOX = (-74.2, 40.7, -65.8, 47.8)
+FERRY_WAY_BBOX = (-74.0, 40.9, -66.0, 47.5)
+WATER_TILE = 0.1
+CORRIDOR_BUFFER = 0.02
+TILES_PER_QUERY = 8
 
 
-def ferry_paths():
-    collection = json.loads(ROUTES.read_text(encoding="utf-8"))
+def download_land(refresh=False):
+    if LAND_ZIP.exists() and not refresh:
+        print(f"Reusing {LAND_ZIP.name} ({LAND_ZIP.stat().st_size / 1e6:,.0f} MB)")
+        return
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    partial = LAND_ZIP.with_suffix(".zip.part")
+    request = urllib.request.Request(LAND_URL, headers={"User-Agent": USER_AGENT})
+    print(f"Downloading {LAND_URL}", flush=True)
+    with urllib.request.urlopen(request, timeout=300) as response, partial.open("wb") as handle:
+        total = 0
+        while True:
+            chunk = response.read(4 * 1024 * 1024)
+            if not chunk:
+                break
+            handle.write(chunk)
+            total += len(chunk)
+            if total % (100 * 1024 * 1024) < len(chunk):
+                print(f"  {total / 1e6:,.0f} MB", flush=True)
+    partial.replace(LAND_ZIP)
+
+
+def extract_land():
+    import shapefile
+    from shapely import make_valid, to_wkb
+    from shapely.geometry import box, shape
+
+    clip = box(*LAND_BBOX)
+    polygons = []
+    extract_dir = OUTPUT_DIR / "land-polygons-extract"
+    with zipfile.ZipFile(LAND_ZIP) as archive:
+        # Zip members are not efficiently seekable; unpack the shapefile once.
+        for name in archive.namelist():
+            if Path(name).suffix in {".shp", ".shx", ".dbf"}:
+                target = extract_dir / Path(name).name
+                if not target.exists() or target.stat().st_size != archive.getinfo(name).file_size:
+                    print(f"Extracting {name}", flush=True)
+                    archive.extract(archive.getinfo(name), extract_dir)
+                    (extract_dir / name).replace(target)
+    with shapefile.Reader(str(extract_dir / "land_polygons.shp")) as reader:
+        print(f"Scanning {len(reader):,} land polygons for the New England bbox", flush=True)
+        for record in reader.iterShapes(bbox=LAND_BBOX):
+            geometry = shape(record.__geo_interface__)
+            if not geometry.is_valid:
+                geometry = make_valid(geometry)
+            geometry = geometry.intersection(clip)
+            if geometry.is_empty or geometry.area == 0:
+                continue
+            polygons.append(geometry)
+    write_wkb(LAND_OUTPUT, polygons, {
+        "source": "OpenStreetMap land polygons (osmdata.openstreetmap.de)",
+        "sourceUrl": LAND_URL,
+        "license": "ODbL 1.0, (c) OpenStreetMap contributors",
+        "bbox": LAND_BBOX,
+    }, to_wkb)
+
+
+def write_wkb(path, geometries, metadata, to_wkb):
+    payload = {
+        "metadata": {**metadata, "fetchedAt": time.strftime("%Y-%m-%d"), "count": len(geometries)},
+        "wkb": [base64.b64encode(to_wkb(geometry)).decode("ascii") for geometry in geometries],
+    }
+    path.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
+    print(f"Wrote {len(geometries):,} polygons to {path} ({path.stat().st_size / 1e6:,.1f} MB)")
+
+
+def overpass(query, attempts=5):
+    body = urllib.parse.urlencode({"data": query}).encode("utf-8")
+    last_error = None
+    for attempt in range(attempts):
+        request = urllib.request.Request(OVERPASS_URL, data=body, headers={"User-Agent": USER_AGENT})
+        try:
+            with urllib.request.urlopen(request, timeout=300) as response:
+                return json.load(response)
+        except Exception as error:  # Overpass rate-limits with 429/504
+            last_error = error
+            wait = 20 * (attempt + 1)
+            print(f"  Overpass error ({error}); retrying in {wait}s", flush=True)
+            time.sleep(wait)
+    raise RuntimeError(f"Overpass failed: {last_error}")
+
+
+def fetch_ferry_ways():
+    west, south, east, north = FERRY_WAY_BBOX
+    query = f'[out:json][timeout:170];way["route"="ferry"]({south},{west},{north},{east});out tags geom;'
+    result = overpass(query)
+    FERRY_WAYS_OUTPUT.write_text(json.dumps(result, ensure_ascii=False), encoding="utf-8")
+    print(f"Wrote {len(result.get('elements', [])):,} OSM ferry ways to {FERRY_WAYS_OUTPUT}")
+    return result
+
+
+def corridor_paths(ferry_ways):
+    """Every ferry path we might draw: current build, catalogs, and OSM ways."""
     paths = []
-    for feature in collection.get("features", []):
-        if feature.get("properties", {}).get("group") != "ferry":
-            continue
-        geometry = feature.get("geometry", {})
-        if geometry.get("type") not in {"LineString", "MultiLineString"}:
-            continue
-        geometry_paths = geometry.get("coordinates", [])
+
+    def add_geometry(geometry):
+        if not geometry:
+            return
         if geometry.get("type") == "LineString":
-            geometry_paths = [geometry_paths]
-        paths.extend(path for path in geometry_paths if len(path) >= 2)
-    if not paths:
-        raise RuntimeError("Generated route data contains no ferry lines")
-    return paths
+            paths.append(geometry["coordinates"])
+        elif geometry.get("type") == "MultiLineString":
+            paths.extend(geometry["coordinates"])
+
+    for name in ("supplemental-routes.json", "supplemental-ferry-routes.json"):
+        for feature in json.loads((ROOT / "scripts" / name).read_text(encoding="utf-8"))["features"]:
+            if feature.get("properties", {}).get("group") == "ferry":
+                add_geometry(feature.get("geometry"))
+    routes = ROOT / "data" / "regional-routes.geojson"
+    if routes.exists():
+        for feature in json.loads(routes.read_text(encoding="utf-8")).get("features", []):
+            if feature.get("properties", {}).get("group") == "ferry":
+                add_geometry(feature.get("geometry"))
+    cache = ROOT / "scripts" / "ferry-water-cache.json"
+    if cache.exists():
+        for record in json.loads(cache.read_text(encoding="utf-8")).get("routes", {}).values():
+            paths.extend(record.get("coordinates", []))
+    # OSM ferry ways only matter where they can be matched to our terminals.
+    endpoints = [point for path in paths if path for point in (path[0], path[-1])]
+
+    def near_endpoint(point):
+        return any(abs(point[0] - e[0]) < 0.03 and abs(point[1] - e[1]) < 0.02 for e in endpoints)
+
+    for element in ferry_ways.get("elements", []):
+        way = [[node["lon"], node["lat"]] for node in element.get("geometry", [])]
+        if len(way) >= 2 and near_endpoint(way[0]) and near_endpoint(way[-1]):
+            paths.append(way)
+    return [path for path in paths if len(path) >= 1]
 
 
 def corridor_tiles(paths):
-    indexes = set()
+    tiles = set()
     for path in paths:
-        for start, end in zip(path, path[1:]):
-            minx = min(start[0], end[0]) - CORRIDOR_BUFFER
-            miny = min(start[1], end[1]) - CORRIDOR_BUFFER
-            maxx = max(start[0], end[0]) + CORRIDOR_BUFFER
-            maxy = max(start[1], end[1]) + CORRIDOR_BUFFER
-            for x_index in range(math.floor(minx / CELL), math.ceil(maxx / CELL)):
-                for y_index in range(math.floor(miny / CELL), math.ceil(maxy / CELL)):
-                    indexes.add((x_index, y_index))
-    for x_index, y_index in sorted(indexes):
-        yield (
-            round(x_index * CELL, 6),
-            round(y_index * CELL, 6),
-            round((x_index + 1) * CELL, 6),
-            round((y_index + 1) * CELL, 6),
-        )
-
-
-def fetch_tile(bounds):
-    body = urllib.parse.urlencode({
-        "f": "geojson",
-        "where": "1=1",
-        "geometry": ",".join(str(value) for value in bounds),
-        "geometryType": "esriGeometryEnvelope",
-        "inSR": "4326",
-        "outSR": "4326",
-        "spatialRel": "esriSpatialRelIntersects",
-        "outFields": "OBJECTID",
-        "returnGeometry": "true",
-        "geometryPrecision": "6",
-        "resultRecordCount": "100000",
-    }).encode("ascii")
-    request = urllib.request.Request(
-        QUERY_URL,
-        data=body,
-        headers={
-            "Content-Type": "application/x-www-form-urlencoded",
-            "User-Agent": "New England in Motion ferry geometry auditor",
-        },
+        points = path if len(path) > 1 else path * 2
+        for start, end in zip(points, points[1:]):
+            steps = max(1, math.ceil(math.dist(start, end) / (WATER_TILE / 2)))
+            for step in range(steps + 1):
+                x = start[0] + (end[0] - start[0]) * step / steps
+                y = start[1] + (end[1] - start[1]) * step / steps
+                for dx in (-CORRIDOR_BUFFER, 0, CORRIDOR_BUFFER):
+                    for dy in (-CORRIDOR_BUFFER, 0, CORRIDOR_BUFFER):
+                        tiles.add((math.floor((x + dx) / WATER_TILE), math.floor((y + dy) / WATER_TILE)))
+    west, south, east, north = LAND_BBOX
+    return sorted(
+        tile for tile in tiles
+        if west <= tile[0] * WATER_TILE <= east and south <= tile[1] * WATER_TILE <= north
     )
-    last_error = None
-    for attempt in range(4):
+
+
+def element_polygons(element):
+    from shapely import make_valid
+    from shapely.geometry import LineString, Polygon
+    from shapely.ops import polygonize, unary_union
+
+    if element["type"] == "way":
+        ring = [(node["lon"], node["lat"]) for node in element.get("geometry", [])]
+        if len(ring) >= 4 and ring[0] == ring[-1]:
+            return make_valid(Polygon(ring))
+        return None
+    outers, inners = [], []
+    for member in element.get("members", []):
+        geometry = member.get("geometry")
+        if member.get("type") != "way" or not geometry or len(geometry) < 2:
+            continue
+        line = LineString([(node["lon"], node["lat"]) for node in geometry])
+        (inners if member.get("role") == "inner" else outers).append(line)
+    if not outers:
+        return None
+    outer = unary_union(list(polygonize(unary_union(outers))))
+    if inners:
+        outer = outer.difference(unary_union(list(polygonize(unary_union(inners)))))
+    return make_valid(outer) if not outer.is_empty else None
+
+
+def dry_tiles(tiles, paths):
+    """Keep only tiles where a ferry corridor crosses coastline land.
+
+    Open water needs no inland-water lookup; lakes, rivers, and harbors behind
+    a coastline closure all show up as "land" in the coastline polygons.
+    """
+    from shapely import from_wkb
+    from shapely.geometry import LineString, box
+    from shapely.strtree import STRtree
+
+    payload = json.loads(LAND_OUTPUT.read_text(encoding="utf-8"))
+    land = list(from_wkb([base64.b64decode(item) for item in payload["wkb"]]))
+    land_tree = STRtree(land)
+    lines = [LineString(path) for path in paths if len(path) >= 2]
+    lines += [LineString([path[0], [path[0][0] + 1e-5, path[0][1]]]) for path in paths if len(path) == 1]
+    line_tree = STRtree(lines)
+    kept = []
+    for x, y in tiles:
+        cell = box(x * WATER_TILE, y * WATER_TILE, (x + 1) * WATER_TILE, (y + 1) * WATER_TILE)
+        corridor = [lines[i].intersection(cell) for i in line_tree.query(cell.buffer(CORRIDOR_BUFFER), predicate="intersects")]
+        corridor = [item.buffer(0.002) for item in corridor if not item.is_empty]
+        if not corridor:
+            continue
+        if any(
+            land[j].intersects(item)
+            for item in corridor
+            for j in land_tree.query(item, predicate="intersects")
+        ):
+            kept.append((x, y))
+    return kept
+
+
+def fetch_inland_water(ferry_ways):
+    from shapely import to_wkb
+
+    paths = corridor_paths(ferry_ways)
+    tiles = dry_tiles(corridor_tiles(paths), paths)
+    print(f"Fetching inland water for {len(tiles)} ferry-corridor tiles", flush=True)
+    by_id = {}
+    for offset in range(0, len(tiles), TILES_PER_QUERY):
+        batch = tiles[offset:offset + TILES_PER_QUERY]
+        clauses = []
+        for x, y in batch:
+            bbox = f"{y * WATER_TILE:.4f},{x * WATER_TILE:.4f},{(y + 1) * WATER_TILE:.4f},{(x + 1) * WATER_TILE:.4f}"
+            clauses.extend(
+                f'{kind}["{key}"="{value}"]({bbox});'
+                for kind in ("way", "relation")
+                for key, value in (("natural", "water"), ("waterway", "riverbank"), ("waterway", "dock"))
+            )
+        query = "[out:json][timeout:240];(" + "".join(clauses) + ");out tags geom;"
+        result = overpass(query)
+        for element in result.get("elements", []):
+            by_id[(element["type"], element["id"])] = element
+        print(f"  [{offset + len(batch)}/{len(tiles)}] {len(by_id):,} water features so far", flush=True)
+        time.sleep(2)
+    polygons = []
+    for element in by_id.values():
         try:
-            with urllib.request.urlopen(request, timeout=180) as response:
-                result = json.load(response)
-            if result.get("error"):
-                raise RuntimeError(result["error"])
-            if result.get("exceededTransferLimit"):
-                raise RuntimeError(f"Hydro tile {bounds} exceeded the service limit")
-            return result.get("features", [])
+            polygon = element_polygons(element)
         except Exception as error:
-            last_error = error
-            time.sleep(1.5 * (attempt + 1))
-    raise RuntimeError(f"Unable to fetch hydro tile {bounds}: {last_error}")
+            print(f"  skipped {element['type']}/{element['id']}: {error}")
+            continue
+        if polygon is not None and not polygon.is_empty and polygon.area > 0:
+            polygons.append(polygon)
+    write_wkb(WATER_OUTPUT, polygons, {
+        "source": "OpenStreetMap inland water via Overpass (natural=water, waterway=riverbank, waterway=dock)",
+        "sourceUrl": OVERPASS_URL,
+        "license": "ODbL 1.0, (c) OpenStreetMap contributors",
+        "tileDegrees": WATER_TILE,
+        "tileCount": len(tiles),
+    }, to_wkb)
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--refresh-land", action="store_true", help="download the land-polygon zip again")
+    parser.add_argument("--skip-land", action="store_true", help="keep the existing clipped land file")
+    parser.add_argument("--skip-water", action="store_true", help="keep the existing inland-water file")
+    parser.add_argument("--skip-ferry-ways", action="store_true", help="keep the existing OSM ferry-way file")
     args = parser.parse_args()
-    tiles = list(corridor_tiles(ferry_paths()))
-    print(f"Fetching {len(tiles)} ferry-corridor hydrography tiles", flush=True)
-    features_by_id = {}
-    for index, bounds in enumerate(tiles, 1):
-        print(f"[{index:03}/{len(tiles)}] requesting {bounds}", flush=True)
-        features = fetch_tile(bounds)
-        for feature in features:
-            identifier = feature.get("properties", {}).get("OBJECTID") or feature.get("id")
-            if identifier is None:
-                identifier = json.dumps(feature.get("geometry"), sort_keys=True)
-            features_by_id[identifier] = feature
-        print(f"          received {len(features):,} polygons", flush=True)
-        time.sleep(0.05)
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(
-        json.dumps({
-            "type": "FeatureCollection",
-            "metadata": {
-                "source": "U.S. Census Bureau TIGERweb 2025 Areal Hydrography",
-                "queryLayer": QUERY_URL.rsplit("/query", 1)[0],
-                "corridorBufferDegrees": CORRIDOR_BUFFER,
-                "tileDegrees": CELL,
-                "tileCount": len(tiles),
-            },
-            "features": list(features_by_id.values()),
-        }, separators=(",", ":")),
-        encoding="utf-8",
-        newline="\n",
-    )
-    print(f"Wrote {len(features_by_id):,} unique hydro polygons to {args.output}")
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    started = time.monotonic()
+    if not args.skip_land or not LAND_OUTPUT.exists():
+        download_land(args.refresh_land)
+        extract_land()
+    if args.skip_ferry_ways and FERRY_WAYS_OUTPUT.exists():
+        ferry_ways = json.loads(FERRY_WAYS_OUTPUT.read_text(encoding="utf-8"))
+    else:
+        ferry_ways = fetch_ferry_ways()
+    if not args.skip_water or not WATER_OUTPUT.exists():
+        fetch_inland_water(ferry_ways)
+    print(f"Ferry water model ready in {time.monotonic() - started:,.0f}s")
 
 
 if __name__ == "__main__":
