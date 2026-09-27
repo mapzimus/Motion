@@ -41,9 +41,14 @@ export const CONFIG = {
   // A vehicle whose last report is older than this renders dimmed.
   STALE_AFTER_MS: 90_000,
 
-  // TUNE ME (Max): alert severity (1-10) thresholds for the line badges.
+  // Alert severity (MBTA scale 0-10) thresholds for the line badges.
   // >= major -> red badge, >= minor -> amber badge, below -> listed quietly.
-  ALERT_LEVELS: { major: 7, minor: 4 },
+  // MBTA's own scale: 1-2 informational (elevators, notices), 3-4 minor
+  // delays, 5-6 detours and moderate delays, 7+ suspensions, shuttles, and
+  // station closures. `minor: 5` keeps everyday bus-detour and small-delay
+  // alerts out of the badge so amber still means "this changes your trip";
+  // `major: 7` matches the MBTA's own "significant disruption" cut-off.
+  ALERT_LEVELS: { major: 7, minor: 5 },
 
   MAP_CENTER: [-71.0589, 42.335],
   MAP_ZOOM: 11.5,
@@ -65,6 +70,7 @@ export const CONFIG = {
   LOCAL_SERVICES_URL: './data/local-services.geojson',
   AIRPORTS_URL: './data/airports.geojson',
   BORDER_CROSSINGS_URL: './data/border-crossings.geojson',
+  REFERENCE_PLACES_URL: './data/reference-places.geojson',
   MNR_STOPS_URL: './data/mnr-stops.json',
   MNR_COLOR: '#ee0034',
   MNR_STALE_MS: 2 * 60_000,
@@ -142,9 +148,28 @@ export const CONFIG = {
   LOCAL_COLOR: '#9fc36a',
   AIRPORT_COLOR: '#9be1ff',
   BORDER_COLOR: '#f0d27a',
+  HERITAGE_RAIL_COLOR: '#e07a5f',
+  PARK_RIDE_COLOR: '#7fb7ff',
+  EV_CHARGING_COLOR: '#6ee7a8',
+  DRAWBRIDGE_COLOR: '#f7c948',
 
   CAMERA_POLL_MS: 5 * 60_000,
   ROAD_EVENT_POLL_MS: 60_000,
+
+  // Conditions: NWS active weather alerts (zone polygons) and FAA airport
+  // ground stops / delays, both relayed by the Worker and edge-cached 60 s.
+  WEATHER_POLL_MS: 120_000,
+  AIRPORT_STATUS_POLL_MS: 120_000,
+  WEATHER_COLORS: { extreme: '#ff5c5c', severe: '#ff5c5c', moderate: '#ffb454', minor: '#9aa3ad' },
+  AIRPORT_STATUS_COLORS: {
+    'ground-stop': '#ff5c5c',
+    closure: '#ff5c5c',
+    'ground-delay': '#ff8a4c',
+    'arrival-delay': '#ffb454',
+    'departure-delay': '#ffb454',
+  },
+  // Only NWS alerts at these severities join the service-alert panel.
+  WEATHER_PANEL_SEVERITIES: ['Extreme', 'Severe'],
 
   TRAFFIC_TILE_TEMPLATE: gatewayBase
     ? `${gatewayBase}/api/traffic/{z}/{x}/{y}.png`
@@ -157,6 +182,8 @@ export const CONFIG = {
   DEFAULT_OFF_GROUPS: [
     'bus', 'bike', 'roadwork', 'traffic', 'incident', 'camera',
     'roads', 'freight', 'walking', 'cycling', 'local', 'airport', 'border', 'air-service',
+    'heritage-rail', 'park-ride', 'ev-charging', 'drawbridge',
+    'weather', 'airport-status',
   ],
 
   BASEMAP_STYLE: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',

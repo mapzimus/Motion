@@ -20,6 +20,9 @@ const borderCrossings = JSON.parse(
 const localServices = JSON.parse(
   readFileSync(new URL('../data/local-services.geojson', import.meta.url), 'utf8'),
 );
+const referencePlaces = JSON.parse(
+  readFileSync(new URL('../data/reference-places.geojson', import.meta.url), 'utf8'),
+);
 const supplementalFerries = JSON.parse(
   readFileSync(new URL('./supplemental-ferry-routes.json', import.meta.url), 'utf8'),
 );
@@ -344,7 +347,7 @@ if (invalidSupplementalFerries.length) {
 }
 const generatedRouteIds = new Set(collection.features.map((feature) => feature.properties?.route));
 const ferryOverrideIds = ferryRouteOverrides.features.map((feature) => feature.properties?.route);
-if (ferryOverrideIds.length !== 2
+if (ferryOverrideIds.length !== 3
     || new Set(ferryOverrideIds).size !== ferryOverrideIds.length
     || JSON.stringify(collection.metadata?.ferryRouteOverrides) !== JSON.stringify([...ferryOverrideIds].sort())) {
   throw new Error('Audited provider ferry-route overrides are missing or stale');
@@ -578,6 +581,39 @@ for (const required of [
 ]) {
   if (!localServiceNames.has(required)) throw new Error(`Missing on-demand water service: ${required}`);
 }
+const REFERENCE_PLACE_MINIMUMS = { 'heritage-rail': 15, 'park-ride': 350, 'ev-charging': 5000, drawbridge: 20 };
+const referencePlaceCounts = {};
+const referencePlaceIds = new Set();
+for (const feature of referencePlaces.features ?? []) {
+  const properties = feature.properties ?? {};
+  const geometry = feature.geometry ?? {};
+  const coordinates = geometry.type === 'Point' ? [geometry.coordinates] : geometry.coordinates;
+  const validGeometry = (geometry.type === 'Point' || geometry.type === 'LineString')
+    && Array.isArray(coordinates)
+    && coordinates.length >= (geometry.type === 'Point' ? 1 : 2)
+    && coordinates.every((point) => Number.isFinite(point?.[0]) && Number.isFinite(point?.[1]));
+  if (!validGeometry
+      || !(properties.group in REFERENCE_PLACE_MINIMUMS)
+      || properties.dataStatus !== 'reference'
+      || !properties.title
+      || !properties.provider
+      || !/^https:\/\//.test(properties.sourceUrl ?? '')
+      || !Array.isArray(properties.regions) || !properties.regions.length
+      || (properties.group === 'heritage-rail' && !['rail-network', 'approximate'].includes(properties.geometryAccuracy))
+      || (properties.group === 'ev-charging' && typeof properties.fastCharge !== 'boolean')
+      || (properties.group === 'drawbridge' && !/^33 CFR 117\.\d+$/.test(properties.cfrSection ?? ''))
+      || referencePlaceIds.has(feature.id)) {
+    throw new Error(`Invalid or duplicate reference place: ${feature.id ?? properties.title}`);
+  }
+  referencePlaceIds.add(feature.id);
+  referencePlaceCounts[properties.group] = (referencePlaceCounts[properties.group] ?? 0) + 1;
+}
+for (const [group, minimum] of Object.entries(REFERENCE_PLACE_MINIMUMS)) {
+  if ((referencePlaceCounts[group] ?? 0) < minimum) {
+    throw new Error(`Reference-place coverage for ${group} is incomplete (${referencePlaceCounts[group] ?? 0} < ${minimum})`);
+  }
+}
+
 console.log(
   `Route geometry check passed: ${approximate.length} approximate-geometry scheduled features; `
   + `${Object.keys(cache.segments ?? {}).length} loop-free cache segments; `
@@ -587,6 +623,7 @@ console.log(
   + `${scheduledStops.length} scheduled stops with named ferry endpoints; `
   + `${airports.features.length} FAA landing facilities; `
   + `${borderCrossings.features.length} Canada border crossings; `
+  + `${Object.values(referencePlaceCounts).reduce((sum, count) => sum + count, 0)} reference places; `
   + `${supplementalAir.features.length} scheduled/on-demand air corridors; `
   + `no bus or rail chord exceeds ${MAX_BUS_CHORD_KM} km.`,
 );

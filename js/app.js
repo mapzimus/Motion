@@ -8,6 +8,7 @@ import {
   fleetCountsForRegion,
   initMap,
   loadReferenceData,
+  map,
   referenceCountsForRegion,
   scheduledRouteCountsForRegion,
   scheduledStationCountsForRegion,
@@ -23,9 +24,12 @@ import { startRegional } from './regional.js';
 import { startSharedMobility } from './shared-mobility.js';
 import { startRoadwork } from './roadwork.js';
 import { startRoadConditions } from './road-conditions.js';
+import { startConditions } from './conditions.js';
 import { startMetroNorth } from './metro-north.js';
 import { startAlertPolling } from './alerts.js';
 import { initialRegion, loadRegions } from './regions.js';
+import { initPermalink, readPermalink, schedulePermalinkUpdate } from './permalink.js';
+import { initSearch, setSearchFeatures } from './search.js';
 import * as ui from './ui.js';
 
 async function loadGatewayCapabilities() {
@@ -65,7 +69,13 @@ async function main() {
     loadGatewayCapabilities(),
   ]);
   const routeInfo = new Map(routes.map((r) => [r.id, r]));
-  const selectedRegion = initialRegion();
+  // A shared link (#r=…&c=…&z=…) wins over ?region= and the remembered region.
+  const permalink = readPermalink();
+  const selectedRegion = permalink.region ?? initialRegion();
+  if (permalink.center) {
+    CONFIG.MAP_CENTER = permalink.center;
+    if (permalink.zoom !== undefined) CONFIG.MAP_ZOOM = permalink.zoom;
+  }
   const regionalControllers = [];
   const alertsBySource = new Map();
   const updateAlerts = (source) => (alerts) => {
@@ -83,21 +93,43 @@ async function main() {
       ui.replaceCounts(counts, source);
     }
     for (const controller of regionalControllers) controller.setRegion(region);
+    schedulePermalinkUpdate();
   };
 
   ui.initPanel(
     routeInfo,
-    setVisibleGroups,
+    (groups, statuses) => {
+      setVisibleGroups(groups, statuses);
+      schedulePermalinkUpdate();
+    },
     changeRegion,
     selectedRegion,
     capabilities,
   );
+  if (permalink.on || permalink.off || permalink.statuses) ui.applyVisibleState(permalink);
   configureGateway(capabilities);
 
   ui.setLoading('RENDERING BASEMAP…');
   await initMap();
-  setRegion(selectedRegion);
+  // A permalink already positioned the camera; only fit the region otherwise.
+  setRegion(selectedRegion, { fit: !permalink.center });
   setVisibleGroups(ui.getVisibleGroups(), ui.getVisibleStatuses());
+  initPermalink({
+    map,
+    getRegion: ui.getRegion,
+    getDefaultGroups: ui.getDefaultGroups,
+    getVisibleGroups: ui.getVisibleGroups,
+    getVisibleStatuses: ui.getVisibleStatuses,
+  });
+  initSearch({
+    onRegion: (key) => {
+      const select = document.getElementById('region-select');
+      if (select && select.value !== key) {
+        select.value = key;
+        select.dispatchEvent(new Event('change'));
+      }
+    },
+  });
   loadReferenceData().then((counts) => ui.setReferenceCounts(counts));
 
   // Listeners registered before polling starts so the first tick lands in the UI.
@@ -138,6 +170,12 @@ async function main() {
       selectedRegion,
       capabilities.metroNorth,
     ),
+    startConditions(
+      (counts) => ui.updateCounts(counts, 'conditions'),
+      updateAlerts('nws'),
+      selectedRegion,
+      capabilities,
+    ),
   );
   startSharedMobility((counts) => ui.updateCounts(counts, 'shared-mobility'));
   regionalControllers.push(startAlertPolling(routeInfo, updateAlerts('mbta')));
@@ -147,10 +185,9 @@ async function main() {
   // faint and toggle with the bus layer.
   const routeFeatureSets = [[], []];
   const publishRouteFeatures = () => {
-    setRouteShapes({
-      type: 'FeatureCollection',
-      features: routeFeatureSets.flat(),
-    });
+    const features = routeFeatureSets.flat();
+    setRouteShapes({ type: 'FeatureCollection', features });
+    setSearchFeatures(features, routeInfo);
     ui.setScheduledCounts(scheduledRouteCountsForRegion());
     ui.setStationCounts(scheduledStationCountsForRegion());
     setVisibleGroups(ui.getVisibleGroups(), ui.getVisibleStatuses());

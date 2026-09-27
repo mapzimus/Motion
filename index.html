@@ -32,6 +32,27 @@
     </header>
 
     <div class="panel-scroll">
+      <section class="panel-section search-section">
+        <label for="search-input"><h2>Find</h2></label>
+        <div class="search-wrap">
+          <input
+            id="search-input"
+            class="search-input"
+            type="search"
+            role="combobox"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="Stop, station, route, or town…"
+            aria-label="Search stops, stations, routes, towns, and geographies"
+            aria-autocomplete="list"
+            aria-controls="search-results"
+            aria-expanded="false"
+            aria-haspopup="listbox">
+          <ul id="search-results" class="search-results" role="listbox" aria-label="Search results" hidden></ul>
+        </div>
+        <div id="search-status" class="search-status" aria-live="polite"></div>
+      </section>
+
       <section class="panel-section region-section">
         <label for="region-select"><h2>Geography</h2></label>
         <select id="region-select" class="region-select" aria-label="Choose map geography"></select>
@@ -89,7 +110,7 @@
         <span id="status-text">CONNECTING…</span>
       </div>
       <div class="credits">
-        Data MBTA · agency GTFS · 511 · WZDx · ADS-B · AIS · GBFS<br>
+        Data MBTA · agency GTFS · 511 · WZDx · NWS · FAA · ADS-B · AIS · GBFS<br>
         Roads Census · rail FRA · trails OSM · basemap CARTO<br>
         Built by Max Howe · <a href="https://github.com/mapzimus" target="_blank" rel="noopener">github.com/mapzimus</a>
       </div>

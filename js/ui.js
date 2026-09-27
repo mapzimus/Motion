@@ -66,6 +66,13 @@ function buildGroups(routeInfo, capabilities) {
     { key: 'roads', name: 'Major roadways', initial: 'R', section: 'infrastructure', sectionName: 'Movement infrastructure', routes: [], color: CONFIG.ROAD_COLOR, truth: 'reference', countAsVehicle: false },
     { key: 'freight', name: 'Freight rail network', initial: 'FR', section: 'infrastructure', routes: [], color: CONFIG.FREIGHT_COLOR, truth: 'FRA reference', countAsVehicle: false },
     { key: 'border', name: 'Canada border crossings', initial: 'CB', section: 'infrastructure', routes: [], color: CONFIG.BORDER_COLOR, darkText: true, truth: 'CBSA reference', countAsVehicle: false },
+    { key: 'heritage-rail', name: 'Heritage & scenic railroads', initial: 'HR', section: 'infrastructure', routes: [], color: CONFIG.HERITAGE_RAIL_COLOR, truth: 'operator reference', countAsVehicle: false },
+    { key: 'park-ride', name: 'Park & ride lots', initial: 'PR', section: 'infrastructure', routes: [], color: CONFIG.PARK_RIDE_COLOR, darkText: true, truth: 'state DOT reference', countAsVehicle: false },
+    { key: 'ev-charging', name: 'Public EV charging (zoom in)', initial: 'EV', section: 'infrastructure', routes: [], color: CONFIG.EV_CHARGING_COLOR, darkText: true, truth: 'AFDC reference', countAsVehicle: false },
+    { key: 'drawbridge', name: 'Drawbridges & movable bridges', initial: 'DB', section: 'infrastructure', routes: [], color: CONFIG.DRAWBRIDGE_COLOR, darkText: true, truth: 'USCG reference', countAsVehicle: false },
+    // Conditions: official weather and airport operating status.
+    { key: 'weather', name: 'Weather alerts (NWS)', initial: '⚠', section: 'weather-conditions', sectionName: 'Conditions', routes: [], color: CONFIG.WEATHER_COLORS.moderate, darkText: true, truth: 'live', needsKey: !capabilities?.weatherAlerts, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false },
+    { key: 'airport-status', name: 'Airport delays (FAA)', initial: '✈', section: 'weather-conditions', routes: [], color: CONFIG.AIRPORT_STATUS_COLORS['ground-delay'], truth: 'live', needsKey: !capabilities?.airportStatus, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false },
   ];
 }
 
@@ -116,25 +123,19 @@ function applyLayerPreset(preset) {
   emitVisible();
 }
 
-/*
- * TODO(Max) — YOUR CALL: how should a vehicle's status read in its popup?
- *
- * The API gives three raw states: STOPPED_AT, INCOMING_AT, IN_TRANSIT_TO,
- * plus the name of the stop each refers to. The wording below is a working
- * default, but this is rider-facing UX copy and there are other valid takes —
- * e.g. "Approaching Davis" vs "Arriving at Davis" (INCOMING_AT fires ~a stop
- * away, so "arriving" can feel early), or "Next stop: Davis" vs "→ Davis".
- * Rewrite the cases to taste; `v.stopName` may be '' if the feed omits it.
- */
+// Rider-facing wording for the three raw MBTA vehicle states. INCOMING_AT
+// fires about a stop early, so it reads "Approaching" rather than "Arriving";
+// IN_TRANSIT_TO reads "Heading to" so it never implies the train is there.
+// `v.stopName` may be '' when the feed omits the stop.
 export function formatVehicleStatus(v) {
-  const stop = v.stopName || 'station';
+  const stop = v.stopName;
   switch (v.status) {
     case 'STOPPED_AT':
-      return `Stopped at ${stop}`;
+      return stop ? `Stopped at ${stop}` : 'Stopped at a station';
     case 'INCOMING_AT':
-      return `Arriving at ${stop}`;
+      return stop ? `Approaching ${stop}` : 'Approaching next stop';
     case 'IN_TRANSIT_TO':
-      return `Next stop ${stop}`;
+      return stop ? `Heading to ${stop}` : 'Between stops';
     default:
       return 'In service';
   }
@@ -299,6 +300,27 @@ export function getVisibleGroups() {
 
 export function getVisibleStatuses() {
   return [...statusState.entries()].filter(([, visible]) => visible).map(([key]) => key);
+}
+
+// Which groups start switched on for a region — permalinks store only the
+// difference from this set.
+export function getDefaultGroups(region = getRegion()) {
+  return GROUPS.filter((group) => groupStartsOn(group, region)).map((group) => group.key);
+}
+
+// Restore a shared view: `on`/`off` are group keys to force, `statuses` (when
+// given) is the full list of data-truth filters that should be checked.
+export function applyVisibleState({ on = [], off = [], statuses = null } = {}) {
+  for (const key of on) setGroupChecked(GROUPS.find((group) => group.key === key), true, true);
+  for (const key of off) setGroupChecked(GROUPS.find((group) => group.key === key), false, true);
+  if (Array.isArray(statuses)) {
+    for (const [key] of statusState) statusState.set(key, statuses.includes(key));
+    for (const input of document.querySelectorAll('#data-status-filters input')) {
+      input.checked = statusState.get(input.value);
+    }
+  }
+  syncMaster();
+  emitVisible();
 }
 
 function emitVisible() {
@@ -479,6 +501,13 @@ export function renderAlerts(alerts) {
     const effect = document.createElement('span');
     effect.className = 'alert-effect';
     effect.textContent = prettyEffect(a.effect);
+    // Non-transit sources (e.g. NWS weather) carry a small origin badge.
+    if (a.badge) {
+      const sourceBadge = document.createElement('span');
+      sourceBadge.className = 'alert-source-badge';
+      sourceBadge.textContent = a.badge;
+      effect.prepend(sourceBadge);
+    }
     const text = document.createElement('span');
     text.className = 'alert-text';
     text.textContent = a.header;

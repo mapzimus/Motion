@@ -723,3 +723,111 @@ h2 {
   padding-right: 8px;
 }
 .line-row.zoomable:hover { background: rgba(255, 255, 255, 0.045); }
+
+/* ===================================================================   Find: sidebar search combobox
+   ========================================================================== */
+
+.search-section { padding-bottom: 12px; }
+.search-wrap { position: relative; }
+.search-input {
+  width: 100%;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--text);
+  padding: 9px 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  outline: none;
+}
+.search-input::placeholder { color: var(--text-faint); }
+.search-input:focus-visible { outline: 2px solid var(--text-dim); outline-offset: 2px; }
+.search-input::-webkit-search-cancel-button { filter: invert(0.7); cursor: pointer; }
+.search-results {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  list-style: none;
+  max-height: 320px;
+  overflow-y: auto;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 10px;
+  background: rgba(13, 17, 23, 0.98);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+}
+.search-option {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--hairline);
+}
+.search-option:last-child { border-bottom: none; }
+.search-option:hover, .search-option.active { background: rgba(255, 255, 255, 0.07); }
+.search-swatch { width: 8px; height: 8px; border-radius: 2px; grid-row: 1 / span 2; }
+.search-swatch[hidden] { display: none; }
+.search-name { font-size: 12.5px; color: var(--text); grid-column: 2; }
+.search-sub {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-faint);
+  grid-column: 2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.search-status {
+  margin-top: 6px;
+  min-height: 12px;
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  color: var(--text-faint);
+}
+
+/* Live "next arrivals" block inside MBTA stop popups */
+.popup-predictions { margin-top: 9px; padding-top: 8px; border-top: 1px solid var(--hairline); }
+.popup-predictions-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+.popup-predictions-head .popup-data-status { padding: 2px 6px; }
+.popup-arrival-route { display: flex; gap: 8px; align-items: flex-start; margin-top: 5px; }
+.popup-route-chip {
+  flex: none;
+  min-width: 30px;
+  text-align: center;
+  padding: 2px 6px;
+  border-radius: 5px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+}
+.popup-arrival-list { flex: 1; min-width: 0; }
+.popup-arrival { display: flex; gap: 8px; align-items: baseline; font-size: 12px; line-height: 1.45; }
+.popup-arrival-eta { flex: none; min-width: 52px; font-family: var(--font-mono); font-weight: 600; color: var(--text); }
+.popup-arrival-headsign { color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+=======
+/* ---- conditions (NWS weather · FAA airport status) ----------------------- */
+.alert-source-badge {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 1px 4px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  font-size: 8.5px;
+  letter-spacing: 0.1em;
+  opacity: 0.9;
+}
+.popup-divider { border: 0; border-top: 1px solid var(--hairline); margin: 9px 0; }
