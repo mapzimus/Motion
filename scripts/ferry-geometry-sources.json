@@ -111,6 +111,25 @@
     "beal-bunker:northeast-harbor-cranberry-isles": {
       "note": "Mailboat calls Sutton (seasonal), Islesford, then Great Cranberry; a different path from the Cranberry Isles Commuter.",
       "noOsm": true
+    },
+    "jamestown-newport-ferry:hop-on-loop": {
+      "note": "Calls Rose Island, Fort Adams, Ann Street Pier, then Perrotti Park; follow the four OSM-mapped legs.",
+      "osmWays": [
+        716707470,
+        716707466,
+        716707469,
+        716707474
+      ]
+    },
+    "robin-r:rockland-matinicus": {
+      "note": "Separate small-boat service; keep a hand path distinct from the state ferry's GTFS shape.",
+      "noOsm": true
+    },
+    "ctdot-ferry:rocky-hill-glastonbury": {
+      "note": "The river crossing is mapped in OSM; the hand line was a 160 m stub.",
+      "osmWays": [
+        17192965
+      ]
     }
   }
 }
