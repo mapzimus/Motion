@@ -883,6 +883,10 @@ def station_features(
             key for key in region_order
             if point_in_geometry(point, region_geometries[key])
         ]
+        if not regions and feed.get("keep_outside_landings"):
+            # Cross-border ferries (Lake Champlain to New York) still need the
+            # far landing drawn so the route has two named ends.
+            regions = list(feed.get("states", []))
         if not regions:
             continue
         stop_code = (stop.get("stop_code") or station_id).strip()
@@ -949,7 +953,13 @@ def supplemental_ferry_stop_features(features):
         for path_index, path in enumerate(paths):
             if len(path) < 2:
                 continue
-            endpoints = ((path[0], names[0] if names else "Origin"), (path[-1], names[-1] if len(names) > 1 else "Destination"))
+            if len(paths) > 1 and len(names) == len(paths) + 1:
+                # A multi-stop corridor split into legs: leg i runs names[i] -> names[i + 1].
+                start_name, end_name = names[path_index], names[path_index + 1]
+            else:
+                start_name = names[0] if names else "Origin"
+                end_name = names[-1] if len(names) > 1 else "Destination"
+            endpoints = ((path[0], start_name), (path[-1], end_name))
             for endpoint_index, (coordinate, endpoint_name) in enumerate(endpoints):
                 title = endpoint_name if re.search(r"\b(?:ferry|landing|terminal|wharf|pier|dock)\b", endpoint_name, re.I) else f"{endpoint_name} ferry landing"
                 dedupe_key = (round(float(coordinate[0]), 4), round(float(coordinate[1]), 4))

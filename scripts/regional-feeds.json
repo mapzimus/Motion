@@ -81,7 +81,7 @@
   {"id":"rct","agency":"Rural Community Transportation","states":["vt","nh"],"url":"https://files.mobilitydatabase.org/mdb-448/latest.zip"},
   {"id":"tri-valley","agency":"Tri-Valley Transit","states":["vt","nh"],"url":"https://files.mobilitydatabase.org/mdb-852/latest.zip"},
   {"id":"vermont-translines","agency":"Vermont Translines","states":["vt","ma","ny"],"url":"https://files.mobilitydatabase.org/mdb-450/latest.zip"},
-  {"id":"lake-champlain-ferries","agency":"Lake Champlain Transportation","states":["vt","ny"],"url":"https://data.trilliumtransit.com/gtfs/lctferries-vt-us/lctferries-vt-us.zip","source_url":"https://ferries.com/","route_id_map":{"9703":"grand-isle-plattsburgh","9704":"charlotte-essex"}},
+  {"id":"lake-champlain-ferries","agency":"Lake Champlain Transportation","states":["vt","ny"],"url":"https://data.trilliumtransit.com/gtfs/lctferries-vt-us/lctferries-vt-us.zip","source_url":"https://ferries.com/","route_id_map":{"9703":"grand-isle-plattsburgh","9704":"charlotte-essex"},"keep_outside_landings":true},
   {"id":"yankee-trails","agency":"Yankee Trails","states":["vt","ny"],"url":"https://s3.amazonaws.com/datatools-511ny/public/Rensselaer_County_Yankee_Trails.zip","source_url":"https://www.yankeetrails.com/","require_region_match":true},
 
   {"id":"island-explorer","agency":"Island Explorer","states":["me"],"url":"https://files.mobilitydatabase.org/tld-6900/latest.zip"},

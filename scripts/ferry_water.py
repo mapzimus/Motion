@@ -157,16 +157,26 @@ class WaterModel:
                 yield ix, iy
 
     def tiles_for_line(self, line):
+        """Every tile the line passes through (exact, not sampled)."""
         seen = set()
         coords = list(line.coords)
         for a, b in zip(coords, coords[1:]):
-            steps = max(1, math.ceil(math.dist(a, b) / (TILE / 3)))
-            for step in range(steps + 1):
-                x = a[0] + (b[0] - a[0]) * step / steps
-                y = a[1] + (b[1] - a[1]) * step / steps
-                for ix in (math.floor((x - 1e-4) / TILE), math.floor((x + 1e-4) / TILE)):
-                    for iy in (math.floor((y - 1e-4) / TILE), math.floor((y + 1e-4) / TILE)):
-                        seen.add((ix, iy))
+            x0, x1 = sorted((a[0], b[0]))
+            y0, y1 = sorted((a[1], b[1]))
+            candidates = [
+                (ix, iy)
+                for ix in range(math.floor(x0 / TILE), math.floor(x1 / TILE) + 1)
+                for iy in range(math.floor(y0 / TILE), math.floor(y1 / TILE) + 1)
+            ]
+            if len(candidates) <= 2:
+                seen.update(candidates)
+                continue
+            segment = LineString([a, b])
+            for ix, iy in candidates:
+                if (ix, iy) in seen:
+                    continue
+                if segment.intersects(box(ix * TILE, iy * TILE, (ix + 1) * TILE, (iy + 1) * TILE)):
+                    seen.add((ix, iy))
         return seen
 
     def dry_geometry(self, line):
@@ -205,7 +215,7 @@ class WaterModel:
         land = self.tile(math.floor(point[0] / TILE), math.floor(point[1] / TILE))
         return not land.is_empty and land.contains(Point(point))
 
-    def rasterize(self, minx, miny, maxx, maxy, cell_m):
+    def rasterize(self, minx, miny, maxx, maxy, cell_m, thicken=True):
         lat0 = (miny + maxy) / 2
         dx = cell_m / m_per_deg_lon(lat0)
         dy = cell_m / M_PER_DEG_LAT
@@ -225,7 +235,14 @@ class WaterModel:
             if c0 >= c1 or r0 >= r1:
                 continue
             gx, gy = np.meshgrid(xs[c0:c1], ys[r0:r1])
-            land[r0:r1, c0:c1] |= shapely.contains_xy(geometry, gx, gy)
+            if thicken:
+                # Point sampling misses spits thinner than a cell; grow land
+                # by half a cell so every land feature blocks at least one cell.
+                grown = geometry.buffer(0.5 * max(dx, dy), quad_segs=2)
+                shapely.prepare(grown)
+                land[r0:r1, c0:c1] |= shapely.contains_xy(grown, gx, gy)
+            else:
+                land[r0:r1, c0:c1] |= shapely.contains_xy(geometry, gx, gy)
         return land, xs, ys, dx, dy
 
 
@@ -301,10 +318,10 @@ def audit_paths(model, paths):
 # ---------------------------------------------------------------- routing
 
 
-def grid_route(model, start, end, window, cell_m, clearance_m=CLEARANCE_M):
+def grid_route(model, start, end, window, cell_m, clearance_m=CLEARANCE_M, thicken=True):
     """Least-cost water path on a raster; returns [lon, lat] list or None."""
     minx, miny, maxx, maxy = window
-    land, xs, ys, dx, dy = model.rasterize(minx, miny, maxx, maxy, cell_m)
+    land, xs, ys, dx, dy = model.rasterize(minx, miny, maxx, maxy, cell_m, thicken)
     height, width = land.shape
     water = ~land
     if not water.any():
@@ -313,12 +330,15 @@ def grid_route(model, start, end, window, cell_m, clearance_m=CLEARANCE_M):
     penalty = np.clip((clearance_m * 2 - distance) / (clearance_m * 2), 0, 1) * 4.0
 
     def nearest_water(point):
+        """Nearest open cell reachable from ``point`` by a straight wet leg.
+
+        A cell across a narrow spit may be closer than any cell on the
+        point's own side; prefer candidates whose connector stays in water.
+        """
         column = int(round((point[0] - minx) / dx))
         row = int(round((point[1] - miny) / dy))
         column = min(width - 1, max(0, column))
         row = min(height - 1, max(0, row))
-        if water[row, column]:
-            return row, column
         radius = int(math.ceil(400 / cell_m))
         r0, r1 = max(0, row - radius), min(height, row + radius + 1)
         c0, c1 = max(0, column - radius), min(width, column + radius + 1)
@@ -326,8 +346,13 @@ def grid_route(model, start, end, window, cell_m, clearance_m=CLEARANCE_M):
         if not sub.any():
             return None
         rr, cc = np.nonzero(sub)
-        best = np.argmin((rr + r0 - row) ** 2 + (cc + c0 - column) ** 2)
-        return int(rr[best] + r0), int(cc[best] + c0)
+        order = np.argsort((rr + r0 - row) ** 2 + (cc + c0 - column) ** 2)
+        for k in order[:40]:
+            cell = (int(rr[k] + r0), int(cc[k] + c0))
+            if model.segment_is_wet(list(point), [float(xs[cell[1]]), float(ys[cell[0]])]):
+                return cell
+        k = order[0]
+        return int(rr[k] + r0), int(cc[k] + c0)
 
     source = nearest_water(start)
     target = nearest_water(end)
@@ -391,6 +416,10 @@ def route_between(model, start, end, cell_m=None):
             routed = grid_route(model, start, end, window, max(12.0, cell / 2.5))
             if routed:
                 return routed
+        # A channel narrower than one thickened cell: fall back to plain sampling.
+        routed = grid_route(model, start, end, window, max(10.0, cell / 2.5), thicken=False)
+        if routed:
+            return routed
     return None
 
 
@@ -592,74 +621,74 @@ def wet_index(model, dense, index, direction, min_clear_steps=2):
     return k
 
 
-def repair_path(model, path, pinned_points=()):
-    """Replace interior dry runs with least-cost water detours.
+def _splice(path, s0, s1, replacement):
+    """Vertices before offset s0 + replacement + vertices after offset s1.
 
-    Returns (new_path, changed). Endpoints are preserved exactly.
+    Offsets are along-line distances in degrees (LineString.project units);
+    ``replacement`` starts at the point at s0 and ends at the point at s1.
+    """
+    cumulative = [0.0]
+    for a, b in zip(path, path[1:]):
+        cumulative.append(cumulative[-1] + math.dist(a, b))
+    before = [list(p) for p, c in zip(path, cumulative) if c < s0 - 1e-12]
+    after = [list(p) for p, c in zip(path, cumulative) if c > s1 + 1e-12]
+    return before + [list(p) for p in replacement] + after
+
+
+def repair_path(model, path, pinned_points=()):
+    """Replace dry runs with least-cost water detours, one run at a time.
+
+    Each failing run is located on the line; the stretch from a wet point
+    before it to a wet point after it is rerouted on the water grid and
+    string-pulled. Endpoints are preserved exactly.
     """
     changed = False
-    for _attempt in range(6):
+    unfixable = []
+
+    def same_run(a, b):
+        return abs(a["m"] - b["m"]) < 2 and math.dist(a["from"], b["from"]) < 1e-4
+
+    for _attempt in range(40):
         metrics = path_metrics(model, path)
         bad = [run for run in metrics["runs"]
-               if (not run["endpoint"] and run["m"] > REPAIR_TRIGGER_M)
-               or (run["endpoint"] and run["m"] > MAX_ENDPOINT_DRY_M * 0.8)]
+               if ((not run["endpoint"] and run["m"] > REPAIR_TRIGGER_M)
+                   or (run["endpoint"] and run["m"] > MAX_ENDPOINT_DRY_M * 0.8))
+               and not any(same_run(run, other) for other in unfixable)]
         if not bad:
             break
-        dense = densify(path)
-        land_flags = [model.point_is_land(p) for p in dense]
-        # dry vertex groups in the densified path
-        groups = []
-        k = 0
-        while k < len(dense):
-            if land_flags[k]:
-                g0 = k
-                while k < len(dense) and land_flags[k]:
-                    k += 1
-                groups.append((g0, k - 1))
-            else:
-                k += 1
-        if not groups:
-            # Dry runs between samples (thin spits): densify further.
-            dense = densify(path, 15.0)
-            land_flags = [model.point_is_land(p) for p in dense]
-            k = 0
-            while k < len(dense):
-                if land_flags[k]:
-                    g0 = k
-                    while k < len(dense) and land_flags[k]:
-                        k += 1
-                    groups.append((g0, k - 1))
-                else:
-                    k += 1
-            if not groups:
-                break
-        # Merge groups that are close together so one detour covers them.
-        merged = []
-        for g in groups:
-            if merged and g[0] - merged[-1][1] <= 8:
-                merged[-1] = (merged[-1][0], g[1])
-            else:
-                merged.append(g)
-        output = []
-        cursor = 0
-        for g0, g1 in merged:
-            a = max(0, g0 - 3)
-            b = min(len(dense) - 1, g1 + 3)
-            a = wet_index(model, dense, a, -1) if a > 0 else 0
-            b = wet_index(model, dense, b, +1) if b < len(dense) - 1 else len(dense) - 1
-            if a < cursor:
-                continue
-            routed = route_between(model, dense[a], dense[b])
-            if not routed:
-                raise RuntimeError(f"no water path between {rounded([dense[a]])[0]} and {rounded([dense[b]])[0]}")
-            routed = string_pull(model, routed, set())
-            output.extend(dense[cursor:a])
-            output.extend(routed)
-            cursor = b + 1
-            changed = True
-        output.extend(dense[cursor:])
-        path = dedupe(output, 0.5)
-        path[0], path[-1] = list(path[0]), list(path[-1])
+        run = max(bad, key=lambda item: item["m"])
+        previous = run
+        line = LineString(path)
+        total = line.length
+        # Locate the run by its midpoint: projecting both ends is ambiguous
+        # on loops whose start and end coincide.
+        lat0 = run["from"][1]
+        metre = 1 / min(M_PER_DEG_LAT, m_per_deg_lon(lat0))
+        mid = ((run["from"][0] + run["to"][0]) / 2, (run["from"][1] + run["to"][1]) / 2)
+        s_mid = line.project(Point(mid))
+        half = max(math.dist(run["from"], run["to"]) / 2, run["m"] * metre / 2)
+        s0, s1 = max(0.0, s_mid - half), min(total, s_mid + half)
+        margin = max(60.0, run["m"]) * metre
+        detour = None
+        for _grow in range(6):
+            a_off = max(0.0, s0 - margin)
+            b_off = min(total, s1 + margin)
+            pa = list(line.interpolate(a_off).coords[0]) if a_off > 0 else list(path[0])
+            pb = list(line.interpolate(b_off).coords[0]) if b_off < total else list(path[-1])
+            if (a_off == 0 or not model.point_is_land(pa)) and (b_off == total or not model.point_is_land(pb)):
+                detour = route_between(model, pa, pb)
+                if detour:
+                    break
+            margin *= 2
+        if not detour:
+            raise RuntimeError(f"no water path around the dry run at {rounded([run['from']])[0]}")
+        detour = string_pull(model, detour, set())
+        candidate = dedupe(_splice(path, a_off, b_off, [list(p) for p in detour]), 0.5)
+        if any(same_run(previous, other) for other in path_metrics(model, candidate)["runs"]):
+            unfixable.append(previous)
+            continue
+        path = candidate
+        changed = True
     return path, changed
 
 
@@ -796,8 +825,9 @@ def snap_ends(path, start, end):
     Vertices lying within 150 m of a terminal are dropped so the snapped end
     does not create a hook.
     """
+    radius = min(0.15, 0.2 * polyline_km(path))
     inner = [p for p in path[1:-1]
-             if haversine_km(p, start) > 0.15 and haversine_km(p, end) > 0.15]
+             if haversine_km(p, start) > radius and haversine_km(p, end) > radius]
     return [list(start), *inner, list(end)]
 
 
@@ -932,6 +962,11 @@ def compute_route(model, osm, route_id, source_paths, source_kind, config, landi
         labels.append(label)
         repaired_any = repaired_any or repaired
     # Identical paths inside one route add nothing to the map.
+    # Greedy splitting can leave a stub of a few vertices at a loop's end;
+    # drop stubs that are too short to draw when longer parts remain.
+    if len(out_paths) > 1:
+        kept = [path for path in out_paths if polyline_km(path) > MIN_LENGTH_KM * 2]
+        out_paths = kept or out_paths
     unique = []
     seen = set()
     for path in out_paths:

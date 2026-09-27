@@ -108,11 +108,13 @@ def extract_land():
     }, to_wkb)
 
 
-def write_wkb(path, geometries, metadata, to_wkb):
+def write_wkb(path, geometries, metadata, to_wkb, ids=None):
     payload = {
         "metadata": {**metadata, "fetchedAt": time.strftime("%Y-%m-%d"), "count": len(geometries)},
         "wkb": [base64.b64encode(to_wkb(geometry)).decode("ascii") for geometry in geometries],
     }
+    if ids is not None:
+        payload["ids"] = ids
     path.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
     print(f"Wrote {len(geometries):,} polygons to {path} ({path.stat().st_size / 1e6:,.1f} MB)")
 
@@ -166,7 +168,7 @@ def corridor_paths(ferry_ways):
     cache = ROOT / "scripts" / "ferry-water-cache.json"
     if cache.exists():
         for record in json.loads(cache.read_text(encoding="utf-8")).get("routes", {}).values():
-            paths.extend(record.get("coordinates", []))
+            add_geometry({"type": record.get("geometryType"), "coordinates": record.get("coordinates", [])})
     # OSM ferry ways only matter where they can be matched to our terminals.
     endpoints = [point for path in paths if path for point in (path[0], path[-1])]
 
@@ -177,7 +179,7 @@ def corridor_paths(ferry_ways):
         way = [[node["lon"], node["lat"]] for node in element.get("geometry", [])]
         if len(way) >= 2 and near_endpoint(way[0]) and near_endpoint(way[-1]):
             paths.append(way)
-    return [path for path in paths if len(path) >= 1]
+    return [path for path in paths if len(path) >= 1 and isinstance(path[0], list)]
 
 
 def corridor_tiles(paths):
@@ -256,12 +258,25 @@ def dry_tiles(tiles, paths):
     return kept
 
 
-def fetch_inland_water(ferry_ways):
-    from shapely import to_wkb
+def fetch_inland_water(ferry_ways, refresh=False):
+    from shapely import from_wkb, to_wkb
 
     paths = corridor_paths(ferry_ways)
     tiles = dry_tiles(corridor_tiles(paths), paths)
-    print(f"Fetching inland water for {len(tiles)} ferry-corridor tiles", flush=True)
+    known_tiles, polygons, polygon_ids = set(), [], []
+    if WATER_OUTPUT.exists() and not refresh:
+        # Incremental: keep earlier polygons, fetch only corridor tiles that
+        # are new (for example a newly added ferry route).
+        previous = json.loads(WATER_OUTPUT.read_text(encoding="utf-8"))
+        known_tiles = {tuple(tile) for tile in previous.get("metadata", {}).get("tiles", [])}
+        if known_tiles and previous.get("ids"):
+            polygons = list(from_wkb([base64.b64decode(item) for item in previous["wkb"]]))
+            polygon_ids = list(previous["ids"])
+        else:
+            known_tiles = set()
+    all_tiles = sorted(set(tiles) | known_tiles)
+    tiles = [tile for tile in tiles if tile not in known_tiles]
+    print(f"Fetching inland water for {len(tiles)} new ferry-corridor tiles", flush=True)
     by_id = {}
     for offset in range(0, len(tiles), TILES_PER_QUERY):
         batch = tiles[offset:offset + TILES_PER_QUERY]
@@ -273,28 +288,33 @@ def fetch_inland_water(ferry_ways):
                 for kind in ("way", "relation")
                 for key, value in (("natural", "water"), ("waterway", "riverbank"), ("waterway", "dock"))
             )
-        query = "[out:json][timeout:240];(" + "".join(clauses) + ");out tags geom;"
+        query = "[out:json][timeout:240];(" + "".join(clauses) + ");out geom;"
         result = overpass(query)
         for element in result.get("elements", []):
             by_id[(element["type"], element["id"])] = element
         print(f"  [{offset + len(batch)}/{len(tiles)}] {len(by_id):,} water features so far", flush=True)
         time.sleep(2)
-    polygons = []
-    for element in by_id.values():
+    existing = set(polygon_ids)
+    for (kind, identifier), element in by_id.items():
+        key = f"{kind}/{identifier}"
+        if key in existing:
+            continue
         try:
             polygon = element_polygons(element)
         except Exception as error:
-            print(f"  skipped {element['type']}/{element['id']}: {error}")
+            print(f"  skipped {key}: {error}")
             continue
         if polygon is not None and not polygon.is_empty and polygon.area > 0:
             polygons.append(polygon)
+            polygon_ids.append(key)
     write_wkb(WATER_OUTPUT, polygons, {
         "source": "OpenStreetMap inland water via Overpass (natural=water, waterway=riverbank, waterway=dock)",
         "sourceUrl": OVERPASS_URL,
         "license": "ODbL 1.0, (c) OpenStreetMap contributors",
         "tileDegrees": WATER_TILE,
-        "tileCount": len(tiles),
-    }, to_wkb)
+        "tileCount": len(all_tiles),
+        "tiles": [list(tile) for tile in all_tiles],
+    }, to_wkb, polygon_ids)
 
 
 def main():
@@ -302,6 +322,7 @@ def main():
     parser.add_argument("--refresh-land", action="store_true", help="download the land-polygon zip again")
     parser.add_argument("--skip-land", action="store_true", help="keep the existing clipped land file")
     parser.add_argument("--skip-water", action="store_true", help="keep the existing inland-water file")
+    parser.add_argument("--refresh-water", action="store_true", help="refetch every inland-water tile")
     parser.add_argument("--skip-ferry-ways", action="store_true", help="keep the existing OSM ferry-way file")
     args = parser.parse_args()
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -314,7 +335,7 @@ def main():
     else:
         ferry_ways = fetch_ferry_ways()
     if not args.skip_water or not WATER_OUTPUT.exists():
-        fetch_inland_water(ferry_ways)
+        fetch_inland_water(ferry_ways, args.refresh_water)
     print(f"Ferry water model ready in {time.monotonic() - started:,.0f}s")
 
 
