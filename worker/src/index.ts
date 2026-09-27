@@ -43,7 +43,7 @@ const NWS_USER_AGENT = 'motion-map (github.com/mapzimus/Motion)';
 // outlines are fetched one per subrequest, so cap them per gateway request
 // (most severe alerts first) to stay inside Workers subrequest limits.
 const NWS_MAX_ZONE_FETCHES = 40;
-const NWS_ZONE_SIMPLIFY_TOLERANCE = 0.002; // degrees, ≈200 m
+const NWS_ZONE_SIMPLIFY_TOLERANCE = 0.003; // degrees, ≈300 m
 const NWS_ZONE_CACHE_TTL_SECONDS = 7 * 24 * 60 * 60;
 
 // ---- provider health -------------------------------------------------------

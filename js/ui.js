@@ -66,6 +66,9 @@ function buildGroups(routeInfo, capabilities) {
     { key: 'roads', name: 'Major roadways', initial: 'R', section: 'infrastructure', sectionName: 'Movement infrastructure', routes: [], color: CONFIG.ROAD_COLOR, truth: 'reference', countAsVehicle: false },
     { key: 'freight', name: 'Freight rail network', initial: 'FR', section: 'infrastructure', routes: [], color: CONFIG.FREIGHT_COLOR, truth: 'FRA reference', countAsVehicle: false },
     { key: 'border', name: 'Canada border crossings', initial: 'CB', section: 'infrastructure', routes: [], color: CONFIG.BORDER_COLOR, darkText: true, truth: 'CBSA reference', countAsVehicle: false },
+    // Conditions: official weather and airport operating status.
+    { key: 'weather', name: 'Weather alerts (NWS)', initial: '⚠', section: 'weather-conditions', sectionName: 'Conditions', routes: [], color: CONFIG.WEATHER_COLORS.moderate, darkText: true, truth: 'live', needsKey: !capabilities?.weatherAlerts, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false },
+    { key: 'airport-status', name: 'Airport delays (FAA)', initial: '✈', section: 'weather-conditions', routes: [], color: CONFIG.AIRPORT_STATUS_COLORS['ground-delay'], truth: 'live', needsKey: !capabilities?.airportStatus, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false },
   ];
 }
 
@@ -479,6 +482,13 @@ export function renderAlerts(alerts) {
     const effect = document.createElement('span');
     effect.className = 'alert-effect';
     effect.textContent = prettyEffect(a.effect);
+    // Non-transit sources (e.g. NWS weather) carry a small origin badge.
+    if (a.badge) {
+      const sourceBadge = document.createElement('span');
+      sourceBadge.className = 'alert-source-badge';
+      sourceBadge.textContent = a.badge;
+      effect.prepend(sourceBadge);
+    }
     const text = document.createElement('span');
     text.className = 'alert-text';
     text.textContent = a.header;

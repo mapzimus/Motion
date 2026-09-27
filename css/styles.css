@@ -723,3 +723,16 @@ h2 {
   padding-right: 8px;
 }
 .line-row.zoomable:hover { background: rgba(255, 255, 255, 0.045); }
+
+/* ---- conditions (NWS weather · FAA airport status) ----------------------- */
+.alert-source-badge {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 1px 4px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  font-size: 8.5px;
+  letter-spacing: 0.1em;
+  opacity: 0.9;
+}
+.popup-divider { border: 0; border-top: 1px solid var(--hairline); margin: 9px 0; }

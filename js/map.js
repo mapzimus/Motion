@@ -44,6 +44,12 @@ let airportsFC = EMPTY_FC;
 let allBorderCrossingsFC = EMPTY_FC;
 let borderCrossingsFC = EMPTY_FC;
 let referenceLoadPromise = null;
+// Conditions layers (NWS weather polygons, FAA airport status rings).
+let allWeatherFC = EMPTY_FC;
+let weatherFC = EMPTY_FC;
+let airportStatusPayload = { airports: [] };
+let allAirportStatusFC = EMPTY_FC;
+let airportStatusFC = EMPTY_FC;
 
 export function configureGateway(capabilities) {
   trafficAvailable = Boolean(capabilities?.traffic);
@@ -713,6 +719,82 @@ function setupLayers() {
   for (const layerId of ['local-service-points', 'camera-points', 'incident-points']) {
     map.moveLayer(layerId, 'veh-bike-dots');
   }
+  setupConditionLayers();
+}
+
+// ---- conditions layers -----------------------------------------------------
+// Weather polygons sit under every road/route line; airport-status rings sit
+// with the other operational points, just below moving vehicles.
+function setupConditionLayers() {
+  map.addSource('weather-alerts', { type: 'geojson', data: EMPTY_FC });
+  map.addLayer({
+    id: 'weather-alert-fill',
+    type: 'fill',
+    source: 'weather-alerts',
+    layout: { visibility: 'none' },
+    paint: {
+      'fill-color': ['get', 'color'],
+      'fill-opacity': ['match', ['get', 'severity'], 'Extreme', 0.3, 'Severe', 0.24, 'Moderate', 0.18, 0.12],
+    },
+  }, 'major-roads-halo');
+  map.addLayer({
+    id: 'weather-alert-outline',
+    type: 'line',
+    source: 'weather-alerts',
+    layout: { visibility: 'none', 'line-join': 'round' },
+    paint: {
+      'line-color': ['get', 'color'],
+      'line-width': ['interpolate', ['linear'], ['zoom'], 5, 0.8, 12, 2],
+      'line-opacity': 0.7,
+      'line-dasharray': [3, 2],
+    },
+  }, 'major-roads-halo');
+
+  map.addSource('airport-status', { type: 'geojson', data: EMPTY_FC });
+  map.addLayer({
+    id: 'airport-status-halo',
+    type: 'circle',
+    source: 'airport-status',
+    layout: { visibility: 'none' },
+    paint: {
+      'circle-color': ['get', 'color'],
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 14, 12, 30],
+      'circle-opacity': 0.16,
+      'circle-blur': 0.6,
+    },
+  }, 'veh-bike-dots');
+  map.addLayer({
+    id: 'airport-status-rings',
+    type: 'circle',
+    source: 'airport-status',
+    layout: { visibility: 'none' },
+    paint: {
+      'circle-color': ['get', 'color'],
+      'circle-opacity': 0.12,
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 9, 12, 20],
+      'circle-stroke-color': ['get', 'color'],
+      'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 5, 2, 12, 3.5],
+      'circle-stroke-opacity': 0.95,
+    },
+  }, 'veh-bike-dots');
+  map.addLayer({
+    id: 'airport-status-labels',
+    type: 'symbol',
+    source: 'airport-status',
+    layout: {
+      visibility: 'none',
+      'text-field': ['get', 'badge'],
+      'text-size': ['interpolate', ['linear'], ['zoom'], 5, 9, 12, 12],
+      'text-offset': [0, -1.9],
+      'text-anchor': 'bottom',
+      'text-allow-overlap': true,
+    },
+    paint: {
+      'text-color': ['get', 'color'],
+      'text-halo-color': '#10151b',
+      'text-halo-width': 1.6,
+    },
+  }, 'veh-bike-dots');
 }
 
 function relativeAge(iso) {
@@ -747,6 +829,40 @@ function wirePopups() {
   wireInformationPopup('major-roads-lines');
   wireInformationPopup('freight-rail-lines');
   wireCameraPopups();
+  wireConditionPopups();
+}
+
+function wireConditionPopups() {
+  map.on('click', 'weather-alert-fill', (event) => {
+    // Overlapping zones: list every alert under the click, worst first.
+    const seen = new Set();
+    const features = event.features.filter((feature) => {
+      const id = feature.properties.id;
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+    const html = features.map((feature) => {
+      const p = feature.properties;
+      const timing = [readableTime(p.onset), readableTime(p.ends)].filter(Boolean).join(' – ');
+      return `
+        <div class="popup-title" style="color:${esc(p.color)}">${esc(p.event)}</div>
+        <div class="popup-dest">${esc(p.severity)} · ${esc(p.urgency)}</div>
+        ${p.headline ? `<div class="popup-status">${esc(p.headline)}</div>` : ''}
+        ${p.description ? `<div class="popup-status popup-details">${esc(p.description)}</div>` : ''}
+        ${timing ? `<div class="popup-meta">${esc(timing)}</div>` : ''}
+        ${p.areaDesc ? `<div class="popup-meta">${esc(p.areaDesc)}</div>` : ''}
+        <div class="popup-meta"><span class="popup-data-status live">live</span> · ${esc(p.senderName || p.provider)} · ${relativeAge(p.updatedAt)}</div>
+        ${/^https:\/\//.test(p.sourceUrl ?? '') ? `<a class="popup-route-link" href="${esc(p.sourceUrl)}" target="_blank" rel="noopener">Open NWS alert ↗</a>` : ''}`;
+    }).join('<hr class="popup-divider">');
+    new maplibregl.Popup({ offset: 10, maxWidth: '330px' })
+      .setLngLat(event.lngLat)
+      .setHTML(html)
+      .addTo(map);
+  });
+  map.on('mouseenter', 'weather-alert-fill', () => { map.getCanvas().style.cursor = 'pointer'; });
+  map.on('mouseleave', 'weather-alert-fill', () => { map.getCanvas().style.cursor = ''; });
+  wireInformationPopup('airport-status-rings');
 }
 
 function vehiclePopupHtml(properties, routeHtml = '') {
@@ -1020,6 +1136,137 @@ function renderCameras() {
   map?.getSource('cameras')?.setData(camerasFC);
 }
 
+// ---- conditions data -------------------------------------------------------
+
+export function setWeatherAlertsData(featureCollection) {
+  allWeatherFC = featureCollection?.features ? featureCollection : EMPTY_FC;
+  renderWeatherAlerts();
+}
+
+export function weatherAlertCountForRegion() {
+  return filterSpatialFeatureCollection(allWeatherFC, activeRegion).features.length;
+}
+
+function renderWeatherAlerts() {
+  weatherFC = filterSpatialFeatureCollection(allWeatherFC, activeRegion);
+  map?.getSource('weather-alerts')?.setData(weatherFC);
+}
+
+// Vertex-average centroid: good enough to fly the map to a zone polygon.
+function geometryCentroid(geometry) {
+  let x = 0;
+  let y = 0;
+  let n = 0;
+  const visit = (value) => {
+    if (!Array.isArray(value) || !value.length) return;
+    if (typeof value[0] === 'number') {
+      x += value[0];
+      y += value[1];
+      n += 1;
+    } else {
+      for (const child of value) visit(child);
+    }
+  };
+  visit(geometry?.coordinates ?? []);
+  return n ? [x / n, y / n] : null;
+}
+
+const WEATHER_SEVERITY_SCORE = { Extreme: 9, Severe: 7, Moderate: 5, Minor: 3 };
+
+// Extreme/Severe NWS alerts in the selected region, shaped like MBTA alerts so
+// the panel and focusAlert() treat them the same way.
+export function weatherPanelAlertsForRegion() {
+  return weatherFC.features
+    .filter((feature) => CONFIG.WEATHER_PANEL_SEVERITIES.includes(feature.properties.severity))
+    .map((feature) => {
+      const p = feature.properties;
+      const centroid = geometryCentroid(feature.geometry);
+      return {
+        id: `nws-${p.id}`,
+        effect: p.event,
+        badge: 'NWS',
+        severity: WEATHER_SEVERITY_SCORE[p.severity] ?? 5,
+        header: p.headline || p.event,
+        description: p.description,
+        routes: [],
+        stops: [],
+        focus: { points: centroid ? [centroid] : [] },
+      };
+    });
+}
+
+export function setAirportStatusData(payload) {
+  airportStatusPayload = payload?.airports ? payload : { airports: [] };
+  renderAirportStatus();
+}
+
+export function airportStatusCountForRegion() {
+  return filterFeatureCollection(allAirportStatusFC, activeRegion).features.length;
+}
+
+const AIRPORT_STATUS_LABELS = {
+  'ground-stop': 'Ground stop',
+  'ground-delay': 'Ground delay program',
+  'arrival-delay': 'Arrival delays',
+  'departure-delay': 'Departure delays',
+  closure: 'Airport closure / NOTAM',
+};
+const AIRPORT_STATUS_BADGES = {
+  'ground-stop': 'STOP',
+  'ground-delay': 'GDP',
+  'arrival-delay': 'ARR',
+  'departure-delay': 'DEP',
+  closure: 'CLSD',
+};
+const AIRPORT_STATUS_RANK = ['ground-stop', 'closure', 'ground-delay', 'arrival-delay', 'departure-delay'];
+
+// Joins FAA status rows to the FAA NASR airport catalog by LID (= IATA for
+// these airports). One feature per airport carries its worst condition on
+// top and lists the rest in the popup.
+function renderAirportStatus() {
+  const byIata = new Map();
+  for (const status of airportStatusPayload.airports ?? []) {
+    if (!byIata.has(status.iata)) byIata.set(status.iata, []);
+    byIata.get(status.iata).push(status);
+  }
+  const features = [];
+  for (const airport of allAirportsFC.features ?? []) {
+    const statuses = byIata.get(airport.properties?.faaId);
+    if (!statuses || airport.geometry?.type !== 'Point') continue;
+    statuses.sort((a, b) => AIRPORT_STATUS_RANK.indexOf(a.type) - AIRPORT_STATUS_RANK.indexOf(b.type));
+    const worst = statuses[0];
+    const lines = statuses.map((status) => [
+      AIRPORT_STATUS_LABELS[status.type] ?? status.type,
+      status.reason,
+      status.avgDelay ? `avg ${status.avgDelay}` : '',
+      status.trend ? `trend ${status.trend.toLowerCase()}` : '',
+      status.endTime ? `until ${status.endTime}` : '',
+    ].filter(Boolean).join(' · '));
+    features.push({
+      type: 'Feature',
+      id: airport.properties.faaId,
+      geometry: airport.geometry,
+      properties: {
+        group: 'airport-status',
+        dataStatus: 'live',
+        color: CONFIG.AIRPORT_STATUS_COLORS[worst.type] ?? CONFIG.ROADWORK_COLOR,
+        badge: AIRPORT_STATUS_BADGES[worst.type] ?? '!',
+        iata: worst.iata,
+        statusType: worst.type,
+        title: `${worst.iata} · ${airport.properties.title}`,
+        status: `${AIRPORT_STATUS_LABELS[worst.type] ?? worst.type}${worst.reason ? ` — ${worst.reason}` : ''}`,
+        details: lines.join('; '),
+        provider: airportStatusPayload.provider ?? 'FAA National Airspace System status',
+        sourceUrl: airportStatusPayload.sourceUrl ?? 'https://nasstatus.faa.gov/',
+        updatedAt: airportStatusPayload.updatedAt,
+      },
+    });
+  }
+  allAirportStatusFC = { type: 'FeatureCollection', features };
+  airportStatusFC = filterFeatureCollection(allAirportStatusFC, activeRegion);
+  map?.getSource('airport-status')?.setData(airportStatusFC);
+}
+
 function renderReferenceData() {
   infrastructureFC = filterSpatialFeatureCollection(allInfrastructureFC, activeRegion);
   localServicesFC = filterSpatialFeatureCollection(allLocalServicesFC, activeRegion);
@@ -1036,6 +1283,7 @@ function renderReferenceData() {
   map?.getSource('local-services')?.setData(localServicesFC);
   map?.getSource('airports')?.setData(airportsFC);
   map?.getSource('border-crossings')?.setData(borderCrossingsFC);
+  renderAirportStatus(); // FAA status may have arrived before the airport catalog
 }
 
 async function ensureReferenceData() {
@@ -1110,7 +1358,7 @@ let activeRegion = 'boston';
 
 export function setVisibleGroups(groups, statuses = ['live', 'estimated', 'scheduled', 'reference']) {
   pendingFilters = { groups, statuses };
-  if (groups.some((group) => ['roads', 'freight', 'local', 'airport', 'border'].includes(group))) {
+  if (groups.some((group) => ['roads', 'freight', 'local', 'airport', 'border', 'airport-status'].includes(group))) {
     ensureReferenceData();
   }
   if (layersReady) applyGroupFilter(groups, statuses);
@@ -1151,6 +1399,7 @@ function applyRegion(fit) {
   renderRoadEvents();
   renderCameras();
   renderReferenceData();
+  renderWeatherAlerts();
   for (const fleetId of rawFleetData.keys()) renderFleetData(fleetId);
   if (!fit) return;
   const bounds = boundsForRegion(activeRegion);
@@ -1280,6 +1529,21 @@ function applyGroupFilter(groups, statuses) {
       groups.includes(group) && (!status || statuses.includes(status)) ? 'visible' : 'none',
     );
   }
+  // Conditions layers are all `live`; they follow the group switch plus the live filter.
+  for (const [layerId, group] of [
+    ['weather-alert-fill', 'weather'],
+    ['weather-alert-outline', 'weather'],
+    ['airport-status-halo', 'airport-status'],
+    ['airport-status-rings', 'airport-status'],
+    ['airport-status-labels', 'airport-status'],
+  ]) {
+    if (!map.getLayer(layerId)) continue;
+    map.setLayoutProperty(
+      layerId,
+      'visibility',
+      groups.includes(group) && statuses.includes('live') ? 'visible' : 'none',
+    );
+  }
 }
 
 // ---- alert focus -----------------------------------------------------------
@@ -1305,6 +1569,10 @@ function dropPing(lngLat) {
 const lineCoordinates = (feature) => feature.geometry.type === 'MultiLineString'
   ? feature.geometry.coordinates.flat()
   : feature.geometry.coordinates;
+// Outer rings only: enough to frame a weather zone.
+const polygonCoordinates = (feature) => feature.geometry.type === 'MultiPolygon'
+  ? feature.geometry.coordinates.flatMap((polygon) => polygon[0])
+  : feature.geometry.coordinates[0];
 
 export function focusAlert(alert) {
   const points = alert.focus?.points ?? [];
@@ -1331,7 +1599,7 @@ export function focusAlert(alert) {
 // the suburbs. Falls back to the group's route ribbons when no vehicle is
 // reporting (e.g. ferries between rush hours).
 export async function focusGroup(groupKey, routeIds = []) {
-  if (['roads', 'freight', 'local', 'airport', 'border'].includes(groupKey)) {
+  if (['roads', 'freight', 'local', 'airport', 'border', 'airport-status'].includes(groupKey)) {
     await ensureReferenceData();
   }
   let coords = [...fleetData.values()]
@@ -1349,12 +1617,14 @@ export async function focusGroup(groupKey, routeIds = []) {
       .flatMap(lineCoordinates);
   }
   if (!coords.length) {
-    coords = [roadworkFC, roadEventsFC, camerasFC, infrastructureFC, localServicesFC, airportsFC, borderCrossingsFC]
+    coords = [roadworkFC, roadEventsFC, camerasFC, infrastructureFC, localServicesFC, airportsFC, borderCrossingsFC, weatherFC, airportStatusFC]
       .flatMap((collection) => collection.features)
       .filter((feature) => feature.properties.group === groupKey)
       .flatMap((feature) => feature.geometry.type === 'Point'
         ? [feature.geometry.coordinates]
-        : lineCoordinates(feature));
+        : feature.geometry.type.endsWith('Polygon')
+          ? polygonCoordinates(feature)
+          : lineCoordinates(feature));
   }
   if (!coords.length) return false;
 
