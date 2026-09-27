@@ -3,6 +3,7 @@
 
 import { CONFIG } from './config.js';
 import { lookupFlightRoute } from './flight-routes.js';
+import { attachStopPredictions } from './predictions.js';
 import {
   boundaryForRegion,
   boundsForRegion,
@@ -887,9 +888,27 @@ function informationPopupHtml(properties, extra = '') {
     ${sourceUrl ? `<a class="popup-route-link" href="${esc(sourceUrl)}" target="_blank" rel="noopener">Open official source ↗</a>` : ''}`;
 }
 
+// Stop/station/landing popups: reference info first, then live MBTA arrivals
+// (or a one-line "schedule only" note) appended by predictions.js.
+export function openStopPopup(feature) {
+  const properties = feature.properties;
+  const popup = new maplibregl.Popup({ offset: 10, maxWidth: '330px' })
+    .setLngLat(feature.geometry.coordinates)
+    .setHTML(informationPopupHtml(properties))
+    .addTo(map);
+  attachStopPredictions(popup, properties, (extra) => {
+    if (popup.isOpen()) popup.setHTML(informationPopupHtml(properties, extra));
+  });
+  return popup;
+}
+
 function wireInformationPopup(layerId) {
   map.on('click', layerId, (event) => {
     const feature = event.features[0];
+    if (STOP_POINT_LAYERS.includes(layerId) && feature.geometry.type === 'Point') {
+      openStopPopup(feature);
+      return;
+    }
     const coordinates = feature.geometry.type === 'Point'
       ? feature.geometry.coordinates
       : event.lngLat;
