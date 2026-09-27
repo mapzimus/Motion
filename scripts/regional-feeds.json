@@ -43,6 +43,10 @@
   {"id":"bay-state-cruise","agency":"Bay State Cruise Company","states":["ma"],"url":"https://files.mobilitydatabase.org/mdb-435/latest.zip","source_url":"https://baystatecruisecompany.com/"},
   {"id":"cuttyhunk-ferry","agency":"Cuttyhunk Ferry Company","states":["ma"],"url":"https://files.mobilitydatabase.org/mdb-423/latest.zip","source_url":"https://www.cuttyhunkferryco.com/"},
   {"id":"vineyard-fast-ferry","agency":"Vineyard Fast Ferry","states":["ma","ri"],"url":"https://files.mobilitydatabase.org/mdb-419/latest.zip","source_url":"https://vineyardfastferry.com/","route_type_override":4},
+  {"id":"seastreak","agency":"Seastreak","states":["ma","ri"],"url":"https://seastreak.com/api/transit/google_transit.zip","source_url":"https://seastreak.com/","route_id_pattern":"^(270|272|5924)$","route_id_map":{"270":"new-bedford-marthas-vineyard","272":"new-bedford-nantucket","5924":"providence-bristol-newport"},"route_name_map":{"270":"New Bedford ↔ Martha's Vineyard (Oak Bluffs)","272":"New Bedford ↔ Nantucket","5924":"Providence ↔ Newport"}},
+  {"id":"patriot-water-shuttle","agency":"Patriot Party Boats","states":["ma"],"url":"https://data.trilliumtransit.com/gtfs/patriotpartyboats-ma-us/patriotpartyboats-ma-us.zip","source_url":"https://www.patriotpartyboats.com/","route_id_map":{"2111":"falmouth-oak-bluffs"},"route_name_map":{"2111":"Patriot Water Shuttle · Falmouth ↔ Oak Bluffs"}},
+  {"id":"freedom-cruise","agency":"Freedom Cruise Line","states":["ma"],"url":"https://data.trilliumtransit.com/gtfs/freedomcruiseline-ma-us/freedomcruiseline-ma-us.zip","source_url":"https://www.nantucketislandferry.com/","route_id_map":{"2107":"harwich-port-nantucket"},"route_name_map":{"2107":"Freedom Cruise Line · Harwich Port ↔ Nantucket"}},
+  {"id":"thompson-island-ferry","agency":"Thompson Island Outward Bound","states":["ma"],"url":"https://www.nps.gov/external-resources/gtfs/boha/cathleen-stone-island-ferry.zip","source_url":"https://www.thompsonisland.org/","route_id_map":{"CSI":"south-boston-thompson"},"route_name_map":{"CSI":"South Boston (EDIC) ↔ Thompson Island"}},
   {"id":"yankee-line","agency":"Yankee Line","states":["ma"],"url":"https://files.mobilitydatabase.org/mdb-443/latest.zip","source_url":"https://yankeeline.us/"},
 
   {"id":"ripta","agency":"Rhode Island Public Transit Authority","states":["ri","ma"],"url":"https://files.mobilitydatabase.org/mdb-624/latest.zip"},
@@ -64,6 +68,7 @@
   {"id":"tri-valley","agency":"Tri-Valley Transit","states":["vt","nh"],"url":"https://files.mobilitydatabase.org/mdb-852/latest.zip"},
   {"id":"the-current","agency":"The Current","states":["vt","ma"],"url":"https://files.mobilitydatabase.org/mdb-428/latest.zip"},
   {"id":"vermont-translines","agency":"Vermont Translines","states":["vt","ma","ny"],"url":"https://files.mobilitydatabase.org/mdb-450/latest.zip"},
+  {"id":"lake-champlain-ferries","agency":"Lake Champlain Transportation","states":["vt","ny"],"url":"https://data.trilliumtransit.com/gtfs/lctferries-vt-us/lctferries-vt-us.zip","source_url":"https://ferries.com/","route_id_map":{"9703":"grand-isle-plattsburgh","9704":"charlotte-essex"}},
 
   {"id":"island-explorer","agency":"Island Explorer","states":["me"],"url":"https://files.mobilitydatabase.org/tld-6900/latest.zip"},
   {"id":"bangor","agency":"Bangor Community Connector","states":["me"],"url":"https://files.mobilitydatabase.org/tld-7824/latest.zip"},
@@ -75,5 +80,7 @@
   {"id":"casco-bay","agency":"Casco Bay Lines","states":["me"],"url":"https://files.mobilitydatabase.org/mdb-1/latest.zip"},
   {"id":"lakes-region-explorer","agency":"Lakes Region Explorer","states":["me"],"url":"https://files.mobilitydatabase.org/mdb-452/latest.zip"},
   {"id":"cranberry-isles-ferry","agency":"Cranberry Isles Commuter Ferry","states":["me"],"url":"https://files.mobilitydatabase.org/tld-7866/latest.zip","source_url":"https://www.cranberryisles-me.gov/"},
+  {"id":"maine-state-ferry","agency":"Maine State Ferry Service","states":["me"],"url":"https://rapid.nationalrtap.org/GTFSFileManagement/UserUploadFiles/13667/MSFS_ME_GTFS.zip","source_url":"https://www.maine.gov/mdot/ferry/","route_id_map":{"french":"bass-harbor-frenchboro","Islesboro":"lincolnville-islesboro","Matinicus":"rockland-matinicus","North Haven":"rockland-north-haven","swans":"bass-harbor-swans-island","Vinalhaven":"rockland-vinalhaven"},"route_name_map":{"french":"Bass Harbor ↔ Frenchboro","Islesboro":"Lincolnville ↔ Islesboro","Matinicus":"Rockland ↔ Matinicus","North Haven":"Rockland ↔ North Haven","swans":"Bass Harbor ↔ Swan's Island","Vinalhaven":"Rockland ↔ Vinalhaven"}},
+  {"id":"isle-au-haut-boat","agency":"Isle au Haut Boat Services","states":["me"],"url":"https://rapid.nationalrtap.org/GTFSFileManagement/UserUploadFiles/13053/isleauhaut_me_gtfs.zip","source_url":"https://www.isleauhautferryservice.com/","route_id_map":{"main":"stonington-town-landing"},"route_name_map":{"main":"Stonington ↔ Isle au Haut Town Landing ↔ Duck Harbor"}},
   {"id":"wests-bus","agency":"West's Bus Service","states":["me"],"url":"https://files.mobilitydatabase.org/tld-7870/latest.zip"}
 ]
