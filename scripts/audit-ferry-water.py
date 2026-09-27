@@ -1,586 +1,242 @@
 #!/usr/bin/env python3
-"""Audit and optionally repair ferry geometry against authoritative water data.
+"""Audit ferry geometry against the OpenStreetMap land/water model.
 
-Coastal land comes from the full-resolution GSHHG shoreline hierarchy. Inland
-water comes from Census TIGERweb Areal Hydrography. The default mode is
-read-only. ``--repair-manual --write`` replaces only coordinate arrays in the
-two checked-in supplemental route catalogs; provider GTFS shapes are never
-rewritten by this tool.
+The land model is OSM coastline land polygons minus OSM inland water
+(``fetch-ferry-audit-data.py``); the rules live in ``ferry_water.py``
+(``AUDIT_VERSION = "osm-land-v3"``). Modes:
+
+* default: audit every ferry line in ``data/regional-routes.geojson`` (or
+  ``--geojson``) and exit non-zero on any failure;
+* ``--cache``: re-audit every entry of ``scripts/ferry-water-cache.json`` and
+  confirm the stored metrics are current;
+* ``--report``: write ``scripts/ferry-water-report.md`` comparing a BEFORE
+  geojson (``--before``, e.g. the committed snapshot) with the cache (AFTER);
+* ``--write-controls``: replace the coordinates of hand-drawn supplemental
+  ferries with a sparse, water-safe version of their audited cache geometry.
+
+Geometry itself is produced by ``build-regional-routes.py --update-ferry-cache``.
 """
 
 from __future__ import annotations
 
 import argparse
 import datetime
-import hashlib
-import heapq
 import json
-import math
-import pickle
+import sys
 from pathlib import Path
-from typing import Iterable
-
-import shapefile
-from shapely import contains_xy, disjoint_subset_union_all, make_valid
-from shapely.geometry import LineString, Point, box, shape
-from shapely.ops import unary_union
-from shapely.strtree import STRtree
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+
+import ferry_water as fw  # noqa: E402
+
 REGIONAL_ROUTES = ROOT / "data" / "regional-routes.geojson"
-AUDIT_MANIFEST = ROOT / "scripts" / "ferry-water-audit.json"
-AUDIT_VERSION = "gshhg-census-water-v2-strict"
-MAX_INTERIOR_LAND_DEGREES = 0.00025  # roughly 20–28 m across New England
-MAX_TERMINAL_LAND_DEGREES = 0.0012   # shoreline/landing tolerance, roughly 95–133 m
+CACHE_PATH = ROOT / "scripts" / "ferry-water-cache.json"
+REPORT_PATH = ROOT / "scripts" / "ferry-water-report.md"
 SUPPLEMENTAL_FILES = [
     ROOT / "scripts" / "supplemental-routes.json",
     ROOT / "scripts" / "supplemental-ferry-routes.json",
-    ROOT / "scripts" / "ferry-route-overrides.json",
 ]
-NE_BOUNDS = (-75.0, 40.0, -64.0, 48.0)
-TERMINAL_OVERRIDES = {
-    "isle-au-haut-boat:stonington-town-landing": (
-        [-68.660671, 44.154492],
-        [-68.639242, 44.073511],
-    ),
-    "the-cat:bar-harbor-yarmouth": (
-        [-68.226595, 44.398203],
-        [-66.124527, 43.832948],
-    ),
-    "thames-river-water-taxi:loop": (
-        [-72.0954, 41.3442],
-        [-72.088317, 41.387336],
-    ),
-    "seastreak:providence-bristol-newport": (
-        [-71.391, 41.817],
-        [-71.3177, 41.489287],
-    ),
-    "block-island-ferry:newport-block-island": (
-        [-71.3177, 41.489287],
-        [-71.5558, 41.1733],
-    ),
-    "jamestown-newport-ferry:hop-on-loop": (
-        [-71.369, 41.497],
-        [-71.3177, 41.489287],
-    ),
-    "newport-harbor-shuttle:loop": (
-        [-71.3177, 41.489287],
-        [-71.3177, 41.489287],
-    ),
-}
-ROUTE_CONTROL_OVERRIDES = {
-    # Official Boston Launch stops: Charlestown Marina, New Street,
-    # Lewis Mall, and Fan Pier. Coordinates are the waterfront landings,
-    # not the street-address centroids.
-    "boston-launch:harbor-shuttle": [[
-        [-71.049362, 42.374208],
-        [-71.0445, 42.370881],
-        [-71.042122, 42.365613],
-        [-71.043021, 42.354138],
-    ]],
-    # Old Harbor is on Block Island's east shore. Westbound service must first
-    # clear the island around its north or south end instead of cutting across
-    # the island toward Long Island Sound.
-    "block-island-express:new-london-block-island": [[
-        [-72.0941, 41.3569],
-        [-71.89, 41.245],
-        [-71.68, 41.225],
-        [-71.600, 41.238],
-        [-71.555, 41.240],
-        [-71.535, 41.225],
-        [-71.535, 41.190],
-        [-71.545, 41.174],
-        [-71.5558, 41.1733],
-    ]],
-    "viking-fleet:block-island-montauk": [[
-        [-71.5558, 41.1733],
-        [-71.542, 41.168],
-        [-71.542, 41.150],
-        [-71.565, 41.135],
-        [-71.630, 41.140],
-        [-71.81, 41.11],
-        [-71.942, 41.075],
-    ]],
-    "block-island-express:block-island-orient-point": [[
-        [-71.5558, 41.1733],
-        [-71.542, 41.168],
-        [-71.542, 41.150],
-        [-71.565, 41.135],
-        [-71.630, 41.140],
-        [-71.96, 41.15],
-        [-72.2417, 41.1552],
-    ]],
-}
-DROP_COORDINATES = {
-    # A stale Portsmouth control sat inland and forced the Star Island path
-    # to double back through New Castle. Adjacent audited water controls
-    # already describe the channel correctly.
-    "isles-of-shoals:portsmouth-star-island": {(-70.721, 43.0605)},
-}
 
 
-def iter_lines(geometry):
-    if geometry.geom_type == "LineString":
-        yield geometry
-    elif geometry.geom_type == "MultiLineString":
-        yield from geometry.geoms
-    elif geometry.geom_type == "GeometryCollection":
-        for part in geometry.geoms:
-            yield from iter_lines(part)
+def feature_paths(geometry):
+    if geometry.get("type") == "LineString":
+        return [geometry["coordinates"]]
+    if geometry.get("type") == "MultiLineString":
+        return geometry["coordinates"]
+    return []
 
 
-class WaterModel:
-    def __init__(self, gshhg_dir: Path, hydro_path: Path, gshhg_cache: Path | None = None):
-        if gshhg_cache and gshhg_cache.exists():
-            self.levels = pickle.loads(gshhg_cache.read_bytes())
-        else:
-            self.levels = []
-            for level in (1, 2, 3, 4):
-                reader = shapefile.Reader(str(gshhg_dir / f"GSHHS_f_L{level}.shp"))
-                polygons = []
-                for record in reader.iterShapeRecords(bbox=NE_BOUNDS):
-                    try:
-                        geometry = shape(record.shape.__geo_interface__)
-                        if not geometry.is_empty:
-                            polygons.append(geometry)
-                    except Exception:
-                        continue
-                self.levels.append(polygons)
-            if gshhg_cache:
-                gshhg_cache.write_bytes(pickle.dumps(self.levels, protocol=5))
-        for level, polygons in enumerate(self.levels, 1):
-            print(f"GSHHG level {level}: {len(polygons):,} regional polygons", flush=True)
-        self.level_trees = [STRtree(polygons) for polygons in self.levels]
-
-        hydro = json.loads(hydro_path.read_text(encoding="utf-8"))
-        self.hydro = [make_valid(shape(feature["geometry"])) for feature in hydro["features"]]
-        self.hydro_tree = STRtree(self.hydro)
-        print(f"Census hydrography: {len(self.hydro):,} polygons", flush=True)
-
-    @staticmethod
-    def _query(geometries, tree, bounds_geometry):
-        return [geometries[int(index)] for index in tree.query(bounds_geometry)]
-
-    def coastal_land(self, bounds):
-        clip = box(*bounds)
-        merge = lambda items: disjoint_subset_union_all(items) if items else unary_union([])
-        l1 = merge(self._query(self.levels[0], self.level_trees[0], clip))
-        l2 = merge(self._query(self.levels[1], self.level_trees[1], clip))
-        l3 = merge(self._query(self.levels[2], self.level_trees[2], clip))
-        l4 = merge(self._query(self.levels[3], self.level_trees[3], clip))
-        return l1.difference(l2).union(l3.difference(l4)).intersection(clip)
-
-    def land_obstacle(self, bounds, hydro_tolerance=0.00018, guide_line=None):
-        clip = box(*bounds)
-        coastal_land = self.coastal_land(bounds)
-        coastal_water_share = 0
-        if guide_line is not None and guide_line.length:
-            coastal_water_share = guide_line.difference(coastal_land).length / guide_line.length
-        # Ocean/harbor routes already have authoritative water from GSHHG.
-        # Only pay the much higher hydrography cost when the guide is mostly
-        # inside continental land (a lake or river crossing).
-        if coastal_water_share < 0.15:
-            hydro_parts = self._query(self.hydro, self.hydro_tree, clip)
-            hydro = disjoint_subset_union_all(hydro_parts) if hydro_parts else unary_union([])
-            if not hydro.is_empty:
-                coastal_land = coastal_land.difference(hydro.buffer(hydro_tolerance))
-        # Route against the same shoreline used by the final audit. Earlier
-        # versions inset this obstacle slightly to keep generalized harbor
-        # mouths connected, but that let coast-parallel grid paths accumulate
-        # several hundred metres on land. If a narrow entrance is genuinely
-        # disconnected at full GSHHG resolution, the repair must fail for
-        # manual review instead of manufacturing an almost-water route.
-        return coastal_land
-
-    def failing_runs(self, coordinates):
-        line = LineString(coordinates)
-        minx, miny, maxx, maxy = line.bounds
-        pad = 0.002
-        coastal_land = self.coastal_land((minx - pad, miny - pad, maxx + pad, maxy + pad))
-        dry = line.intersection(coastal_land)
-        if not dry.is_empty:
-            for hydro in self._query(self.hydro, self.hydro_tree, dry.buffer(0.00018)):
-                if hydro.distance(dry) <= 0.00018:
-                    dry = dry.difference(hydro.buffer(0.00018))
-                    if dry.is_empty:
-                        break
-        failures = []
-        for part in iter_lines(dry):
-            length = part.length
-            terminal = min(
-                part.distance(Point(coordinates[0])),
-                part.distance(Point(coordinates[-1])),
-            ) < 0.0007
-            threshold = MAX_TERMINAL_LAND_DEGREES if terminal else MAX_INTERIOR_LAND_DEGREES
-            if length > threshold:
-                failures.append((length, terminal, list(part.coords)[0], list(part.coords)[-1]))
-        return failures
-
-    def bad_interior_control(self, coordinate):
-        point = Point(coordinate)
-        x, y = coordinate
-        obstacle = self.land_obstacle((x - 0.012, y - 0.012, x + 0.012, y + 0.012))
-        return obstacle.covers(point) and obstacle.boundary.distance(point) > 0.0015
-
-    def route_segment(self, start, end):
-        distance = math.dist(start, end)
-        initial_margin = max(0.025, min(0.8, distance * 0.45))
-        for multiplier in (1, 1.75, 2.75, 5):
-            margin = initial_margin * multiplier
-            bounds = (
-                min(start[0], end[0]) - margin,
-                min(start[1], end[1]) - margin,
-                max(start[0], end[0]) + margin,
-                max(start[1], end[1]) + margin,
-            )
-            routed = self._route_grid(start, end, bounds, distance)
-            if routed:
-                return routed
-        raise RuntimeError(f"No water path found from {start} to {end}")
-
-    def _route_grid(self, start, end, bounds, distance):
-        minx, miny, maxx, maxy = bounds
-        if distance > 1.5:
-            cell = 0.006
-        elif distance > 0.6:
-            cell = 0.003
-        elif distance > 0.18:
-            cell = 0.0015
-        elif distance > 0.05:
-            cell = 0.00075
-        else:
-            cell = 0.00035
-        width = max(3, math.ceil((maxx - minx) / cell) + 1)
-        height = max(3, math.ceil((maxy - miny) / cell) + 1)
-        cells = width * height
-        if cells > 1_700_000:
-            cell *= math.sqrt(cells / 1_700_000)
-            width = math.ceil((maxx - minx) / cell) + 1
-            height = math.ceil((maxy - miny) / cell) + 1
-
-        obstacle = self.land_obstacle(bounds, guide_line=LineString([start, end]))
-        # A point-only raster can place two adjacent open cell centres on
-        # opposite sides of a narrow spit. Give land a sub-cell safety margin
-        # to suppress those shortcuts while preserving mapped harbor channels;
-        # the final exact-vector audit remains the authority.
-        if not obstacle.is_empty:
-            obstacle = obstacle.buffer(cell * 0.35)
-        xs = [minx + column * cell for column in range(width)]
-        ys = [miny + row * cell for row in range(height)]
-        blocked = bytearray(width * height)
-        if not obstacle.is_empty:
-            for row, y in enumerate(ys):
-                values = contains_xy(obstacle, xs, [y] * width)
-                offset = row * width
-                for column, value in enumerate(values):
-                    blocked[offset + column] = bool(value)
-
-        def node(point):
-            column = min(width - 1, max(0, round((point[0] - minx) / cell)))
-            row = min(height - 1, max(0, round((point[1] - miny) / cell)))
-            return column, row
-
-        def open_node(origin):
-            if not blocked[origin[1] * width + origin[0]]:
-                return origin
-            for radius in range(1, max(width, height)):
-                candidates = []
-                for column in range(max(0, origin[0] - radius), min(width, origin[0] + radius + 1)):
-                    candidates.extend(((column, origin[1] - radius), (column, origin[1] + radius)))
-                for row in range(max(0, origin[1] - radius + 1), min(height, origin[1] + radius)):
-                    candidates.extend(((origin[0] - radius, row), (origin[0] + radius, row)))
-                valid = [
-                    item for item in candidates
-                    if 0 <= item[0] < width and 0 <= item[1] < height
-                    and not blocked[item[1] * width + item[0]]
-                ]
-                if valid:
-                    return min(valid, key=lambda item: math.dist(item, origin))
-            return None
-
-        source = open_node(node(start))
-        target = open_node(node(end))
-        if source is None or target is None:
-            return None
-
-        moves = ((1, 0, 1), (-1, 0, 1), (0, 1, 1), (0, -1, 1),
-                 (1, 1, math.sqrt(2)), (1, -1, math.sqrt(2)),
-                 (-1, 1, math.sqrt(2)), (-1, -1, math.sqrt(2)))
-        queue = [(math.dist(source, target), 0.0, source)]
-        costs = {source: 0.0}
-        parents = {}
-        while queue:
-            _, cost, current = heapq.heappop(queue)
-            if cost != costs.get(current):
-                continue
-            if current == target:
-                break
-            for dx, dy, move_cost in moves:
-                nxt = (current[0] + dx, current[1] + dy)
-                if not (0 <= nxt[0] < width and 0 <= nxt[1] < height):
-                    continue
-                if blocked[nxt[1] * width + nxt[0]]:
-                    continue
-                if dx and dy:
-                    if blocked[current[1] * width + nxt[0]] or blocked[nxt[1] * width + current[0]]:
-                        continue
-                new_cost = cost + move_cost
-                if new_cost >= costs.get(nxt, math.inf):
-                    continue
-                costs[nxt] = new_cost
-                parents[nxt] = current
-                priority = new_cost + math.dist(nxt, target)
-                heapq.heappush(queue, (priority, new_cost, nxt))
-        if target not in costs:
-            return None
-
-        grid_path = [target]
-        while grid_path[-1] != source:
-            grid_path.append(parents[grid_path[-1]])
-        grid_path.reverse()
-        grid_coordinates = [[xs[column], ys[row]] for column, row in grid_path]
-        # Keep the grid vertices. Generic line simplification is unsafe here:
-        # even a small tolerance can shortcut across a peninsula or island.
-        coordinates = [start, *grid_coordinates, end]
-        deduped = [coordinates[0]]
-        for coordinate in coordinates[1:]:
-            if math.dist(coordinate, deduped[-1]) > cell * 0.05:
-                deduped.append(coordinate)
-        return [[round(x, 6), round(y, 6)] for x, y in deduped]
-
-
-def repair_path(model, coordinates):
-    if not model.failing_runs(coordinates):
-        return coordinates, False
-    # A previous routing pass may already contain hundreds of regular grid
-    # vertices. Collapse those into coarse candidate controls first; every
-    # simplified segment is then rechecked and any land-cutting shortcut is
-    # replaced with a fresh water-grid path below.
-    candidates = coordinates
-    if len(coordinates) > 8:
-        candidates = list(LineString(coordinates).simplify(0.0015, preserve_topology=False).coords)
-    candidate_line = LineString(candidates)
-    minx, miny, maxx, maxy = candidate_line.bounds
-    route_obstacle = model.land_obstacle(
-        (minx - 0.003, miny - 0.003, maxx + 0.003, maxy + 0.003),
-        guide_line=candidate_line,
-    )
-    controls = [candidates[0]]
-    controls.extend(
-        coordinate for coordinate in candidates[1:-1]
-        if not (
-            route_obstacle.covers(Point(coordinate))
-            and route_obstacle.boundary.distance(Point(coordinate)) > MAX_INTERIOR_LAND_DEGREES * 0.5
-        )
-    )
-    controls.append(candidates[-1])
-    repaired = [coordinates[0]]
-    changed = len(controls) != len(coordinates)
-    for start, end in zip(controls, controls[1:]):
-        land_length = LineString([start, end]).intersection(route_obstacle).length
-        if land_length > 0.0002:
-            print(f"  routing water gap {start} -> {end}", flush=True)
-            routed = model.route_segment(start, end)
-            repaired.extend(routed[1:])
-            changed = True
-        else:
-            repaired.append(end)
-    return repaired, changed
-
-
-def snap_dry_endpoints(model, coordinates):
-    """Move an inland catalog endpoint to the adjacent shoreline crossing.
-
-    This only acts when the audited dry run actually touches the first or last
-    coordinate. Near-terminal interior crossings are routed instead, so a
-    nearby peninsula or breakwater cannot pull a valid landing away from its
-    published waterfront.
-    """
-    snapped = list(coordinates)
-    changed = False
-    for _, terminal, run_start, run_end in model.failing_runs(snapped):
-        if not terminal:
-            continue
-        for index in (0, -1):
-            endpoint = snapped[index]
-            distances = [math.dist(endpoint, run_start), math.dist(endpoint, run_end)]
-            if min(distances) > 0.00002:
-                continue
-            replacement = run_start if distances[0] > distances[1] else run_end
-            if math.dist(endpoint, replacement) > 0.012:
-                raise RuntimeError(f"Endpoint snap exceeds review limit: {endpoint} -> {replacement}")
-            snapped[index] = [round(replacement[0], 6), round(replacement[1], 6)]
-            changed = True
-    return snapped, changed
-
-
-def route_id(feature):
-    return feature.get("properties", {}).get("route", "unknown")
-
-
-def audit_collection(model, collection):
-    failures = []
-    ferries = [
-        feature for feature in collection["features"]
+def ferry_features(collection):
+    return [
+        feature for feature in collection.get("features", [])
         if feature.get("properties", {}).get("group") == "ferry"
+        and feature.get("properties", {}).get("kind") == "regional-static"
         and feature.get("geometry", {}).get("type") in {"LineString", "MultiLineString"}
     ]
-    for feature in ferries:
-        geometry = feature["geometry"]
-        paths = geometry["coordinates"] if geometry["type"] == "MultiLineString" else [geometry["coordinates"]]
-        runs = [run for path in paths for run in model.failing_runs(path)]
-        if runs:
-            longest = max(runs, key=lambda run: run[0])
-            failures.append((longest[0], route_id(feature), len(runs), longest[1], longest[2], longest[3]))
-    return ferries, sorted(failures, reverse=True)
 
 
-def write_manifest(ferries, path):
-    def canonical_coordinates(value):
-        if (isinstance(value, list) and len(value) == 2
-                and all(isinstance(item, (int, float)) for item in value)):
-            return f"{float(value[0]):.6f},{float(value[1]):.6f}"
-        return "[" + "|".join(canonical_coordinates(item) for item in value) + "]"
-
-    entries = {}
-    for feature in sorted(ferries, key=route_id):
-        identifier = route_id(feature)
-        if identifier in entries:
-            raise RuntimeError(f"Duplicate ferry route id cannot be audited: {identifier}")
-        payload = canonical_coordinates(feature["geometry"]["coordinates"])
-        entries[identifier] = hashlib.sha256(payload.encode("utf-8")).hexdigest()
-    document = {
-        "auditVersion": AUDIT_VERSION,
-        "reviewedAt": datetime.date.today().isoformat(),
-        "routeCount": len(entries),
-        "geometrySha256": entries,
-        "sources": [
-            "GSHHG full-resolution shoreline hierarchy",
-            "U.S. Census TIGERweb Areal Hydrography",
-        ],
-    }
-    path.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8", newline="\n")
-    print(f"Wrote {len(entries)} audited ferry fingerprints to {path}")
+def audit_geometry(model, paths):
+    usable = [path for path in paths if len(path) >= 2]
+    if not usable:
+        return {"interiorDryM": 0.0, "endpointDryM": 0.0, "selfIntersects": False,
+                "lengthKm": 0.0, "directKm": 0.0, "failures": ["no drawable path"]}
+    return fw.audit_paths(model, usable)
 
 
-def repair_manual_files(model, write, only_routes=None):
-    total = 0
-    errors = []
+def identical_geometry(cache):
+    aliases = cache.get("aliases", {})
+    by_hash = {}
+    for route_id, record in cache.get("routes", {}).items():
+        by_hash.setdefault(record.get("geometrySha256"), []).append(route_id)
+    problems = []
+    for routes in by_hash.values():
+        if len(routes) < 2:
+            continue
+        canonical = {aliases.get(route, route) for route in routes}
+        if len(canonical) > 1:
+            problems.append(routes)
+    return problems
+
+
+def run_geojson(model, path):
+    collection = json.loads(path.read_text(encoding="utf-8"))
+    failures = 0
+    for feature in ferry_features(collection):
+        route = feature["properties"]["route"]
+        audit = audit_geometry(model, feature_paths(feature["geometry"]))
+        if audit["failures"]:
+            failures += 1
+            print(f"FAIL {route}: " + "; ".join(audit["failures"]))
+    print(f"Audited {len(ferry_features(collection))} ferry routes; {failures} failed")
+    return failures
+
+
+def run_cache(model):
+    cache = json.loads(CACHE_PATH.read_text(encoding="utf-8"))
+    failures = 0
+    for route_id, record in cache.get("routes", {}).items():
+        paths = feature_paths({"type": record["geometryType"], "coordinates": record["coordinates"]})
+        audit = audit_geometry(model, paths)
+        stored = record.get("waterAudit", {})
+        problems = list(audit["failures"])
+        if stored.get("auditVersion") != fw.AUDIT_VERSION:
+            problems.append("stale audit version")
+        if abs(stored.get("interiorDryM", 0) - audit["interiorDryM"]) > 1 or abs(stored.get("endpointDryM", 0) - audit["endpointDryM"]) > 1:
+            problems.append("stored dry metrics are stale")
+        if record.get("geometrySha256") != fw.geometry_sha256(record["coordinates"]):
+            problems.append("geometry hash mismatch")
+        if problems:
+            failures += 1
+            print(f"FAIL {route_id}: " + "; ".join(problems))
+    for routes in identical_geometry(cache):
+        failures += 1
+        print(f"FAIL identical geometry without an alias: {', '.join(routes)}")
+    print(f"Audited {len(cache.get('routes', {}))} cached ferry routes; {failures} failed")
+    return failures
+
+
+def fmt(value, unit=""):
+    return f"{value:,.0f}{unit}" if value else "0"
+
+
+def run_report(model, before_path):
+    cache = json.loads(CACHE_PATH.read_text(encoding="utf-8"))
+    before = {}
+    if before_path and before_path.exists():
+        for feature in ferry_features(json.loads(before_path.read_text(encoding="utf-8"))):
+            before[feature["properties"]["route"]] = audit_geometry(model, feature_paths(feature["geometry"]))
+    rows = []
+    for route_id, record in sorted(cache.get("routes", {}).items()):
+        after = record["waterAudit"]
+        ratio = record["lengthKm"] / record["directKm"] if record["directKm"] else None
+        prior = before.get(route_id)
+        rows.append((route_id, record, after, ratio, prior))
+    sources = {}
+    for _, record, *_ in rows:
+        key = record["source"].split(":")[0] if not record["source"].startswith("osm-way") else "osm-way"
+        key = key + (" (repaired)" if record.get("repaired") else "")
+        sources[key] = sources.get(key, 0) + 1
+    failing_before = sum(1 for *_, prior in rows if prior and prior["failures"])
+    failing_after = sum(1 for _, _, after, _, _ in rows if not after.get("pass"))
+    lines = [
+        "# Ferry water audit report",
+        "",
+        f"Generated {datetime.date.today().isoformat()} by `scripts/audit-ferry-water.py --report`.",
+        f"Audit version `{fw.AUDIT_VERSION}`: OpenStreetMap coastline land polygons minus OSM inland water.",
+        f"Rules: interior dry run <= {fw.MAX_INTERIOR_DRY_M:.0f} m; dry run within {fw.ENDPOINT_ZONE_M:.0f} m of an endpoint"
+        f" <= {fw.MAX_ENDPOINT_DRY_M:.0f} m; no self-intersection; each path > {fw.MIN_LENGTH_KM} km and"
+        f" >= {fw.MIN_LENGTH_RATIO} x terminal distance.",
+        "",
+        "BEFORE = the previously committed `data/regional-routes.geojson` geometry measured with the new model"
+        " (`-` = route not in that snapshot, e.g. a newly adopted GTFS feed id). AFTER = `scripts/ferry-water-cache.json`.",
+        "Dry metres are the longest single dry run of each kind.",
+        "",
+        f"Routes: {len(rows)} · failing BEFORE: {failing_before} · failing AFTER: {failing_after}",
+        "",
+        "Geometry sources: " + ", ".join(f"{name} {count}" for name, count in sorted(sources.items())),
+        "",
+        "| Route | Source | Length km | Length / direct | Interior dry m (before → after) | Endpoint dry m (before → after) | Self-int. before | Result |",
+        "|---|---|---:|---:|---:|---:|:---:|:---:|",
+    ]
+    for route_id, record, after, ratio, prior in rows:
+        source = record["source"] + (" (repaired)" if record.get("repaired") else "")
+        ratio_text = f"{ratio:.2f}" if ratio is not None else "loop"
+        if prior:
+            interior = f"{fmt(prior['interiorDryM'])} → {fmt(after['interiorDryM'])}"
+            endpoint = f"{fmt(prior['endpointDryM'])} → {fmt(after['endpointDryM'])}"
+            selfint = "yes" if prior["selfIntersects"] else "no"
+            if prior["lengthKm"] <= fw.MIN_LENGTH_KM:
+                selfint += " (zero-length)"
+        else:
+            interior = f"- → {fmt(after['interiorDryM'])}"
+            endpoint = f"- → {fmt(after['endpointDryM'])}"
+            selfint = "-"
+        result = "pass" if after.get("pass") else "FAIL: " + "; ".join(after.get("failures", []))
+        lines.append(
+            f"| `{route_id}` | {source} | {record['lengthKm']:.2f} | {ratio_text} | {interior} | {endpoint} | {selfint} | {result} |"
+        )
+    retired = sorted(set(before) - set(cache.get("routes", {})))
+    if retired:
+        lines += ["", "Routes in the BEFORE snapshot that no longer exist under the same id:", ""]
+        for route_id in retired:
+            prior = before[route_id]
+            lines.append(
+                f"- `{route_id}`: interior {fmt(prior['interiorDryM'])} m, endpoint {fmt(prior['endpointDryM'])} m"
+                + (", self-intersecting" if prior["selfIntersects"] else "")
+            )
+    REPORT_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
+    print(f"Wrote {REPORT_PATH}")
+
+
+def run_write_controls(model, tolerance_m):
+    """Store sparse audited controls back into the hand-drawn catalogs."""
+    cache = json.loads(CACHE_PATH.read_text(encoding="utf-8"))
+    changed = 0
     for path in SUPPLEMENTAL_FILES:
         raw = path.read_text(encoding="utf-8")
         document = json.loads(raw)
-        replacements = []
         for feature in document["features"]:
-            if feature.get("properties", {}).get("group") != "ferry":
+            properties = feature.get("properties", {})
+            if properties.get("group") != "ferry":
                 continue
-            if only_routes and route_id(feature) not in only_routes:
+            record = cache.get("routes", {}).get(properties.get("route"))
+            if not record or not record.get("waterAudit", {}).get("pass"):
                 continue
-            geometry = feature["geometry"]
-            print(f"Checking {route_id(feature)}", flush=True)
-            old_coordinates = geometry["coordinates"]
-            old_paths = old_coordinates if geometry["type"] == "MultiLineString" else [old_coordinates]
-            identifier = route_id(feature)
-            candidate_paths = json.loads(json.dumps(
-                ROUTE_CONTROL_OVERRIDES.get(identifier, old_paths)
-            ))
-            drops = DROP_COORDINATES.get(identifier, set())
-            if drops:
-                candidate_paths = [
-                    [coordinate for coordinate in path if tuple(coordinate) not in drops]
-                    for path in candidate_paths
-                ]
-            override = TERMINAL_OVERRIDES.get(route_id(feature))
-            if override:
-                candidate_paths[0][0] = override[0]
-                candidate_paths[-1][-1] = override[1]
-            new_paths = []
-            changed = candidate_paths != old_paths
-            try:
-                for coordinates in candidate_paths:
-                    repaired = coordinates
-                    path_changed = False
-                    endpoint_changed = False
-                    for _ in range(5):
-                        if not model.failing_runs(repaired):
-                            break
-                        repaired, pass_changed = repair_path(model, repaired)
-                        repaired, pass_endpoint_changed = snap_dry_endpoints(model, repaired)
-                        path_changed = path_changed or pass_changed
-                        endpoint_changed = endpoint_changed or pass_endpoint_changed
-                        if not pass_changed and not pass_endpoint_changed:
-                            break
-                    remaining = model.failing_runs(repaired)
-                    if remaining:
-                        longest = max(remaining, key=lambda item: item[0])
-                        raise RuntimeError(
-                            f"Strict audit still fails after five repair passes "
-                            f"({longest[0] * 82:.2f} km dry run)"
-                        )
-                    new_paths.append(repaired)
-                    changed = changed or path_changed or endpoint_changed
-            except RuntimeError as error:
-                errors.append(f"{route_id(feature)}: {error}")
-                print(f"  unable to repair: {error}", flush=True)
+            paths = feature_paths({"type": record["geometryType"], "coordinates": record["coordinates"]})
+            sparse = [fw.rounded(fw.water_simplify(model, p, tolerance_m)) for p in paths]
+            if any(fw.path_failures(fw.path_metrics(model, p)) for p in sparse):
+                sparse = paths
+            new_coordinates = sparse[0] if record["geometryType"] == "LineString" else sparse
+            if feature["geometry"]["type"] != record["geometryType"]:
                 continue
-            if not changed:
-                continue
-            new_coordinates = new_paths if geometry["type"] == "MultiLineString" else new_paths[0]
-            old_json = json.dumps(old_coordinates, separators=(",", ":"))
+            old_json = json.dumps(feature["geometry"]["coordinates"], separators=(",", ":"))
             new_json = json.dumps(new_coordinates, separators=(",", ":"))
-            if old_json not in raw:
-                raise RuntimeError(f"Coordinate array for {route_id(feature)} was not found verbatim in {path}")
-            replacements.append((old_json, new_json, route_id(feature)))
-        print(f"{path.name}: {len(replacements)} routes need repair")
-        if write:
-            for old_json, new_json, identifier in replacements:
-                count = raw.count(old_json)
-                if count < 1:
-                    raise RuntimeError(f"Coordinate array for {identifier} disappeared before write")
-                # Identical paths can legitimately appear in two catalog
-                # entries. Replacements are collected in source order, so the
-                # first remaining occurrence belongs to the current feature.
-                raw = raw.replace(old_json, new_json, 1)
-            path.write_text(raw, encoding="utf-8", newline="")
-        total += len(replacements)
-    if errors:
-        raise RuntimeError("Unrepaired ferry paths:\n  " + "\n  ".join(errors))
-    return total
+            if old_json == new_json or old_json not in raw:
+                continue
+            raw = raw.replace(old_json, new_json, 1)
+            changed += 1
+        path.write_text(raw, encoding="utf-8", newline="")
+    print(f"Rewrote controls for {changed} hand-drawn ferry routes")
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--gshhg-dir", type=Path, required=True)
-    parser.add_argument("--gshhg-cache", type=Path)
-    parser.add_argument("--hydro", type=Path, required=True)
-    parser.add_argument("--repair-manual", action="store_true")
-    parser.add_argument(
-        "--route",
-        action="append",
-        help="Limit manual repair to a route id; repeat for multiple routes",
-    )
-    parser.add_argument("--write", action="store_true")
-    parser.add_argument("--write-manifest", action="store_true")
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--geojson", type=Path, default=REGIONAL_ROUTES)
+    parser.add_argument("--cache", action="store_true")
+    parser.add_argument("--report", action="store_true")
+    parser.add_argument("--before", type=Path, help="BEFORE geojson for --report")
+    parser.add_argument("--write-controls", action="store_true")
+    parser.add_argument("--control-tolerance", type=float, default=40.0)
     args = parser.parse_args()
-    if args.write and not args.repair_manual:
-        parser.error("--write requires --repair-manual")
-
-    model = WaterModel(args.gshhg_dir, args.hydro, args.gshhg_cache)
-    if args.repair_manual:
-        changed = repair_manual_files(model, args.write, set(args.route or []))
-        print(f"{'Repaired' if args.write else 'Would repair'} {changed} supplemental ferry routes")
+    model = fw.WaterModel()
+    if args.write_controls:
+        run_write_controls(model, args.control_tolerance)
         return
-
-    collection = json.loads(REGIONAL_ROUTES.read_text(encoding="utf-8"))
-    ferries, failures = audit_collection(model, collection)
-    for length, identifier, run_count, terminal, start, end in failures:
-        location = f"{start[0]:.5f},{start[1]:.5f} -> {end[0]:.5f},{end[1]:.5f}"
-        print(
-            f"FAIL {identifier}: {length * 82:.2f} km longest land run "
-            f"({run_count} runs; {'terminal' if terminal else 'interior'}; {location})"
-        )
-    print(f"Audited {len(ferries)} ferry routes; {len(failures)} failed")
-    if args.write_manifest and not failures:
-        write_manifest(ferries, AUDIT_MANIFEST)
+    if args.report:
+        run_report(model, args.before)
+        return
+    failures = run_cache(model) if args.cache else run_geojson(model, args.geojson)
     raise SystemExit(1 if failures else 0)
 
 

@@ -30,12 +30,18 @@ SUPPLEMENTAL_PATHS = (
     ROOT / "scripts" / "supplemental-ferry-routes.json",
     ROOT / "scripts" / "supplemental-air-routes.json",
 )
-FERRY_ROUTE_OVERRIDES_PATH = ROOT / "scripts" / "ferry-route-overrides.json"
+FERRY_WATER_CACHE_PATH = ROOT / "scripts" / "ferry-water-cache.json"
+FERRY_GEOMETRY_SOURCES_PATH = ROOT / "scripts" / "ferry-geometry-sources.json"
 ROAD_ROUTE_CACHE_PATH = ROOT / "scripts" / "road-route-cache.json"
 ROAD_ROUTE_CONTROLS_PATH = ROOT / "scripts" / "road-route-controls.json"
 BOUNDARIES_PATH = ROOT / "data" / "regions.geojson"
 OUTPUT_PATH = ROOT / "data" / "regional-routes.geojson"
 MNR_STOPS_PATH = ROOT / "data" / "mnr-stops.json"
+FRESHNESS_PATH = ROOT / "scripts" / "feed-freshness.json"
+BORROWED_SHAPE_NOTE = (
+    "Track path follows published shapes of other trains on the same corridor between this service's stations."
+)
+BORROWED_SHAPE_MAX_SNAP_KM = 0.6
 
 NE_BOUNDS = (-75.0, 40.0, -65.0, 48.5)
 TOLERANCE = 0.00022  # roughly 18–25 m in New England
@@ -44,6 +50,9 @@ OSRM_BASE_URL = "https://router.project-osrm.org"
 ROAD_ROUTING_VERSION = "osrm-driving-bus-controls-v4"
 MAX_ROAD_DETOUR_RATIO = 1.6
 MAX_ROAD_DETOUR_ALLOWANCE_KM = 5.0
+FERRY_AUDIT_VERSION = "osm-land-v3"  # must match scripts/ferry_water.py AUDIT_VERSION
+FERRY_UPDATE_COMMAND = "py -3 -X utf8 scripts/build-regional-routes.py --update-ferry-cache"
+FERRY_TERMINAL_MATCH_KM = 1.5
 ROAD_GEOMETRY_NOTE = "Approximate road-following path from published stops; the carrier may use a different roadway."
 RAIL_GEOMETRY_NOTE = "Approximate rail-following controls replace a sparse provider-shape gap."
 RAIL_SEGMENT_CONTROLS = {
@@ -73,9 +82,11 @@ MODE_COLORS = {2: "#a58add", 3: "#f2b84b", 4: "#2eb7c5"}
 GROUP_COLORS = {"amtrak": "#5b9bd5"}
 
 
-def download(url: str) -> bytes:
-    request = urllib.request.Request(url, headers={"User-Agent": "Motion route builder/1.0"})
-    with urllib.request.urlopen(request, timeout=60) as response:
+def download(url: str, user_agent: str | None = None) -> bytes:
+    """Fetch a feed. Some agency CDNs reject non-browser agents, so a feed may
+    carry its own `user_agent` in regional-feeds.json."""
+    request = urllib.request.Request(url, headers={"User-Agent": user_agent or "Motion route builder/1.0"})
+    with urllib.request.urlopen(request, timeout=120) as response:
         payload = response.read(80 * 1024 * 1024 + 1)
     if len(payload) > 80 * 1024 * 1024:
         raise ValueError("feed exceeds the 80 MB safety limit")
@@ -96,6 +107,151 @@ def read_rows(archive: zipfile.ZipFile, wanted: str) -> list[dict[str, str]]:
         return []
     raw = archive.read(name).decode("utf-8-sig", errors="replace")
     return list(csv.DictReader(io.StringIO(raw)))
+
+
+GTFS_DATE_PATTERNS = (
+    re.compile(r"^(?P<y>\d{4})(?P<m>\d{2})(?P<d>\d{2})$"),  # GTFS standard YYYYMMDD
+    re.compile(r"^(?P<m>\d{1,2})/(?P<d>\d{1,2})/(?P<y>\d{4})$"),  # M/D/YYYY (Steamship Authority)
+    re.compile(r"^(?P<y>\d{4})-(?P<m>\d{1,2})-(?P<d>\d{1,2})$"),  # ISO YYYY-MM-DD
+)
+
+
+def parse_gtfs_date(value) -> str | None:
+    """Normalize a GTFS date to YYYYMMDD, accepting common nonstandard forms."""
+    text = (value or "").strip()
+    for pattern in GTFS_DATE_PATTERNS:
+        match = pattern.match(text)
+        if match:
+            year, month, day = int(match["y"]), int(match["m"]), int(match["d"])
+            if 1 <= month <= 12 and 1 <= day <= 31:
+                return f"{year:04d}{month:02d}{day:02d}"
+    return None
+
+
+def service_end_date(archive: zipfile.ZipFile) -> tuple[str | None, str | None]:
+    """Latest date the feed publishes service for, and which file set it.
+
+    Uses the max of calendar.txt end_date and calendar_dates.txt date (added
+    service only). feed_info.txt feed_end_date is only a fallback when the feed
+    publishes no calendar dates: some publishers (e.g. the old Casco Bay Lines
+    feed) set feed_end_date years past the last scheduled trip.
+    """
+    def latest(candidates):
+        best, best_source = None, None
+        for filename, field, keep in candidates:
+            for row in read_rows(archive, filename):
+                if keep and not keep(row):
+                    continue
+                parsed = parse_gtfs_date(row.get(field))
+                if parsed and (best is None or parsed > best):
+                    best, best_source = parsed, filename
+        return best, best_source
+
+    best, best_source = latest((
+        ("calendar.txt", "end_date", None),
+        ("calendar_dates.txt", "date", lambda row: (row.get("exception_type") or "1").strip() == "1"),
+    ))
+    if best is None:
+        best, best_source = latest((("feed_info.txt", "feed_end_date", None),))
+    return best, best_source
+
+
+def iso_date(value: str | None) -> str | None:
+    return f"{value[:4]}-{value[4:6]}-{value[6:8]}" if value else None
+
+
+def freshness_record(feed, archive) -> dict:
+    end, source = service_end_date(archive)
+    return {"serviceEnd": iso_date(end), "source": source, "url": feed["url"]}
+
+
+def write_feed_freshness(records: dict, feeds: list) -> None:
+    """Write scripts/feed-freshness.json.
+
+    `records` maps feed id -> freshness_record(...) or {"error": "..."}.
+    A feed that could not be downloaded keeps its previous serviceEnd (so one
+    flaky server does not erase history) with the failure noted in lastError;
+    check-route-geometry.mjs still judges that carried-over date.
+    """
+    previous = {}
+    if FRESHNESS_PATH.exists():
+        try:
+            previous = json.loads(FRESHNESS_PATH.read_text(encoding="utf-8")).get("feeds", {})
+        except (ValueError, AttributeError):
+            previous = {}
+    output = {}
+    for feed in feeds:
+        record = dict(records.get(feed["id"]) or {"error": "not checked"})
+        if "error" in record:
+            carried = {key: value for key, value in previous.get(feed["id"], {}).items() if key != "lastError"}
+            carried.setdefault("serviceEnd", None)
+            carried.setdefault("url", feed["url"])
+            carried["lastError"] = record["error"]
+            record = carried
+        if feed.get("freshness_exempt"):
+            record["exempt"] = feed["freshness_exempt"]
+        output[feed["id"]] = record
+    payload = {
+        "description": (
+            "Last date each scheduled GTFS feed publishes service for. Written by "
+            "build-regional-routes.py and check-feed-freshness.py; checked offline by "
+            "check-route-geometry.mjs."
+        ),
+        "checkedAt": time.strftime("%Y-%m-%d", time.gmtime()),
+        "feeds": output,
+    }
+    FRESHNESS_PATH.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def nearest_vertex(shape, point):
+    """Index and haversine km of the shape vertex closest to point."""
+    scale = math.cos(math.radians(point[1]))
+    best_index = min(
+        range(len(shape)),
+        key=lambda i: ((shape[i][0] - point[0]) * scale) ** 2 + (shape[i][1] - point[1]) ** 2,
+    )
+    return best_index, haversine_km(shape[best_index], point)
+
+
+def snap_stops_to_donor_shapes(points, donor_shapes):
+    """Replace straight station-to-station chords with the matching slice of a
+    donor shape (another route's published track shape on the same corridor)."""
+    if not donor_shapes or len(points) < 2:
+        return points, False
+    nearest_cache = {}
+
+    def nearest(shape_index, point):
+        key = (shape_index, point)
+        if key not in nearest_cache:
+            nearest_cache[key] = nearest_vertex(donor_shapes[shape_index], point)
+        return nearest_cache[key]
+
+    result = [points[0]]
+    changed = False
+    for start, end in zip(points, points[1:]):
+        direct = haversine_km(start, end)
+        best = None
+        for shape_index, shape in enumerate(donor_shapes):
+            start_index, start_km = nearest(shape_index, start)
+            if start_km > BORROWED_SHAPE_MAX_SNAP_KM:
+                continue
+            end_index, end_km = nearest(shape_index, end)
+            if end_km > BORROWED_SHAPE_MAX_SNAP_KM or start_index == end_index:
+                continue
+            if start_index < end_index:
+                piece = shape[start_index:end_index + 1]
+            else:
+                piece = list(reversed(shape[end_index:start_index + 1]))
+            length = polyline_km(piece)
+            if length > direct * 1.5 + 2:
+                continue
+            if best is None or length < best[0]:
+                best = (length, piece)
+        if best:
+            result.extend(best[1][1:-1])
+            changed = True
+        result.append(end)
+    return result, changed
 
 
 def write_mnr_stops(archive: zipfile.ZipFile) -> None:
@@ -615,6 +771,12 @@ def point_in_geometry(point, geometry):
     return any(point_in_ring(point, polygon[0]) and not any(point_in_ring(point, hole) for hole in polygon[1:]) for polygon in polygons)
 
 
+def public_route_id(feed, route_id):
+    """Feed-scoped route id; ``route_id_map`` keeps ids stable for permalinks
+    when a hand-drawn corridor is replaced by the operator's GTFS."""
+    return f"{feed['id']}:{feed.get('route_id_map', {}).get(route_id, route_id)}"
+
+
 def route_label(route: dict[str, str]) -> str:
     short = (route.get("route_short_name") or "").strip()
     long = (route.get("route_long_name") or "").strip()
@@ -721,6 +883,10 @@ def station_features(
             key for key in region_order
             if point_in_geometry(point, region_geometries[key])
         ]
+        if not regions and feed.get("keep_outside_landings"):
+            # Cross-border ferries (Lake Champlain to New York) still need the
+            # far landing drawn so the route has two named ends.
+            regions = list(feed.get("states", []))
         if not regions:
             continue
         stop_code = (stop.get("stop_code") or station_id).strip()
@@ -763,7 +929,7 @@ def station_features(
                     "stationCode": stop_code,
                     "wheelchairBoarding": wheelchair_value,
                     "platformCount": platform_count,
-                    "routeIds": [f"{feed['id']}:{route_id}" for route_id in sorted(grouped_route_ids)],
+                    "routeIds": [public_route_id(feed, route_id) for route_id in sorted(grouped_route_ids)],
                     "provider": feed.get("provider") or "Agency schedule · GTFS",
                     "sourceUrl": source_url(stop.get("stop_url"), feed.get("source_url")),
                     "regions": regions,
@@ -787,7 +953,13 @@ def supplemental_ferry_stop_features(features):
         for path_index, path in enumerate(paths):
             if len(path) < 2:
                 continue
-            endpoints = ((path[0], names[0] if names else "Origin"), (path[-1], names[-1] if len(names) > 1 else "Destination"))
+            if len(paths) > 1 and len(names) == len(paths) + 1:
+                # A multi-stop corridor split into legs: leg i runs names[i] -> names[i + 1].
+                start_name, end_name = names[path_index], names[path_index + 1]
+            else:
+                start_name = names[0] if names else "Origin"
+                end_name = names[-1] if len(names) > 1 else "Destination"
+            endpoints = ((path[0], start_name), (path[-1], end_name))
             for endpoint_index, (coordinate, endpoint_name) in enumerate(endpoints):
                 title = endpoint_name if re.search(r"\b(?:ferry|landing|terminal|wharf|pier|dock)\b", endpoint_name, re.I) else f"{endpoint_name} ferry landing"
                 dedupe_key = (round(float(coordinate[0]), 4), round(float(coordinate[1]), 4))
@@ -821,6 +993,238 @@ def supplemental_ferry_stop_features(features):
     return list(stops_by_coordinate.values())
 
 
+def ferry_feature_paths(geometry):
+    if geometry.get("type") == "LineString":
+        return [geometry.get("coordinates", [])]
+    if geometry.get("type") == "MultiLineString":
+        return geometry.get("coordinates", [])
+    return []
+
+
+def canonical_coordinates(value):
+    if (isinstance(value, (list, tuple)) and len(value) == 2
+            and all(isinstance(item, (int, float)) for item in value)):
+        return f"{float(value[0]):.6f},{float(value[1]):.6f}"
+    return "[" + "|".join(canonical_coordinates(item) for item in value) + "]"
+
+
+def geometry_sha256(coordinates):
+    return hashlib.sha256(canonical_coordinates(coordinates).encode("utf-8")).hexdigest()
+
+
+def ferry_request_signature(route_id, source_kind, paths, config):
+    payload = json.dumps(
+        {
+            "route": route_id,
+            "kind": source_kind,
+            "paths": [[[round(float(x), 5), round(float(y), 5)] for x, y in path] for path in paths],
+            "config": config,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return f"{FERRY_AUDIT_VERSION}|{hashlib.sha256(payload.encode('utf-8')).hexdigest()}"
+
+
+def load_ferry_water_cache():
+    if FERRY_WATER_CACHE_PATH.exists():
+        cache = json.loads(FERRY_WATER_CACHE_PATH.read_text(encoding="utf-8"))
+    else:
+        cache = {}
+    cache.setdefault(
+        "description",
+        "Build-time ferry water geometry: operator GTFS shapes, OpenStreetMap route=ferry ways, "
+        "or hand controls, repaired and audited against OpenStreetMap land and inland water.",
+    )
+    cache["auditVersion"] = FERRY_AUDIT_VERSION
+    cache.setdefault("aliases", {})
+    cache.setdefault("routes", {})
+    return cache
+
+
+def ferry_terminals_match(source_paths, cached_paths):
+    """A stale cache entry is still usable when its landings have not moved."""
+    def terminals(paths):
+        points = []
+        for path in paths:
+            if len(path) >= 2 and polyline_km(path) > 0.15:
+                points.extend([path[0], path[-1]])
+        return points
+
+    source = terminals(source_paths)
+    cached = terminals(cached_paths)
+    if not source:
+        return True
+    if not cached:
+        return False
+    return all(
+        min(haversine_km(point, other) for other in cached) <= FERRY_TERMINAL_MATCH_KM
+        for point in source
+    )
+
+
+def apply_ferry_water_cache(features, supplemental_ids, update, refresh, prune):
+    """Replace every ferry line with its audited water geometry from the cache.
+
+    Offline builds only read ``ferry-water-cache.json``. With
+    ``--update-ferry-cache`` missing or outdated entries are recomputed from
+    the local OpenStreetMap water model (see ``scripts/ferry_water.py``).
+    """
+    cache = load_ferry_water_cache()
+    sources = json.loads(FERRY_GEOMETRY_SOURCES_PATH.read_text(encoding="utf-8"))
+    source_config = sources.get("routes", {})
+    cache["aliases"] = sources.get("aliases", {})
+    ferries = [
+        feature for feature in features
+        if feature.get("properties", {}).get("group") == "ferry"
+        and feature["properties"].get("kind") == "regional-static"
+        and feature.get("geometry", {}).get("type") in {"LineString", "MultiLineString"}
+    ]
+    landings = []
+    for feature in features:
+        properties = feature.get("properties", {})
+        if properties.get("group") == "ferry" and feature.get("geometry", {}).get("type") == "Point":
+            landings.append(feature["geometry"]["coordinates"])
+    for feature in ferries:
+        for path in ferry_feature_paths(feature["geometry"]):
+            if len(path) >= 2 and polyline_km(path) > 0.15:
+                landings.extend([path[0], path[-1]])
+    engine = {}
+
+    def compute(route_id, paths, source_kind, config):
+        if "model" not in engine:
+            sys.path.insert(0, str(ROOT / "scripts"))
+            import ferry_water  # optional maintainer dependency (shapely, scipy)
+
+            print("Loading OpenStreetMap ferry water model...", flush=True)
+            engine["module"] = ferry_water
+            engine["model"] = ferry_water.WaterModel()
+            engine["osm"] = ferry_water.OsmFerryWays()
+            engine["landings"] = landings + [
+                way["coords"][index]
+                for way in engine["osm"].ways.values()
+                for index in (0, -1)
+            ]
+        started = time.monotonic()
+        result = engine["module"].compute_route(
+            engine["model"], engine["osm"], route_id, paths, source_kind, config, engine["landings"],
+        )
+        audit = result["waterAudit"]
+        verdict = "pass" if audit["pass"] else "FAIL " + "; ".join(audit.get("failures", []))
+        print(
+            f"     ferry {route_id}: {result['source']} · {result['lengthKm']:.1f} km · {verdict}"
+            f" ({time.monotonic() - started:.0f}s)",
+            flush=True,
+        )
+        return result
+
+    used = set()
+    missing, stale, failing = [], [], []
+    computed = 0
+    dirty = False
+    for feature in ferries:
+        properties = feature["properties"]
+        route_id = properties["route"]
+        if route_id in used:
+            raise RuntimeError(f"Duplicate ferry route id: {route_id}")
+        used.add(route_id)
+        source_kind = "hand" if route_id in supplemental_ids else "gtfs"
+        config = source_config.get(route_id, {})
+        source_paths = [path for path in ferry_feature_paths(feature["geometry"]) if len(path) >= 1]
+        signature = ferry_request_signature(route_id, source_kind, source_paths, config)
+        record = cache["routes"].get(route_id)
+        outdated = record is None or record.get("requestSignature") != signature
+        if refresh or (update and outdated):
+            result = compute(route_id, source_paths, source_kind, config)
+            single = feature["geometry"]["type"] == "LineString" and len(result["paths"]) == 1
+            coordinates = result["paths"][0] if single else result["paths"]
+            record = {
+                "requestSignature": signature,
+                "source": result["source"],
+                "repaired": result["repaired"],
+                "geometryType": "LineString" if single else "MultiLineString",
+                "coordinates": coordinates,
+                "geometrySha256": geometry_sha256(coordinates),
+                "lengthKm": result["lengthKm"],
+                "directKm": result["directKm"],
+                "waterAudit": result["waterAudit"],
+            }
+            cache["routes"][route_id] = record
+            computed += 1
+            dirty = True
+        elif record is not None and outdated:
+            cached_paths = ferry_feature_paths({"type": record["geometryType"], "coordinates": record["coordinates"]})
+            if ferry_terminals_match(source_paths, cached_paths):
+                stale.append(route_id)
+            else:
+                record = None
+        if record is None:
+            missing.append(route_id)
+            properties["geometryAccuracy"] = "approximate"
+            properties["geometryNote"] = "Unaudited ferry path; the water audit has not reviewed this geometry yet."
+            continue
+        if not record.get("waterAudit", {}).get("pass"):
+            failing.append(route_id)
+        feature["geometry"] = {
+            "type": record["geometryType"],
+            "coordinates": json.loads(json.dumps(record["coordinates"])),
+        }
+        source = record.get("source", "")
+        if source == "gtfs-shape" and not record.get("repaired"):
+            continue
+        properties["geometryAccuracy"] = "approximate"
+        if source.startswith("osm-way"):
+            properties["geometryProvider"] = "OpenStreetMap ferry route, shoreline-audited"
+            properties["geometryNote"] = (
+                "OpenStreetMap-mapped ferry track snapped to the published landings; actual vessel tracks vary."
+            )
+        elif source.startswith("gtfs-shape"):
+            properties["geometryProvider"] = "Agency shape, shoreline-audited"
+            properties["geometryNote"] = "Provider shape rerouted where it crossed land in the shoreline audit."
+        else:
+            properties.setdefault(
+                "geometryNote",
+                "Approximate water path between published terminals; actual vessel tracks vary.",
+            )
+    if missing:
+        print(
+            f"WARNING: {len(missing)} ferry route(s) have no audited water geometry: {', '.join(missing)}.\n"
+            f"         Run `{FERRY_UPDATE_COMMAND}` with the local water model "
+            "(scripts/fetch-ferry-audit-data.py); CI fails until then.",
+            flush=True,
+        )
+    if stale:
+        print(f"Note: reused audited ferry geometry for {len(stale)} route(s) whose source changed: {', '.join(stale)}")
+    if failing:
+        print(f"WARNING: cached ferry geometry fails the water audit for: {', '.join(failing)}")
+    if (update or refresh) and prune:
+        unused = sorted(set(cache["routes"]) - used)
+        for route_id in unused:
+            del cache["routes"][route_id]
+            dirty = True
+        if unused:
+            print(f"Pruned {len(unused)} unused ferry-cache routes: {', '.join(unused)}")
+    if dirty:
+        cache["routes"] = dict(sorted(cache["routes"].items()))
+        if engine.get("model") is not None:
+            cache["waterModel"] = engine["model"].describe()
+        temp = FERRY_WATER_CACHE_PATH.with_suffix(".json.tmp")
+        temp.write_text(json.dumps(cache, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+        temp.replace(FERRY_WATER_CACHE_PATH)
+    print(f"Ferry geometry: {len(ferries) - len(missing)} cached routes; computed {computed}; missing {len(missing)}.")
+    return {
+        "auditVersion": FERRY_AUDIT_VERSION,
+        "cacheSha256": (
+            normalized_sha256(FERRY_WATER_CACHE_PATH.read_bytes()) if FERRY_WATER_CACHE_PATH.exists() else ""
+        ),
+        "routes": len(ferries),
+        "missing": sorted(missing),
+        "stale": sorted(stale),
+        "failing": sorted(failing),
+        "updateCommand": FERRY_UPDATE_COMMAND,
+    }
+
+
 def process_feed(
     feed,
     region_geometries,
@@ -831,15 +1235,21 @@ def process_feed(
     refresh_road_cache,
     routing_state,
 ):
-    payload = download(feed["url"])
+    payload = download(feed["url"], feed.get("user_agent"))
     archive = zipfile.ZipFile(io.BytesIO(payload))
+    freshness = freshness_record(feed, archive)
     if feed["id"] == "metro-north":
         write_mnr_stops(archive)
     routes = {row.get("route_id"): row for row in read_rows(archive, "routes.txt") if row.get("route_id")}
     pattern = re.compile(feed["route_name_pattern"], re.I) if feed.get("route_name_pattern") else None
     route_id_pattern = re.compile(feed["route_id_pattern"], re.I) if feed.get("route_id_pattern") else None
+    agency_filter = feed.get("agency_id")
+    if agency_filter is not None:
+        agency_filter = {str(value) for value in (agency_filter if isinstance(agency_filter, list) else [agency_filter])}
     selected_routes = {}
     for route_id, route in routes.items():
+        if agency_filter is not None and (route.get("agency_id") or "").strip() not in agency_filter:
+            continue
         try:
             route_type = effective_route_type(feed, route)
         except ValueError:
@@ -853,26 +1263,45 @@ def process_feed(
         match_value = route.get(feed.get("route_name_field"), "") if feed.get("route_name_field") else route_label(route)
         if pattern and not pattern.search(match_value or ""):
             continue
+        if feed.get("route_name_override"):
+            route = {**route, "route_short_name": "", "route_long_name": feed["route_name_override"]}
         selected_routes[route_id] = route
+
+    # Optional donor shapes: a shapeless service (Shore Line East inside the
+    # Amtrak feed) can borrow the track geometry of other routes in the same
+    # feed that serve the same stations.
+    donor_pattern = re.compile(feed["borrow_shapes_route_pattern"], re.I) if feed.get("borrow_shapes_route_pattern") else None
+    donor_route_ids = {
+        route_id for route_id, route in routes.items()
+        if donor_pattern and route_id not in selected_routes
+        and donor_pattern.search(route.get("route_long_name") or route_label(route))
+    }
+    donor_shape_ids = set()
 
     shape_to_route = {}
     fallback_trip_by_route_direction = {}
     trip_rows = read_rows(archive, "trips.txt")
     for trip in trip_rows:
         route_id = trip.get("route_id")
+        shape_id = (trip.get("shape_id") or "").strip()
+        if route_id in donor_route_ids and shape_id:
+            donor_shape_ids.add(shape_id)
         if route_id not in selected_routes:
             continue
-        shape_id = (trip.get("shape_id") or "").strip()
         if shape_id:
             shape_to_route.setdefault(shape_id, route_id)
         elif not feed.get("shape_only"):
+            # all_stop_patterns keeps every trip (deduplicated by path below) so
+            # short-turn and extension patterns are not dropped.
             key = (route_id, trip.get("direction_id") or "")
+            if feed.get("all_stop_patterns"):
+                key = (*key, trip.get("trip_id"))
             fallback_trip_by_route_direction.setdefault(key, trip.get("trip_id"))
 
     shape_points = defaultdict(list)
     for row in read_rows(archive, "shapes.txt"):
         shape_id = row.get("shape_id")
-        if shape_id not in shape_to_route:
+        if shape_id not in shape_to_route and shape_id not in donor_shape_ids:
             continue
         try:
             lon = float(row["shape_pt_lon"])
@@ -884,7 +1313,13 @@ def process_feed(
 
     geometries = []
     for shape_id, values in shape_points.items():
-        geometries.append((shape_to_route[shape_id], [point for _, point in sorted(values)]))
+        if shape_id in shape_to_route:
+            geometries.append((shape_to_route[shape_id], [point for _, point in sorted(values)]))
+    donor_shapes = [
+        [point for _, point in sorted(shape_points[shape_id])]
+        for shape_id in sorted(donor_shape_ids)
+        if shape_id in shape_points
+    ]
 
     # Keep blank-shape trip patterns even when another trip on the same route
     # has a shape. National intercity feeds sometimes publish only a short city
@@ -893,7 +1328,31 @@ def process_feed(
     fallback_trips = {trip_id for trip_id in fallback_trip_by_route_direction.values() if trip_id}
     stop_geometries = coordinates_from_stops(archive, fallback_trips)
     route_for_fallback = {trip_id: key[0] for key, trip_id in fallback_trip_by_route_direction.items()}
-    geometries.extend((route_for_fallback[trip_id], points) for trip_id, points in stop_geometries.items())
+    if feed.get("all_stop_patterns"):
+        # One path per terminal pair (either direction), keeping the pattern
+        # with the most stops, so short-turns and expresses do not stack
+        # near-identical copies of the same corridor.
+        best_by_terminals = {}
+        for trip_id, points in stop_geometries.items():
+            if len(points) < 2:
+                continue
+            key = (route_for_fallback[trip_id], frozenset((points[0], points[-1])))
+            if key not in best_by_terminals or len(points) > len(stop_geometries[best_by_terminals[key]]):
+                best_by_terminals[key] = trip_id
+        keep = set(best_by_terminals.values())
+        stop_geometries = {trip_id: points for trip_id, points in stop_geometries.items() if trip_id in keep}
+    borrowed_shape_routes = set()
+    seen_stop_paths = set()
+    for trip_id, points in stop_geometries.items():
+        signature = (route_for_fallback[trip_id], tuple(points))
+        if signature in seen_stop_paths:
+            continue
+        seen_stop_paths.add(signature)
+        if donor_shapes:
+            points, borrowed = snap_stops_to_donor_shapes(points, donor_shapes)
+            if borrowed:
+                borrowed_shape_routes.add(route_for_fallback[trip_id])
+        geometries.append((route_for_fallback[trip_id], points))
 
     seen = set()
     paths_by_route = defaultdict(list)
@@ -956,17 +1415,21 @@ def process_feed(
         detected_regions = route_regions.get(route_id) or set(feed["states"])
         regions = [key for key in ("ct", "ma", "me", "nh", "ri", "vt", "boston") if key in detected_regions]
         properties = {
-            "route": f"{feed['id']}:{route_id}",
+            "route": public_route_id(feed, route_id),
             "group": feature_group(feed, route_type),
             "color": feature_color(feed, route_type),
             "agency": feed.get("agency_names", {}).get(route.get("agency_id"), feed["agency"]),
-            "name": route_label(route),
+            "name": feed.get("route_name_map", {}).get(route_id) or route_label(route),
             "kind": "regional-static",
             "dataStatus": "scheduled",
             "provider": feed.get("provider") or "Agency schedule · GTFS",
             "scheduleNote": "Published schedule route · live vehicle position shown separately when available",
             "regions": regions,
         }
+        if feed.get("service_class"):
+            # e.g. "campus" for university shuttles, so the map can style or
+            # filter them apart from public transit within the bus group.
+            properties["serviceClass"] = feed["service_class"]
         if route_id in approximate_routes:
             properties["geometryAccuracy"] = "approximate"
             properties["geometryProvider"] = "OpenStreetMap / Project OSRM"
@@ -977,6 +1440,13 @@ def process_feed(
             properties["geometryProvider"] = "Reviewed rail corridor controls"
             properties["geometryNote"] = RAIL_GEOMETRY_NOTE
             properties["scheduleNote"] += f" · {RAIL_GEOMETRY_NOTE}"
+        elif route_id in borrowed_shape_routes:
+            properties["geometryAccuracy"] = "approximate"
+            properties["geometryProvider"] = feed.get("borrowed_shape_provider") or "Same-feed corridor shapes"
+            properties["geometryNote"] = BORROWED_SHAPE_NOTE
+            properties["scheduleNote"] += f" · {BORROWED_SHAPE_NOTE}"
+        if feed.get("expired_note"):
+            properties["scheduleNote"] += f" · {feed['expired_note']}"
         route_url = route.get("route_url") if feed.get("use_route_urls") else None
         properties["sourceUrl"] = source_url(
             route_url,
@@ -1004,13 +1474,13 @@ def process_feed(
             "feedUrl": feed["url"],
             "feedPublisherName": feed_info.get("feed_publisher_name") or feed["agency"],
             "feedVersion": feed_info.get("feed_version") or "",
-            "feedStartDate": feed_info.get("feed_start_date") or "",
-            "feedEndDate": feed_info.get("feed_end_date") or "",
+            "feedStartDate": parse_gtfs_date(feed_info.get("feed_start_date")) or feed_info.get("feed_start_date") or "",
+            "feedEndDate": parse_gtfs_date(feed_info.get("feed_end_date")) or feed_info.get("feed_end_date") or "",
         }
-    return features, len(selected_routes), source_metadata
+    return features, len(selected_routes), source_metadata, freshness
 
 
-def main(update_road_cache=False, refresh_road_cache=False):
+def main(update_road_cache=False, refresh_road_cache=False, update_ferry_cache=False, refresh_ferry_cache=False):
     feeds = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
     boundaries = json.loads(BOUNDARIES_PATH.read_text(encoding="utf-8"))
     road_controls, controls_sha256 = load_road_route_controls()
@@ -1033,10 +1503,11 @@ def main(update_road_cache=False, refresh_road_cache=False):
     all_features = []
     successes = []
     failures = []
+    freshness = {}
     for index, feed in enumerate(feeds, 1):
         print(f"[{index:02}/{len(feeds)}] {feed['agency']}...", flush=True)
         try:
-            features, route_count, source_metadata = process_feed(
+            features, route_count, source_metadata, freshness[feed["id"]] = process_feed(
                 feed,
                 region_geometries,
                 road_cache,
@@ -1054,33 +1525,19 @@ def main(update_road_cache=False, refresh_road_cache=False):
                 "features": len(features),
                 **source_metadata,
             })
-            print(f"     {route_count} routes, {len(features)} shapes")
+            print(f"     {route_count} routes, {len(features)} shapes, service through {freshness[feed['id']]['serviceEnd']}")
         except Exception as error:  # continue so one seasonal feed cannot erase the regional map
+            freshness[feed["id"]] = {"error": str(error)}
             failures.append({"id": feed["id"], "agency": feed["agency"], "error": str(error)})
             print(f"     skipped: {error}")
             if feed.get("required"):
                 raise RuntimeError(f"Required feed {feed['agency']} failed; existing snapshot was preserved") from error
 
-    ferry_overrides = json.loads(FERRY_ROUTE_OVERRIDES_PATH.read_text(encoding="utf-8"))
-    override_by_route = {
-        feature["properties"]["route"]: feature["geometry"]
-        for feature in ferry_overrides.get("features", [])
+    gtfs_ferry_ids = {
+        feature["properties"]["route"] for feature in all_features
+        if feature.get("properties", {}).get("group") == "ferry"
+        and feature["properties"].get("kind") == "regional-static"
     }
-    applied_overrides = set()
-    for feature in all_features:
-        identifier = feature.get("properties", {}).get("route")
-        if identifier not in override_by_route:
-            continue
-        feature["geometry"] = json.loads(json.dumps(override_by_route[identifier]))
-        feature["properties"]["geometryAccuracy"] = "approximate"
-        feature["properties"]["geometryProvider"] = "Project shoreline audit"
-        feature["properties"]["geometryNote"] = (
-            "Provider shape replaced by a full-resolution shoreline-audited water path."
-        )
-        applied_overrides.add(identifier)
-    missing_overrides = set(override_by_route) - applied_overrides
-    if missing_overrides:
-        raise RuntimeError(f"Ferry route overrides did not match generated routes: {sorted(missing_overrides)}")
 
     supplemental_features = []
     supplemental_sources = []
@@ -1147,6 +1604,20 @@ def main(update_road_cache=False, refresh_road_cache=False):
             "air-service": "#9be1ff",
         }.get(feature["properties"].get("group"), "#8a949f")
         feature["properties"].setdefault("provider", "Official carrier schedule")
+    duplicate_ferries = sorted(
+        feature["properties"]["route"] for feature in supplemental_features
+        if feature.get("properties", {}).get("group") == "ferry"
+        and feature["properties"].get("route") in gtfs_ferry_ids
+    )
+    if duplicate_ferries:
+        raise RuntimeError(f"Ferry routes appear in both GTFS and a supplemental catalog: {duplicate_ferries}")
+    ferry_cache_metadata = apply_ferry_water_cache(
+        all_features + supplemental_features,
+        {feature["properties"]["route"] for feature in supplemental_features},
+        update_ferry_cache,
+        refresh_ferry_cache,
+        prune=not failures,
+    )
     supplemental_stops = supplemental_ferry_stop_features(supplemental_features)
     all_features.extend(supplemental_features)
     all_features.extend(supplemental_stops)
@@ -1203,12 +1674,14 @@ def main(update_road_cache=False, refresh_road_cache=False):
             "roadGeometryRoutingVersion": ROAD_ROUTING_VERSION,
             "roadGeometryControlsSha256": controls_sha256,
             "roadGeometryCacheSha256": road_cache_sha256,
-            "ferryRouteOverrides": sorted(applied_overrides),
+            "ferryWaterCache": ferry_cache_metadata,
         },
         "features": all_features,
     }
     OUTPUT_PATH.write_text(json.dumps(collection, separators=(",", ":")), encoding="utf-8")
+    write_feed_freshness(freshness, feeds)
     print(f"Wrote {len(all_features)} features from {len(successes)} feeds to {OUTPUT_PATH}")
+    print(f"Wrote feed service end dates to {FRESHNESS_PATH}")
     print(
         f"Road geometry: used {routing_state['used']} cached segments; "
         f"fetched {routing_state['fetched']} new segments."
@@ -1229,5 +1702,20 @@ if __name__ == "__main__":
         action="store_true",
         help="refetch every long-gap bus geometry from its published endpoints",
     )
+    parser.add_argument(
+        "--update-ferry-cache",
+        action="store_true",
+        help="compute missing or outdated ferry water geometry (needs the local OSM water model)",
+    )
+    parser.add_argument(
+        "--refresh-ferry-cache",
+        action="store_true",
+        help="recompute every ferry water geometry from its sources",
+    )
     arguments = parser.parse_args()
-    main(arguments.update_road_cache or arguments.refresh_road_cache, arguments.refresh_road_cache)
+    main(
+        arguments.update_road_cache or arguments.refresh_road_cache,
+        arguments.refresh_road_cache,
+        arguments.update_ferry_cache or arguments.refresh_ferry_cache,
+        arguments.refresh_ferry_cache,
+    )

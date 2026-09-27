@@ -28,3 +28,11 @@ export const AIS_BOUNDS: Record<RegionId, [[number, number], [number, number]]> 
   'new-england': [[40.8, -74.0], [47.7, -66.0]],
 };
 
+// Outer New England envelope shared by every feed that needs a coarse
+// "is this point in our map area?" check. Matches AIS_BOUNDS['new-england'].
+export const NEW_ENGLAND_BBOX = { west: -74, south: 40.8, east: -66, north: 47.7 } as const;
+
+export function insideNewEngland(lng: number, lat: number): boolean {
+  return lng >= NEW_ENGLAND_BBOX.west && lng <= NEW_ENGLAND_BBOX.east &&
+    lat >= NEW_ENGLAND_BBOX.south && lat <= NEW_ENGLAND_BBOX.north;
+}

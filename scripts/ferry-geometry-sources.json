@@ -1,0 +1,135 @@
+{
+  "description": "Per-route inputs for ferry water geometry (see scripts/ferry_water.py). terminals: landing coordinates [start, end] used when the provider path is degenerate. osmWays: OpenStreetMap route=ferry way ids to chain instead of automatic endpoint matching. noOsm: skip automatic OSM matching. controls: hand-drawn control paths tried before provider/OSM geometry. aliases: routes that legitimately share one physical path.",
+  "aliases": {},
+  "routes": {
+    "steamship-authority:VH-WH": {
+      "note": "Stale SSA GTFS lists only one stop per trip; draw the OSM-mapped Woods Hole-Vineyard Haven track.",
+      "terminals": [
+        [
+          -70.600196,
+          41.455752
+        ],
+        [
+          -70.670299,
+          41.522638
+        ]
+      ],
+      "osmWays": [
+        71493738
+      ]
+    },
+    "steamship-authority:WH-VH": {
+      "terminals": [
+        [
+          -70.670299,
+          41.522638
+        ],
+        [
+          -70.600196,
+          41.455752
+        ]
+      ],
+      "osmWays": [
+        71493738
+      ]
+    },
+    "steamship-authority:OB-WH": {
+      "terminals": [
+        [
+          -70.554472,
+          41.458595
+        ],
+        [
+          -70.670299,
+          41.522638
+        ]
+      ],
+      "osmWays": [
+        717299243
+      ]
+    },
+    "steamship-authority:WH-OB": {
+      "terminals": [
+        [
+          -70.670299,
+          41.522638
+        ],
+        [
+          -70.554472,
+          41.458595
+        ]
+      ],
+      "osmWays": [
+        717299243
+      ]
+    },
+    "steamship-authority:NT-HY": {
+      "terminals": [
+        [
+          -70.096321,
+          41.286113
+        ],
+        [
+          -70.276946,
+          41.651109
+        ]
+      ],
+      "osmWays": [
+        42759945
+      ]
+    },
+    "steamship-authority:HY-NT": {
+      "terminals": [
+        [
+          -70.276946,
+          41.651109
+        ],
+        [
+          -70.096321,
+          41.286113
+        ]
+      ],
+      "osmWays": [
+        42759945
+      ]
+    },
+    "cranberry-isles:commuter": {
+      "note": "Commuter boat calls Great Cranberry then Islesford; follow the two OSM-mapped legs.",
+      "osmWays": [
+        11426785,
+        11432849
+      ]
+    },
+    "cranberry-cove:southwest-harbor-cranberry-isles": {
+      "note": "Manset/Southwest Harbor, Great Cranberry, Islesford via the OSM-mapped Cranberry Cove Ferry legs.",
+      "osmWays": [
+        11428675,
+        731120557,
+        11432849
+      ]
+    },
+    "beal-bunker:northeast-harbor-cranberry-isles": {
+      "note": "Mailboat calls Sutton (seasonal), Islesford, then Great Cranberry; a different path from the Cranberry Isles Commuter.",
+      "noOsm": true
+    },
+    "jamestown-newport-ferry:hop-on-loop": {
+      "note": "Calls Rose Island, Fort Adams, Ann Street Pier, then Perrotti Park; follow the four OSM-mapped legs.",
+      "osmWays": [
+        716707470,
+        716707466,
+        716707469,
+        716707474
+      ]
+    },
+    "robin-r:rockland-matinicus": {
+      "note": "Separate small-boat service; keep a hand path distinct from the state ferry's GTFS shape.",
+      "noOsm": true
+    },
+    "ctdot-ferry:rocky-hill-glastonbury": {
+      "note": "The river crossing is mapped in OSM; the hand line was a 160 m stub.",
+      "osmWays": [
+        17192965
+      ]
+    }
+  }
+}

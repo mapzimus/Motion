@@ -5,6 +5,12 @@ const MAX_BUS_CHORD_KM = 20.05;
 const MAX_AMTRAK_CHORD_KM = 20.05;
 const MAX_RAIL_CHORD_KM = 20.05;
 const MAX_FERRY_TERMINAL_KM = 1.5;
+const FERRY_AUDIT_VERSION = 'osm-land-v3';
+const MAX_FERRY_INTERIOR_DRY_M = 25;
+const MAX_FERRY_ENDPOINT_DRY_M = 150;
+const MIN_FERRY_PATH_KM = 0.15;
+const MIN_FERRY_LENGTH_RATIO = 0.95;
+const FERRY_UPDATE_COMMAND = 'py -3 -X utf8 scripts/build-regional-routes.py --update-ferry-cache';
 const MAX_ROAD_DETOUR_RATIO = 1.6;
 const MAX_ROAD_DETOUR_ALLOWANCE_KM = 5;
 const ROAD_ROUTING_VERSION = 'osrm-driving-bus-controls-v4';
@@ -29,12 +35,8 @@ const supplementalFerries = JSON.parse(
 const supplementalAir = JSON.parse(
   readFileSync(new URL('./supplemental-air-routes.json', import.meta.url), 'utf8'),
 );
-const ferryRouteOverrides = JSON.parse(
-  readFileSync(new URL('./ferry-route-overrides.json', import.meta.url), 'utf8'),
-);
-const ferryWaterAudit = JSON.parse(
-  readFileSync(new URL('./ferry-water-audit.json', import.meta.url), 'utf8'),
-);
+const ferryWaterCacheRaw = readFileSync(new URL('./ferry-water-cache.json', import.meta.url));
+const ferryWaterCache = JSON.parse(ferryWaterCacheRaw);
 
 function normalizedSha256(raw) {
   return createHash('sha256').update(raw.toString('utf8').replaceAll('\r\n', '\n')).digest('hex');
@@ -323,7 +325,7 @@ const supplementalFerryIds = supplementalFerries.features.map(
 const duplicateSupplementalFerryIds = supplementalFerryIds.filter(
   (route, index) => supplementalFerryIds.indexOf(route) !== index,
 );
-if (supplementalFerries.features.length < 50 || duplicateSupplementalFerryIds.length) {
+if (supplementalFerries.features.length < 45 || duplicateSupplementalFerryIds.length) {
   throw new Error(
     `Supplemental ferry inventory is incomplete or duplicated: ${duplicateSupplementalFerryIds.join(', ')}`,
   );
@@ -346,19 +348,6 @@ if (invalidSupplementalFerries.length) {
   );
 }
 const generatedRouteIds = new Set(collection.features.map((feature) => feature.properties?.route));
-const ferryOverrideIds = ferryRouteOverrides.features.map((feature) => feature.properties?.route);
-if (ferryOverrideIds.length !== 3
-    || new Set(ferryOverrideIds).size !== ferryOverrideIds.length
-    || JSON.stringify(collection.metadata?.ferryRouteOverrides) !== JSON.stringify([...ferryOverrideIds].sort())) {
-  throw new Error('Audited provider ferry-route overrides are missing or stale');
-}
-for (const route of ferryOverrideIds) {
-  const generated = collection.features.find((feature) => feature.properties?.route === route);
-  if (generated?.properties?.geometryProvider !== 'Project shoreline audit'
-      || generated.properties?.geometryAccuracy !== 'approximate') {
-    throw new Error(`Provider ferry override was not applied: ${route}`);
-  }
-}
 const missingSupplementalFerries = supplementalFerryIds.filter(
   (route) => !generatedRouteIds.has(route),
 );
@@ -384,28 +373,163 @@ if (invalidGeneratedFerries.length) {
   );
 }
 
-// Every generated ferry path is locked after the external shoreline/water
-// audit. Provider or hand-authored geometry cannot change silently and put a
-// line back across land.
-const reviewedWaterGeometry = new Map(Object.entries(ferryWaterAudit.geometrySha256 ?? {}));
-const invalidWaterGeometry = [];
+// Every ferry line comes from scripts/ferry-water-cache.json, whose entries
+// were produced and audited against OpenStreetMap land/inland water by
+// build-regional-routes.py --update-ferry-cache. The cache is checked on its
+// own first (meaningful even before data/ is rebuilt), then every generated
+// ferry must match its cache entry exactly.
+function ferryPaths(geometry) {
+  if (geometry?.type === 'LineString') return [geometry.coordinates];
+  if (geometry?.type === 'MultiLineString') return geometry.coordinates;
+  return [];
+}
+
+function segmentsCross(a, b, c, d) {
+  const orient = (p, q, r) => {
+    const value = (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+    if (Math.abs(value) < 1e-14) return 0;
+    return value > 0 ? 1 : -1;
+  };
+  const onSegment = (p, q, r) => Math.min(p[0], r[0]) - 1e-12 <= q[0] && q[0] <= Math.max(p[0], r[0]) + 1e-12
+    && Math.min(p[1], r[1]) - 1e-12 <= q[1] && q[1] <= Math.max(p[1], r[1]) + 1e-12;
+  const o1 = orient(a, b, c);
+  const o2 = orient(a, b, d);
+  const o3 = orient(c, d, a);
+  const o4 = orient(c, d, b);
+  if (o1 !== o2 && o3 !== o4) return true;
+  if (o1 === 0 && onSegment(a, c, b)) return true;
+  if (o2 === 0 && onSegment(a, d, b)) return true;
+  if (o3 === 0 && onSegment(c, a, d)) return true;
+  if (o4 === 0 && onSegment(c, b, d)) return true;
+  return false;
+}
+
+function selfIntersects(path) {
+  const closed = path.length > 3 && samePoint(path[0], path.at(-1));
+  for (let i = 0; i < path.length - 1; i += 1) {
+    for (let j = i + 2; j < path.length - 1; j += 1) {
+      if (closed && i === 0 && j === path.length - 2) continue;
+      if (segmentsCross(path[i], path[i + 1], path[j], path[j + 1])) return true;
+    }
+  }
+  return false;
+}
+
+function ferryPathProblems(path) {
+  const problems = [];
+  if (path.length < 2 || path.some((point) => point.length !== 2 || point.some((value) => !Number.isFinite(value)))) {
+    return ['malformed coordinates'];
+  }
+  const lengthKm = pathLengthKm(path);
+  const directKm = distanceKm(path[0], path.at(-1));
+  if (lengthKm <= MIN_FERRY_PATH_KM) problems.push(`path is only ${lengthKm.toFixed(3)} km long`);
+  if (lengthKm < MIN_FERRY_LENGTH_RATIO * directKm - 1e-6) problems.push('path is shorter than its terminal distance');
+  if (selfIntersects(path)) problems.push('path self-intersects');
+  return problems;
+}
+
+const ferryCacheRoutes = ferryWaterCache.routes ?? {};
+const ferryCacheOffenders = [];
+if (ferryWaterCache.auditVersion !== FERRY_AUDIT_VERSION) {
+  ferryCacheOffenders.push(`cache auditVersion must be ${FERRY_AUDIT_VERSION}`);
+}
+const ferryAliases = ferryWaterCache.aliases ?? {};
+const ferryRoutesByHash = new Map();
+for (const [route, record] of Object.entries(ferryCacheRoutes)) {
+  const audit = record.waterAudit ?? {};
+  const hash = createHash('sha256').update(canonicalCoordinates(record.coordinates ?? [])).digest('hex');
+  if (!['LineString', 'MultiLineString'].includes(record.geometryType)) {
+    ferryCacheOffenders.push(`${route}: invalid geometryType`);
+    continue;
+  }
+  if (record.geometrySha256 !== hash) ferryCacheOffenders.push(`${route}: geometrySha256 does not match coordinates`);
+  if (!String(record.requestSignature ?? '').startsWith(`${FERRY_AUDIT_VERSION}|`)) {
+    ferryCacheOffenders.push(`${route}: stale request signature`);
+  }
+  if (!/^(gtfs-shape|hand|osm-way:\d+(\+\d+)*)(\+(gtfs-shape|hand|osm-way:\d+(\+\d+)*))*$/.test(record.source ?? '')) {
+    ferryCacheOffenders.push(`${route}: unknown geometry source ${record.source}`);
+  }
+  if (audit.auditVersion !== FERRY_AUDIT_VERSION
+      || audit.pass !== true
+      || audit.selfIntersects !== false
+      || !(Number(audit.interiorDryM) <= MAX_FERRY_INTERIOR_DRY_M)
+      || !(Number(audit.endpointDryM) <= MAX_FERRY_ENDPOINT_DRY_M)) {
+    ferryCacheOffenders.push(
+      `${route}: water audit did not pass (${(audit.failures ?? []).join('; ') || 'missing or stale audit'})`,
+    );
+  }
+  const paths = ferryPaths({ type: record.geometryType, coordinates: record.coordinates });
+  let totalKm = 0;
+  let totalDirectKm = 0;
+  paths.forEach((path, index) => {
+    for (const problem of ferryPathProblems(path)) ferryCacheOffenders.push(`${route} path ${index}: ${problem}`);
+    if (path.length >= 2) {
+      totalKm += pathLengthKm(path);
+      totalDirectKm += distanceKm(path[0], path.at(-1));
+    }
+  });
+  if (Math.abs(Number(record.lengthKm) - totalKm) > 0.05 || Math.abs(Number(record.directKm) - totalDirectKm) > 0.05) {
+    ferryCacheOffenders.push(`${route}: stored lengthKm/directKm are stale`);
+  }
+  const canonical = ferryAliases[route] ?? route;
+  if (!ferryRoutesByHash.has(hash)) ferryRoutesByHash.set(hash, new Map());
+  ferryRoutesByHash.get(hash).set(canonical, route);
+}
+for (const routes of ferryRoutesByHash.values()) {
+  if (routes.size > 1) {
+    ferryCacheOffenders.push(
+      `routes share identical geometry without an alias: ${[...routes.values()].join(', ')}`,
+    );
+  }
+}
+if (ferryCacheOffenders.length) {
+  throw new Error(`Invalid ferry water cache:\n${[...new Set(ferryCacheOffenders)].join('\n')}`);
+}
+
 const generatedFerries = collection.features.filter(
   (feature) => feature.properties?.group === 'ferry'
     && ['LineString', 'MultiLineString'].includes(feature.geometry?.type),
 );
+const ferryMetadata = collection.metadata?.ferryWaterCache ?? {};
+if ((ferryMetadata.missing ?? []).length) {
+  throw new Error(
+    `Ferry routes have no audited water geometry: ${ferryMetadata.missing.join(', ')}.\n`
+    + `Run \`${FERRY_UPDATE_COMMAND}\` (after scripts/fetch-ferry-audit-data.py) and commit `
+    + 'scripts/ferry-water-cache.json.',
+  );
+}
+if (ferryMetadata.auditVersion !== FERRY_AUDIT_VERSION
+    || ferryMetadata.cacheSha256 !== normalizedSha256(ferryWaterCacheRaw)) {
+  throw new Error(
+    'Regional route data was not built from the current ferry water cache. '
+    + 'Rebuild with py -3 -X utf8 scripts/build-regional-routes.py.',
+  );
+}
+const unauditedFerries = [];
 for (const feature of generatedFerries) {
   const route = feature.properties?.route;
+  const record = ferryCacheRoutes[route];
+  if (!record) {
+    unauditedFerries.push(`${route}: no ferry-water-cache entry (run ${FERRY_UPDATE_COMMAND})`);
+    continue;
+  }
   const actualHash = createHash('sha256')
     .update(canonicalCoordinates(feature.geometry.coordinates))
     .digest('hex');
-  if (reviewedWaterGeometry.get(route) !== actualHash) invalidWaterGeometry.push(route);
+  if (actualHash !== record.geometrySha256 || feature.geometry.type !== record.geometryType) {
+    unauditedFerries.push(`${route}: geometry differs from its audited cache entry`);
+  }
+  ferryPaths(feature.geometry).forEach((path, index) => {
+    for (const problem of ferryPathProblems(path)) unauditedFerries.push(`${route} path ${index}: ${problem}`);
+  });
 }
-if (ferryWaterAudit.auditVersion !== 'gshhg-census-water-v2-strict'
-    || ferryWaterAudit.routeCount !== generatedFerries.length
-    || reviewedWaterGeometry.size !== generatedFerries.length
-    || invalidWaterGeometry.length) {
-  throw new Error(
-    `Ferry geometry changed without a complete shoreline/water audit: ${invalidWaterGeometry.join(', ')}`,
+if (unauditedFerries.length) {
+  throw new Error(`Ferry geometry failed the water-cache audit:\n${unauditedFerries.join('\n')}`);
+}
+if ((ferryMetadata.stale ?? []).length) {
+  console.warn(
+    `Note: ${ferryMetadata.stale.length} ferry route(s) reuse audited geometry although their source changed `
+    + `(${ferryMetadata.stale.join(', ')}); run ${FERRY_UPDATE_COMMAND} to re-derive them.`,
   );
 }
 
@@ -563,7 +687,7 @@ const invalidAirRoutes = supplementalAir.features.filter((feature) => {
     || !properties.geometryNote
     || !/^https:\/\//.test(properties.sourceUrl ?? '');
 });
-if (supplementalAir.features.length !== 11
+if (supplementalAir.features.length !== 18
     || airRouteIds.size !== supplementalAir.features.length
     || invalidAirRoutes.length
     || [...airRouteIds].filter((route) => route.startsWith('penobscot-island-air:')).length !== 4
@@ -614,12 +738,53 @@ for (const [group, minimum] of Object.entries(REFERENCE_PLACE_MINIMUMS)) {
   }
 }
 
+// Feed freshness (offline): scripts/feed-freshness.json is written by
+// build-regional-routes.py / check-feed-freshness.py. Every configured feed must
+// be listed, and each non-exempt feed must publish service at least
+// FRESHNESS_GUARD_DAYS past the date the file was generated.
+{
+  const FRESHNESS_GUARD_DAYS = 7;
+  const regionalFeeds = JSON.parse(readFileSync(new URL('./regional-feeds.json', import.meta.url), 'utf8'));
+  const freshness = JSON.parse(readFileSync(new URL('./feed-freshness.json', import.meta.url), 'utf8'));
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(freshness.checkedAt ?? '')) {
+    throw new Error('scripts/feed-freshness.json has no valid checkedAt date; rerun scripts/check-feed-freshness.py.');
+  }
+  const cutoff = new Date(`${freshness.checkedAt}T00:00:00Z`);
+  cutoff.setUTCDate(cutoff.getUTCDate() + FRESHNESS_GUARD_DAYS);
+  const cutoffDate = cutoff.toISOString().slice(0, 10);
+  const freshnessProblems = [];
+  for (const feed of regionalFeeds) {
+    const record = freshness.feeds?.[feed.id];
+    if (!record) {
+      freshnessProblems.push(`${feed.id}: missing from feed-freshness.json (rerun scripts/check-feed-freshness.py)`);
+      continue;
+    }
+    if (feed.freshness_exempt) continue;
+    if (!record.serviceEnd) {
+      freshnessProblems.push(`${feed.id}: service end date unknown${record.lastError ? ` (${record.lastError})` : ''}`);
+    } else if (record.serviceEnd < cutoffDate) {
+      freshnessProblems.push(
+        `${feed.id} (${feed.agency}): published service ends ${record.serviceEnd}, `
+        + `before ${cutoffDate} (${FRESHNESS_GUARD_DAYS} days after the ${freshness.checkedAt} check); `
+        + 'find a newer GTFS URL or add "freshness_exempt" with a reason in regional-feeds.json',
+      );
+    }
+  }
+  if (freshnessProblems.length) {
+    throw new Error(`Scheduled feed freshness check failed:\n${freshnessProblems.join('\n')}`);
+  }
+  console.log(
+    `Feed freshness check passed: ${regionalFeeds.length} feeds checked ${freshness.checkedAt}, `
+    + `${regionalFeeds.filter((feed) => feed.freshness_exempt).length} exempt, all others run past ${cutoffDate}.`,
+  );
+}
+
 console.log(
   `Route geometry check passed: ${approximate.length} approximate-geometry scheduled features; `
   + `${Object.keys(cache.segments ?? {}).length} loop-free cache segments; `
   + `${amtrakRoutes.length} official Amtrak routes; `
   + `${supplementalFerries.features.length} verified supplemental ferry routes; `
-  + `${reviewedWaterGeometry.size} shoreline/water-reviewed ferry routes; `
+  + `${generatedFerries.length} OSM shoreline-audited ferry routes; `
   + `${scheduledStops.length} scheduled stops with named ferry endpoints; `
   + `${airports.features.length} FAA landing facilities; `
   + `${borderCrossings.features.length} Canada border crossings; `

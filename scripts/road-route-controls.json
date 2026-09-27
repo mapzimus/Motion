@@ -24,9 +24,16 @@
       {"coordinate": [-73.20319, 41.16696], "bearing": 250, "range": 30},
       {"coordinate": [-73.54103, 41.04781], "bearing": 240, "range": 30},
       {"coordinate": [-73.7842, 40.91302], "bearing": 220, "range": 30}
+    ],
+    "new_haven_i95_to_bronx": [
+      {"coordinate": [-72.91651, 41.29621], "bearing": 250, "range": 30},
+      {"coordinate": [-73.20319, 41.16696], "bearing": 250, "range": 30},
+      {"coordinate": [-73.54103, 41.04781], "bearing": 240, "range": 30},
+      {"coordinate": [-73.7842, 40.91302], "bearing": 220, "range": 30}
     ]
   },
   "segments": {
+    "driving:-72.59415,42.10641|-73.99527,40.75031": {"corridors": ["i91_to_new_haven", "new_haven_i95_to_bronx", "gwb_westbound", "nj_turnpike_to_lincoln_tunnel"]},
     "driving:-71.05618,42.35047|-73.99050,40.75695": {"corridors": ["i84_i684_bronx", "gwb_westbound", "nj_turnpike_to_lincoln_tunnel"]},
     "driving:-71.05618,42.35047|-73.99527,40.75031": {"corridors": ["i84_i684_bronx", "gwb_westbound", "nj_turnpike_to_lincoln_tunnel"]},
     "driving:-71.05618,42.35047|-73.99562,40.71639": {"corridors": ["i84_i684_bronx", "gwb_westbound", "nj_turnpike_to_lincoln_tunnel"]},
