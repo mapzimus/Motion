@@ -1,9 +1,20 @@
 import { transit_realtime } from 'gtfs-realtime-bindings';
 import { feedsForRegion, type TransitFeed } from './feeds';
-import { AIS_BOUNDS, isRegionId, PLANE_PROBES, type RegionId } from './regions';
+import { AIS_BOUNDS, isRegionId, type RegionId } from './regions';
+import {
+  combinePolygons,
+  filterNwsAlerts,
+  hasGeometry,
+  normalizeNwsAlert,
+  parseFaaAirportStatus,
+  REGION_STATES,
+  simplifyGeometry,
+  zoneIdFromUrl,
+  zonesToResolve,
+  type NwsAlertFeature,
+  type NwsGeometry,
+} from './conditions';
 
-const ADSB_LOL_BASE = 'https://api.adsb.lol/v2/point';
-const ADSB_FI_BASE = 'https://opendata.adsb.fi/api/v3';
 const AISSTREAM_URL = 'wss://stream.aisstream.io/v0/stream';
 const MASSDOT_WORK_ZONE_URL = 'https://feed.massdot-swzm.com/massdot_wzdx_v4.1_work_zone_feed.geojson';
 const NORTHERN_WORK_ZONE_URL = 'https://api.dx.ne-compass.com/wzdx-latest/';
@@ -24,7 +35,38 @@ const IBI_511_SOURCES = [
 const MNR_TRIP_UPDATES_URL = 'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/mnr%2Fgtfs-mnr';
 const MNR_ALERTS_URL = 'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/camsys%2Fmnr-alerts';
 const NEW_ENGLAND_BBOX = { west: -74, south: 40.8, east: -66, north: 47.7 };
-const PLANE_STALE_TTL_SECONDS = 5 * 60;
+const FAA_AIRPORT_STATUS_URL = 'https://nasstatus.faa.gov/api/airport-status-information';
+const NWS_ALERTS_URL = 'https://api.weather.gov/alerts/active?area=MA,CT,RI,NH,VT,ME';
+// api.weather.gov rejects requests without an identifying User-Agent.
+const NWS_USER_AGENT = 'motion-map (github.com/mapzimus/Motion)';
+// Most NWS alerts carry no inline polygon, only forecast-zone references. Zone
+// outlines are fetched one per subrequest, so cap them per gateway request
+// (most severe alerts first) to stay inside Workers subrequest limits.
+const NWS_MAX_ZONE_FETCHES = 40;
+const NWS_ZONE_SIMPLIFY_TOLERANCE = 0.002; // degrees, ≈200 m
+const NWS_ZONE_CACHE_TTL_SECONDS = 7 * 24 * 60 * 60;
+
+// ---- provider health -------------------------------------------------------
+// /health reports each provider as `true` only when the most recent upstream
+// fetch in this isolate succeeded within the last 10 minutes. A provider that
+// has not been attempted yet in this isolate is reported as `true` ("unknown
+// → assume available") so a cold start never hides layers from the frontend.
+// Edge-cache hits skip the producer and do not refresh the timestamp; the
+// 10-minute window comfortably covers the 15–300 s cache TTLs in use.
+const PROVIDER_HEALTH_WINDOW_MS = 10 * 60_000;
+const providerAttempted = new Set<string>();
+const providerLastOk = new Map<string, number>();
+
+function markProvider(name: string, ok: boolean): void {
+  providerAttempted.add(name);
+  if (ok) providerLastOk.set(name, Date.now());
+}
+
+function providerHealthy(name: string): boolean {
+  if (!providerAttempted.has(name)) return true;
+  const lastOk = providerLastOk.get(name);
+  return lastOk !== undefined && Date.now() - lastOk < PROVIDER_HEALTH_WINDOW_MS;
+}
 
 type JsonValue = Record<string, unknown> | unknown[];
 
@@ -109,125 +151,6 @@ function regionFrom(url: URL): RegionId | null {
   return isRegionId(region) ? region : null;
 }
 
-type AircraftPayload = { ac?: Array<Record<string, unknown>> };
-type AircraftProbeResult = { payload: AircraftPayload; provider: string };
-
-async function fetchAircraft(
-  provider: string,
-  endpoint: string,
-  cacheTtl: number,
-): Promise<AircraftProbeResult> {
-  const upstream = await fetch(endpoint, {
-    headers: {
-      accept: 'application/json',
-      'user-agent': 'Motion/0.5 (+https://github.com/mapzimus/Motion)',
-    },
-    cf: { cacheEverything: true, cacheTtl },
-  });
-  if (!upstream.ok) throw new Error(`${provider} ${upstream.status}`);
-  return { payload: (await upstream.json()) as AircraftPayload, provider };
-}
-
-async function planes(request: Request, url: URL, ctx: ExecutionContext): Promise<Response> {
-  const region = regionFrom(url);
-  if (!region) return json({ error: 'Unknown region' }, 400);
-
-  const staleCacheKey = new Request(
-    `${url.origin}${url.pathname}?region=${region}&cache=last-good`,
-    { method: 'GET' },
-  );
-
-  return cachedJson(request, ctx, 15, async () => {
-    const probes = PLANE_PROBES[region];
-    const primary = await Promise.allSettled(
-      probes.map(({ lat, lon, radius }) =>
-        fetchAircraft('ADSB.lol', `${ADSB_LOL_BASE}/${lat}/${lon}/${radius}`, 15),
-      ),
-    );
-
-    const results: Array<AircraftProbeResult | null> = primary.map((result) =>
-      result.status === 'fulfilled' ? result.value : null,
-    );
-    const failures = primary.flatMap((result) =>
-      result.status === 'rejected'
-        ? [result.reason instanceof Error ? result.reason.message : String(result.reason)]
-        : [],
-    );
-
-    // adsb.fi permits one public request per second. Only failed ADSB.lol probes
-    // fall back, and multi-probe regions are serialized to respect that limit.
-    let fallbackRequests = 0;
-    for (let index = 0; index < probes.length; index += 1) {
-      if (results[index]) continue;
-      if (fallbackRequests > 0) {
-        await new Promise((resolve) => setTimeout(resolve, 1_050));
-      }
-      fallbackRequests += 1;
-      const { lat, lon, radius } = probes[index];
-      try {
-        results[index] = await fetchAircraft(
-          'adsb.fi',
-          `${ADSB_FI_BASE}/lat/${lat}/lon/${lon}/dist/${radius}`,
-          45,
-        );
-      } catch (error) {
-        failures.push(error instanceof Error ? error.message : String(error));
-        // A last-known-good response below covers short outages of both feeds.
-      }
-    }
-
-    const successful = results.filter((result): result is AircraftProbeResult => Boolean(result));
-    if (!successful.length) {
-      const stale = await caches.default.match(staleCacheKey);
-      if (stale) {
-        const response = new Response(stale.body, stale);
-        response.headers.set('x-motion-data', 'last-good');
-        return response;
-      }
-      return json({ error: 'Aircraft providers unavailable', failures }, 502);
-    }
-
-    const unique = new Map<string, Record<string, unknown>>();
-    for (const result of successful) {
-      for (const aircraft of result.payload.ac ?? []) {
-        const hex = String(aircraft.hex ?? '');
-        if (hex) unique.set(hex, aircraft);
-      }
-    }
-
-    const aircraft = [...unique.values()].flatMap((item) => {
-      const lat = numberValue(item.lat);
-      const lng = numberValue(item.lon);
-      if (lat === null || lng === null) return [];
-      const seenSeconds = numberValue(item.seen) ?? 0;
-      return [{
-        id: String(item.hex),
-        lng,
-        lat,
-        callsign: String(item.flight ?? '').trim(),
-        aircraftType: String(item.t ?? ''),
-        bearing: numberValue(item.track),
-        altitudeFeet: item.alt_baro === 'ground' ? null : numberValue(item.alt_baro),
-        groundSpeedKnots: numberValue(item.gs),
-        onGround: item.alt_baro === 'ground',
-        updatedAt: new Date(Date.now() - seenSeconds * 1000).toISOString(),
-      }];
-    });
-
-    const providers = [...new Set(successful.map((result) => result.provider))];
-    const response = json({
-      provider: providers.join(' + '),
-      region,
-      aircraft,
-      failedProbes: results.length - successful.length,
-    });
-    const lastGood = response.clone();
-    lastGood.headers.set('cache-control', `public, max-age=${PLANE_STALE_TTL_SECONDS}`);
-    ctx.waitUntil(caches.default.put(staleCacheKey, lastGood));
-    return response;
-  });
-}
-
 function insideNewEngland(lng: number, lat: number): boolean {
   return lng >= NEW_ENGLAND_BBOX.west && lng <= NEW_ENGLAND_BBOX.east &&
     lat >= NEW_ENGLAND_BBOX.south && lat <= NEW_ENGLAND_BBOX.north;
@@ -291,6 +214,8 @@ async function transit(request: Request, url: URL, env: Env, ctx: ExecutionConte
     const vehicles = settled.flatMap((result) =>
       result.status === 'fulfilled' ? result.value.vehicles : [],
     );
+    // Healthy when every attempted feed answered (needs-key feeds are skipped, not failures).
+    markProvider('regionalTransit', !settled.length || settled.some((result) => result.status === 'fulfilled'));
     return json({ region, vehicles, feeds: feedStatus });
   });
 }
@@ -337,6 +262,7 @@ async function metroNorth(request: Request, ctx: ExecutionContext): Promise<Resp
     ]);
     if (!tripsResponse.ok) return json({ error: `MTA Metro-North trip updates ${tripsResponse.status}` }, 502);
     if (!alertsResponse.ok) return json({ error: `MTA Metro-North alerts ${alertsResponse.status}` }, 502);
+    markProvider('metroNorth', true);
 
     const tripMessage = transit_realtime.FeedMessage.decode(
       new Uint8Array(await tripsResponse.arrayBuffer()),
@@ -552,6 +478,7 @@ async function roadwork(request: Request, ctx: ExecutionContext): Promise<Respon
         sourceUrl: index === 0 ? MASSDOT_WORK_ZONE_URL : NORTHERN_WORK_ZONE_URL,
       });
     }
+    markProvider('roadwork', inputs.length > 0);
     if (!inputs.length) return json({ error: 'Official work-zone feeds unavailable' }, 502);
     const features = inputs.flatMap((input) =>
       normalizeWorkZones(input.source, input.provider, input.sourceUrl),
@@ -648,6 +575,7 @@ async function roadEvents(request: Request, ctx: ExecutionContext): Promise<Resp
     const features = feeds.flatMap((result) =>
       result.status === 'fulfilled' ? result.value.filter(Boolean) : [],
     );
+    markProvider('roadEvents', feeds.some((result) => result.status === 'fulfilled'));
     if (!features.length && feeds.every((result) => result.status === 'rejected')) {
       return json({ error: 'Official 511 incident feeds unavailable' }, 502);
     }
@@ -733,6 +661,7 @@ async function cameras(request: Request, ctx: ExecutionContext): Promise<Respons
       })
       : [];
     const features = [...ibiFeatures, ...massFeatures];
+    markProvider('cameras', features.length > 0);
     if (!features.length) return json({ error: 'Official camera sources unavailable' }, 502);
     return json({
       type: 'FeatureCollection',
@@ -786,6 +715,7 @@ async function trafficTile(
     ? `https://api.tomtom.com/traffic/map/4/tile/flow/relative0/${z}/${x}/${y}.png?key=${encodeURIComponent(tomtomKey ?? '')}&thickness=10`
     : `${IBI_TRAFFIC_TILE_URL}?x=${x}&y=${y}&z=${z}`;
   const upstream = await fetch(target, { cf: { cacheEverything: true, cacheTtl: 60 } });
+  markProvider('traffic', upstream.ok);
   if (!upstream.ok) return json({ error: `Traffic provider ${upstream.status}` }, 502);
 
   const response = new Response(upstream.body, {
@@ -796,6 +726,120 @@ async function trafficTile(
   });
   ctx.waitUntil(caches.default.put(cacheKey, response.clone()));
   return response;
+}
+
+// ---- conditions: FAA airport status ----------------------------------------
+
+async function airportStatus(request: Request, ctx: ExecutionContext): Promise<Response> {
+  return cachedJson(request, ctx, 60, async () => {
+    let upstream: Response;
+    try {
+      upstream = await fetch(FAA_AIRPORT_STATUS_URL, {
+        headers: { accept: 'application/xml, text/xml' },
+        cf: { cacheEverything: true, cacheTtl: 60 },
+      });
+    } catch (error) {
+      markProvider('airportStatus', false);
+      return json({ error: `FAA airport status unavailable: ${error instanceof Error ? error.message : String(error)}` }, 502);
+    }
+    markProvider('airportStatus', upstream.ok);
+    if (!upstream.ok) return json({ error: `FAA airport status ${upstream.status}` }, 502);
+    const parsed = parseFaaAirportStatus(await upstream.text());
+    return json({
+      provider: 'FAA National Airspace System status',
+      sourceUrl: 'https://nasstatus.faa.gov/',
+      coverage: ['ct', 'ma', 'me', 'nh', 'ri', 'vt'],
+      updatedAt: parsed.updatedAt,
+      airports: parsed.airports,
+    });
+  });
+}
+
+// ---- conditions: NWS weather alerts ----------------------------------------
+
+// Simplified forecast-zone outlines, keyed by zone id (e.g. "CTZ009"). Zone
+// geometry changes only a few times a year, so isolate-lifetime memoization
+// on top of the 7-day edge cache keeps repeat requests to a handful of fetches.
+const zoneGeometryCache = new Map<string, NwsGeometry | null>();
+
+async function fetchZoneGeometry(url: string): Promise<NwsGeometry | null> {
+  const id = zoneIdFromUrl(url);
+  const cached = zoneGeometryCache.get(id);
+  if (cached !== undefined) return cached;
+  try {
+    const response = await fetch(url, {
+      headers: { accept: 'application/geo+json', 'user-agent': NWS_USER_AGENT },
+      cf: { cacheEverything: true, cacheTtl: NWS_ZONE_CACHE_TTL_SECONDS },
+    });
+    if (!response.ok) throw new Error(`zone ${id} ${response.status}`);
+    const feature = await response.json() as { geometry?: NwsGeometry | null };
+    const geometry = feature.geometry?.coordinates
+      ? simplifyGeometry(feature.geometry, NWS_ZONE_SIMPLIFY_TOLERANCE)
+      : null;
+    zoneGeometryCache.set(id, geometry);
+    return geometry;
+  } catch {
+    // Leave the cache untouched so the next request retries this zone.
+    return null;
+  }
+}
+
+async function weatherAlerts(request: Request, url: URL, ctx: ExecutionContext): Promise<Response> {
+  const region = regionFrom(url);
+  if (!region) return json({ error: 'Unknown region' }, 400);
+  const states = REGION_STATES[region];
+
+  return cachedJson(request, ctx, 60, async () => {
+    let upstream: Response;
+    try {
+      upstream = await fetch(NWS_ALERTS_URL, {
+        headers: { accept: 'application/geo+json', 'user-agent': NWS_USER_AGENT },
+        cf: { cacheEverything: true, cacheTtl: 60 },
+      });
+    } catch (error) {
+      markProvider('weatherAlerts', false);
+      return json({ error: `NWS alerts unavailable: ${error instanceof Error ? error.message : String(error)}` }, 502);
+    }
+    markProvider('weatherAlerts', upstream.ok);
+    if (!upstream.ok) return json({ error: `NWS alerts ${upstream.status}` }, 502);
+    const collection = await upstream.json() as { features?: NwsAlertFeature[]; updated?: string };
+    const relevant = filterNwsAlerts(collection.features ?? [], states);
+
+    const zoneUrls = zonesToResolve(relevant, new Set(zoneGeometryCache.keys()), NWS_MAX_ZONE_FETCHES);
+    await Promise.all(zoneUrls.map((zoneUrl) => fetchZoneGeometry(zoneUrl)));
+
+    let droppedWithoutGeometry = 0;
+    const features = relevant.flatMap((feature) => {
+      let geometry: NwsGeometry | null = null;
+      if (hasGeometry(feature)) {
+        geometry = simplifyGeometry(feature.geometry as NwsGeometry, NWS_ZONE_SIMPLIFY_TOLERANCE);
+      } else {
+        const zones = (feature.properties?.affectedZones ?? [])
+          .map((zoneUrl) => zoneGeometryCache.get(zoneIdFromUrl(zoneUrl)))
+          .filter((zone): zone is NwsGeometry => Boolean(zone));
+        geometry = combinePolygons(zones);
+      }
+      if (!geometry) {
+        droppedWithoutGeometry += 1;
+        return [];
+      }
+      return [normalizeNwsAlert(feature, geometry)];
+    });
+
+    return json({
+      type: 'FeatureCollection',
+      provider: 'NOAA National Weather Service',
+      sourceUrl: 'https://www.weather.gov/',
+      region,
+      states,
+      updatedAt: collection.updated ?? new Date().toISOString(),
+      // True when the per-request zone cap left some alerts unresolved this
+      // pass; they usually fill in on the next poll as the zone cache warms.
+      truncated: droppedWithoutGeometry > 0,
+      droppedWithoutGeometry,
+      features,
+    });
+  });
 }
 
 function ais(request: Request, url: URL, env: Env): Response {
@@ -855,20 +899,22 @@ export default {
       response = json({
         service: 'Motion gateway',
         status: 'ok',
+        // Aircraft are served by the separate Vercel relay; the frontend
+        // probes that relay's own /api/health for the `aircraft` flag.
         providers: {
-          aircraft: true,
-          regionalTransit: true,
-          metroNorth: true,
-          roadwork: true,
-          roadEvents: true,
-          cameras: true,
+          regionalTransit: providerHealthy('regionalTransit'),
+          metroNorth: providerHealthy('metroNorth'),
+          roadwork: providerHealthy('roadwork'),
+          roadEvents: providerHealthy('roadEvents'),
+          cameras: providerHealthy('cameras'),
+          airportStatus: providerHealthy('airportStatus'),
+          weatherAlerts: providerHealthy('weatherAlerts'),
           ais: configured(secret(env, 'AISSTREAM_API_KEY')),
-          traffic: true,
+          traffic: providerHealthy('traffic'),
           swiftly: configured(secret(env, 'SWIFTLY_API_KEY')),
         },
+        healthRule: 'true = last upstream fetch succeeded within 10 min, or not yet attempted in this isolate',
       });
-    } else if (url.pathname === '/api/planes') {
-      response = await planes(request, url, ctx);
     } else if (url.pathname === '/api/transit') {
       response = await transit(request, url, env, ctx);
     } else if (url.pathname === '/api/mnr') {
@@ -881,6 +927,10 @@ export default {
       response = await cameras(request, ctx);
     } else if (url.pathname === '/api/camera-detail') {
       response = await cameraDetail(url);
+    } else if (url.pathname === '/api/airport-status') {
+      response = await airportStatus(request, ctx);
+    } else if (url.pathname === '/api/weather-alerts') {
+      response = await weatherAlerts(request, url, ctx);
     } else if (url.pathname.startsWith('/api/traffic/')) {
       response = await trafficTile(request, url.pathname, env, ctx);
     } else if (url.pathname === '/api/ais') {

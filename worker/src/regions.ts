@@ -28,23 +28,3 @@ export const AIS_BOUNDS: Record<RegionId, [[number, number], [number, number]]> 
   'new-england': [[40.8, -74.0], [47.7, -66.0]],
 };
 
-type PlaneProbe = { lat: number; lon: number; radius: number };
-
-export const PLANE_PROBES: Record<RegionId, PlaneProbe[]> = {
-  boston: [{ lat: 42.36, lon: -71.01, radius: 60 }],
-  ma: [{ lat: 42.18, lon: -71.8, radius: 145 }],
-  ct: [{ lat: 41.6, lon: -72.7, radius: 95 }],
-  ri: [{ lat: 41.68, lon: -71.5, radius: 70 }],
-  nh: [{ lat: 43.85, lon: -71.55, radius: 125 }],
-  vt: [{ lat: 44.05, lon: -72.7, radius: 125 }],
-  me: [
-    { lat: 44.1, lon: -69.9, radius: 160 },
-    { lat: 46.1, lon: -68.4, radius: 150 },
-  ],
-  'new-england': [
-    { lat: 41.75, lon: -72.5, radius: 120 },
-    { lat: 42.8, lon: -71.3, radius: 125 },
-    { lat: 44.25, lon: -72.0, radius: 150 },
-    { lat: 45.5, lon: -68.8, radius: 180 },
-  ],
-};
