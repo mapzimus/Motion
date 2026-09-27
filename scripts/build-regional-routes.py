@@ -30,7 +30,8 @@ SUPPLEMENTAL_PATHS = (
     ROOT / "scripts" / "supplemental-ferry-routes.json",
     ROOT / "scripts" / "supplemental-air-routes.json",
 )
-FERRY_ROUTE_OVERRIDES_PATH = ROOT / "scripts" / "ferry-route-overrides.json"
+FERRY_WATER_CACHE_PATH = ROOT / "scripts" / "ferry-water-cache.json"
+FERRY_GEOMETRY_SOURCES_PATH = ROOT / "scripts" / "ferry-geometry-sources.json"
 ROAD_ROUTE_CACHE_PATH = ROOT / "scripts" / "road-route-cache.json"
 ROAD_ROUTE_CONTROLS_PATH = ROOT / "scripts" / "road-route-controls.json"
 BOUNDARIES_PATH = ROOT / "data" / "regions.geojson"
@@ -49,6 +50,9 @@ OSRM_BASE_URL = "https://router.project-osrm.org"
 ROAD_ROUTING_VERSION = "osrm-driving-bus-controls-v4"
 MAX_ROAD_DETOUR_RATIO = 1.6
 MAX_ROAD_DETOUR_ALLOWANCE_KM = 5.0
+FERRY_AUDIT_VERSION = "osm-land-v3"  # must match scripts/ferry_water.py AUDIT_VERSION
+FERRY_UPDATE_COMMAND = "py -3 -X utf8 scripts/build-regional-routes.py --update-ferry-cache"
+FERRY_TERMINAL_MATCH_KM = 1.5
 ROAD_GEOMETRY_NOTE = "Approximate road-following path from published stops; the carrier may use a different roadway."
 RAIL_GEOMETRY_NOTE = "Approximate rail-following controls replace a sparse provider-shape gap."
 RAIL_SEGMENT_CONTROLS = {
@@ -767,6 +771,12 @@ def point_in_geometry(point, geometry):
     return any(point_in_ring(point, polygon[0]) and not any(point_in_ring(point, hole) for hole in polygon[1:]) for polygon in polygons)
 
 
+def public_route_id(feed, route_id):
+    """Feed-scoped route id; ``route_id_map`` keeps ids stable for permalinks
+    when a hand-drawn corridor is replaced by the operator's GTFS."""
+    return f"{feed['id']}:{feed.get('route_id_map', {}).get(route_id, route_id)}"
+
+
 def route_label(route: dict[str, str]) -> str:
     short = (route.get("route_short_name") or "").strip()
     long = (route.get("route_long_name") or "").strip()
@@ -873,6 +883,10 @@ def station_features(
             key for key in region_order
             if point_in_geometry(point, region_geometries[key])
         ]
+        if not regions and feed.get("keep_outside_landings"):
+            # Cross-border ferries (Lake Champlain to New York) still need the
+            # far landing drawn so the route has two named ends.
+            regions = list(feed.get("states", []))
         if not regions:
             continue
         stop_code = (stop.get("stop_code") or station_id).strip()
@@ -915,7 +929,7 @@ def station_features(
                     "stationCode": stop_code,
                     "wheelchairBoarding": wheelchair_value,
                     "platformCount": platform_count,
-                    "routeIds": [f"{feed['id']}:{route_id}" for route_id in sorted(grouped_route_ids)],
+                    "routeIds": [public_route_id(feed, route_id) for route_id in sorted(grouped_route_ids)],
                     "provider": feed.get("provider") or "Agency schedule · GTFS",
                     "sourceUrl": source_url(stop.get("stop_url"), feed.get("source_url")),
                     "regions": regions,
@@ -939,7 +953,13 @@ def supplemental_ferry_stop_features(features):
         for path_index, path in enumerate(paths):
             if len(path) < 2:
                 continue
-            endpoints = ((path[0], names[0] if names else "Origin"), (path[-1], names[-1] if len(names) > 1 else "Destination"))
+            if len(paths) > 1 and len(names) == len(paths) + 1:
+                # A multi-stop corridor split into legs: leg i runs names[i] -> names[i + 1].
+                start_name, end_name = names[path_index], names[path_index + 1]
+            else:
+                start_name = names[0] if names else "Origin"
+                end_name = names[-1] if len(names) > 1 else "Destination"
+            endpoints = ((path[0], start_name), (path[-1], end_name))
             for endpoint_index, (coordinate, endpoint_name) in enumerate(endpoints):
                 title = endpoint_name if re.search(r"\b(?:ferry|landing|terminal|wharf|pier|dock)\b", endpoint_name, re.I) else f"{endpoint_name} ferry landing"
                 dedupe_key = (round(float(coordinate[0]), 4), round(float(coordinate[1]), 4))
@@ -971,6 +991,238 @@ def supplemental_ferry_stop_features(features):
                     },
                 }
     return list(stops_by_coordinate.values())
+
+
+def ferry_feature_paths(geometry):
+    if geometry.get("type") == "LineString":
+        return [geometry.get("coordinates", [])]
+    if geometry.get("type") == "MultiLineString":
+        return geometry.get("coordinates", [])
+    return []
+
+
+def canonical_coordinates(value):
+    if (isinstance(value, (list, tuple)) and len(value) == 2
+            and all(isinstance(item, (int, float)) for item in value)):
+        return f"{float(value[0]):.6f},{float(value[1]):.6f}"
+    return "[" + "|".join(canonical_coordinates(item) for item in value) + "]"
+
+
+def geometry_sha256(coordinates):
+    return hashlib.sha256(canonical_coordinates(coordinates).encode("utf-8")).hexdigest()
+
+
+def ferry_request_signature(route_id, source_kind, paths, config):
+    payload = json.dumps(
+        {
+            "route": route_id,
+            "kind": source_kind,
+            "paths": [[[round(float(x), 5), round(float(y), 5)] for x, y in path] for path in paths],
+            "config": config,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return f"{FERRY_AUDIT_VERSION}|{hashlib.sha256(payload.encode('utf-8')).hexdigest()}"
+
+
+def load_ferry_water_cache():
+    if FERRY_WATER_CACHE_PATH.exists():
+        cache = json.loads(FERRY_WATER_CACHE_PATH.read_text(encoding="utf-8"))
+    else:
+        cache = {}
+    cache.setdefault(
+        "description",
+        "Build-time ferry water geometry: operator GTFS shapes, OpenStreetMap route=ferry ways, "
+        "or hand controls, repaired and audited against OpenStreetMap land and inland water.",
+    )
+    cache["auditVersion"] = FERRY_AUDIT_VERSION
+    cache.setdefault("aliases", {})
+    cache.setdefault("routes", {})
+    return cache
+
+
+def ferry_terminals_match(source_paths, cached_paths):
+    """A stale cache entry is still usable when its landings have not moved."""
+    def terminals(paths):
+        points = []
+        for path in paths:
+            if len(path) >= 2 and polyline_km(path) > 0.15:
+                points.extend([path[0], path[-1]])
+        return points
+
+    source = terminals(source_paths)
+    cached = terminals(cached_paths)
+    if not source:
+        return True
+    if not cached:
+        return False
+    return all(
+        min(haversine_km(point, other) for other in cached) <= FERRY_TERMINAL_MATCH_KM
+        for point in source
+    )
+
+
+def apply_ferry_water_cache(features, supplemental_ids, update, refresh, prune):
+    """Replace every ferry line with its audited water geometry from the cache.
+
+    Offline builds only read ``ferry-water-cache.json``. With
+    ``--update-ferry-cache`` missing or outdated entries are recomputed from
+    the local OpenStreetMap water model (see ``scripts/ferry_water.py``).
+    """
+    cache = load_ferry_water_cache()
+    sources = json.loads(FERRY_GEOMETRY_SOURCES_PATH.read_text(encoding="utf-8"))
+    source_config = sources.get("routes", {})
+    cache["aliases"] = sources.get("aliases", {})
+    ferries = [
+        feature for feature in features
+        if feature.get("properties", {}).get("group") == "ferry"
+        and feature["properties"].get("kind") == "regional-static"
+        and feature.get("geometry", {}).get("type") in {"LineString", "MultiLineString"}
+    ]
+    landings = []
+    for feature in features:
+        properties = feature.get("properties", {})
+        if properties.get("group") == "ferry" and feature.get("geometry", {}).get("type") == "Point":
+            landings.append(feature["geometry"]["coordinates"])
+    for feature in ferries:
+        for path in ferry_feature_paths(feature["geometry"]):
+            if len(path) >= 2 and polyline_km(path) > 0.15:
+                landings.extend([path[0], path[-1]])
+    engine = {}
+
+    def compute(route_id, paths, source_kind, config):
+        if "model" not in engine:
+            sys.path.insert(0, str(ROOT / "scripts"))
+            import ferry_water  # optional maintainer dependency (shapely, scipy)
+
+            print("Loading OpenStreetMap ferry water model...", flush=True)
+            engine["module"] = ferry_water
+            engine["model"] = ferry_water.WaterModel()
+            engine["osm"] = ferry_water.OsmFerryWays()
+            engine["landings"] = landings + [
+                way["coords"][index]
+                for way in engine["osm"].ways.values()
+                for index in (0, -1)
+            ]
+        started = time.monotonic()
+        result = engine["module"].compute_route(
+            engine["model"], engine["osm"], route_id, paths, source_kind, config, engine["landings"],
+        )
+        audit = result["waterAudit"]
+        verdict = "pass" if audit["pass"] else "FAIL " + "; ".join(audit.get("failures", []))
+        print(
+            f"     ferry {route_id}: {result['source']} · {result['lengthKm']:.1f} km · {verdict}"
+            f" ({time.monotonic() - started:.0f}s)",
+            flush=True,
+        )
+        return result
+
+    used = set()
+    missing, stale, failing = [], [], []
+    computed = 0
+    dirty = False
+    for feature in ferries:
+        properties = feature["properties"]
+        route_id = properties["route"]
+        if route_id in used:
+            raise RuntimeError(f"Duplicate ferry route id: {route_id}")
+        used.add(route_id)
+        source_kind = "hand" if route_id in supplemental_ids else "gtfs"
+        config = source_config.get(route_id, {})
+        source_paths = [path for path in ferry_feature_paths(feature["geometry"]) if len(path) >= 1]
+        signature = ferry_request_signature(route_id, source_kind, source_paths, config)
+        record = cache["routes"].get(route_id)
+        outdated = record is None or record.get("requestSignature") != signature
+        if refresh or (update and outdated):
+            result = compute(route_id, source_paths, source_kind, config)
+            single = feature["geometry"]["type"] == "LineString" and len(result["paths"]) == 1
+            coordinates = result["paths"][0] if single else result["paths"]
+            record = {
+                "requestSignature": signature,
+                "source": result["source"],
+                "repaired": result["repaired"],
+                "geometryType": "LineString" if single else "MultiLineString",
+                "coordinates": coordinates,
+                "geometrySha256": geometry_sha256(coordinates),
+                "lengthKm": result["lengthKm"],
+                "directKm": result["directKm"],
+                "waterAudit": result["waterAudit"],
+            }
+            cache["routes"][route_id] = record
+            computed += 1
+            dirty = True
+        elif record is not None and outdated:
+            cached_paths = ferry_feature_paths({"type": record["geometryType"], "coordinates": record["coordinates"]})
+            if ferry_terminals_match(source_paths, cached_paths):
+                stale.append(route_id)
+            else:
+                record = None
+        if record is None:
+            missing.append(route_id)
+            properties["geometryAccuracy"] = "approximate"
+            properties["geometryNote"] = "Unaudited ferry path; the water audit has not reviewed this geometry yet."
+            continue
+        if not record.get("waterAudit", {}).get("pass"):
+            failing.append(route_id)
+        feature["geometry"] = {
+            "type": record["geometryType"],
+            "coordinates": json.loads(json.dumps(record["coordinates"])),
+        }
+        source = record.get("source", "")
+        if source == "gtfs-shape" and not record.get("repaired"):
+            continue
+        properties["geometryAccuracy"] = "approximate"
+        if source.startswith("osm-way"):
+            properties["geometryProvider"] = "OpenStreetMap ferry route, shoreline-audited"
+            properties["geometryNote"] = (
+                "OpenStreetMap-mapped ferry track snapped to the published landings; actual vessel tracks vary."
+            )
+        elif source.startswith("gtfs-shape"):
+            properties["geometryProvider"] = "Agency shape, shoreline-audited"
+            properties["geometryNote"] = "Provider shape rerouted where it crossed land in the shoreline audit."
+        else:
+            properties.setdefault(
+                "geometryNote",
+                "Approximate water path between published terminals; actual vessel tracks vary.",
+            )
+    if missing:
+        print(
+            f"WARNING: {len(missing)} ferry route(s) have no audited water geometry: {', '.join(missing)}.\n"
+            f"         Run `{FERRY_UPDATE_COMMAND}` with the local water model "
+            "(scripts/fetch-ferry-audit-data.py); CI fails until then.",
+            flush=True,
+        )
+    if stale:
+        print(f"Note: reused audited ferry geometry for {len(stale)} route(s) whose source changed: {', '.join(stale)}")
+    if failing:
+        print(f"WARNING: cached ferry geometry fails the water audit for: {', '.join(failing)}")
+    if (update or refresh) and prune:
+        unused = sorted(set(cache["routes"]) - used)
+        for route_id in unused:
+            del cache["routes"][route_id]
+            dirty = True
+        if unused:
+            print(f"Pruned {len(unused)} unused ferry-cache routes: {', '.join(unused)}")
+    if dirty:
+        cache["routes"] = dict(sorted(cache["routes"].items()))
+        if engine.get("model") is not None:
+            cache["waterModel"] = engine["model"].describe()
+        temp = FERRY_WATER_CACHE_PATH.with_suffix(".json.tmp")
+        temp.write_text(json.dumps(cache, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+        temp.replace(FERRY_WATER_CACHE_PATH)
+    print(f"Ferry geometry: {len(ferries) - len(missing)} cached routes; computed {computed}; missing {len(missing)}.")
+    return {
+        "auditVersion": FERRY_AUDIT_VERSION,
+        "cacheSha256": (
+            normalized_sha256(FERRY_WATER_CACHE_PATH.read_bytes()) if FERRY_WATER_CACHE_PATH.exists() else ""
+        ),
+        "routes": len(ferries),
+        "missing": sorted(missing),
+        "stale": sorted(stale),
+        "failing": sorted(failing),
+        "updateCommand": FERRY_UPDATE_COMMAND,
+    }
 
 
 def process_feed(
@@ -1163,11 +1415,11 @@ def process_feed(
         detected_regions = route_regions.get(route_id) or set(feed["states"])
         regions = [key for key in ("ct", "ma", "me", "nh", "ri", "vt", "boston") if key in detected_regions]
         properties = {
-            "route": f"{feed['id']}:{route_id}",
+            "route": public_route_id(feed, route_id),
             "group": feature_group(feed, route_type),
             "color": feature_color(feed, route_type),
             "agency": feed.get("agency_names", {}).get(route.get("agency_id"), feed["agency"]),
-            "name": route_label(route),
+            "name": feed.get("route_name_map", {}).get(route_id) or route_label(route),
             "kind": "regional-static",
             "dataStatus": "scheduled",
             "provider": feed.get("provider") or "Agency schedule · GTFS",
@@ -1228,7 +1480,7 @@ def process_feed(
     return features, len(selected_routes), source_metadata, freshness
 
 
-def main(update_road_cache=False, refresh_road_cache=False):
+def main(update_road_cache=False, refresh_road_cache=False, update_ferry_cache=False, refresh_ferry_cache=False):
     feeds = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
     boundaries = json.loads(BOUNDARIES_PATH.read_text(encoding="utf-8"))
     road_controls, controls_sha256 = load_road_route_controls()
@@ -1281,26 +1533,11 @@ def main(update_road_cache=False, refresh_road_cache=False):
             if feed.get("required"):
                 raise RuntimeError(f"Required feed {feed['agency']} failed; existing snapshot was preserved") from error
 
-    ferry_overrides = json.loads(FERRY_ROUTE_OVERRIDES_PATH.read_text(encoding="utf-8"))
-    override_by_route = {
-        feature["properties"]["route"]: feature["geometry"]
-        for feature in ferry_overrides.get("features", [])
+    gtfs_ferry_ids = {
+        feature["properties"]["route"] for feature in all_features
+        if feature.get("properties", {}).get("group") == "ferry"
+        and feature["properties"].get("kind") == "regional-static"
     }
-    applied_overrides = set()
-    for feature in all_features:
-        identifier = feature.get("properties", {}).get("route")
-        if identifier not in override_by_route:
-            continue
-        feature["geometry"] = json.loads(json.dumps(override_by_route[identifier]))
-        feature["properties"]["geometryAccuracy"] = "approximate"
-        feature["properties"]["geometryProvider"] = "Project shoreline audit"
-        feature["properties"]["geometryNote"] = (
-            "Provider shape replaced by a full-resolution shoreline-audited water path."
-        )
-        applied_overrides.add(identifier)
-    missing_overrides = set(override_by_route) - applied_overrides
-    if missing_overrides:
-        raise RuntimeError(f"Ferry route overrides did not match generated routes: {sorted(missing_overrides)}")
 
     supplemental_features = []
     supplemental_sources = []
@@ -1367,6 +1604,20 @@ def main(update_road_cache=False, refresh_road_cache=False):
             "air-service": "#9be1ff",
         }.get(feature["properties"].get("group"), "#8a949f")
         feature["properties"].setdefault("provider", "Official carrier schedule")
+    duplicate_ferries = sorted(
+        feature["properties"]["route"] for feature in supplemental_features
+        if feature.get("properties", {}).get("group") == "ferry"
+        and feature["properties"].get("route") in gtfs_ferry_ids
+    )
+    if duplicate_ferries:
+        raise RuntimeError(f"Ferry routes appear in both GTFS and a supplemental catalog: {duplicate_ferries}")
+    ferry_cache_metadata = apply_ferry_water_cache(
+        all_features + supplemental_features,
+        {feature["properties"]["route"] for feature in supplemental_features},
+        update_ferry_cache,
+        refresh_ferry_cache,
+        prune=not failures,
+    )
     supplemental_stops = supplemental_ferry_stop_features(supplemental_features)
     all_features.extend(supplemental_features)
     all_features.extend(supplemental_stops)
@@ -1423,7 +1674,7 @@ def main(update_road_cache=False, refresh_road_cache=False):
             "roadGeometryRoutingVersion": ROAD_ROUTING_VERSION,
             "roadGeometryControlsSha256": controls_sha256,
             "roadGeometryCacheSha256": road_cache_sha256,
-            "ferryRouteOverrides": sorted(applied_overrides),
+            "ferryWaterCache": ferry_cache_metadata,
         },
         "features": all_features,
     }
@@ -1451,5 +1702,20 @@ if __name__ == "__main__":
         action="store_true",
         help="refetch every long-gap bus geometry from its published endpoints",
     )
+    parser.add_argument(
+        "--update-ferry-cache",
+        action="store_true",
+        help="compute missing or outdated ferry water geometry (needs the local OSM water model)",
+    )
+    parser.add_argument(
+        "--refresh-ferry-cache",
+        action="store_true",
+        help="recompute every ferry water geometry from its sources",
+    )
     arguments = parser.parse_args()
-    main(arguments.update_road_cache or arguments.refresh_road_cache, arguments.refresh_road_cache)
+    main(
+        arguments.update_road_cache or arguments.refresh_road_cache,
+        arguments.refresh_road_cache,
+        arguments.update_ferry_cache or arguments.refresh_ferry_cache,
+        arguments.refresh_ferry_cache,
+    )

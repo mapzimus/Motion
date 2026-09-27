@@ -146,21 +146,21 @@ Provincetown services, and smaller public harbor and island shuttles. Each
 official-schedule popup identifies its service type and season and labels the
 line as an approximate water path rather than a live vessel track. AIS may add
 a live marker only when a vessel is independently broadcasting and received by
-the configured provider. Every generated ferry path is audited against the
-full-resolution GSHHG shoreline hierarchy and Census TIGERweb areal
-hydrography. Interior dry runs longer than roughly 20–28 metres and terminal
-dry runs longer than roughly 95–133 metres fail the strict audit. Every route
-must also resolve to at least two named landing points, and all ferry coordinate
-fingerprints are locked by the geometry check, so a feed update or manual edit
-cannot silently restore an over-land ocean, lake, harbor, or river chord.
-A newly hand-drawn ferry may wait for the next audit only when it is flagged
-`geometryPending` and named in the manifest's `pendingReview` list; the
-seasonal Thimble Islands Ferry (Stony Creek–Outer Island, Branford) is the
-current pending route.
-When a provider re-publishes a ferry shape after it was audited (as Cuttyhunk
-Ferry did in September 2026), the previously audited path is pinned in
-`scripts/ferry-route-overrides.json` until a new shoreline audit reviews the
-replacement.
+the configured provider. Every ferry line is drawn from
+`scripts/ferry-water-cache.json`, an audited geometry cache built from, in
+order of preference, the operator's GTFS shape, an OpenStreetMap
+`route=ferry` way matched to both published landings, or hand-drawn controls.
+Any stretch that crosses land is rerouted on a water grid and then simplified
+and smoothed only where the result stays in water. The audit
+(`osm-land-v3`) measures each line against OpenStreetMap coastline land
+polygons minus OSM lakes, riverbanks, and docks: no interior dry run may exceed
+25 metres, no dry run within 300 metres of a landing may exceed 150 metres
+(landings sit on piers), no path may cross itself, and every path must be
+longer than 0.15 km and at least 0.95 times its terminal-to-terminal distance.
+The geometry check (`npm run check`) verifies every ferry feature against its
+cache entry, so a feed update or manual edit cannot silently restore an
+over-land line; `scripts/ferry-water-report.md` lists each route's source and
+before/after dry metres.
 The active MBTA `Boat-Lynn` feed supplies Lynn–Boston service directly, while
 the seasonal Salem–Boston Long Wharf service is retained as an explicit
 official-schedule corridor so it remains visible without live vessel data.
@@ -230,15 +230,28 @@ py -3 -X utf8 scripts\build-border-crossings.py
 py -3 -X utf8 scripts\build-reference-places.py
 ```
 
-The ferry audit fetches only current Census hydrography tiles touching ferry
-corridors. Pair that output with the full-resolution GSHHG shapefiles, then run
-the read-only audit and write its reviewed geometry manifest only after it
-passes:
+Normal rebuilds read ferry geometry from `scripts/ferry-water-cache.json` and
+need no water data. When a ferry feed, catalog entry, or
+`scripts/ferry-geometry-sources.json` changes (or a new ferry is added), fetch
+the OpenStreetMap water model once and refresh the cache. The fetch downloads
+the ~925 MB [osmdata.openstreetmap.de](https://osmdata.openstreetmap.de/)
+land-polygon file once, keeps only New England
+(west -74.2, south 40.7, east -65.8, north 47.8) in a compact
+`.codex-research/water-audit/osm-land-ne.wkb.json`, and caches Overpass inland
+water (`natural=water`, `waterway=riverbank`, `waterway=dock`) where ferry
+corridors cross coastline land, plus all OSM `route=ferry` ways:
 
 ```powershell
 py -3 -X utf8 scripts\fetch-ferry-audit-data.py
-py -3 -X utf8 scripts\audit-ferry-water.py --gshhg-dir <GSHHS_shp\f> --gshhg-cache <gshhg-ne.pkl> --hydro .codex-research\water-audit\tigerweb-hydro-ne.geojson --write-manifest
+py -3 -X utf8 scripts\build-regional-routes.py --update-ferry-cache
+py -3 -X utf8 scripts\audit-ferry-water.py --cache
+py -3 -X utf8 scripts\audit-ferry-water.py --report --before <old regional-routes.geojson>
 ```
+
+`--update-ferry-cache` recomputes only routes whose inputs changed (a full
+`--refresh-ferry-cache` takes a few minutes); it needs `shapely`, `scipy`, and
+`pyshp`. A ferry without a cache entry is still drawn from its raw source, but
+the geometry check fails with instructions to run the command above.
 
 Normal rebuilds make no road-router requests: that portion uses the checked-in
 cache. The builder still downloads each agency's current GTFS schedule, so the
