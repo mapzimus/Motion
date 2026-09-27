@@ -1,6 +1,7 @@
 import { transit_realtime } from 'gtfs-realtime-bindings';
 import { feedsForRegion, type TransitFeed } from './feeds';
-import { AIS_BOUNDS, isRegionId, type RegionId } from './regions';
+import { AIS_BOUNDS, insideNewEngland, isRegionId, type RegionId } from './regions';
+import { MASSDOT_EVENTS_URL, parseErsEvents } from './massdot-events';
 import {
   combinePolygons,
   filterNwsAlerts,
@@ -34,7 +35,6 @@ const IBI_511_SOURCES = [
 ] as const;
 const MNR_TRIP_UPDATES_URL = 'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/mnr%2Fgtfs-mnr';
 const MNR_ALERTS_URL = 'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/camsys%2Fmnr-alerts';
-const NEW_ENGLAND_BBOX = { west: -74, south: 40.8, east: -66, north: 47.7 };
 const FAA_AIRPORT_STATUS_URL = 'https://nasstatus.faa.gov/api/airport-status-information';
 const NWS_ALERTS_URL = 'https://api.weather.gov/alerts/active?area=MA,CT,RI,NH,VT,ME';
 // api.weather.gov rejects requests without an identifying User-Agent.
@@ -80,8 +80,10 @@ function configured(value: string | undefined): boolean {
   return Boolean(value && !value.includes('placeholder') && !value.startsWith('replace-'));
 }
 
-function secret(env: Env, name: string): string | undefined {
-  return (env as unknown as Record<string, string | undefined>)[name];
+type SecretName = 'AISSTREAM_API_KEY' | 'TOMTOM_API_KEY' | 'SWIFTLY_API_KEY';
+
+function secret(env: Env, name: SecretName): string | undefined {
+  return env[name];
 }
 
 function requestOriginAllowed(request: Request, env: Env): boolean {
@@ -149,11 +151,6 @@ function numberValue(value: unknown): number | null {
 function regionFrom(url: URL): RegionId | null {
   const region = url.searchParams.get('region') ?? 'boston';
   return isRegionId(region) ? region : null;
-}
-
-function insideNewEngland(lng: number, lat: number): boolean {
-  return lng >= NEW_ENGLAND_BBOX.west && lng <= NEW_ENGLAND_BBOX.east &&
-    lat >= NEW_ENGLAND_BBOX.south && lat <= NEW_ENGLAND_BBOX.north;
 }
 
 async function readTransitFeed(feed: TransitFeed, env: Env) {
@@ -561,8 +558,8 @@ async function incidentFeature(source: typeof IBI_511_SOURCES[number], icon: Ibi
 
 async function roadEvents(request: Request, ctx: ExecutionContext): Promise<Response> {
   return cachedJson(request, ctx, 60, async () => {
-    const feeds = await Promise.allSettled(
-      IBI_511_SOURCES.map(async (source) => {
+    const feeds = await Promise.allSettled([
+      ...IBI_511_SOURCES.map(async (source) => {
         const response = await fetch(`${source.base}/map/mapIcons/Incidents`, {
           headers: { accept: 'application/json' },
           cf: { cacheEverything: true, cacheTtl: 60 },
@@ -571,18 +568,26 @@ async function roadEvents(request: Request, ctx: ExecutionContext): Promise<Resp
         const icons = await response.json() as IbiIcons;
         return Promise.all((icons.item2 ?? []).map((icon) => incidentFeature(source, icon)));
       }),
-    );
+      (async () => {
+        const response = await fetch(MASSDOT_EVENTS_URL, {
+          headers: { accept: 'application/xml, text/xml' },
+          cf: { cacheEverything: true, cacheTtl: 60 },
+        });
+        if (!response.ok) throw new Error(`MassDOT roadway events ${response.status}`);
+        return parseErsEvents(await response.text());
+      })(),
+    ]);
     const features = feeds.flatMap((result) =>
       result.status === 'fulfilled' ? result.value.filter(Boolean) : [],
     );
     markProvider('roadEvents', feeds.some((result) => result.status === 'fulfilled'));
     if (!features.length && feeds.every((result) => result.status === 'rejected')) {
-      return json({ error: 'Official 511 incident feeds unavailable' }, 502);
+      return json({ error: 'Official 511 and MassDOT incident feeds unavailable' }, 502);
     }
     return json({
       type: 'FeatureCollection',
-      provider: 'Official 511 incident feeds',
-      coverage: ['ct', 'me', 'nh', 'vt'],
+      provider: 'Official 511 and MassDOT incident feeds',
+      coverage: ['ct', 'ma', 'me', 'nh', 'vt'],
       features,
     });
   });
