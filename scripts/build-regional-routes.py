@@ -1174,6 +1174,10 @@ def process_feed(
             "scheduleNote": "Published schedule route · live vehicle position shown separately when available",
             "regions": regions,
         }
+        if feed.get("service_class"):
+            # e.g. "campus" for university shuttles, so the map can style or
+            # filter them apart from public transit within the bus group.
+            properties["serviceClass"] = feed["service_class"]
         if route_id in approximate_routes:
             properties["geometryAccuracy"] = "approximate"
             properties["geometryProvider"] = "OpenStreetMap / Project OSRM"

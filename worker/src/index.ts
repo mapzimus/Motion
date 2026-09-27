@@ -159,7 +159,9 @@ async function readTransitFeed(feed: TransitFeed, env: Env) {
     return { feed: feed.id, agency: feed.agency, state: 'needs-key' as const, vehicles: [] };
   }
 
-  const headers = new Headers({ accept: 'application/x-protobuf' });
+  // Cadavl producers (Greater Portland, WRTA, GATRA) answer 406 to a bare
+  // application/x-protobuf Accept header; they serve application/octet-stream.
+  const headers = new Headers({ accept: 'application/x-protobuf, application/octet-stream;q=0.9, */*;q=0.8' });
   if (feed.authorization === 'swiftly') headers.set('authorization', swiftlyKey ?? '');
   const upstream = await fetch(feed.url, {
     headers,
