@@ -172,13 +172,6 @@ export const TRANSIT_FEEDS: TransitFeed[] = [
     url: 'https://api.goswift.ly/real-time/trivalleytransit/gtfs-rt-vehicle-positions',
     authorization: 'swiftly',
   },
-  {
-    id: 'the-current',
-    agency: 'The Current',
-    states: ['vt'],
-    url: 'https://api.goswift.ly/real-time/thecurrent/gtfs-rt-vehicle-positions',
-    authorization: 'swiftly',
-  },
 ];
 
 export function feedsForRegion(region: RegionId): TransitFeed[] {

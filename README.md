@@ -56,7 +56,7 @@ private, repositioning, and irregular flights may not have an itinerary.
 The checked-in route snapshot contains more than 1,100 bus, commuter-rail,
 Amtrak, ferry, passenger-boat, and air-service route features plus more than
 37,000 scheduled bus stops, ferry landings, T stops, and rail stations,
-assembled from 72 GTFS sources and 88 official-service corridors. Scheduled
+assembled from 71 GTFS sources and 88 official-service corridors. Scheduled
 routes remain visible when an operator publishes no live positions. State
 views start with the scheduled bus layer on,
 and the sidebar reports scheduled route counts separately from live vehicles,
@@ -71,6 +71,16 @@ Watertown, Milton, and Winthrop.
 Metro-North's New Haven, New Canaan, Danbury, and Waterbury lines are included
 in Connecticut; connected routes are allowed to continue outside the selected
 boundary so riders can see the full trip into New York City.
+CTDOT's Shore Line East (New London–Old Saybrook–New Haven, with its Bridgeport
+and Stamford through trips) comes from the Shore Line East agency inside
+Amtrak's official GTFS. That agency publishes no track shapes, so its ribbon
+follows the matching slices of Amtrak's published Northeast Corridor shapes
+between Shore Line East stations and is labeled approximate. South Portland
+Bus Service merged into Greater Portland METRO in December 2024; its routes 21,
+24A, and 24B now come from METRO's feed, and the retired South Portland static
+feed (last service 2025-10-05) is no longer built. The Current (Bellows Falls /
+Brattleboro) ended service in 2022 and its area is covered by MOOver!, so it
+is no longer listed.
 
 Concord Coach's seven intercity routes use a community-maintained GTFS feed
 cataloged and continuously validated by Transitland. Greyhound and FlixBus use
@@ -170,7 +180,7 @@ The gateway currently knows these live vehicle-position feeds:
   Swiftly authorization
 - New Hampshire/Vermont: COAST (Passio) and Advance Transit, plus Nashua
   Transit System and Vermont's GMT, GMCN, Marble Valley, MOOver!, RCT,
-  Tri-Valley, and The Current feeds
+  and Tri-Valley feeds
 
 The Swiftly-hosted providers above (Merrimack Valley, South Portland, Casco Bay
 Lines, Nashua, Advance Transit, and the Vermont agencies) use Swiftly's
@@ -219,6 +229,22 @@ updated cache:
 ```powershell
 py -3 -X utf8 scripts\build-regional-routes.py --update-road-cache
 ```
+
+Every route build also records the last date each GTFS feed publishes service
+for (the latest `calendar.txt` end date or added `calendar_dates.txt` date,
+falling back to `feed_info.txt` only when a feed has no calendar; `YYYYMMDD`,
+`M/D/YYYY`, and ISO dates are accepted) in `scripts/feed-freshness.json`. To
+refresh only that file, without rebuilding geometry, run:
+
+```powershell
+py -3 -X utf8 scripts\check-feed-freshness.py
+```
+
+It exits non-zero and names the feed when a schedule ends within seven days.
+A feed with no current replacement can carry `"freshness_exempt": "<reason>"`
+in `scripts/regional-feeds.json` (currently Peter Pan's 2024 GTFS and VTA's
+seasonal summer feed). Feeds whose server rejects scripted downloads can set a
+per-feed `"user_agent"`.
 
 Reviewed interstate controls keep New York-bound coaches off bus-restricted
 Connecticut and New York parkways. Use `--refresh-road-cache` when those
@@ -393,6 +419,13 @@ npm run check
 npm test
 npm run deploy:dry-run
 ```
+
+`npm run check` includes an offline feed-freshness guard: every feed in
+`scripts/regional-feeds.json` must appear in `scripts/feed-freshness.json`, and
+every non-exempt feed must publish service at least seven days past that file's
+`checkedAt` date. When it fails, run `scripts\check-feed-freshness.py`, replace
+the expired feed URL (or add a documented `freshness_exempt`), and commit the
+refreshed `feed-freshness.json`.
 
 ## Remaining data gaps
 
