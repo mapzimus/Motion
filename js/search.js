@@ -4,13 +4,15 @@
 // network. The index is built lazily on first use, after the route snapshot
 // has loaded, so startup cost is zero.
 
-import { map, openStopPopup } from './map.js';
+import { map, openStopPopup, takeCamera } from './map.js';
 import { REGIONS } from './regions.js';
+import { recentVehicles, searchVehicles } from './vehicle-search.js';
 
 const MAX_RESULTS = 8;
 const DEBOUNCE_MS = 70;
-const TYPE_PRIORITY = { region: 6, municipality: 5, station: 4, landing: 3, route: 2, stop: 1 };
+const TYPE_PRIORITY = { vehicle: 7, region: 6, municipality: 5, station: 4, landing: 3, route: 2, stop: 1 };
 const TYPE_LABEL = {
+  vehicle: '',
   region: 'Geography',
   municipality: 'Municipality',
   station: 'Station',
@@ -79,6 +81,7 @@ let activeIndex = -1;
 let results = [];
 let debounceTimer = null;
 let onRegionSelect = () => {};
+let onVehicleSelect = () => {};
 
 // Called whenever the route snapshot (regional + MBTA ribbons) is published.
 export function setSearchFeatures(features, routeInfo = new Map()) {
@@ -211,9 +214,11 @@ function score(entry, q, tokens) {
 export function search(query) {
   if (!entries) buildIndex();
   const q = normalize(query);
-  if (q.length < 2) return [];
+  if (!q) return recentVehicles().slice(0, MAX_RESULTS);
+  // Live vehicles first: a lone digit can be a real train or bus number.
+  const scored = searchVehicles(query);
+  if (q.length < 2) return scored.map(([, entry]) => entry);
   const tokens = q.split(' ');
-  const scored = [];
   for (const entry of entries) {
     const s = score(entry, q, tokens);
     if (s) scored.push([s, entry]);
@@ -283,6 +288,12 @@ function closePanelOnMobile() {
 export function selectEntry(entry) {
   if (!entry) return;
   clearHighlight();
+  if (entry.type === 'vehicle') {
+    onVehicleSelect(entry.fleetId, entry.id);
+    closePanelOnMobile();
+    return;
+  }
+  if (entry.type !== 'region') takeCamera('search');
   if (entry.type === 'region') {
     onRegionSelect(entry.key);
   } else if (entry.type === 'route') {
@@ -334,6 +345,12 @@ function renderResults() {
     sub.className = 'search-sub';
     sub.textContent = [TYPE_LABEL[entry.type], entry.sub].filter(Boolean).join(' · ');
     item.append(swatch, name, sub);
+    if (entry.type === 'vehicle') {
+      const live = document.createElement('span');
+      live.className = 'search-live';
+      live.textContent = entry.stale ? 'old fix' : 'live';
+      name.after(live);
+    }
     item.addEventListener('mousedown', (event) => event.preventDefault()); // keep focus in the input
     item.addEventListener('click', () => choose(index));
     list.appendChild(item);
@@ -349,7 +366,7 @@ function renderResults() {
   const focused = document.activeElement === el.input;
   el.status.textContent = open
     ? `${results.length} result${results.length === 1 ? '' : 's'}`
-    : focused && el.input.value.trim().length >= 2 ? 'No matches' : '';
+    : focused && el.input.value.trim().length >= 1 ? 'No matches' : '';
 }
 
 function closeResults() {
@@ -374,8 +391,9 @@ function runSearch() {
   renderResults();
 }
 
-export function initSearch({ onRegion } = {}) {
+export function initSearch({ onRegion, onVehicle } = {}) {
   onRegionSelect = onRegion ?? onRegionSelect;
+  onVehicleSelect = onVehicle ?? onVehicleSelect;
   el = {
     input: document.getElementById('search-input'),
     list: document.getElementById('search-results'),
@@ -388,7 +406,7 @@ export function initSearch({ onRegion } = {}) {
     debounceTimer = setTimeout(runSearch, DEBOUNCE_MS);
   });
   el.input.addEventListener('focus', () => {
-    if (el.input.value.trim().length >= 2 && !results.length) runSearch();
+    if (!results.length) runSearch(); // empty box shows recently followed vehicles
   });
   el.input.addEventListener('blur', () => setTimeout(closeResults, 120));
   el.input.addEventListener('keydown', (event) => {

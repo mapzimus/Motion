@@ -280,6 +280,41 @@ away from its default, and the data-truth filter
 copying the address shares exactly the view on screen. `?region=` still works
 and takes second place to the hash.
 
+## Follow a vehicle
+
+Click any moving vehicle to select it: a ring marks it and a trip card opens
+(top right on desktop, a bottom sheet on phones). Press **Follow** and the map
+locks onto it. The followed vehicle glides across about 90% of its feed's poll
+interval at constant speed, so the camera pans continuously instead of jumping
+every 10 seconds; every other vehicle keeps the short snap. Dragging the map
+releases the lock but keeps the card; zooming keeps the lock and remembers the
+zoom; Esc or × closes it. Region changes, alert focus, layer zoom, and search
+fly-tos also release the lock.
+
+The **Find** box matches live vehicles too: commuter-rail, Amtrak, and
+Metro-North train numbers (`5747`), MBTA car labels, regional bus vehicle
+numbers, aircraft callsigns (`JBU` lists every JetBlue flight), and route
+names (`red line`, `route 39`). Picking a vehicle locks onto it at once. An
+empty box lists recently followed vehicles that are still reporting.
+
+The card shows what each feed actually publishes:
+
+| Fleet | Card detail |
+|---|---|
+| MBTA | Next six stops with ETA, clock time, track (commuter rail), and delay against the schedule, from `/predictions?filter[trip]=…`, polled every 15 s only while following |
+| Amtrak | Upcoming stations with ETA and early/late, from the Amtraker train record |
+| Metro-North | Next stop and minutes only; position is estimated between stations |
+| Aircraft | Best-effort scheduled route for the callsign |
+| Regional buses, vessels | Route, vehicle number, speed |
+
+A followed vehicle adds `f=<fleet>:<id>` to the URL hash, so **Copy link**
+shares a view that opens locked onto that vehicle once its feed reports it
+(or explains why after 30 to 120 seconds). If a vehicle drops out of its feed,
+the card waits three poll intervals before giving up. The commuter-rail train
+number is the tail of the MBTA trip id (`SouthBase-793096-5847`), checked on
+every line on 2026-09-27; the car label MBTA puts on the vehicle is not the
+number riders know.
+
 ## Run the map
 
 The MBTA, Amtrak, regional route, and shared-mobility layers work with only the

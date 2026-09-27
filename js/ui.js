@@ -327,6 +327,23 @@ function emitVisible() {
   onVisibleChange(getVisibleGroups(), getVisibleStatuses());
 }
 
+// Follow mode switches a vehicle's layer (and its data-truth filter) back on
+// if the rider hid it, through the same path a shared link uses.
+export function ensureGroupVisible(key, dataStatus) {
+  const group = GROUPS.find((candidate) => candidate.key === key);
+  const needsGroup = Boolean(group) && !groupState.get(key);
+  const needsStatus = Boolean(dataStatus) && statusState.has(dataStatus) && !statusState.get(dataStatus);
+  if (!needsGroup && !needsStatus) return;
+  applyVisibleState({
+    on: needsGroup ? [key] : [],
+    statuses: needsStatus ? [...getVisibleStatuses(), dataStatus] : null,
+  });
+}
+
+export function closePanelOnMobile() {
+  if (window.matchMedia('(max-width: 760px)').matches) setPanelOpen(false);
+}
+
 // ---- live counts / connection status --------------------------------------
 
 // Every fleet reports its own group counts; they merge here.

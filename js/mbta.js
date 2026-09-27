@@ -24,6 +24,15 @@ export function groupFor(routeId, info) {
   return routeId.toLowerCase(); // Red / Orange / Blue
 }
 
+// Commuter rail trip ids end in the public train number
+// ("SouthBase-793096-5847" -> 5847); verified on every line 2026-09-27.
+// Riders search by train number, not by the car label MBTA puts on vehicles.
+export function trainNumberFor(routeId, tripId) {
+  if (!routeId?.startsWith('CR-') || !tripId) return '';
+  const suffix = String(tripId).split('-').at(-1);
+  return /^\d{3,5}$/.test(suffix) ? suffix : '';
+}
+
 function titleFor(group, routeId, info) {
   switch (group) {
     case 'silver': return `Silver Line ${info?.shortName ?? ''}`.trim();
@@ -87,8 +96,21 @@ function apply(vehicles) {
   const items = vehicles.map((v) => {
     const info = routeInfo.get(v.route);
     const group = groupFor(v.route, info);
+    const trainNumber = trainNumberFor(v.route, v.tripId);
     return {
       id: v.id,
+      detail: {
+        tripId: v.tripId,
+        stopSequence: v.stopSequence,
+        route: v.route,
+        routeName: info?.longName || info?.shortName || v.route,
+        routeShortName: info?.shortName || '',
+        label: v.label ?? '',
+        trainNumber,
+        directionId: v.directionId,
+        status: v.status,
+        stopName: v.stopName,
+      },
       lng: v.lng,
       lat: v.lat,
       props: {
@@ -103,7 +125,11 @@ function apply(vehicles) {
           ? `to ${info.destinations[v.directionId]}`
           : '',
         status: formatStatus(v),
-        meta: [v.label ? `car ${v.label}` : '', v.occupancy.toLowerCase()]
+        meta: [
+          trainNumber ? `train ${trainNumber}` : '',
+          v.label ? `car ${v.label}` : '',
+          v.occupancy.toLowerCase(),
+        ]
           .filter(Boolean)
           .join(' · '),
         provider: 'MBTA V3 vehicle feed',

@@ -32,6 +32,13 @@ function trainItem(trip, stops) {
   const minutes = Math.max(0, Math.round((trip.nextTime * 1000 - Date.now()) / 60_000));
   return {
     id: `mnr-${trip.id}`,
+    detail: {
+      trainNumber: trip.label ? String(trip.label) : '',
+      routeName: `${trip.routeName} Line`,
+      headsign: destination?.name ?? '',
+      nextStop: next.name,
+      nextMinutes: minutes,
+    },
     lng: previous.lng + (next.lng - previous.lng) * progress,
     lat: previous.lat + (next.lat - previous.lat) * progress,
     props: {

@@ -35,6 +35,11 @@ export function startRegional(onCounts, initialRegion, enabled = true) {
 
       const items = (payload.vehicles ?? []).map((vehicle) => ({
         id: `regional-${vehicle.id}`,
+        detail: {
+          label: vehicle.label ? String(vehicle.label) : '',
+          routeName: vehicle.route ?? '',
+          agency: vehicle.agency ?? '',
+        },
         lng: vehicle.lng,
         lat: vehicle.lat,
         props: {

@@ -11,9 +11,10 @@ function buildUrl(path, params = {}) {
   return url;
 }
 
-export async function mbta(path, params) {
+export async function mbta(path, params, { signal } = {}) {
   const res = await fetch(buildUrl(path, params), {
     headers: { Accept: 'application/vnd.api+json' },
+    signal,
   });
   if (!res.ok) {
     const error = new Error(`MBTA API ${res.status} on ${path}`);
@@ -66,7 +67,7 @@ export async function fetchVehicles() {
     'filter[route_type]': '0,1,2,3,4',
     include: 'stop',
     'fields[vehicle]':
-      'latitude,longitude,bearing,current_status,direction_id,label,updated_at,carriages,revenue',
+      'latitude,longitude,bearing,current_status,current_stop_sequence,direction_id,label,updated_at,carriages,revenue',
     'fields[stop]': 'name',
   });
   const stopNames = new Map(
@@ -78,6 +79,8 @@ export async function fetchVehicles() {
     .map((v) => ({
       id: v.id,
       route: v.relationships?.route?.data?.id,
+      tripId: v.relationships?.trip?.data?.id ?? null,
+      stopSequence: v.attributes.current_stop_sequence ?? null,
       lng: v.attributes.longitude,
       lat: v.attributes.latitude,
       bearing: v.attributes.bearing,

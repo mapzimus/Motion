@@ -58,8 +58,23 @@ export function normalizeAmtrakTrain(train, { box, color, now, staleAfterMs }) {
     : (train.lastValTS ?? train.updatedAt);
   const delay = delayLabel(nextStation);
   const velocity = Number(train.velocity);
+  const upcoming = stations
+    .filter((station) => station.status !== 'Departed')
+    .slice(0, 6)
+    .map((station) => ({
+      name: station.name,
+      eta: station.arr ?? station.dep ?? null,
+      scheduled: station.schArr ?? station.schDep ?? null,
+      delay: delayLabel(station),
+    }));
   const item = {
     id: `amtrak-${train.trainID ?? train.trainNum}`,
+    detail: {
+      trainNumber: train.trainNum ? String(train.trainNum) : '',
+      routeName: train.routeName ?? '',
+      headsign: destination ?? '',
+      stations: upcoming,
+    },
     lng: lon,
     lat,
     props: {

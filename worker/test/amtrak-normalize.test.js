@@ -51,6 +51,13 @@ describe('Amtraker normalization', () => {
     });
   });
 
+  it('exposes upcoming stations for the follow-mode trip card', () => {
+    const item = normalizeAmtrakTrain(activeTrain, options);
+    expect(item.detail).toMatchObject({ trainNumber: '56', routeName: 'Vermonter', headsign: 'St. Albans' });
+    expect(item.detail.stations.map((station) => station.name)).toEqual(['Bellows Falls', 'St. Albans']);
+    expect(item.detail.stations[0]).toMatchObject({ delay: '7 min late', eta: '2026-08-19T18:12:00-04:00' });
+  });
+
   it('drops completed trains and coordinates outside the New England probe', () => {
     expect(normalizeAmtrakTrain({ ...activeTrain, trainState: 'Completed' }, options)).toBeNull();
     expect(normalizeAmtrakTrain({ ...activeTrain, lat: 39 }, options)).toBeNull();
