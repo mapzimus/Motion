@@ -2,6 +2,7 @@ import { transit_realtime } from 'gtfs-realtime-bindings';
 import { feedsForRegion, type TransitFeed } from './feeds';
 import { AIS_BOUNDS, insideNewEngland, isRegionId, type RegionId } from './regions';
 import { MASSDOT_EVENTS_URL, parseErsEvents } from './massdot-events';
+import { aisFrameToText } from './ais-frames';
 import {
   combinePolygons,
   filterNwsAlerts,
@@ -883,8 +884,15 @@ function ais(request: Request, url: URL, env: Env): Response {
       ],
     }));
   });
+  // Decode sequentially so relayed messages keep their upstream order.
+  let relayQueue: Promise<void> = Promise.resolve();
   upstream.addEventListener('message', (event) => {
-    if (server.readyState === 1) server.send(event.data);
+    relayQueue = relayQueue.then(async () => {
+      const text = await aisFrameToText(event.data);
+      if (text !== null && server.readyState === 1) server.send(text);
+    }).catch(() => {
+      // Skip an undecodable frame; keep the relay open.
+    });
   });
   upstream.addEventListener('close', (event) => closeServer(event.code || 1012, 'AIS upstream closed'));
   upstream.addEventListener('error', () => closeServer(1011, 'AIS upstream error'));
