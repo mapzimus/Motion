@@ -4,6 +4,7 @@
 
 import { CONFIG } from './config.js';
 import { createFleet } from './fleet.js';
+import { gatewayRegion } from './regions.js';
 
 export function startAis(onCounts, initialRegion, enabled = true) {
   if (!CONFIG.GATEWAY_BASE || !enabled) {
@@ -24,7 +25,7 @@ export function startAis(onCounts, initialRegion, enabled = true) {
     const thisGeneration = ++generation;
     const endpoint = new URL(`${CONFIG.GATEWAY_BASE}/api/ais`);
     endpoint.protocol = endpoint.protocol === 'https:' ? 'wss:' : 'ws:';
-    endpoint.searchParams.set('region', region);
+    endpoint.searchParams.set('region', gatewayRegion(region));
     socket = new WebSocket(endpoint);
 
     socket.onopen = () => {

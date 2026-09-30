@@ -154,6 +154,13 @@ h2 {
 }
 .region-select:focus-visible { outline: 2px solid var(--text-dim); outline-offset: 2px; }
 .region-select option { background: #11161e; color: var(--text); }
+.region-select optgroup {
+  background: #0b0f15;
+  color: var(--text-faint);
+  font-style: normal;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
 .region-note {
   margin-top: 7px;
   color: var(--text-faint);
@@ -219,6 +226,26 @@ h2 {
 }
 .layer-presets button:hover,
 .layer-presets button:focus-visible { color: var(--text); background: rgba(255, 255, 255, 0.075); }
+
+/* "Show" (vehicle presets) and "Scenes" rows under the Layers title. */
+.preset-rows { display: grid; gap: 7px; margin-bottom: 12px; }
+.preset-row { display: grid; grid-template-columns: 46px 1fr; align-items: start; gap: 6px; }
+.preset-row .filter-caption { margin: 7px 0 0; }
+.preset-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.preset-chips button {
+  min-height: 26px;
+  padding: 4px 8px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+}
+.preset-chips button:hover,
+.preset-chips button:focus-visible { color: var(--text); background: rgba(255, 255, 255, 0.075); }
 
 /* ---- line rows ---------------------------------------------------------- */
 

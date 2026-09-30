@@ -3,6 +3,7 @@
 
 import { CONFIG } from './config.js';
 import { createFleet } from './fleet.js';
+import { gatewayRegion } from './regions.js';
 
 let stopsPromise = null;
 
@@ -87,7 +88,7 @@ export function startMetroNorth(onCounts, onAlerts, initialRegion, enabled = tru
   const poll = async () => {
     clearTimeout(timer);
     const generation = ++requestGeneration;
-    if (!enabled || !CONFIG.GATEWAY_BASE || !['ct', 'new-england'].includes(region)) {
+    if (!enabled || !CONFIG.GATEWAY_BASE || !['ct', 'new-england'].includes(gatewayRegion(region))) {
       clear();
       return;
     }

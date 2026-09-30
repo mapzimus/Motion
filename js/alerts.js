@@ -6,7 +6,7 @@
 
 import { CONFIG } from './config.js';
 import { fetchAlerts, fetchStopCoords } from './api.js';
-import { containsPoint, getActiveRegion } from './regions.js';
+import { containsPoint, getActiveRegion, hasSubway } from './regions.js';
 
 const stopCoordCache = new Map(); // stop id -> [lng, lat], stable across polls
 
@@ -42,7 +42,9 @@ export function startAlertPolling(routeInfo, onAlerts) {
   let latest = [];
   const renderForRegion = () => {
     const region = getActiveRegion();
-    const visible = ['boston', 'ma', 'new-england'].includes(region)
+    // Subway regions show every MBTA alert; elsewhere only alerts with a
+    // stop inside the region.
+    const visible = hasSubway(region)
       ? latest
       : latest.filter((alert) =>
           alert.focus?.points?.some((point) => containsPoint(region, point)),

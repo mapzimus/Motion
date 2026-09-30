@@ -2,6 +2,7 @@
 
 import { CONFIG } from './config.js';
 import { createFleet } from './fleet.js';
+import { gatewayRegion } from './regions.js';
 
 const KNOTS_TO_MPH = 1.15078;
 
@@ -23,7 +24,7 @@ export function startPlanes(onCounts, initialRegion, enabled = true) {
     }
     try {
       const res = await fetch(
-        `${CONFIG.AIRCRAFT_GATEWAY_BASE}/api/planes?region=${encodeURIComponent(region)}`,
+        `${CONFIG.AIRCRAFT_GATEWAY_BASE}/api/planes?region=${encodeURIComponent(gatewayRegion(region))}`,
       );
       if (!res.ok) throw new Error(`Motion aircraft gateway ${res.status}`);
       const json = await res.json();

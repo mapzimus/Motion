@@ -8,10 +8,14 @@
 // `f` is the followed vehicle (fleet id, colon, vehicle id). A shared link
 // with `f` opens locked onto that vehicle as soon as its feed reports it.
 //
+// `r` is always written. Before Greater Boston existed, links left `r` out
+// for the MBTA core (then the default), so a hash with a camera (`c`) but no
+// `r` is read as `boston` and old shared links open where they did.
+//
 // The `?region=`, `?gateway=`, and `?api_key=` query parameters are left
 // untouched; only the fragment is rewritten.
 
-import { isRegionKey } from './regions.js';
+import { LEGACY_DEFAULT_REGION, isRegionKey } from './regions.js';
 
 const ALL_STATUSES = ['live', 'estimated', 'scheduled', 'reference'];
 const DEBOUNCE_MS = 300;
@@ -28,6 +32,7 @@ export function readPermalink() {
   const state = {};
   const region = params.get('r');
   if (isRegionKey(region)) state.region = region;
+  else if (!params.has('r') && params.has('c')) state.region = LEGACY_DEFAULT_REGION;
   const center = (params.get('c') ?? '').split(',').map(Number);
   const zoom = Number(params.get('z'));
   if (center.length === 2 && center.every(Number.isFinite)
@@ -58,7 +63,7 @@ export function buildPermalinkHash() {
   if (!hooks) return '';
   const params = new URLSearchParams();
   const region = hooks.getRegion();
-  if (region && region !== 'boston') params.set('r', region);
+  if (region) params.set('r', region);
   const map = hooks.map;
   if (map) {
     const center = map.getCenter();

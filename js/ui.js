@@ -2,7 +2,8 @@
 
 import { CONFIG } from './config.js';
 import { focusAlert, focusGroup } from './map.js';
-import { REGIONS } from './regions.js';
+import { REGIONS, REGION_GROUPS, busDefaultOn, hasSubway, regionInfo, regionName } from './regions.js';
+import { SCENES, VEHICLE_PRESETS, resolvePreset } from './presets.js';
 
 const el = (id) => document.getElementById(id);
 
@@ -10,7 +11,6 @@ let GROUPS = [];
 const groupState = new Map();
 const countsBySource = new Map(); // source -> Map(group key, count)
 const manualGroupOverrides = new Set();
-const STATE_BUS_DEFAULT_ON = new Set(['ct', 'ri', 'nh', 'vt', 'me']);
 const statusState = new Map([
   ['live', true],
   ['estimated', true],
@@ -78,7 +78,7 @@ function buildGroups(routeInfo, capabilities) {
 
 function groupStartsOn(group, region) {
   if (group.needsKey) return false;
-  if (group.key === 'bus' && STATE_BUS_DEFAULT_ON.has(region)) return true;
+  if (group.key === 'bus' && busDefaultOn(region)) return true;
   return !CONFIG.DEFAULT_OFF_GROUPS.includes(group.key);
 }
 
@@ -100,27 +100,72 @@ function setGroupChecked(group, checked, manual = false) {
   if (manual) manualGroupOverrides.add(group.key);
 }
 
-function applyLayerPreset(preset) {
+// Every preset — Default/Routes/Clear, the vehicle presets and the scenes —
+// runs through here. A scene switches region first (which, like any region
+// change, ends following), then applies its layers. Layer changes are recorded
+// as manual overrides so permalinks round-trip them.
+export function applyLayerPreset(preset) {
+  const plan = resolvePreset(preset, { region: getRegion(), groups: GROUPS, hasSubway });
+  if (!plan) return false;
+  if (plan.region && plan.region !== getRegion()) selectRegion(plan.region);
   const region = getRegion();
-  if (preset === 'default') {
+  if (plan.mode === 'default') {
     manualGroupOverrides.clear();
     for (const group of GROUPS) setGroupChecked(group, groupStartsOn(group, region));
-    for (const [key] of statusState) statusState.set(key, true);
-  } else if (preset === 'routes') {
-    const routeGroups = new Set(['commuter', 'bus', 'amtrak', 'ferry']);
-    if (['boston', 'ma', 'new-england'].includes(region)) {
-      for (const key of ['red', 'orange', 'green', 'blue', 'silver', 'mattapan']) routeGroups.add(key);
-    }
-    for (const group of GROUPS) setGroupChecked(group, routeGroups.has(group.key), true);
-    for (const [key] of statusState) statusState.set(key, key !== 'reference');
-  } else if (preset === 'clear') {
-    for (const group of GROUPS) setGroupChecked(group, false, true);
+  } else {
+    const on = new Set(plan.groups);
+    for (const group of GROUPS) setGroupChecked(group, on.has(group.key), true);
+  }
+  if (plan.statuses) {
+    for (const [key] of statusState) statusState.set(key, plan.statuses.includes(key));
   }
   for (const input of document.querySelectorAll('#data-status-filters input')) {
     input.checked = statusState.get(input.value);
   }
   syncMaster();
   emitVisible();
+  return true;
+}
+
+function renderPresetButtons(containerId, presets) {
+  const container = el(containerId);
+  if (!container) return;
+  for (const preset of presets) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.dataset.layerPreset = preset.key;
+    button.textContent = preset.label;
+    if (preset.region) button.title = `${regionName(preset.region)}: ${preset.label}`;
+    container.appendChild(button);
+  }
+}
+
+function renderRegionOptions(select) {
+  for (const group of REGION_GROUPS) {
+    const regions = REGIONS.filter((region) => region.group === group.key);
+    if (!regions.length) continue;
+    const optgroup = document.createElement('optgroup');
+    optgroup.label = group.label;
+    for (const region of regions) {
+      const option = document.createElement('option');
+      option.value = region.key;
+      option.textContent = region.kind === 'state' ? `${region.name} (statewide)` : region.name;
+      if (region.definition) option.title = region.definition;
+      optgroup.appendChild(option);
+    }
+    select.appendChild(optgroup);
+  }
+}
+
+// Switch region from code (search pick, scene) through the same path as the
+// picker itself.
+export function selectRegion(key) {
+  const select = el('region-select');
+  if (!select || !REGIONS.some((region) => region.key === key)) return false;
+  if (select.value === key) return true;
+  select.value = key;
+  select.dispatchEvent(new Event('change'));
+  return true;
 }
 
 // Rider-facing wording for the three raw MBTA vehicle states. INCOMING_AT
@@ -147,12 +192,7 @@ export function initPanel(routeInfo, visibleChangeHandler, regionChangeHandler, 
   onRegionChange = regionChangeHandler;
 
   const regionSelect = el('region-select');
-  for (const region of REGIONS) {
-    const option = document.createElement('option');
-    option.value = region.key;
-    option.textContent = region.name;
-    regionSelect.appendChild(option);
-  }
+  renderRegionOptions(regionSelect);
   regionSelect.value = selectedRegion;
   renderRegionCopy(selectedRegion);
   regionSelect.addEventListener('change', () => {
@@ -243,6 +283,8 @@ export function initPanel(routeInfo, visibleChangeHandler, regionChangeHandler, 
     container.appendChild(row);
   }
 
+  renderPresetButtons('vehicle-presets', VEHICLE_PRESETS);
+  renderPresetButtons('scene-presets', SCENES);
   for (const button of document.querySelectorAll('[data-layer-preset]')) {
     button.addEventListener('click', () => applyLayerPreset(button.dataset.layerPreset));
   }
@@ -265,16 +307,17 @@ export function initPanel(routeInfo, visibleChangeHandler, regionChangeHandler, 
 }
 
 function renderRegionCopy(key) {
-  const name = REGIONS.find((region) => region.key === key)?.name ?? 'Greater Boston / MBTA core';
+  const region = regionInfo(key);
+  const name = region?.name ?? regionName(key);
   el('region-eyebrow').textContent = `${name.toUpperCase()} · REAL-TIME TELEMETRY`;
-  el('region-tagline').textContent = key === 'boston'
-    ? 'Greater Boston selected: Boston plus the MBTA inner core. Switch to any state or all New England.'
-    : `${name} selected. Live points outside this boundary are hidden.`;
+  const definition = region?.definition ? `${region.definition}. ` : '';
+  el('region-tagline').textContent =
+    `${name} selected. ${definition}Live points outside this boundary are hidden.`;
   renderRegionAvailability(key);
 }
 
 function renderRegionAvailability(key) {
-  const showSubway = ['boston', 'ma', 'new-england'].includes(key);
+  const showSubway = hasSubway(key);
   el('subway-master')?.closest('.master-row')?.classList.toggle('region-hidden', !showSubway);
   for (const group of GROUPS.filter((item) => item.section === 'subway')) {
     document.querySelector(`.line-row[data-key="${group.key}"]`)?.classList.toggle('region-hidden', !showSubway);
