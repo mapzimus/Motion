@@ -444,6 +444,31 @@ The vessel layer stays empty until the gateway has an AISStream key.
 3. Redeploy: `npx wrangler deploy --env production`
 4. Open the gateway's `/health` and confirm it shows `"ais":true`.
 
+How the vessel feed works:
+
+- **One shared upstream.** AISStream allows only 3 connections per account,
+  so the gateway does not open one per browser. A single `AisHub` Durable
+  Object (`worker/src/ais-hub.ts`, SQLite-backed so it runs on the Free plan)
+  holds one AISStream socket for the whole New England box and fans frames out
+  to every viewer by region. Any number of viewers use 1 of the 3 slots.
+- **Instant snapshot.** A new viewer first gets one `Snapshot` frame with every
+  vessel the hub already knows in that region, stamped with the server time it
+  was last heard, so the map fills in immediately and old positions dim.
+- **Lifecycle.** The first viewer starts the upstream. A 60-second alarm
+  reconnects it with backoff, prunes vessels not heard for 15 minutes, saves
+  the snapshot as one storage row, and closes the upstream 5 minutes after the
+  last viewer leaves. Deploys drop the upstream; the saved snapshot covers the
+  gap while it reconnects. The Durable Object migration applies on the first
+  `wrangler deploy` after this change.
+- **Coastal filter.** Vessels are filtered against `data/regions-marine.geojson`
+  (each region grown about 0.2 degrees, or 0.06 degrees for the MBTA core, and
+  clipped to the AIS box) so ships just offshore are not cut off. Rebuild it
+  with `py -3 scripts/build-regions.py --marine-only`.
+- **Lakes gap.** Inland lakes such as Champlain and Winnipesaukee rarely show
+  vessels: few boats there broadcast AIS and AISStream has little receiver
+  coverage inland. The New York half of Lake Champlain only counts where it is
+  within the coastal buffer of Vermont.
+
 Deploy the separate aircraft relay from its own project directory:
 
 ```powershell
@@ -468,7 +493,7 @@ npx vercel --prod --yes
 | `GET /api/traffic/{z}/{x}/{y}.png` | Cached public 511 congestion tile, with optional TomTom source |
 | `GET /api/airport-status` | FAA NAS status (ground stops, ground-delay programs, arrival/departure delays, closures) for New England airports |
 | `GET /api/weather-alerts?region=ma` | NWS active alerts for the region's states as GeoJSON; forecast-zone polygons are resolved, simplified, and capped per request |
-| `GET /api/ais?region=new-england` with WebSocket upgrade | AISStream relay scoped to the selected region |
+| `GET /api/ais?region=new-england` with WebSocket upgrade | Shared AISStream feed: a `Snapshot` frame of known vessels in the region, then live AISStream frames for that region |
 
 Supported region IDs are `boston`, `ma`, `ct`, `ri`, `nh`, `vt`, `me`, and
 `new-england`. Browser origins are allowlisted. Provider responses are cached
