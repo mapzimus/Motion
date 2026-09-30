@@ -1,6 +1,4 @@
-// App boot sequence. Near-mechanical port of js/app.js main() with poller
-// callbacks targeting store setters instead of ui.*. DOM-only init calls
-// (initPanel, applyVisibleState) still go through ui.js directly.
+/// <reference types="geojson" />
 
 import { CONFIG } from '../feeds/config.js';
 import { fetchRoutes } from '../feeds/api.js';
@@ -94,10 +92,10 @@ export async function boot(): Promise<void> {
     loadRegions(),
     loadGatewayCapabilities(),
   ]);
-  const routeInfo = new Map(routes.map((r: any) => [r.id, r]));
+  const routeInfo: Map<string, any> = new Map(routes.map((r: any) => [r.id, r]));
 
   // A shared link (#r=...&c=...&z=...) wins over ?region= and the remembered region.
-  const permalink = readPermalink();
+  const permalink: any = readPermalink();
   const selectedRegion = permalink.region ?? initialRegion();
   if (permalink.center) {
     CONFIG.MAP_CENTER = permalink.center;
@@ -117,7 +115,7 @@ export async function boot(): Promise<void> {
     setScheduledCounts(scheduledRouteCountsForRegion());
     setStationCounts(scheduledStationCountsForRegion());
     setReferenceCounts(referenceCountsForRegion());
-    for (const [source, counts] of Object.entries(fleetCountsForRegion())) {
+    for (const [source, counts] of Object.entries(fleetCountsForRegion()) as [string, Record<string, number>][]) {
       replaceCounts(counts, source);
     }
     for (const controller of regionalControllers) controller.setRegion(region);
@@ -185,22 +183,22 @@ export async function boot(): Promise<void> {
     startRegional(
       (counts: Record<string, number>) => updateCounts(counts, 'regional'),
       selectedRegion,
-      capabilities.regionalTransit,
+      capabilities.regionalTransit as boolean | undefined,
     ),
     startPlanes(
       (counts: Record<string, number>) => updateCounts(counts, 'planes'),
       selectedRegion,
-      capabilities.aircraft,
+      capabilities.aircraft as boolean | undefined,
     ),
     startAis(
       (counts: Record<string, number>) => updateCounts(counts, 'ais'),
       selectedRegion,
-      capabilities.ais,
+      capabilities.ais as boolean | undefined,
     ),
     startRoadwork(
       (counts: Record<string, number>) => updateCounts(counts, 'roadwork'),
       selectedRegion,
-      capabilities.roadwork,
+      capabilities.roadwork as boolean | undefined,
     ),
     startRoadConditions(
       (counts: Record<string, number>) => updateCounts(counts, 'road-conditions'),
@@ -210,7 +208,7 @@ export async function boot(): Promise<void> {
       (counts: Record<string, number>) => updateCounts(counts, 'mnr'),
       updateAlertSource('mnr'),
       selectedRegion,
-      capabilities.metroNorth,
+      capabilities.metroNorth as boolean | undefined,
     ),
     startConditions(
       (counts: Record<string, number>) => updateCounts(counts, 'conditions'),
