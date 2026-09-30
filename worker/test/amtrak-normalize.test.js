@@ -3,7 +3,7 @@ import {
   ageAmtrakItems,
   delayLabel,
   normalizeAmtrakTrain,
-} from '../../js/amtrak-normalize.js';
+} from '../../src/feeds/amtrak-normalize.js';
 
 const options = {
   box: { latMin: 40.7, latMax: 47.75, lonMin: -74.1, lonMax: -65.8 },
