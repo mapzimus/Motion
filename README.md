@@ -1,15 +1,18 @@
 # New England in Motion
 
 One live map of transportation moving across Connecticut, Maine,
-Massachusetts, New Hampshire, Rhode Island, and Vermont. Start with the
-17-municipality Greater Boston / MBTA core,
-switch to a single state, or zoom out to all New England.
+Massachusetts, New Hampshire, Rhode Island, and Vermont. Start with Greater
+Boston (the 128 cities and towns inside I-495), narrow to the 17-municipality
+MBTA core, pick one of 23 named regions such as Cape Cod & Islands, the
+Pioneer Valley or Midcoast Maine, switch to a single state, or zoom out to all
+New England.
 
 The map combines live and scheduled public transportation, aircraft, boats,
 shared mobility, traffic, road events, public traffic cameras, major roads,
 freight rail, and walking/cycling networks. Live points are clipped to
-generalized 2025 U.S. Census TIGERweb boundaries, so the practical Greater Boston / MBTA core, each state,
-and “All New England” are geographic filters rather than agency-name guesses.
+generalized U.S. Census TIGERweb boundaries, so Greater Boston, the MBTA core,
+every named region, each state, and “All New England” are geographic filters
+rather than agency-name guesses.
 Every feature is labeled **live**, **estimated**, **scheduled**, or
 **reference** so a published route never masquerades as a moving vehicle.
 
@@ -58,17 +61,61 @@ The checked-in route snapshot contains more than 1,200 bus, commuter-rail,
 Amtrak, ferry, passenger-boat, and air-service route features plus more than
 37,000 scheduled bus stops, ferry landings, T stops, and rail stations,
 assembled from 93 GTFS sources and 80 official-service corridors. Scheduled
-routes remain visible when an operator publishes no live positions. State
-views start with the scheduled bus layer on,
+routes remain visible when an operator publishes no live positions. Every view
+except the MBTA core, Greater Boston, statewide Massachusetts and All New
+England starts with the scheduled bus layer on,
 and the sidebar reports scheduled route counts separately from live vehicles,
 so a missing realtime credential no longer makes service look absent.
 Rail and T stops are visible first, named ferry landings appear at harbor
 zoom, and tiny collision-aware bus-stop labels appear only at close street
 zoom. Every stop opens a source-attributed popup with its routes and published
-accessibility information. The default Greater Boston filter is a practical
-MBTA inner core: Boston, Cambridge, Somerville, Brookline, Newton, Quincy,
-Braintree, Chelsea, Everett, Revere, Malden, Medford, Arlington, Belmont,
-Watertown, Milton, and Winthrop.
+accessibility information.
+
+### Regions
+
+Every region lives in one file, `scripts/regions-config.json`;
+`scripts/build-regions.py` turns it into `data/regions.geojson`, and the
+picker, the permalink, the route tags and the default layers all read from
+there. The picker groups regions by state:
+
+- **Boston area:** *Greater Boston (inside I-495)*, the default for first-time
+  visitors: the 128 Massachusetts cities and towns with at least half their
+  area inside the I-495 ring (closed along the coast). The builder recomputes
+  the ring from `data/infrastructure.geojson` and fails if the town list
+  drifts. *MBTA core* (key `boston`, formerly labelled Greater Boston):
+  Boston, Cambridge, Somerville, Brookline, Newton, Quincy, Braintree,
+  Chelsea, Everett, Revere, Malden, Medford, Arlington, Belmont, Watertown,
+  Milton, and Winthrop.
+- **Massachusetts:** Merrimack Valley (LRTA and MeVa member communities,
+  including Lowell and Lawrence), Worcester County, Pioneer Valley (Hampden,
+  Hampshire, Franklin), the Berkshires, South Coast (Bristol County), Cape Cod
+  & Islands.
+- **Rhode Island:** Providence metro (Providence, Kent, Bristol), Newport &
+  South County (Newport, Washington, including Block Island).
+- **Connecticut** (2022 Census planning regions): Hartford (Capitol), New
+  Haven & Shoreline, Fairfield County (Western CT and Greater Bridgeport),
+  Eastern Connecticut.
+- **New Hampshire:** NH Seacoast, Manchester, Nashua & Concord, Lakes & White
+  Mountains.
+- **Vermont:** Burlington & Champlain Valley, Southern Vermont.
+- **Maine:** Portland & Southern Maine, Midcoast Maine, Downeast & Acadia,
+  Central & Western Maine, Bangor & the North.
+- **New England:** All New England and the Upper Valley (Windsor and Orange,
+  VT; Grafton and Sullivan, NH).
+
+Old links still open where they did: `?region=boston`, a saved MBTA core
+selection, and a shared hash with a camera but no `r=` all open the MBTA core.
+Sub-regions ask the gateway for their parent state (the Upper Valley asks for
+`new-england`) and clip the results in the browser, so the gateway still only
+knows the eight IDs listed under [Gateway API](#gateway-api).
+
+### Presets and scenes
+
+Above the layer list, **Default**, **Routes** and **Clear** work as before.
+The **Show** row switches on one kind of vehicle (Rail, Buses, Water, Air,
+Roads, Bikes, or All live). The **Scenes** row sets a region and its layers in
+one tap: Boston commute, Harbor watch, Islands by sea & air, Road trip, and
+Maine islands. Presets live in `js/presets.js` as plain data.
 Metro-North's New Haven, New Canaan, Danbury, and Waterbury lines are included
 in Connecticut; connected routes are allowed to continue outside the selected
 boundary so riders can see the full trip into New York City.
@@ -223,12 +270,17 @@ straight bus or Amtrak line.
 Rebuild the static route snapshot after agencies update their schedules:
 
 ```powershell
-py -3 -X utf8 scripts\build-regional-routes.py
 py -3 -X utf8 scripts\build-regions.py
+py -3 -X utf8 scripts\build-regional-routes.py
 py -3 -X utf8 scripts\build-airports.py
 py -3 -X utf8 scripts\build-border-crossings.py
 py -3 -X utf8 scripts\build-reference-places.py
 ```
+
+Build regions first: the route and reference builders tag every feature with
+each region it touches. After only the regions change,
+`py -3 -X utf8 scripts\build-reference-places.py --retag-only` retags the
+reference places offline.
 
 Normal rebuilds read ferry geometry from `scripts/ferry-water-cache.json` and
 need no water data. When a ferry feed, catalog entry, or
@@ -471,7 +523,8 @@ npx vercel --prod --yes
 | `GET /api/ais?region=new-england` with WebSocket upgrade | AISStream relay scoped to the selected region |
 
 Supported region IDs are `boston`, `ma`, `ct`, `ri`, `nh`, `vt`, `me`, and
-`new-england`. Browser origins are allowlisted. Provider responses are cached
+`new-england`; the browser maps each named sub-region to its parent before
+calling the gateway. Browser origins are allowlisted. Provider responses are cached
 briefly at the edge to avoid multiplying load.
 
 ## Architecture

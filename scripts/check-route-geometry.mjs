@@ -779,6 +779,82 @@ for (const [group, minimum] of Object.entries(REFERENCE_PLACE_MINIMUMS)) {
   );
 }
 
+// Region registry (offline): every region in scripts/regions-config.json must
+// be built into data/regions.geojson with its configured member count, and
+// every named region must have at least one scheduled route tagged for it, so
+// a region can never silently come up empty.
+{
+  const MAX_REGIONS_BYTES = 1_500_000;
+  const regionConfig = JSON.parse(readFileSync(new URL('./regions-config.json', import.meta.url), 'utf8'));
+  const regionsRaw = readFileSync(new URL('../data/regions.geojson', import.meta.url));
+  const regionCollection = JSON.parse(regionsRaw);
+  const builtRegions = new Map(
+    (regionCollection.features ?? []).map((feature) => [feature.properties?.key, feature]),
+  );
+  const virtualRegions = new Map(
+    (regionCollection.metadata?.virtualRegions ?? []).map((region) => [region.key, region]),
+  );
+  const regionProblems = [];
+  if (regionsRaw.length > MAX_REGIONS_BYTES) {
+    regionProblems.push(`data/regions.geojson is ${regionsRaw.length} bytes (limit ${MAX_REGIONS_BYTES})`);
+  }
+  const order = regionCollection.metadata?.order ?? [];
+  const configOrder = regionConfig.regions.map((region) => region.key);
+  if (order.join(',') !== configOrder.join(',')) {
+    regionProblems.push('data/regions.geojson region order differs from regions-config.json; rerun scripts/build-regions.py');
+  }
+  const scheduledRoutesByRegion = new Map();
+  for (const feature of collection.features) {
+    const properties = feature.properties ?? {};
+    if (properties.kind !== 'regional-static') continue;
+    for (const region of properties.regions ?? []) {
+      if (!scheduledRoutesByRegion.has(region)) scheduledRoutesByRegion.set(region, new Set());
+      scheduledRoutesByRegion.get(region).add(properties.route);
+    }
+  }
+  for (const region of regionConfig.regions) {
+    if (region.kind === 'union') {
+      if (!virtualRegions.has(region.key)) regionProblems.push(`${region.key}: missing from regions.geojson metadata`);
+      continue;
+    }
+    const feature = builtRegions.get(region.key);
+    if (!feature) {
+      regionProblems.push(`${region.key}: missing from data/regions.geojson`);
+      continue;
+    }
+    const properties = feature.properties;
+    for (const flag of ['name', 'group', 'parent', 'hasSubway', 'busDefaultOn']) {
+      if (properties[flag] !== region[flag]) regionProblems.push(`${region.key}: ${flag} differs from regions-config.json`);
+    }
+    if (region.memberCount !== undefined
+        && (properties.memberCount !== region.memberCount || properties.members?.length !== region.memberCount)) {
+      regionProblems.push(`${region.key}: ${properties.memberCount} members built, config says ${region.memberCount}`);
+    }
+    if (!['Polygon', 'MultiPolygon'].includes(feature.geometry?.type)) {
+      regionProblems.push(`${region.key}: boundary is not a polygon`);
+    }
+    if (!scheduledRoutesByRegion.get(region.key)?.size) {
+      regionProblems.push(`${region.key}: no scheduled route is tagged for this region; rebuild data/regional-routes.geojson`);
+    }
+  }
+  const greaterBoston = regionConfig.regions.find((region) => region.key === 'greater-boston');
+  if (!greaterBoston || greaterBoston.members.length !== 128
+      || builtRegions.get('greater-boston')?.properties.members.length !== 128) {
+    regionProblems.push('greater-boston must hold the 128 cities and towns inside the I-495 ring');
+  }
+  for (const key of builtRegions.keys()) {
+    if (!configOrder.includes(key)) regionProblems.push(`${key}: in regions.geojson but not in regions-config.json`);
+  }
+  if (regionProblems.length) throw new Error(`Region registry check failed:\n${regionProblems.join('\n')}`);
+  const emptiest = [...builtRegions.keys()]
+    .map((key) => [key, scheduledRoutesByRegion.get(key)?.size ?? 0])
+    .sort((a, b) => a[1] - b[1])[0];
+  console.log(
+    `Region registry check passed: ${builtRegions.size} regions + ${virtualRegions.size} virtual, `
+    + `${regionsRaw.length} bytes; fewest scheduled routes: ${emptiest[0]} (${emptiest[1]}).`,
+  );
+}
+
 console.log(
   `Route geometry check passed: ${approximate.length} approximate-geometry scheduled features; `
   + `${Object.keys(cache.segments ?? {}).length} loop-free cache segments; `
