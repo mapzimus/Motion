@@ -1,5 +1,7 @@
 // Geography presets and exact point-in-polygon filtering. Boundaries are
 // generalized Census TIGERweb 2025 features checked into data/regions.geojson.
+// Vessels use data/regions-marine.geojson instead ({ marine: true }): the same
+// regions grown by a coastal buffer so ships on the water are not clipped away.
 
 export const REGIONS = [
   { key: 'boston', name: 'Greater Boston / MBTA core' },
@@ -15,20 +17,42 @@ export const REGIONS = [
 const STATE_KEYS = ['ct', 'me', 'ma', 'nh', 'ri', 'vt'];
 const EMPTY_FC = { type: 'FeatureCollection', features: [] };
 const featureByKey = new Map();
+const marineByKey = new Map();
 let activeRegion = 'boston';
 
 export const isRegionKey = (key) => REGIONS.some((region) => region.key === key);
 
-export async function loadRegions() {
-  const response = await fetch(new URL('../data/regions.geojson', import.meta.url));
-  if (!response.ok) throw new Error(`Region boundaries ${response.status}`);
-  const collection = await response.json();
-  for (const feature of collection.features ?? []) {
+// Pure registration step, shared by loadRegions and the node unit check.
+export function registerRegions(collection, marineCollection = null) {
+  featureByKey.clear();
+  marineByKey.clear();
+  for (const feature of collection?.features ?? []) {
     featureByKey.set(feature.properties.key, feature);
+  }
+  for (const feature of marineCollection?.features ?? []) {
+    marineByKey.set(feature.properties.key, feature);
   }
   if (!featureByKey.has('boston') || STATE_KEYS.some((key) => !featureByKey.has(key))) {
     throw new Error('Region boundary file is incomplete');
   }
+}
+
+async function fetchMarine() {
+  try {
+    const response = await fetch(new URL('../data/regions-marine.geojson', import.meta.url));
+    return response.ok ? await response.json() : null;
+  } catch {
+    return null; // Vessels fall back to the land boundary.
+  }
+}
+
+export async function loadRegions() {
+  const [response, marine] = await Promise.all([
+    fetch(new URL('../data/regions.geojson', import.meta.url)),
+    fetchMarine(),
+  ]);
+  if (!response.ok) throw new Error(`Region boundaries ${response.status}`);
+  registerRegions(await response.json(), marine);
 }
 
 export function initialRegion() {
@@ -77,7 +101,11 @@ function pointInGeometry(point, geometry) {
   return false;
 }
 
-export function containsPoint(key, point) {
+export function containsPoint(key, point, { marine = false } = {}) {
+  if (marine) {
+    const feature = marineByKey.get(key);
+    if (feature) return pointInGeometry(point, feature.geometry);
+  }
   const keys = key === 'new-england' ? STATE_KEYS : [key];
   return keys.some((regionKey) => {
     const feature = featureByKey.get(regionKey);
@@ -85,15 +113,16 @@ export function containsPoint(key, point) {
   });
 }
 
-export function filterItems(items, key = activeRegion) {
-  return items.filter((item) => containsPoint(key, [item.lng, item.lat]));
+export function filterItems(items, key = activeRegion, options = {}) {
+  return items.filter((item) => containsPoint(key, [item.lng, item.lat], options));
 }
 
-export function filterFeatureCollection(collection, key = activeRegion) {
+export function filterFeatureCollection(collection, key = activeRegion, options = {}) {
   return {
     type: 'FeatureCollection',
     features: collection.features.filter((feature) =>
-      feature.geometry?.type === 'Point' && containsPoint(key, feature.geometry.coordinates),
+      feature.geometry?.type === 'Point' &&
+      containsPoint(key, feature.geometry.coordinates, options),
     ),
   };
 }
