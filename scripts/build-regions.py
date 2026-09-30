@@ -38,6 +38,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = ROOT / "scripts" / "regions-config.json"
 INFRASTRUCTURE_PATH = ROOT / "data" / "infrastructure.geojson"
 OUTPUT = ROOT / "data" / "regions.geojson"
+MARINE_OUTPUT = ROOT / "data" / "regions-marine.geojson"
 
 TIGERWEB = "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb"
 STATES_QUERY = f"{TIGERWEB}/State_County/MapServer/0/query"
@@ -215,11 +216,112 @@ def feature_properties(region, members):
     return properties
 
 
+# --- Marine (vessel) geometry -------------------------------------------------
+# Vessels sit on the water, just past the generalized land/state boundary, so
+# the vessel layer filters against each region grown by a coastal buffer.
+# About 0.2 degrees (~20 km, roughly the 12 nm territorial sea) for states and
+# New England, and a tighter 0.06 degrees for the MBTA core. Everything is
+# clipped to the New England AIS box the gateway subscribes to.
+STATE_KEYS = ("ct", "ma", "me", "nh", "ri", "vt")
+MARINE_BUFFER_DEG = 0.2
+MARINE_BUFFER_OVERRIDES = {"boston": 0.06}
+# Sub-state regions get a narrower margin (~10 km) so a small coastal region
+# does not pull in harbors that belong to its neighbours.
+MARINE_SUBREGION_BUFFER_DEG = 0.1
+MARINE_CLIP = box(-74.0, 40.8, -66.0, 47.7)  # AIS [[40.8,-74.0],[47.7,-66.0]]
+MARINE_SIMPLIFY_DEG = 0.004
+
+
+def _round_coords(value, places=4):
+    if isinstance(value, (list, tuple)):
+        if value and isinstance(value[0], (int, float)):
+            return [round(value[0], places), round(value[1], places)]
+        return [_round_coords(child, places) for child in value]
+    return value
+
+
+def build_marine(regions_fc):
+    """Return a FeatureCollection of buffered, clipped region geometry.
+
+    Takes the land/state region collection (data/regions.geojson) and returns
+    one feature per region key, plus a 'new-england' feature that is the union
+    of the six buffered states. Self-contained so the regions build can call
+    it for any set of regions.
+    """
+    features = []
+    buffered_states = []
+    # State polygons already include each state's own bays and harbors, so a
+    # region's coastal margin must not reach into a neighbouring state's
+    # waters (e.g. Portsmouth Harbor showing up in the Massachusetts view).
+    state_shapes = {
+        feature["properties"]["key"]: make_valid(shape(feature["geometry"]))
+        for feature in regions_fc.get("features", [])
+        if feature.get("properties", {}).get("key") in STATE_KEYS
+    }
+    for feature in regions_fc.get("features", []):
+        key = feature.get("properties", {}).get("key")
+        if not key:
+            continue
+        land = make_valid(shape(feature["geometry"]))
+        own_states = {
+            state for state, state_shape in state_shapes.items()
+            if land.intersection(state_shape).area > 0.01 * max(land.area, 1e-12)
+        }
+        neighbours = [state_shape for state, state_shape in state_shapes.items() if state not in own_states]
+        distance = MARINE_BUFFER_OVERRIDES.get(
+            key, MARINE_BUFFER_DEG if key in STATE_KEYS else MARINE_SUBREGION_BUFFER_DEG,
+        )
+        geometry = make_valid(shape(feature["geometry"])).buffer(distance, quad_segs=4)
+        geometry = geometry.intersection(MARINE_CLIP)
+        if neighbours:
+            geometry = geometry.difference(unary_union(neighbours))
+        if key in STATE_KEYS:
+            buffered_states.append(geometry)
+        features.append((key, distance, geometry))
+    if len(buffered_states) == len(STATE_KEYS):
+        features.append(("new-england", MARINE_BUFFER_DEG, unary_union(buffered_states)))
+    out = []
+    for key, distance, geometry in features:
+        geometry = geometry.simplify(MARINE_SIMPLIFY_DEG, preserve_topology=True)
+        geojson = mapping(geometry)
+        out.append({
+            "type": "Feature",
+            "properties": {"key": key, "bufferDeg": distance},
+            "geometry": {"type": geojson["type"], "coordinates": _round_coords(geojson["coordinates"])},
+        })
+    return {
+        "type": "FeatureCollection",
+        "metadata": {
+            "source": "data/regions.geojson grown by a coastal buffer for the vessel layer",
+            "clip": [[40.8, -74.0], [47.7, -66.0]],
+        },
+        "features": out,
+    }
+
+
+def write_marine(regions_fc):
+    collection = build_marine(regions_fc)
+    text = json.dumps(collection, separators=(",", ":")) + "\n"
+    MARINE_OUTPUT.write_text(text, encoding="utf-8", newline="\n")
+    size_kb = len(text.encode("utf-8")) / 1024
+    if size_kb > 300:
+        raise RuntimeError(f"{MARINE_OUTPUT.name} is {size_kb:.0f} KB; raise MARINE_SIMPLIFY_DEG")
+    print(f"Wrote {len(collection['features'])} marine regions ({size_kb:.0f} KB) to {MARINE_OUTPUT}")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--cache-dir", type=Path, help="Reuse TIGERweb downloads from this folder")
     parser.add_argument("--output", type=Path, default=OUTPUT)
+    parser.add_argument(
+        "--marine-only",
+        action="store_true",
+        help="Read the existing data/regions.geojson and only rebuild data/regions-marine.geojson",
+    )
     args = parser.parse_args()
+    if args.marine_only:
+        write_marine(json.loads(args.output.read_text(encoding="utf-8")))
+        return
 
     config = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
     tolerances = config["simplify"]
@@ -302,13 +404,8 @@ def main():
         properties = feature["properties"]
         print(f"  {properties['key']:<22} {properties['kind']:<9} {properties['memberCount']:>4} members")
 
-    # Hook for the marine (coastal-buffer) boundaries used by the vessel
-    # filter. PR feat/ais-hub adds build_marine() to this script; when it is
-    # present it is called with the fresh collection so data/regions-marine.geojson
-    # always covers every region in the config.
-    build_marine = globals().get("build_marine")
-    if callable(build_marine):
-        build_marine(collection)
+    # Coastal-buffer boundaries for the vessel layer, rebuilt for every region.
+    write_marine(collection)
 
 
 if __name__ == "__main__":

@@ -2,6 +2,8 @@
 // generalized Census TIGERweb features built from scripts/regions-config.json
 // into data/regions.geojson. Every region's name, picker group, parent and
 // flags come from that file, so adding a region needs no code change here.
+// Vessels use data/regions-marine.geojson instead ({ marine: true }): the same
+// regions grown by a coastal buffer so ships on the water are not clipped away.
 
 // Filled by loadRegions() in picker order. Other modules import these arrays
 // and read them after startup.
@@ -21,6 +23,7 @@ const GATEWAY_KEYS = new Set(['boston', ...STATE_KEYS, 'new-england']);
 const EMPTY_FC = { type: 'FeatureCollection', features: [] };
 const featureByKey = new Map();
 const regionByKey = new Map();
+const marineByKey = new Map();
 const bboxByKey = new Map();
 let activeRegion = DEFAULT_REGION;
 
@@ -46,8 +49,12 @@ export function gatewayRegion(key) {
 }
 
 // Turn a loaded region collection into the registry. Exported for tests.
-export function registerRegions(collection) {
+export function registerRegions(collection, marineCollection = null) {
   featureByKey.clear();
+  marineByKey.clear();
+  for (const feature of marineCollection?.features ?? []) {
+    if (feature.properties?.key) marineByKey.set(feature.properties.key, feature);
+  }
   regionByKey.clear();
   bboxByKey.clear();
   regionBoundsCache.clear();
@@ -91,10 +98,22 @@ export function registerRegions(collection) {
   }
 }
 
+async function fetchMarine() {
+  try {
+    const response = await fetch(new URL('../data/regions-marine.geojson', import.meta.url));
+    return response.ok ? await response.json() : null;
+  } catch {
+    return null; // Vessels fall back to the land boundary.
+  }
+}
+
 export async function loadRegions() {
-  const response = await fetch(new URL('../data/regions.geojson', import.meta.url));
+  const [response, marine] = await Promise.all([
+    fetch(new URL('../data/regions.geojson', import.meta.url)),
+    fetchMarine(),
+  ]);
   if (!response.ok) throw new Error(`Region boundaries ${response.status}`);
-  registerRegions(await response.json());
+  registerRegions(await response.json(), marine);
   const required = ['boston', DEFAULT_REGION, ...STATE_KEYS];
   if (required.some((key) => !featureByKey.has(key))) {
     throw new Error('Region boundary file is incomplete');
@@ -170,7 +189,11 @@ function featureBbox(key) {
   return bboxByKey.get(key);
 }
 
-export function containsPoint(key, point) {
+export function containsPoint(key, point, { marine = false } = {}) {
+  if (marine) {
+    const feature = marineByKey.get(key);
+    if (feature) return pointInGeometry(point, feature.geometry);
+  }
   return boundaryKeys(key).some((regionKey) => {
     const feature = featureByKey.get(regionKey);
     if (!feature) return false;
@@ -182,15 +205,15 @@ export function containsPoint(key, point) {
   });
 }
 
-export function filterItems(items, key = activeRegion) {
-  return items.filter((item) => containsPoint(key, [item.lng, item.lat]));
+export function filterItems(items, key = activeRegion, options = {}) {
+  return items.filter((item) => containsPoint(key, [item.lng, item.lat], options));
 }
 
-export function filterFeatureCollection(collection, key = activeRegion) {
+export function filterFeatureCollection(collection, key = activeRegion, options = {}) {
   return {
     type: 'FeatureCollection',
     features: collection.features.filter((feature) =>
-      feature.geometry?.type === 'Point' && containsPoint(key, feature.geometry.coordinates),
+      feature.geometry?.type === 'Point' && containsPoint(key, feature.geometry.coordinates, options),
     ),
   };
 }
