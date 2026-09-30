@@ -1,8 +1,8 @@
 import { transit_realtime } from 'gtfs-realtime-bindings';
 import { feedsForRegion, type TransitFeed } from './feeds';
-import { AIS_BOUNDS, insideNewEngland, isRegionId, type RegionId } from './regions';
+import { insideNewEngland, isRegionId, type RegionId } from './regions';
 import { MASSDOT_EVENTS_URL, parseErsEvents } from './massdot-events';
-import { aisFrameToText } from './ais-frames';
+import { HUB_NAME } from './ais-hub';
 import {
   combinePolygons,
   filterNwsAlerts,
@@ -17,7 +17,6 @@ import {
   type NwsGeometry,
 } from './conditions';
 
-const AISSTREAM_URL = 'wss://stream.aisstream.io/v0/stream';
 const MASSDOT_WORK_ZONE_URL = 'https://feed.massdot-swzm.com/massdot_wzdx_v4.1_work_zone_feed.geojson';
 const NORTHERN_WORK_ZONE_URL = 'https://api.dx.ne-compass.com/wzdx-latest/';
 const IBI_TRAFFIC_TILE_URL = 'https://tiles.ibi511.com/Geoservice/GetTrafficTile';
@@ -850,7 +849,10 @@ async function weatherAlerts(request: Request, url: URL, ctx: ExecutionContext):
   });
 }
 
-function ais(request: Request, url: URL, env: Env): Response {
+// Every browser shares one AISStream upstream held by the AisHub Durable
+// Object (worker/src/ais-hub.ts). AISStream allows only 3 connections per
+// account, so a per-browser relay would reject the 4th viewer.
+function ais(request: Request, url: URL, env: Env): Response | Promise<Response> {
   const aisKey = secret(env, 'AISSTREAM_API_KEY');
   if (!configured(aisKey)) return json({ error: 'AIS key is not configured' }, 503);
   if (request.headers.get('upgrade')?.toLowerCase() !== 'websocket') {
@@ -859,47 +861,9 @@ function ais(request: Request, url: URL, env: Env): Response {
   const region = regionFrom(url);
   if (!region) return json({ error: 'Unknown region' }, 400);
 
-  const pair = new WebSocketPair();
-  const [client, server] = Object.values(pair);
-  server.accept();
-  const upstream = new WebSocket(AISSTREAM_URL);
-
-  const closeServer = (code: number, reason: string) => {
-    try {
-      server.close(code, reason.slice(0, 120));
-    } catch {
-      // Already closed.
-    }
-  };
-
-  upstream.addEventListener('open', () => {
-    upstream.send(JSON.stringify({
-      APIKey: aisKey,
-      BoundingBoxes: [AIS_BOUNDS[region]],
-      FilterMessageTypes: [
-        'PositionReport',
-        'StandardClassBPositionReport',
-        'ExtendedClassBPositionReport',
-        'ShipStaticData',
-      ],
-    }));
-  });
-  // Decode sequentially so relayed messages keep their upstream order.
-  let relayQueue: Promise<void> = Promise.resolve();
-  upstream.addEventListener('message', (event) => {
-    relayQueue = relayQueue.then(async () => {
-      const text = await aisFrameToText(event.data);
-      if (text !== null && server.readyState === 1) server.send(text);
-    }).catch(() => {
-      // Skip an undecodable frame; keep the relay open.
-    });
-  });
-  upstream.addEventListener('close', (event) => closeServer(event.code || 1012, 'AIS upstream closed'));
-  upstream.addEventListener('error', () => closeServer(1011, 'AIS upstream error'));
-  server.addEventListener('close', () => upstream.close(1000, 'Browser disconnected'));
-  server.addEventListener('error', () => upstream.close(1011, 'Browser socket error'));
-
-  return new Response(null, { status: 101, webSocket: client });
+  const hubUrl = new URL(request.url);
+  hubUrl.searchParams.set('region', region);
+  return env.AIS_HUB.getByName(HUB_NAME).fetch(new Request(hubUrl, request));
 }
 
 export default {
@@ -956,3 +920,5 @@ export default {
     return withCors(response, request);
   },
 } satisfies ExportedHandler<Env>;
+
+export { AisHub } from './ais-hub';
