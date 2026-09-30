@@ -3,7 +3,7 @@
 // even though they were in New England waters.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { containsPoint, registerRegions } from '../js/regions.js';
+import { containsPoint, registerRegions } from '../src/feeds/regions.js';
 
 const read = (name) => JSON.parse(readFileSync(new URL(`../public/data/${name}`, import.meta.url), 'utf8'));
 const marineRaw = readFileSync(new URL('../public/data/regions-marine.geojson', import.meta.url));

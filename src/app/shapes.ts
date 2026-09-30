@@ -1,5 +1,4 @@
-// Shape loading: MBTA polyline ribbons and regional route GeoJSON.
-// Extracted from js/app.js (lines 223-314).
+/// <reference types="geojson" />
 
 import { CONFIG } from '../feeds/config.js';
 import { fetchShapes } from '../feeds/api.js';

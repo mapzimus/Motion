@@ -69,14 +69,14 @@ describe('layers store', () => {
 });
 
 describe('applyPreset("routes") in CT (no subway)', () => {
-  const groups = GROUP_KEYS.map((key) => ({
+  const groups: any[] = GROUP_KEYS.map((key: string) => ({
     key,
     needsKey: false,
     truth: key === 'plane' ? 'live' : undefined,
   }));
 
   it('returns only route groups, no subway', () => {
-    const plan = resolvePreset('routes', {
+    const plan = (resolvePreset as any)('routes', {
       region: 'ct',
       groups,
       hasSubway: () => false,
@@ -93,7 +93,7 @@ describe('applyPreset("routes") in CT (no subway)', () => {
   });
 
   it('strips reference status', () => {
-    const plan = resolvePreset('routes', {
+    const plan = (resolvePreset as any)('routes', {
       region: 'ct',
       groups,
       hasSubway: () => false,
