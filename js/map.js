@@ -5,10 +5,14 @@ import { CONFIG } from './config.js';
 import { lookupFlightRoute } from './flight-routes.js';
 import { attachStopPredictions } from './predictions.js';
 import {
+  DEFAULT_REGION,
   boundaryForRegion,
   boundsForRegion,
+  containsPoint,
+  featureTouchesRegion,
   filterFeatureCollection,
   filterSpatialFeatureCollection,
+  maxZoomForRegion,
   setActiveRegion,
 } from './regions.js';
 
@@ -1291,7 +1295,9 @@ function renderRouteShapes() {
       if (['regional-static', 'regional-station'].includes(feature.properties.kind)) {
         return feature.properties.regions?.includes(activeRegion);
       }
-      return ['boston', 'ma'].includes(activeRegion);
+      // MBTA shapes are fetched live, so they carry no build-time region
+      // tags: keep a route when any of its vertices is inside the region.
+      return featureTouchesRegion(feature, activeRegion);
     }),
   };
   map?.getSource('route-shapes')?.setData(routeShapesFC);
@@ -1478,9 +1484,7 @@ function renderReferenceData() {
     ...allBorderCrossingsFC,
     features: activeRegion === 'new-england'
       ? (allBorderCrossingsFC.features ?? [])
-      : (allBorderCrossingsFC.features ?? []).filter(
-        (feature) => feature.properties?.regions?.includes(activeRegion),
-      ),
+      : (allBorderCrossingsFC.features ?? []).filter((feature) => crossingInRegion(feature, activeRegion)),
   };
   map?.getSource('infrastructure')?.setData(infrastructureFC);
   map?.getSource('local-services')?.setData(localServicesFC);
@@ -1488,6 +1492,18 @@ function renderReferenceData() {
   map?.getSource('border-crossings')?.setData(borderCrossingsFC);
   renderReferencePlaces();
   renderAirportStatus(); // FAA status may have arrived before the airport catalog
+}
+
+// Border crossings sit exactly on the state line, so a plain point-in-polygon
+// test is a coin flip. Keep the build-time state tag, and for every other
+// region accept a crossing within about 1 km of the boundary.
+const CROSSING_NUDGE_DEG = 0.01;
+function crossingInRegion(feature, region) {
+  if (feature.properties?.regions?.includes(region)) return true;
+  const [lng, lat] = feature.geometry?.coordinates ?? [];
+  if (!Number.isFinite(lng) || !Number.isFinite(lat)) return false;
+  return [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) =>
+    containsPoint(region, [lng + dx * CROSSING_NUDGE_DEG, lat + dy * CROSSING_NUDGE_DEG]));
 }
 
 function renderReferencePlaces() {
@@ -1584,7 +1600,7 @@ function renderFleetData(fleetId) {
 // latest request and apply it once layers exist.
 let pendingFilters = null;
 let layersReady = false;
-let activeRegion = 'boston';
+let activeRegion = DEFAULT_REGION;
 
 export function setVisibleGroups(groups, statuses = ['live', 'estimated', 'scheduled', 'reference']) {
   pendingFilters = { groups, statuses };
@@ -1641,7 +1657,7 @@ function applyRegion(fit) {
   if (bounds) {
     map.fitBounds(bounds, {
       padding: fitPadding(),
-      maxZoom: activeRegion === 'boston' ? 11.4 : 8.8,
+      maxZoom: maxZoomForRegion(activeRegion),
       duration: 1100,
     });
   }

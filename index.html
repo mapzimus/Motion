@@ -26,9 +26,9 @@
 
   <aside id="panel">
     <header class="panel-head">
-      <div class="eyebrow" id="region-eyebrow">BOSTON · REAL-TIME TELEMETRY</div>
+      <div class="eyebrow" id="region-eyebrow">NEW ENGLAND · REAL-TIME TELEMETRY</div>
       <h1>New England<br><span class="grad">in Motion</span></h1>
-      <p class="tagline" id="region-tagline">Greater Boston selected: Boston plus the MBTA inner core. Switch to any state or all New England.</p>
+      <p class="tagline" id="region-tagline">Live and scheduled transportation across New England. Pick a metro area, a region, a state, or all six states.</p>
     </header>
 
     <div class="panel-scroll">
@@ -72,6 +72,16 @@
             <button type="button" data-layer-preset="default">Default</button>
             <button type="button" data-layer-preset="routes">Routes</button>
             <button type="button" data-layer-preset="clear">Clear</button>
+          </div>
+        </div>
+        <div class="preset-rows">
+          <div class="preset-row">
+            <span class="filter-caption">Show</span>
+            <div id="vehicle-presets" class="preset-chips" aria-label="Show one kind of vehicle"></div>
+          </div>
+          <div class="preset-row">
+            <span class="filter-caption">Scenes</span>
+            <div id="scene-presets" class="preset-chips" aria-label="Scenes: a region and its layers in one tap"></div>
           </div>
         </div>
         <div class="data-status-wrap">

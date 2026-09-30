@@ -35,6 +35,10 @@ FERRY_GEOMETRY_SOURCES_PATH = ROOT / "scripts" / "ferry-geometry-sources.json"
 ROAD_ROUTE_CACHE_PATH = ROOT / "scripts" / "road-route-cache.json"
 ROAD_ROUTE_CONTROLS_PATH = ROOT / "scripts" / "road-route-controls.json"
 BOUNDARIES_PATH = ROOT / "data" / "regions.geojson"
+# Region keys in scripts/regions-config.json order, filled from
+# data/regions.geojson in main(). Every route and stop is tagged with each
+# region its geometry touches.
+REGION_ORDER: list[str] = []
 OUTPUT_PATH = ROOT / "data" / "regional-routes.geojson"
 MNR_STOPS_PATH = ROOT / "data" / "mnr-stops.json"
 FRESHNESS_PATH = ROOT / "scripts" / "feed-freshness.json"
@@ -766,7 +770,20 @@ def point_in_ring(point, ring):
     return inside
 
 
+def geometry_bbox(geometry):
+    xs, ys = [], []
+    polygons = geometry["coordinates"] if geometry["type"] == "MultiPolygon" else [geometry["coordinates"]]
+    for polygon in polygons:
+        for x, y in polygon[0]:
+            xs.append(x)
+            ys.append(y)
+    return (min(xs), min(ys), max(xs), max(ys))
+
+
 def point_in_geometry(point, geometry):
+    bbox = geometry.get("bbox")
+    if bbox and not (bbox[0] <= point[0] <= bbox[2] and bbox[1] <= point[1] <= bbox[3]):
+        return False
     polygons = geometry["coordinates"] if geometry["type"] == "MultiPolygon" else [geometry["coordinates"]]
     return any(point_in_ring(point, polygon[0]) and not any(point_in_ring(point, hole) for hole in polygon[1:]) for polygon in polygons)
 
@@ -868,7 +885,6 @@ def station_features(
     features = []
     station_group_by_route = feed.get("station_group_by_route", {})
     station_color_by_group = feed.get("station_color_by_group", {})
-    region_order = ("ct", "ma", "me", "nh", "ri", "vt", "boston")
     for station_id, route_ids in sorted(routes_by_station.items()):
         stop = stops.get(station_id)
         if not stop:
@@ -880,7 +896,7 @@ def station_features(
         except (KeyError, TypeError, ValueError):
             continue
         regions = [
-            key for key in region_order
+            key for key in REGION_ORDER
             if point_in_geometry(point, region_geometries[key])
         ]
         if not regions and feed.get("keep_outside_landings"):
@@ -1413,7 +1429,7 @@ def process_feed(
         route = selected_routes[route_id]
         route_type = effective_route_type(feed, route)
         detected_regions = route_regions.get(route_id) or set(feed["states"])
-        regions = [key for key in ("ct", "ma", "me", "nh", "ri", "vt", "boston") if key in detected_regions]
+        regions = [key for key in REGION_ORDER if key in detected_regions]
         properties = {
             "route": public_route_id(feed, route_id),
             "group": feature_group(feed, route_type),
@@ -1497,9 +1513,10 @@ def main(update_road_cache=False, refresh_road_cache=False, update_ferry_cache=F
         "used_keys": set(),
     }
     region_geometries = {
-        feature["properties"]["key"]: feature["geometry"]
+        feature["properties"]["key"]: {**feature["geometry"], "bbox": geometry_bbox(feature["geometry"])}
         for feature in boundaries["features"]
     }
+    REGION_ORDER[:] = list(region_geometries)
     all_features = []
     successes = []
     failures = []
@@ -1586,7 +1603,7 @@ def main(update_road_cache=False, refresh_road_cache=False, update_ferry_cache=F
         }
         declared = feature.get("properties", {}).get("regions", [])
         combined = set(declared) | detected
-        ordered = [key for key in ("ct", "ma", "me", "nh", "ri", "vt", "boston") if key in combined]
+        ordered = [key for key in REGION_ORDER if key in combined]
         ordered.extend(key for key in declared if key not in ordered)
         feature["properties"]["regions"] = ordered
         feature["properties"].setdefault("dataStatus", "scheduled")

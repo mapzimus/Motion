@@ -3,6 +3,7 @@
 
 import { CONFIG } from './config.js';
 import { createFleet } from './fleet.js';
+import { gatewayRegion } from './regions.js';
 
 const POLL_MS = 20_000;
 const MPS_TO_MPH = 2.23694;
@@ -27,7 +28,7 @@ export function startRegional(onCounts, initialRegion, enabled = true) {
     }
     try {
       const response = await fetch(
-        `${CONFIG.GATEWAY_BASE}/api/transit?region=${encodeURIComponent(region)}`,
+        `${CONFIG.GATEWAY_BASE}/api/transit?region=${encodeURIComponent(gatewayRegion(region))}`,
       );
       if (!response.ok) throw new Error(`Motion transit gateway ${response.status}`);
       const payload = await response.json();

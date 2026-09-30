@@ -144,13 +144,7 @@ async function main() {
 
   initSearch({
     onVehicle: (fleetId, id) => follow(fleetId, id, { mode: 'following' }),
-    onRegion: (key) => {
-      const select = document.getElementById('region-select');
-      if (select && select.value !== key) {
-        select.value = key;
-        select.dispatchEvent(new Event('change'));
-      }
-    },
+    onRegion: (key) => ui.selectRegion(key),
   });
   loadReferenceData().then((counts) => ui.setReferenceCounts(counts));
 
@@ -273,7 +267,6 @@ async function loadShapeFeatures(ribbonRoutes, routeInfo) {
           kind: 'mbta',
           dataStatus: 'scheduled',
           provider: 'MBTA static route geometry',
-          regions: ['boston', 'ma'],
         },
       })),
     );

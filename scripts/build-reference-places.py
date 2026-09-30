@@ -38,7 +38,9 @@ INFRASTRUCTURE_PATH = ROOT / "data" / "infrastructure.geojson"
 HERITAGE_PATH = ROOT / "scripts" / "heritage-railroads.json"
 DRAWBRIDGE_PATH = ROOT / "scripts" / "drawbridges.json"
 USER_AGENT = "mapzimus/Motion reference-places-builder"
-REGION_ORDER = ("ct", "ma", "me", "nh", "ri", "vt", "boston")
+# Region keys in scripts/regions-config.json order, filled from
+# data/regions.geojson by load_region_geometries().
+REGION_ORDER: list[str] = []
 
 COLORS = {
     "heritage-rail": "#e07a5f",
@@ -130,7 +132,17 @@ def point_in_ring(point, ring):
     return inside
 
 
+def geometry_bbox(geometry):
+    polygons = geometry["coordinates"] if geometry["type"] == "MultiPolygon" else [geometry["coordinates"]]
+    xs = [x for polygon in polygons for x, _ in polygon[0]]
+    ys = [y for polygon in polygons for _, y in polygon[0]]
+    return (min(xs), min(ys), max(xs), max(ys))
+
+
 def point_in_geometry(point, geometry):
+    bbox = geometry.get("bbox")
+    if bbox and not (bbox[0] <= point[0] <= bbox[2] and bbox[1] <= point[1] <= bbox[3]):
+        return False
     polygons = geometry["coordinates"] if geometry["type"] == "MultiPolygon" else [geometry["coordinates"]]
     return any(
         point_in_ring(point, polygon[0]) and not any(point_in_ring(point, hole) for hole in polygon[1:])
@@ -140,7 +152,45 @@ def point_in_geometry(point, geometry):
 
 def load_region_geometries():
     boundaries = json.loads(BOUNDARIES_PATH.read_text(encoding="utf-8"))
-    return {feature["properties"]["key"]: feature["geometry"] for feature in boundaries["features"]}
+    geometries = {
+        feature["properties"]["key"]: {**feature["geometry"], "bbox": geometry_bbox(feature["geometry"])}
+        for feature in boundaries["features"]
+    }
+    REGION_ORDER[:] = list(geometries)
+    return geometries
+
+
+def feature_points(geometry):
+    coordinates = geometry.get("coordinates", [])
+    if geometry.get("type") == "Point":
+        return [coordinates]
+    points = []
+
+    def visit(value):
+        if value and isinstance(value[0], (int, float)):
+            points.append(value)
+        else:
+            for child in value:
+                visit(child)
+
+    visit(coordinates)
+    return points
+
+
+def retag_existing(path, region_geometries):
+    """Recompute ``regions`` on an existing snapshot without refetching sources.
+
+    Used after data/regions.geojson gains regions: states already stored on a
+    feature are kept (some were declared rather than detected), and every
+    region the geometry touches is added.
+    """
+    collection = json.loads(path.read_text(encoding="utf-8"))
+    for feature in collection.get("features", []):
+        properties = feature.setdefault("properties", {})
+        declared = [key for key in properties.get("regions", []) if key in region_geometries]
+        properties["regions"] = regions_for(feature_points(feature.get("geometry") or {}), region_geometries, declared)
+    path.write_text(json.dumps(collection, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    print(f"Retagged {len(collection.get('features', []))} features in {path}")
 
 
 def regions_for(points, region_geometries, declared=()):
@@ -533,9 +583,17 @@ def main():
     parser.add_argument("--skip-ev", action="store_true", help="Do not call the AFDC API")
     parser.add_argument("--skip-park-ride", action="store_true", help="Do not call state park-and-ride services")
     parser.add_argument("--api-key", default=os.environ.get("NREL_API_KEY", "DEMO_KEY"))
+    parser.add_argument(
+        "--retag-only",
+        action="store_true",
+        help="Only recompute each feature's regions list in the existing output (offline)",
+    )
     args = parser.parse_args()
 
     region_geometries = load_region_geometries()
+    if args.retag_only:
+        retag_existing(args.output, region_geometries)
+        return
     graph = None
     if INFRASTRUCTURE_PATH.exists():
         infrastructure = json.loads(INFRASTRUCTURE_PATH.read_text(encoding="utf-8"))

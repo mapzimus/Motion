@@ -4,6 +4,7 @@
 // and hand Extreme/Severe weather alerts to the service-alert panel.
 
 import { CONFIG } from './config.js';
+import { gatewayRegion } from './regions.js';
 import {
   airportStatusCountForRegion,
   setAirportStatusData,
@@ -69,7 +70,7 @@ export function startConditions(onCounts, onAlerts, initialRegion, capabilities 
     key: 'weather',
     interval: CONFIG.WEATHER_POLL_MS,
     enabled: capabilities.weatherAlerts,
-    url: () => `/api/weather-alerts?region=${encodeURIComponent(region)}`,
+    url: () => `/api/weather-alerts?region=${encodeURIComponent(gatewayRegion(region))}`,
     apply(collection) {
       if (collection) setWeatherAlertsData(collection);
       publishWeather();

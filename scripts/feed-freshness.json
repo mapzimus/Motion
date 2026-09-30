@@ -1,6 +1,6 @@
 {
   "description": "Last date each scheduled GTFS feed publishes service for. Written by build-regional-routes.py and check-feed-freshness.py; checked offline by check-route-geometry.mjs.",
-  "checkedAt": "2026-09-27",
+  "checkedAt": "2026-09-30",
   "feeds": {
     "amtrak": {
       "serviceEnd": "2027-09-27",
@@ -113,7 +113,7 @@
       "url": "https://gtfs.gatra.cadavl.com/GATRA/GTFS/GTFS_GATRA.zip"
     },
     "lrta": {
-      "serviceEnd": "2026-10-28",
+      "serviceEnd": "2026-10-30",
       "source": "calendar_dates.txt",
       "url": "https://gtfs.lrta.cadavl.com/LRTA/GTFS/GTFS_LRTA.zip"
     },
@@ -154,7 +154,7 @@
       "exempt": "Seasonal feed: the published summer schedule ends 2026-10-03 (same in the Trillium source checked 2026-09-27); remove this exemption once the fall/winter feed is published."
     },
     "wrta": {
-      "serviceEnd": "2026-12-26",
+      "serviceEnd": "2026-12-28",
       "source": "calendar_dates.txt",
       "url": "https://gtfs.wrta.cadavl.com/WRTA/GTFS/GTFS_WRTA.zip"
     },
@@ -420,7 +420,7 @@
       "url": "https://files.mobilitydatabase.org/tld-4756/latest.zip"
     },
     "greater-portland": {
-      "serviceEnd": "2026-10-26",
+      "serviceEnd": "2026-10-28",
       "source": "calendar_dates.txt",
       "url": "https://files.mobilitydatabase.org/mdb-2642/latest.zip"
     },
