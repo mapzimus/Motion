@@ -845,7 +845,6 @@ h2 {
 .popup-arrival { display: flex; gap: 8px; align-items: baseline; font-size: 12px; line-height: 1.45; }
 .popup-arrival-eta { flex: none; min-width: 52px; font-family: var(--font-mono); font-weight: 600; color: var(--text); }
 .popup-arrival-headsign { color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-=======
 /* ---- conditions (NWS weather · FAA airport status) ----------------------- */
 .alert-source-badge {
   display: inline-block;

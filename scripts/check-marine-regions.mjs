@@ -5,8 +5,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { containsPoint, registerRegions } from '../js/regions.js';
 
-const read = (name) => JSON.parse(readFileSync(new URL(`../data/${name}`, import.meta.url), 'utf8'));
-const marineRaw = readFileSync(new URL('../data/regions-marine.geojson', import.meta.url));
+const read = (name) => JSON.parse(readFileSync(new URL(`../public/data/${name}`, import.meta.url), 'utf8'));
+const marineRaw = readFileSync(new URL('../public/data/regions-marine.geojson', import.meta.url));
 registerRegions(read('regions.geojson'), JSON.parse(marineRaw));
 
 const MAX_MARINE_BYTES = 300 * 1024;

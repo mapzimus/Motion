@@ -13,6 +13,8 @@ const aircraftGatewayBase = (
   DEFAULT_AIRCRAFT_GATEWAY_BASE
 ).replace(/\/+$/, '');
 
+const dataBase = `${import.meta.env?.BASE_URL ?? './'}data/`;
+
 export const CONFIG = {
   API_BASE: 'https://api-v3.mbta.com',
 
@@ -79,13 +81,13 @@ export const CONFIG = {
   // so it's cached as encoded polylines (compact enough for localStorage).
   SHAPE_CACHE_KEY: 'bim-shapes-v4',
   SHAPE_CACHE_TTL_MS: 24 * 3600 * 1000,
-  REGIONAL_ROUTE_URL: './data/regional-routes.geojson',
-  INFRASTRUCTURE_URL: './data/infrastructure.geojson',
-  LOCAL_SERVICES_URL: './data/local-services.geojson',
-  AIRPORTS_URL: './data/airports.geojson',
-  BORDER_CROSSINGS_URL: './data/border-crossings.geojson',
-  REFERENCE_PLACES_URL: './data/reference-places.geojson',
-  MNR_STOPS_URL: './data/mnr-stops.json',
+  REGIONAL_ROUTE_URL: `${dataBase}regional-routes.geojson`,
+  INFRASTRUCTURE_URL: `${dataBase}infrastructure.geojson`,
+  LOCAL_SERVICES_URL: `${dataBase}local-services.geojson`,
+  AIRPORTS_URL: `${dataBase}airports.geojson`,
+  BORDER_CROSSINGS_URL: `${dataBase}border-crossings.geojson`,
+  REFERENCE_PLACES_URL: `${dataBase}reference-places.geojson`,
+  MNR_STOPS_URL: `${dataBase}mnr-stops.json`,
   MNR_COLOR: '#ee0034',
   MNR_STALE_MS: 2 * 60_000,
 
@@ -201,6 +203,7 @@ export const CONFIG = {
   ],
 
   BASEMAP_STYLE: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+  BASEMAP_STYLE_LIGHT: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
 };
 
 // Persist only the gateway address. Provider credentials are Worker secrets.

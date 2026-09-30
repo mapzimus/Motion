@@ -3,8 +3,7 @@
   "configurations": [
     {
       "name": "transit-map",
-      "runtimeExecutable": "node",
-      "runtimeArgs": ["server.js"],
+      "command": "npm run dev",
       "port": 5500
     }
   ]

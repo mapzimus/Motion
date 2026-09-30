@@ -100,7 +100,8 @@ export function registerRegions(collection, marineCollection = null) {
 
 async function fetchMarine() {
   try {
-    const response = await fetch(new URL('../data/regions-marine.geojson', import.meta.url));
+    const base = import.meta.env?.BASE_URL ?? './';
+    const response = await fetch(`${base}data/regions-marine.geojson`);
     return response.ok ? await response.json() : null;
   } catch {
     return null; // Vessels fall back to the land boundary.
@@ -108,8 +109,9 @@ async function fetchMarine() {
 }
 
 export async function loadRegions() {
+  const base = import.meta.env?.BASE_URL ?? './';
   const [response, marine] = await Promise.all([
-    fetch(new URL('../data/regions.geojson', import.meta.url)),
+    fetch(`${base}data/regions.geojson`),
     fetchMarine(),
   ]);
   if (!response.ok) throw new Error(`Region boundaries ${response.status}`);
