@@ -1,7 +1,7 @@
 // Current and upcoming official WZDx work zones across MA, ME, NH, and VT.
 
 import { CONFIG } from './config.js';
-import { roadworkCountForRegion, setRoadworkData } from './map.js';
+import { roadworkCountForRegion, setRoadworkData } from '../map/map.js';
 
 export function startRoadwork(onCounts, initialRegion, enabled = true) {
   if (!CONFIG.GATEWAY_BASE || !enabled) {

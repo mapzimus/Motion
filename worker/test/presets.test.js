@@ -8,9 +8,9 @@ import {
   VEHICLE_PRESETS,
   presetByKey,
   resolvePreset,
-} from '../../js/presets.js';
+} from '../../src/model/presets.js';
 import regionConfig from '../../scripts/regions-config.json';
-import uiSource from '../../js/ui.js?raw';
+import uiSource from '../../src/ui.js?raw';
 
 // Mirrors the truth tags and needsKey flags js/ui.js buildGroups() sets when
 // every gateway provider is available.

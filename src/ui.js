@@ -1,9 +1,9 @@
 // Panel UI: layer toggles, alert feed, connection status, loading states.
 
-import { CONFIG } from './config.js';
-import { focusAlert, focusGroup } from './map.js';
-import { REGIONS, REGION_GROUPS, busDefaultOn, hasSubway, regionInfo, regionName } from './regions.js';
-import { SCENES, VEHICLE_PRESETS, resolvePreset } from './presets.js';
+import { CONFIG } from './feeds/config.js';
+import { focusAlert, focusGroup } from './map/map.js';
+import { REGIONS, REGION_GROUPS, busDefaultOn, hasSubway, regionInfo, regionName } from './feeds/regions.js';
+import { SCENES, VEHICLE_PRESETS, resolvePreset } from './model/presets.js';
 
 const el = (id) => document.getElementById(id);
 

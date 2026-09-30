@@ -9,7 +9,7 @@
 // serialized to the map worker on every animation frame.
 
 import { CONFIG } from './config.js';
-import { setFleetData } from './map.js';
+import { setFleetData } from '../map/map.js';
 import { filterItems } from './regions.js';
 
 const registry = new Map(); // fleetId -> fleet API

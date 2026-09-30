@@ -11,7 +11,7 @@
 //   "queen"         free text in title or destination (40)
 
 import { allFleets } from './fleet.js';
-import { getRecent } from './follow.js';
+import { getRecent } from '../follow/follow.js';
 
 const SKIP_FLEETS = new Set(['bike']); // ~600 docks would drown every query
 const MAX_VEHICLES = 5;

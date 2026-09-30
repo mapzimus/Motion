@@ -12,10 +12,10 @@
 //
 // DOM-free apart from the map: the trip card subscribes and renders.
 
-import { CONFIG } from './config.js';
-import { fitPadding, map, onCameraTakeover, setSelectedFeature } from './map.js';
-import { getFleet } from './fleet.js';
-import { schedulePermalinkUpdate } from './permalink.js';
+import { CONFIG } from '../feeds/config.js';
+import { fitPadding, map, onCameraTakeover, setSelectedFeature } from '../map/map.js';
+import { getFleet } from '../feeds/fleet.js';
+import { schedulePermalinkUpdate } from '../feeds/permalink.js';
 
 const RECENT_KEY = 'motion-follow-recent';
 const RECENT_MAX = 5;
