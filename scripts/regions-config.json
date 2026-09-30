@@ -1,0 +1,709 @@
+{
+  "$comment": "Single source of truth for Motion's map regions. scripts/build-regions.py builds data/regions.geojson from this file; the browser reads every property below from that file. Order here is the order of the region picker.",
+  "source": "U.S. Census Bureau TIGERweb (current vintage)",
+  "simplify": {
+    "towns": 8e-05,
+    "counties": 0.002,
+    "state": 0.003
+  },
+  "maxBytes": 1500000,
+  "groups": [
+    {
+      "key": "boston-area",
+      "label": "Boston area"
+    },
+    {
+      "key": "ma",
+      "label": "Massachusetts"
+    },
+    {
+      "key": "ri",
+      "label": "Rhode Island"
+    },
+    {
+      "key": "ct",
+      "label": "Connecticut"
+    },
+    {
+      "key": "nh",
+      "label": "New Hampshire"
+    },
+    {
+      "key": "vt",
+      "label": "Vermont"
+    },
+    {
+      "key": "me",
+      "label": "Maine"
+    },
+    {
+      "key": "new-england",
+      "label": "New England"
+    }
+  ],
+  "ring": {
+    "i-495": {
+      "source": "data/infrastructure.geojson features titled 'I- 495'",
+      "clipBox": [
+        -71.9,
+        41.5,
+        -70.5,
+        43.0
+      ],
+      "closeOffsetLng": 0.5,
+      "minShareInside": 0.5
+    }
+  },
+  "regions": [
+    {
+      "key": "greater-boston",
+      "name": "Greater Boston (inside I-495)",
+      "group": "boston-area",
+      "parent": "ma",
+      "kind": "towns",
+      "members": [
+        "Abington",
+        "Acton",
+        "Andover",
+        "Arlington",
+        "Ashland",
+        "Avon",
+        "Bedford",
+        "Belmont",
+        "Beverly",
+        "Billerica",
+        "Boston",
+        "Boxborough",
+        "Boxford",
+        "Braintree",
+        "Bridgewater",
+        "Brockton",
+        "Brookline",
+        "Burlington",
+        "Cambridge",
+        "Canton",
+        "Carlisle",
+        "Carver",
+        "Chelmsford",
+        "Chelsea",
+        "Cohasset",
+        "Concord",
+        "Danvers",
+        "Dedham",
+        "Dover",
+        "Duxbury",
+        "East Bridgewater",
+        "Easton",
+        "Essex",
+        "Everett",
+        "Foxborough",
+        "Framingham",
+        "Franklin",
+        "Georgetown",
+        "Gloucester",
+        "Groveland",
+        "Halifax",
+        "Hamilton",
+        "Hanover",
+        "Hanson",
+        "Haverhill",
+        "Hingham",
+        "Holbrook",
+        "Holliston",
+        "Hopkinton",
+        "Hudson",
+        "Hull",
+        "Ipswich",
+        "Kingston",
+        "Lexington",
+        "Lincoln",
+        "Littleton",
+        "Lynn",
+        "Lynnfield",
+        "Malden",
+        "Manchester-by-the-Sea",
+        "Mansfield",
+        "Marblehead",
+        "Marlborough",
+        "Marshfield",
+        "Maynard",
+        "Medfield",
+        "Medford",
+        "Medway",
+        "Melrose",
+        "Middleborough",
+        "Middleton",
+        "Millis",
+        "Milton",
+        "Nahant",
+        "Natick",
+        "Needham",
+        "Newbury",
+        "Newburyport",
+        "Newton",
+        "Norfolk",
+        "North Andover",
+        "North Reading",
+        "Norwell",
+        "Norwood",
+        "Peabody",
+        "Pembroke",
+        "Plymouth",
+        "Plympton",
+        "Quincy",
+        "Randolph",
+        "Reading",
+        "Revere",
+        "Rockland",
+        "Rockport",
+        "Rowley",
+        "Salem",
+        "Salisbury",
+        "Saugus",
+        "Scituate",
+        "Sharon",
+        "Sherborn",
+        "Somerville",
+        "Southborough",
+        "Stoneham",
+        "Stoughton",
+        "Stow",
+        "Sudbury",
+        "Swampscott",
+        "Tewksbury",
+        "Topsfield",
+        "Wakefield",
+        "Walpole",
+        "Waltham",
+        "Watertown",
+        "Wayland",
+        "Wellesley",
+        "Wenham",
+        "West Bridgewater",
+        "West Newbury",
+        "Weston",
+        "Westwood",
+        "Weymouth",
+        "Whitman",
+        "Wilmington",
+        "Winchester",
+        "Winthrop",
+        "Woburn",
+        "Wrentham"
+      ],
+      "memberCount": 128,
+      "definition": "Massachusetts cities and towns with at least half their area inside the I-495 ring (ring closed along the coast)",
+      "hasSubway": true,
+      "busDefaultOn": false,
+      "state": "MA",
+      "ring": "i-495"
+    },
+    {
+      "key": "boston",
+      "name": "MBTA core",
+      "group": "boston-area",
+      "parent": "ma",
+      "kind": "towns",
+      "members": [
+        "Arlington",
+        "Belmont",
+        "Boston",
+        "Braintree",
+        "Brookline",
+        "Cambridge",
+        "Chelsea",
+        "Everett",
+        "Malden",
+        "Medford",
+        "Milton",
+        "Newton",
+        "Quincy",
+        "Revere",
+        "Somerville",
+        "Watertown",
+        "Winthrop"
+      ],
+      "memberCount": 17,
+      "definition": "Boston plus 16 adjacent inner-core municipalities",
+      "hasSubway": true,
+      "busDefaultOn": false,
+      "state": "MA"
+    },
+    {
+      "key": "ma",
+      "name": "Massachusetts",
+      "group": "ma",
+      "parent": "new-england",
+      "kind": "state",
+      "definition": "Commonwealth of Massachusetts",
+      "hasSubway": true,
+      "busDefaultOn": false,
+      "geoid": "25",
+      "stusab": "MA"
+    },
+    {
+      "key": "merrimack-valley",
+      "name": "Merrimack Valley",
+      "group": "ma",
+      "parent": "ma",
+      "kind": "towns",
+      "members": [
+        "Acton",
+        "Amesbury",
+        "Andover",
+        "Billerica",
+        "Boxford",
+        "Carlisle",
+        "Chelmsford",
+        "Dracut",
+        "Dunstable",
+        "Georgetown",
+        "Groton",
+        "Groveland",
+        "Haverhill",
+        "Lawrence",
+        "Lowell",
+        "Maynard",
+        "Merrimac",
+        "Methuen",
+        "Newbury",
+        "Newburyport",
+        "North Andover",
+        "North Reading",
+        "Pepperell",
+        "Rowley",
+        "Salisbury",
+        "Tewksbury",
+        "Townsend",
+        "Tyngsborough",
+        "West Newbury",
+        "Westford"
+      ],
+      "memberCount": 30,
+      "definition": "LRTA and MeVa (MVRTA) member communities, including Lowell, Lawrence and Haverhill",
+      "hasSubway": false,
+      "busDefaultOn": true,
+      "state": "MA"
+    },
+    {
+      "key": "worcester",
+      "name": "Worcester County",
+      "group": "ma",
+      "parent": "ma",
+      "kind": "counties",
+      "members": [
+        "Worcester, MA"
+      ],
+      "memberCount": 1,
+      "definition": "Worcester County",
+      "hasSubway": false,
+      "busDefaultOn": true
+    },
+    {
+      "key": "pioneer-valley",
+      "name": "Pioneer Valley",
+      "group": "ma",
+      "parent": "ma",
+      "kind": "counties",
+      "members": [
+        "Hampden, MA",
+        "Hampshire, MA",
+        "Franklin, MA"
+      ],
+      "memberCount": 3,
+      "definition": "Hampden, Hampshire and Franklin counties",
+      "hasSubway": false,
+      "busDefaultOn": true
+    },
+    {
+      "key": "berkshires",
+      "name": "The Berkshires",
+      "group": "ma",
+      "parent": "ma",
+      "kind": "counties",
+      "members": [
+        "Berkshire, MA"
+      ],
+      "memberCount": 1,
+      "definition": "Berkshire County",
+      "hasSubway": false,
+      "busDefaultOn": true
+    },
+    {
+      "key": "south-coast",
+      "name": "South Coast",
+      "group": "ma",
+      "parent": "ma",
+      "kind": "counties",
+      "members": [
+        "Bristol, MA"
+      ],
+      "memberCount": 1,
+      "definition": "Bristol County, Massachusetts",
+      "hasSubway": false,
+      "busDefaultOn": true
+    },
+    {
+      "key": "cape-islands",
+      "name": "Cape Cod & Islands",
+      "group": "ma",
+      "parent": "ma",
+      "kind": "counties",
+      "members": [
+        "Barnstable, MA",
+        "Dukes, MA",
+        "Nantucket, MA"
+      ],
+      "memberCount": 3,
+      "definition": "Barnstable, Dukes and Nantucket counties",
+      "hasSubway": false,
+      "busDefaultOn": true
+    },
+    {
+      "key": "ri",
+      "name": "Rhode Island",
+      "group": "ri",
+      "parent": "new-england",
+      "kind": "state",
+      "definition": "State of Rhode Island",
+      "hasSubway": false,
+      "busDefaultOn": true,
+      "geoid": "44",
+      "stusab": "RI"
+    },
+    {
+      "key": "providence-metro",
+      "name": "Providence metro",
+      "group": "ri",
+      "parent": "ri",
+      "kind": "counties",
+      "members": [
+        "Providence, RI",
+        "Kent, RI",
+        "Bristol, RI"
+      ],
+      "memberCount": 3,
+      "definition": "Providence, Kent and Bristol counties",
+      "hasSubway": false,
+      "busDefaultOn": true
+    },
+    {
+      "key": "newport-south-county",
+      "name": "Newport & South County",
+      "group": "ri",
+      "parent": "ri",
+      "kind": "counties",
+      "members": [
+        "Newport, RI",
+        "Washington, RI"
+      ],
+      "memberCount": 2,
+      "definition": "Newport and Washington counties, including Block Island",
+      "hasSubway": false,
+      "busDefaultOn": true
+    },
+    {
+      "key": "ct",
+      "name": "Connecticut",
+      "group": "ct",
+      "parent": "new-england",
+      "kind": "state",
+      "definition": "State of Connecticut",
+      "hasSubway": false,
+      "busDefaultOn": true,
+      "geoid": "09",
+      "stusab": "CT"
+    },
+    {
+      "key": "hartford",
+      "name": "Hartford (Capitol region)",
+      "group": "ct",
+      "parent": "ct",
+      "kind": "counties",
+      "members": [
+        "Capitol, CT"
+      ],
+      "memberCount": 1,
+      "definition": "Capitol planning region",
+      "hasSubway": false,
+      "busDefaultOn": true
+    },
+    {
+      "key": "new-haven-shoreline",
+      "name": "New Haven & Shoreline",
+      "group": "ct",
+      "parent": "ct",
+      "kind": "counties",
+      "members": [
+        "South Central Connecticut, CT",
+        "Lower Connecticut River Valley, CT"
+      ],
+      "memberCount": 2,
+      "definition": "South Central Connecticut and Lower Connecticut River Valley planning regions",
+      "hasSubway": false,
+      "busDefaultOn": true
+    },
+    {
+      "key": "fairfield",
+      "name": "Fairfield County",
+      "group": "ct",
+      "parent": "ct",
+      "kind": "counties",
+      "members": [
+        "Western Connecticut, CT",
+        "Greater Bridgeport, CT"
+      ],
+      "memberCount": 2,
+      "definition": "Western Connecticut and Greater Bridgeport planning regions",
+      "hasSubway": false,
+      "busDefaultOn": true
+    },
+    {
+      "key": "eastern-ct",
+      "name": "Eastern Connecticut",
+      "group": "ct",
+      "parent": "ct",
+      "kind": "counties",
+      "members": [
+        "Southeastern Connecticut, CT",
+        "Northeastern Connecticut, CT"
+      ],
+      "memberCount": 2,
+      "definition": "Southeastern and Northeastern Connecticut planning regions",
+      "hasSubway": false,
+      "busDefaultOn": true
+    },
+    {
+      "key": "nh",
+      "name": "New Hampshire",
+      "group": "nh",
+      "parent": "new-england",
+      "kind": "state",
+      "definition": "State of New Hampshire",
+      "hasSubway": false,
+      "busDefaultOn": true,
+      "geoid": "33",
+      "stusab": "NH"
+    },
+    {
+      "key": "nh-seacoast",
+      "name": "NH Seacoast",
+      "group": "nh",
+      "parent": "nh",
+      "kind": "counties",
+      "members": [
+        "Rockingham, NH",
+        "Strafford, NH"
+      ],
+      "memberCount": 2,
+      "definition": "Rockingham and Strafford counties",
+      "hasSubway": false,
+      "busDefaultOn": true
+    },
+    {
+      "key": "nh-merrimack",
+      "name": "Manchester, Nashua & Concord",
+      "group": "nh",
+      "parent": "nh",
+      "kind": "counties",
+      "members": [
+        "Hillsborough, NH",
+        "Merrimack, NH"
+      ],
+      "memberCount": 2,
+      "definition": "Hillsborough and Merrimack counties",
+      "hasSubway": false,
+      "busDefaultOn": true
+    },
+    {
+      "key": "lakes-white-mountains",
+      "name": "Lakes & White Mountains",
+      "group": "nh",
+      "parent": "nh",
+      "kind": "counties",
+      "members": [
+        "Belknap, NH",
+        "Carroll, NH",
+        "Coos, NH"
+      ],
+      "memberCount": 3,
+      "definition": "Belknap, Carroll and Coös counties",
+      "hasSubway": false,
+      "busDefaultOn": true
+    },
+    {
+      "key": "vt",
+      "name": "Vermont",
+      "group": "vt",
+      "parent": "new-england",
+      "kind": "state",
+      "definition": "State of Vermont",
+      "hasSubway": false,
+      "busDefaultOn": true,
+      "geoid": "50",
+      "stusab": "VT"
+    },
+    {
+      "key": "champlain-valley",
+      "name": "Burlington & Champlain Valley",
+      "group": "vt",
+      "parent": "vt",
+      "kind": "counties",
+      "members": [
+        "Chittenden, VT",
+        "Addison, VT",
+        "Franklin, VT",
+        "Grand Isle, VT"
+      ],
+      "memberCount": 4,
+      "definition": "Chittenden, Addison, Franklin and Grand Isle counties",
+      "hasSubway": false,
+      "busDefaultOn": true
+    },
+    {
+      "key": "southern-vt",
+      "name": "Southern Vermont",
+      "group": "vt",
+      "parent": "vt",
+      "kind": "counties",
+      "members": [
+        "Bennington, VT",
+        "Windham, VT",
+        "Rutland, VT"
+      ],
+      "memberCount": 3,
+      "definition": "Bennington, Windham and Rutland counties",
+      "hasSubway": false,
+      "busDefaultOn": true
+    },
+    {
+      "key": "me",
+      "name": "Maine",
+      "group": "me",
+      "parent": "new-england",
+      "kind": "state",
+      "definition": "State of Maine",
+      "hasSubway": false,
+      "busDefaultOn": true,
+      "geoid": "23",
+      "stusab": "ME"
+    },
+    {
+      "key": "southern-maine",
+      "name": "Portland & Southern Maine",
+      "group": "me",
+      "parent": "me",
+      "kind": "counties",
+      "members": [
+        "York, ME",
+        "Cumberland, ME"
+      ],
+      "memberCount": 2,
+      "definition": "York and Cumberland counties",
+      "hasSubway": false,
+      "busDefaultOn": true
+    },
+    {
+      "key": "midcoast",
+      "name": "Midcoast Maine",
+      "group": "me",
+      "parent": "me",
+      "kind": "counties",
+      "members": [
+        "Sagadahoc, ME",
+        "Lincoln, ME",
+        "Knox, ME",
+        "Waldo, ME"
+      ],
+      "memberCount": 4,
+      "definition": "Sagadahoc, Lincoln, Knox and Waldo counties",
+      "hasSubway": false,
+      "busDefaultOn": true
+    },
+    {
+      "key": "downeast-acadia",
+      "name": "Downeast & Acadia",
+      "group": "me",
+      "parent": "me",
+      "kind": "counties",
+      "members": [
+        "Hancock, ME",
+        "Washington, ME"
+      ],
+      "memberCount": 2,
+      "definition": "Hancock and Washington counties",
+      "hasSubway": false,
+      "busDefaultOn": true
+    },
+    {
+      "key": "central-western-me",
+      "name": "Central & Western Maine",
+      "group": "me",
+      "parent": "me",
+      "kind": "counties",
+      "members": [
+        "Androscoggin, ME",
+        "Kennebec, ME",
+        "Oxford, ME",
+        "Franklin, ME",
+        "Somerset, ME"
+      ],
+      "memberCount": 5,
+      "definition": "Androscoggin, Kennebec, Oxford, Franklin and Somerset counties",
+      "hasSubway": false,
+      "busDefaultOn": true
+    },
+    {
+      "key": "bangor-north",
+      "name": "Bangor & the North",
+      "group": "me",
+      "parent": "me",
+      "kind": "counties",
+      "members": [
+        "Penobscot, ME",
+        "Piscataquis, ME",
+        "Aroostook, ME"
+      ],
+      "memberCount": 3,
+      "definition": "Penobscot, Piscataquis and Aroostook counties",
+      "hasSubway": false,
+      "busDefaultOn": true
+    },
+    {
+      "key": "new-england",
+      "name": "All New England",
+      "group": "new-england",
+      "parent": null,
+      "kind": "union",
+      "members": [
+        "ct",
+        "ma",
+        "me",
+        "nh",
+        "ri",
+        "vt"
+      ],
+      "memberCount": 6,
+      "definition": "All six New England states",
+      "hasSubway": true,
+      "busDefaultOn": false
+    },
+    {
+      "key": "upper-valley",
+      "name": "Upper Valley (VT–NH)",
+      "group": "new-england",
+      "parent": "new-england",
+      "kind": "counties",
+      "members": [
+        "Windsor, VT",
+        "Orange, VT",
+        "Grafton, NH",
+        "Sullivan, NH"
+      ],
+      "memberCount": 4,
+      "definition": "Windsor and Orange counties (Vermont) plus Grafton and Sullivan counties (New Hampshire)",
+      "hasSubway": false,
+      "busDefaultOn": true
+    }
+  ]
+}
