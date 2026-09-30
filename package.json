@@ -7,7 +7,7 @@
     "dev": "node server.js",
     "gateway:dev": "wrangler dev",
     "gateway:types": "wrangler types",
-    "check": "tsc --noEmit && node scripts/check-route-geometry.mjs",
+    "check": "tsc --noEmit && node scripts/check-route-geometry.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-marine-regions.mjs",
     "test": "vitest run",
     "deploy:dry-run": "wrangler deploy --dry-run --env=\"\""
   },

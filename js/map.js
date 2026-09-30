@@ -1569,9 +1569,13 @@ export function setFleetData(fleetId, featureCollection) {
   renderFleetData(fleetId);
 }
 
+// Vessels sit on the water just past the land boundary, so they filter
+// against the coastal (marine) region geometry. Other fleets use land.
+const fleetFilterOptions = (fleetId) => ({ marine: fleetId === 'vessel' });
+
 function renderFleetData(fleetId) {
   const collection = rawFleetData.get(fleetId) ?? EMPTY_FC;
-  const filtered = filterFeatureCollection(collection, activeRegion);
+  const filtered = filterFeatureCollection(collection, activeRegion, fleetFilterOptions(fleetId));
   fleetData.set(fleetId, filtered);
   map?.getSource(`veh-${fleetId}`)?.setData(filtered);
 }
@@ -1612,7 +1616,8 @@ export function fleetCountsForRegion() {
   return Object.fromEntries(
     [...rawFleetData.entries()].map(([fleetId, collection]) => {
       const counts = {};
-      for (const feature of filterFeatureCollection(collection, activeRegion).features) {
+      const features = filterFeatureCollection(collection, activeRegion, fleetFilterOptions(fleetId)).features;
+      for (const feature of features) {
         const group = feature.properties.group;
         counts[group] = (counts[group] ?? 0) + 1;
       }

@@ -3,18 +3,20 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import urllib.parse
 import urllib.request
 from pathlib import Path
 
 from shapely import make_valid
-from shapely.geometry import mapping, shape
+from shapely.geometry import box, mapping, shape
 from shapely.ops import unary_union
 
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "data" / "regions.geojson"
+MARINE_OUTPUT = ROOT / "data" / "regions-marine.geojson"
 TIGERWEB_QUERY = (
     "https://tigerweb.geo.census.gov/arcgis/rest/services/"
     "TIGERweb/Places_CouSub_ConCity_SubMCD/MapServer/1/query"
@@ -84,7 +86,89 @@ def fetch_core():
     }
 
 
+# --- Marine (vessel) geometry -------------------------------------------------
+# Vessels sit on the water, just past the generalized land/state boundary, so
+# the vessel layer filters against each region grown by a coastal buffer.
+# About 0.2 degrees (~20 km, roughly the 12 nm territorial sea) for states and
+# New England, and a tighter 0.06 degrees for the MBTA core. Everything is
+# clipped to the New England AIS box the gateway subscribes to.
+STATE_KEYS = ("ct", "ma", "me", "nh", "ri", "vt")
+MARINE_BUFFER_DEG = 0.2
+MARINE_BUFFER_OVERRIDES = {"boston": 0.06}
+MARINE_CLIP = box(-74.0, 40.8, -66.0, 47.7)  # AIS [[40.8,-74.0],[47.7,-66.0]]
+MARINE_SIMPLIFY_DEG = 0.004
+
+
+def _round_coords(value, places=4):
+    if isinstance(value, (list, tuple)):
+        if value and isinstance(value[0], (int, float)):
+            return [round(value[0], places), round(value[1], places)]
+        return [_round_coords(child, places) for child in value]
+    return value
+
+
+def build_marine(regions_fc):
+    """Return a FeatureCollection of buffered, clipped region geometry.
+
+    Takes the land/state region collection (data/regions.geojson) and returns
+    one feature per region key, plus a 'new-england' feature that is the union
+    of the six buffered states. Self-contained so the regions build can call
+    it for any set of regions.
+    """
+    features = []
+    buffered_states = []
+    for feature in regions_fc.get("features", []):
+        key = feature.get("properties", {}).get("key")
+        if not key:
+            continue
+        distance = MARINE_BUFFER_OVERRIDES.get(key, MARINE_BUFFER_DEG)
+        geometry = make_valid(shape(feature["geometry"])).buffer(distance, quad_segs=4)
+        geometry = geometry.intersection(MARINE_CLIP)
+        if key in STATE_KEYS:
+            buffered_states.append(geometry)
+        features.append((key, distance, geometry))
+    if len(buffered_states) == len(STATE_KEYS):
+        features.append(("new-england", MARINE_BUFFER_DEG, unary_union(buffered_states)))
+    out = []
+    for key, distance, geometry in features:
+        geometry = geometry.simplify(MARINE_SIMPLIFY_DEG, preserve_topology=True)
+        geojson = mapping(geometry)
+        out.append({
+            "type": "Feature",
+            "properties": {"key": key, "bufferDeg": distance},
+            "geometry": {"type": geojson["type"], "coordinates": _round_coords(geojson["coordinates"])},
+        })
+    return {
+        "type": "FeatureCollection",
+        "metadata": {
+            "source": "data/regions.geojson grown by a coastal buffer for the vessel layer",
+            "clip": [[40.8, -74.0], [47.7, -66.0]],
+        },
+        "features": out,
+    }
+
+
+def write_marine(regions_fc):
+    collection = build_marine(regions_fc)
+    text = json.dumps(collection, separators=(",", ":")) + "\n"
+    MARINE_OUTPUT.write_text(text, encoding="utf-8", newline="\n")
+    size_kb = len(text.encode("utf-8")) / 1024
+    if size_kb > 300:
+        raise RuntimeError(f"{MARINE_OUTPUT.name} is {size_kb:.0f} KB; raise MARINE_SIMPLIFY_DEG")
+    print(f"Wrote {len(collection['features'])} marine regions ({size_kb:.0f} KB) to {MARINE_OUTPUT}")
+
+
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--marine-only",
+        action="store_true",
+        help="Read the existing data/regions.geojson and only rebuild data/regions-marine.geojson",
+    )
+    args = parser.parse_args()
+    if args.marine_only:
+        write_marine(json.loads(OUTPUT.read_text(encoding="utf-8")))
+        return
     existing = json.loads(OUTPUT.read_text(encoding="utf-8"))
     states = [
         feature for feature in existing.get("features", [])
@@ -106,6 +190,7 @@ def main():
         newline="\n",
     )
     print(f"Wrote {len(states)} states and {len(CORE_BASENAMES)} Greater Boston municipalities to {OUTPUT}")
+    write_marine(collection)
 
 
 if __name__ == "__main__":

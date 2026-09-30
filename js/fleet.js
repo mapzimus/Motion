@@ -64,7 +64,9 @@ export function createFleet(fleetId) {
     if (active.size) startLoop();
     else render();
     updateListeners.forEach((fn) => fn());
-    return filterItems(items);
+    // Vessels are counted against the coastal (marine) boundary, matching
+    // what map.js draws for them.
+    return filterItems(items, undefined, { marine: fleetId === 'vessel' });
   }
 
   function startLoop() {
