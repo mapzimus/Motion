@@ -18,16 +18,16 @@ const RESTRICTED_BUS_ROAD_PATTERN = /\b(?:Merritt|Wilbur Cross|Hutchinson River|
 const cacheRaw = readFileSync(new URL('./road-route-cache.json', import.meta.url));
 const controlsRaw = readFileSync(new URL('./road-route-controls.json', import.meta.url));
 const cache = JSON.parse(cacheRaw);
-const collection = JSON.parse(readFileSync(new URL('../data/regional-routes.geojson', import.meta.url), 'utf8'));
-const airports = JSON.parse(readFileSync(new URL('../data/airports.geojson', import.meta.url), 'utf8'));
+const collection = JSON.parse(readFileSync(new URL('../public/data/regional-routes.geojson', import.meta.url), 'utf8'));
+const airports = JSON.parse(readFileSync(new URL('../public/data/airports.geojson', import.meta.url), 'utf8'));
 const borderCrossings = JSON.parse(
-  readFileSync(new URL('../data/border-crossings.geojson', import.meta.url), 'utf8'),
+  readFileSync(new URL('../public/data/border-crossings.geojson', import.meta.url), 'utf8'),
 );
 const localServices = JSON.parse(
-  readFileSync(new URL('../data/local-services.geojson', import.meta.url), 'utf8'),
+  readFileSync(new URL('../public/data/local-services.geojson', import.meta.url), 'utf8'),
 );
 const referencePlaces = JSON.parse(
-  readFileSync(new URL('../data/reference-places.geojson', import.meta.url), 'utf8'),
+  readFileSync(new URL('../public/data/reference-places.geojson', import.meta.url), 'utf8'),
 );
 const supplementalFerries = JSON.parse(
   readFileSync(new URL('./supplemental-ferry-routes.json', import.meta.url), 'utf8'),
@@ -786,7 +786,7 @@ for (const [group, minimum] of Object.entries(REFERENCE_PLACE_MINIMUMS)) {
 {
   const MAX_REGIONS_BYTES = 1_500_000;
   const regionConfig = JSON.parse(readFileSync(new URL('./regions-config.json', import.meta.url), 'utf8'));
-  const regionsRaw = readFileSync(new URL('../data/regions.geojson', import.meta.url));
+  const regionsRaw = readFileSync(new URL('../public/data/regions.geojson', import.meta.url));
   const regionCollection = JSON.parse(regionsRaw);
   const builtRegions = new Map(
     (regionCollection.features ?? []).map((feature) => [feature.properties?.key, feature]),

@@ -2,22 +2,33 @@
   "name": "new-england-in-motion",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "description": "Live transportation map for Boston and New England",
   "scripts": {
-    "dev": "node server.js",
+    "dev": "vite",
+    "dev:legacy": "node server.cjs",
+    "build": "vite build",
+    "preview": "vite preview --port 5500",
     "gateway:dev": "wrangler dev",
     "gateway:types": "wrangler types",
-    "check": "tsc --noEmit && node scripts/check-route-geometry.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-marine-regions.mjs",
-    "test": "vitest run",
+    "check": "tsc --noEmit && tsc -p tsconfig.app.json --noEmit && node scripts/check-route-geometry.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-marine-regions.mjs",
+    "test": "vitest run -c vitest.config.mts",
+    "test:ui": "vitest run -c vitest.ui.config.mts",
     "deploy:dry-run": "wrangler deploy --dry-run --env=\"\""
   },
   "dependencies": {
-    "gtfs-realtime-bindings": "^2.2.0"
+    "@preact/signals": "^2.11.3",
+    "gtfs-realtime-bindings": "^2.2.0",
+    "maplibre-gl": "^4.7.1",
+    "preact": "^11.0.0"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.22.0",
+    "@preact/preset-vite": "^2.10.6",
     "@types/node": "^26.2.0",
+    "happy-dom": "^20.14.5",
     "typescript": "^7.0.2",
+    "vite": "^8.3.1",
     "vitest": "^4.1.11",
     "wrangler": "^4.124.0"
   }
