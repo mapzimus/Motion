@@ -2,9 +2,9 @@
 // tripCardData(). This is the only follow-mode module that touches the page;
 // the Preact rewrite replaces it with a component.
 
-import { getSelection, setMode, subscribe, unfollow } from './follow.js';
-import { buildPermalinkHash } from './permalink.js';
-import { createTripWatcher, fleetLabel, tripCardData } from './trip-data.js';
+import { getSelection, setMode, subscribe, unfollow } from './follow/follow.js';
+import { buildPermalinkHash } from './feeds/permalink.js';
+import { createTripWatcher, fleetLabel, tripCardData } from './feeds/trip-data.js';
 
 let el = {};
 let extras = null;

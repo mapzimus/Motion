@@ -1,9 +1,9 @@
 // Map engine: MapLibre GL setup, route ribbons, one animated layer-pair per
 // vehicle fleet, source-agnostic popups, and alert-focus navigation.
 
-import { CONFIG } from './config.js';
-import { lookupFlightRoute } from './flight-routes.js';
-import { attachStopPredictions } from './predictions.js';
+import { CONFIG } from '../feeds/config.js';
+import { lookupFlightRoute } from '../feeds/flight-routes.js';
+import { attachStopPredictions } from '../feeds/predictions.js';
 import {
   DEFAULT_REGION,
   boundaryForRegion,
@@ -14,7 +14,7 @@ import {
   filterSpatialFeatureCollection,
   maxZoomForRegion,
   setActiveRegion,
-} from './regions.js';
+} from '../feeds/regions.js';
 
 const EMPTY_FC = { type: 'FeatureCollection', features: [] };
 

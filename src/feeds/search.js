@@ -4,7 +4,7 @@
 // network. The index is built lazily on first use, after the route snapshot
 // has loaded, so startup cost is zero.
 
-import { map, openStopPopup, takeCamera } from './map.js';
+import { map, openStopPopup, takeCamera } from '../map/map.js';
 import { REGIONS } from './regions.js';
 import { recentVehicles, searchVehicles } from './vehicle-search.js';
 

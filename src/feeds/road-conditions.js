@@ -6,7 +6,7 @@ import {
   roadEventCountForRegion,
   setCameraData,
   setRoadEventsData,
-} from './map.js';
+} from '../map/map.js';
 
 function startFeed({ path, key, interval, enabled, setData, count }, onCounts) {
   if (!CONFIG.GATEWAY_BASE || !enabled) {

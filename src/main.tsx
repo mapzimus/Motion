@@ -1,3 +1,6 @@
-// Preact entry point — Phase B1 will wire this up.
-// For now the app still boots from js/app.js via index.html.
-export {};
+import { boot } from './app/boot.js';
+import { initLegacyBridge } from './legacyBridge.js';
+
+boot().then(() => {
+  initLegacyBridge();
+});

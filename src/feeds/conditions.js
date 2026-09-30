@@ -11,7 +11,7 @@ import {
   setWeatherAlertsData,
   weatherAlertCountForRegion,
   weatherPanelAlertsForRegion,
-} from './map.js';
+} from '../map/map.js';
 
 function startPoller({ key, interval, enabled, url, apply }, onCounts) {
   if (!CONFIG.GATEWAY_BASE || !enabled) {
