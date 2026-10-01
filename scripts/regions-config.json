@@ -308,6 +308,7 @@
         "Newbury",
         "Newburyport",
         "Peabody",
+        "Revere",
         "Rockport",
         "Rowley",
         "Salem",
@@ -318,8 +319,8 @@
         "Wenham",
         "West Newbury"
       ],
-      "memberCount": 25,
-      "definition": "Massachusetts North Shore coastal communities from Lynn to Newburyport",
+      "memberCount": 26,
+      "definition": "Massachusetts North Shore coastal communities from Revere to Newburyport",
       "hasSubway": false,
       "busDefaultOn": false,
       "state": "MA"
