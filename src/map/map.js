@@ -49,9 +49,9 @@ let airportsFC = EMPTY_FC;
 let allBorderCrossingsFC = EMPTY_FC;
 let borderCrossingsFC = EMPTY_FC;
 let referenceLoadPromise = null;
-// Reference places (heritage rail, park & ride, EV charging, drawbridges) are
+// Reference places (heritage rail, park & ride, EV charging, drawbridges, taxis) are
 // one ~5 MB file, so they load only when one of their groups is switched on.
-const REFERENCE_PLACE_GROUPS = ['heritage-rail', 'park-ride', 'ev-charging', 'drawbridge'];
+const REFERENCE_PLACE_GROUPS = ['heritage-rail', 'park-ride', 'ev-charging', 'drawbridge', 'taxi'];
 let allReferencePlacesFC = EMPTY_FC;
 let referencePlacesFC = EMPTY_FC;
 let referencePlacesPromise = null;
@@ -549,6 +549,45 @@ function setupLayers() {
     },
     paint: {
       'text-color': CONFIG.DRAWBRIDGE_COLOR,
+      'text-halo-color': '#10151b',
+      'text-halo-width': 1.5,
+    },
+  });
+  // Taxi and cab services are a directory: companies sit on their garage or
+  // city point, stands (smaller dots) on the curb where cabs queue.
+  map.addLayer({
+    id: 'taxi-points',
+    type: 'circle',
+    source: 'reference-places',
+    filter: ['==', ['get', 'group'], 'taxi'],
+    layout: { visibility: 'none' },
+    paint: {
+      'circle-color': CONFIG.TAXI_COLOR,
+      'circle-radius': [
+        'interpolate', ['linear'], ['zoom'],
+        5, ['case', ['==', ['get', 'kind'], 'stand'], 2, 3],
+        12, ['case', ['==', ['get', 'kind'], 'stand'], 4.5, 7],
+      ],
+      'circle-stroke-color': '#151a21',
+      'circle-stroke-width': 1.6,
+      'circle-opacity': 0.95,
+    },
+  });
+  map.addLayer({
+    id: 'taxi-labels',
+    type: 'symbol',
+    source: 'reference-places',
+    filter: ['==', ['get', 'group'], 'taxi'],
+    minzoom: 10,
+    layout: {
+      visibility: 'none',
+      'text-field': ['get', 'title'],
+      'text-size': 10,
+      'text-offset': [0, 1.2],
+      'text-allow-overlap': false,
+    },
+    paint: {
+      'text-color': CONFIG.TAXI_COLOR,
       'text-halo-color': '#10151b',
       'text-halo-width': 1.5,
     },
@@ -1074,6 +1113,7 @@ function wirePopups() {
   wireInformationPopup('park-ride-points');
   wireInformationPopup('ev-charging-points');
   wireInformationPopup('drawbridge-points');
+  wireInformationPopup('taxi-points');
   wireCameraPopups();
   wireConditionPopups();
 }
@@ -1819,6 +1859,8 @@ function applyGroupFilter(groups, statuses) {
     ['ev-charging-points', 'ev-charging'],
     ['drawbridge-points', 'drawbridge'],
     ['drawbridge-labels', 'drawbridge'],
+    ['taxi-points', 'taxi'],
+    ['taxi-labels', 'taxi'],
   ]) {
     map.setLayoutProperty(
       layerId,
