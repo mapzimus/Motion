@@ -6,11 +6,14 @@ export type TransitFeed = {
   states: StateId[];
   url: string;
   authorization?: 'swiftly';
+  // Service area lies inside the 17-municipality MBTA core, so the feed is also
+  // served for the `boston` gateway region.
+  mbtaCore?: true;
 };
 
-// Public agency feeds are preferred. Vermont's statewide realtime program and
-// Advance Transit publish through Swiftly, whose API requires one shared
-// Authorization value; those feeds become active when SWIFTLY_API_KEY is set.
+// Public agency feeds are preferred. Vermont's statewide realtime program,
+// Advance Transit and a few others publish through Swiftly, whose API needs a
+// key that is enabled agency by agency; see SWIFTLY_APPROVED_AGENCIES below.
 export const TRANSIT_FEEDS: TransitFeed[] = [
   {
     id: 'pvta',
@@ -60,17 +63,69 @@ export const TRANSIT_FEEDS: TransitFeed[] = [
     url: 'https://gtfsrt.gatra.cadavl.com/ProfilGtfsRt2_0RSProducer-GATRA/VehiclePosition.pb',
   },
   {
+    // Cadavl producer on the agency's own host, same platform as WRTA and GATRA; route ids
+    // match the gtfs.lrta.cadavl.com static GTFS. LRTA runs no Sunday service, so both 2026
+    // checks (09-27, 10-04) saw a valid, fresh feed with zero vehicles.
+    id: 'lrta',
+    agency: 'Lowell Regional Transit Authority',
+    states: ['ma'],
+    url: 'https://gtfsrt.lrta.cadavl.com/ProfilGtfsRt2_0RSProducer-LRTA/VehiclePosition.pb',
+  },
+  {
     // Campus shuttles; route ids join the passio static GTFS (regional-feeds id "mit").
     id: 'mit',
     agency: 'MIT shuttles',
     states: ['ma'],
     url: 'https://passio3.com/mit/passioTransit/gtfs/realtime/vehiclePositions',
+    mbtaCore: true,
   },
   {
     id: 'tufts',
     agency: 'Tufts University shuttles',
     states: ['ma'],
     url: 'https://passio3.com/tufts/passioTransit/gtfs/realtime/vehiclePositions',
+    mbtaCore: true,
+  },
+  {
+    // Passio GTFS-realtime mirrors the Passio GO rider app: on 2026-10-04 every system with
+    // buses in the app (EZRide, MGB, Quinnipiac) decoded the same count here, and systems
+    // with none in the app (Harvard, Longwood, Bangor, citylink, Lexpress) decoded zero.
+    id: 'harvard',
+    agency: 'Harvard University shuttles',
+    states: ['ma'],
+    url: 'https://passio3.com/harvard/passioTransit/gtfs/realtime/vehiclePositions',
+    mbtaCore: true,
+  },
+  {
+    // Live-verified 2026-10-04: one vehicle at Lechmere/Kendall.
+    id: 'ezride',
+    agency: 'EZRide · Charles River TMA',
+    states: ['ma'],
+    url: 'https://passio3.com/charlesriver/passioTransit/gtfs/realtime/vehiclePositions',
+    mbtaCore: true,
+  },
+  {
+    // Weekday-only Longwood Medical Area shuttles (formerly MASCO).
+    id: 'longwood',
+    agency: 'Longwood Collective shuttles',
+    states: ['ma'],
+    url: 'https://passio3.com/longwoodcollective/passioTransit/gtfs/realtime/vehiclePositions',
+    mbtaCore: true,
+  },
+  {
+    // Live-verified 2026-10-04: one vehicle near North Station / MGH.
+    id: 'mgb',
+    agency: 'Mass General Brigham shuttles',
+    states: ['ma'],
+    url: 'https://passio3.com/mgb/passioTransit/gtfs/realtime/vehiclePositions',
+    mbtaCore: true,
+  },
+  {
+    // Weekday-only Lexington town bus.
+    id: 'lexpress',
+    agency: 'Lexpress',
+    states: ['ma'],
+    url: 'https://passio3.com/lexpress/passioTransit/gtfs/realtime/vehiclePositions',
   },
   {
     id: 'cttransit',
@@ -110,6 +165,25 @@ export const TRANSIT_FEEDS: TransitFeed[] = [
     url: 'https://passio3.com/uconn/passioTransit/gtfs/realtime/vehiclePositions',
   },
   {
+    // Live-verified 2026-10-04: three vehicles between Hamden and North Haven.
+    id: 'quinnipiac',
+    agency: 'Quinnipiac University shuttles',
+    states: ['ct'],
+    url: 'https://passio3.com/quinnUni/passioTransit/gtfs/realtime/vehiclePositions',
+  },
+  {
+    id: 'uhartford',
+    agency: 'University of Hartford shuttles',
+    states: ['ct'],
+    url: 'https://passio3.com/HartfordAmerica/passioTransit/gtfs/realtime/vehiclePositions',
+  },
+  {
+    id: 'unewhaven',
+    agency: 'University of New Haven shuttles',
+    states: ['ct'],
+    url: 'https://passio3.com/newhaven/passioTransit/gtfs/realtime/vehiclePositions',
+  },
+  {
     id: 'ripta',
     agency: 'Rhode Island Public Transit Authority',
     states: ['ri'],
@@ -122,6 +196,12 @@ export const TRANSIT_FEEDS: TransitFeed[] = [
     url: 'https://passio3.com/brown/passioTransit/gtfs/realtime/vehiclePositions',
   },
   {
+    id: 'providence-college',
+    agency: 'Providence College shuttles',
+    states: ['ri'],
+    url: 'https://passio3.com/providence/passioTransit/gtfs/realtime/vehiclePositions',
+  },
+  {
     id: 'greater-portland',
     agency: 'Greater Portland METRO',
     states: ['me'],
@@ -132,6 +212,20 @@ export const TRANSIT_FEEDS: TransitFeed[] = [
     agency: 'Island Explorer',
     states: ['me'],
     url: 'https://islandexplorertracker.availtec.com/InfoPoint/GTFS-Realtime.ashx?&Type=VehiclePosition&serverid=0',
+  },
+  {
+    // No Sunday service; the static feed (regional-feeds id "bangor") is this same Passio system.
+    id: 'bangor',
+    agency: 'Bangor Community Connector',
+    states: ['me'],
+    url: 'https://passio3.com/bangor/passioTransit/gtfs/realtime/vehiclePositions',
+  },
+  {
+    // Passio system "avcog"; its GTFS route ids match the AVCOG-published static feed.
+    id: 'citylink',
+    agency: 'Lewiston-Auburn citylink',
+    states: ['me'],
+    url: 'https://passio3.com/avcog/passioTransit/gtfs/realtime/vehiclePositions',
   },
   {
     id: 'casco-bay',
@@ -207,8 +301,25 @@ export const TRANSIT_FEEDS: TransitFeed[] = [
   },
 ];
 
+// Swiftly issues one key but switches it on per agency, and only for agencies
+// that pre-approve third-party sharing or approve in writing (Swiftly support
+// ticket G5MJJP-E6GZZ, 2026-09-30). The key is rejected for every other agency,
+// and those rejected calls would still spend the key's allowance of 180
+// requests per 15 minutes, so the gateway only calls agencies listed here.
+// RIPTA is approved too but is read from its own keyless feed.
+export const SWIFTLY_APPROVED_AGENCIES: ReadonlySet<string> = new Set(['casco-bay-lines']);
+
+export function swiftlyAgencyKey(feed: TransitFeed): string | null {
+  return /\/real-time\/([^/]+)\//.exec(feed.url)?.[1] ?? null;
+}
+
+export function swiftlyApproved(feed: TransitFeed): boolean {
+  const key = swiftlyAgencyKey(feed);
+  return feed.authorization === 'swiftly' && key !== null && SWIFTLY_APPROVED_AGENCIES.has(key);
+}
+
 export function feedsForRegion(region: RegionId): TransitFeed[] {
-  if (region === 'boston') return [];
+  if (region === 'boston') return TRANSIT_FEEDS.filter((feed) => feed.mbtaCore);
   if (region === 'new-england') return TRANSIT_FEEDS;
   return TRANSIT_FEEDS.filter((feed) => feed.states.includes(region));
 }
