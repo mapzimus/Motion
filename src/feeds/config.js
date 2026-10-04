@@ -84,6 +84,11 @@ export const CONFIG = {
   REGIONAL_ROUTE_URL: `${dataBase}regional-routes.geojson`,
   INFRASTRUCTURE_URL: `${dataBase}infrastructure.geojson`,
   LOCAL_SERVICES_URL: `${dataBase}local-services.geojson`,
+  // Bike-share systems without a usable public GBFS feed, one reference
+  // marker per member town (or per home station where the operator publishes
+  // exact hubs). Systems with feeds render live through SHARED_MOBILITY_SYSTEMS.
+  BIKESHARE_SYSTEMS_URL: `${dataBase}bikeshare-systems.geojson`,
+  BIKESHARE_REF_COLOR: '#c084fc',
   AIRPORTS_URL: `${dataBase}airports.geojson`,
   BORDER_CROSSINGS_URL: `${dataBase}border-crossings.geojson`,
   REFERENCE_PLACES_URL: `${dataBase}reference-places.geojson`,
@@ -170,6 +175,7 @@ export const CONFIG = {
   PARK_RIDE_COLOR: '#7fb7ff',
   EV_CHARGING_COLOR: '#6ee7a8',
   DRAWBRIDGE_COLOR: '#f7c948',
+  TAXI_COLOR: '#ffe14d',
 
   CAMERA_POLL_MS: 5 * 60_000,
   ROAD_EVENT_POLL_MS: 60_000,
@@ -200,7 +206,7 @@ export const CONFIG = {
   DEFAULT_OFF_GROUPS: [
     'bus', 'bike', 'roadwork', 'traffic', 'incident', 'camera',
     'roads', 'freight', 'walking', 'cycling', 'local', 'airport', 'border', 'air-service',
-    'heritage-rail', 'park-ride', 'ev-charging', 'drawbridge',
+    'bikeshare', 'heritage-rail', 'park-ride', 'ev-charging', 'drawbridge', 'taxi',
     'weather', 'airport-status',
   ],
 

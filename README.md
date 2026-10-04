@@ -22,14 +22,16 @@ Every feature is labeled **live**, **estimated**, **scheduled**, or
 |---|---|---|
 | MBTA subway, Silver Line, buses, commuter rail, ferries | [MBTA V3 API](https://www.mbta.com/developers/v3-api) | 10 s |
 | Regional buses | Agency GTFS-realtime feeds, normalized by the gateway | 20 s |
-| Metro-North New Haven branches | [MTA GTFS-Realtime](https://www.mta.info/developers) trip predictions and alerts; positions are explicitly estimated between stations | 30 s |
-| Scheduled/reference bus, rail, ferry, boat, and air-service routes and stops | 95 GTFS sources plus 81 official-service corridors, including Amtrak, Metro-North, Shore Line East, regional coaches, university shuttles, 93 ferry routes, municipal water shuttles, small-island lifelines, island air taxis, and 38,000+ scheduled stops | built snapshot |
+| Metro-North New Haven branches | [MTA GTFS-Realtime](https://www.mta.info/developers) train GPS positions, trip predictions, and alerts; a train with no fresh GPS fix is estimated between stations and labeled so | 30 s |
+| Scheduled/reference bus, rail, ferry, boat, and air-service routes and stops | 104 GTFS sources plus 81 official-service corridors, including Amtrak, Metro-North, Shore Line East, regional coaches, university shuttles, 93 ferry routes, municipal water shuttles, small-island lifelines, island air taxis, and 38,000+ scheduled stops | built snapshot |
 | Small-town, county, flex, volunteer, microtransit, and on-demand water-service catalog | 51 official-directory service markers across all six states | built snapshot |
+| Taxi and cab services | 106 licensed cab companies, dispatch associations, and official airport and station taxi stands from state and municipal licensing lists, airport ground-transportation pages, and operator sites, plus 30 [OpenStreetMap](https://www.openstreetmap.org/copyright) taxi stands. A directory, not live cab positions | built snapshot |
 | Amtrak | [Amtrak official static GTFS](https://content.amtrak.com/content/gtfs/GTFS.zip) for scheduled routes/stations; [Amtraker](https://amtraker.com) community API for live trains | built snapshot + 90 s |
 | Aircraft and air services | [ADSB.lol](https://api.adsb.lol/) with [adsb.fi](https://adsb.fi/) failover; 18 optional official Cape Air/Tradewind schedules and Penobscot Island Air on-demand corridors | 45 s + built snapshot |
 | Airports and landing facilities | 778 open airports, heliports, seaplane bases, and other facilities from the [FAA NASR subscription](https://www.faa.gov/air_traffic/flight_info/aeronav/aero_data/NASR_Subscription/) | 28-day built snapshot |
 | Harbor/coastal vessels and identifiable passenger ferries | [AISStream](https://aisstream.io) through a protected WebSocket relay | streaming |
 | Bike and scooter share | GBFS feeds for Bluebikes across 13 Greater Boston municipalities, Veo Hartford, Veo New Haven, and Spin Providence | 60 s |
+| Other bike-share systems | 50 reference markers for ValleyBike Share, Rideable Nashua, Portland Bike Share, Port Bikeshare, Minuteman Bikeshare, CATMA's Bird e-bikes, CargoB, Metro Mobility, the Community Pedal Power library, Coast Provincetown, and Sandy Pedals — systems with no usable public GBFS feed | built snapshot |
 | Work zones and closures | MassDOT WZDx plus the multi-state New England 511 WZDx feed for Maine, New Hampshire, and Vermont | 5 min |
 | Traffic incidents | New England 511 (Maine, New Hampshire, Vermont), CTroads, and MassDOT Highway Division roadway events (crashes, disabled vehicles, weather closures) | 60 s |
 | Public traffic cameras | New England 511, CTroads, and the MassDOT CCTV asset inventory | 5 min |
@@ -60,7 +62,7 @@ private, repositioning, and irregular flights may not have an itinerary.
 The checked-in route snapshot contains more than 1,200 bus, commuter-rail,
 Amtrak, ferry, passenger-boat, and air-service route features plus more than
 38,000 scheduled bus stops, ferry landings, T stops, and rail stations,
-assembled from 95 GTFS sources and 81 official-service corridors. Scheduled
+assembled from 104 GTFS sources and 81 official-service corridors. Scheduled
 routes remain visible when an operator publishes no live positions. Every view
 except the MBTA core, Greater Boston, the North Shore, statewide Massachusetts
 and All New England starts with the scheduled bus layer on,
@@ -164,12 +166,26 @@ DASH loops in Maine (2 routes), C&J Bus Lines' Portsmouth–Boston/Logan coach
 touches Vermont). University shuttles are drawn in the bus group and tagged
 `serviceClass: "campus"`: Harvard (3 drawn routes), MIT (7), Tufts (7), Boston
 University (5), Boston College (13), UMass Boston (1), Brown (4), the
-University of Rhode Island (3), Eastern Connecticut State University (3), and
-the University of New Haven (12, from its Passio feed, added October 2026);
-special-event, charter, and out-of-service patterns are filtered out. Tri-County
+University of Rhode Island (3), Eastern Connecticut State University (3),
+Quinnipiac (2), the University of Hartford (2), the University of New Haven
+(4), Providence College (1), and Roger Williams University (6);
+special-event, charter, and out-of-service patterns are filtered out. The
+same tag covers the Longwood Collective's medical-area shuttles (14 routes)
+and Mass General Brigham's hospital shuttles (24 routes, some of them marked
+employees-only in their own route names) and the UConn Health campus shuttles
+in Farmington (5 routes). EZRide, the Charles River TMA's public Cambridge
+shuttle (3 routes), and Stamford's free Harbor Point Trolley (4 routes) are
+drawn as ordinary buses. Nantucket WAVE is read from its own TransLoc GTFS
+export rather than a catalog mirror, so its route ids match its live feed. Tri-County
 Transit's North Country GTFS is reachable but its calendar ended on
 2026-06-30, so its two flex routes stay directory markers until it is
 re-published. In Aroostook County, ARTS's Saturday Star City Connector loop in
+Presque Isle (2 route patterns) is drawn from the agency's Passio GTFS; the
+rest of ARTS stays a demand-response marker. Cyr Bus Line's daily
+Bangor–Caribou coach publishes no GTFS, so it follows the stop order on the
+carrier's official schedule as a road-routed corridor, like Dartmouth Coach.
+Winnipesaukee Transit System (Laconia, Gilford, Tilton, Franklin) publishes no
+GTFS either and is listed as a directory marker. In Aroostook County, ARTS's Saturday Star City Connector loop in
 Presque Isle (2 route patterns) is drawn from the agency's Passio GTFS; the
 rest of ARTS stays a demand-response marker. Cyr Bus Line's daily
 Bangor–Caribou coach publishes no GTFS, so it follows the stop order on the
@@ -235,6 +251,36 @@ layer also includes the separately operated Hartford, New Haven, and Providence
 systems. No discoverable public GBFS system is currently cataloged for Vermont,
 New Hampshire, or Maine, so the map does not fabricate stations there.
 
+The **Other bike-share systems** layer (`data/bikeshare-systems.geojson`,
+switched off by default, in the Shared & active travel section) marks the
+systems that exist but publish no usable feed, one labeled marker per member
+town: ValleyBike Share's nine Pioneer Valley municipalities plus UMass,
+Rideable Nashua, Portland Bike Share, Newburyport's Port Bikeshare, Minuteman
+Bikeshare (Acton, Concord, Lincoln, Maynard), CATMA's Bird e-bikes (Burlington,
+South Burlington, Winooski), Metro Mobility's day-rental cities, the Community
+Pedal Power e-bike library's three pickup points, Coast Provincetown, and Sandy
+Pedals on Nantucket. CargoB's 15 cargo-bike home stations use the exact
+coordinates from the operator's public station map. Town-center markers were
+geocoded with Nominatim (OpenStreetMap, ODbL). Drop Mobility (ValleyBike,
+Nashua) runs a GBFS server at `gbfs.dropmobility.com/systems/<id>/gbfs.json`,
+but it answers `unauthorized/missing_key`, so those systems go live only once
+the gateway holds a Drop key; Tandem Mobility's Movatic-app systems (Portland,
+Newburyport, Minuteman) publish no feed URL at all.
+
+The **Taxi & cab services** layer is a directory of who to call and where
+cabs queue, because no New England taxi fleet publishes vehicle positions.
+`scripts/taxi-services.json` holds 106 entries, each confirmed from an official
+source: the Rhode Island Division of Public Utilities and Carriers' taxi list
+by territory, the City of Boston's licensed-company list, town lists for
+Nantucket and Stamford, New Hampshire's statewide provider directory, airport
+ground-transportation pages, or the operator's own site. A company whose
+garage address is not published sits on its city's center point and its popup
+says so. OpenStreetMap adds 30 mapped taxi stands, cached in
+`scripts/taxi-osm-cache.json` (refresh with
+`build-reference-places.py --refresh-taxi-osm`). Ride-hail, limousine, and
+medical-transport services are out of scope. Rebuild just this group with
+`py -3 -X utf8 scripts\build-reference-places.py --taxi-only`.
+
 The **Local & on-demand services** layer fills a different gap. It currently
 catalogs 51 services that do not have reliable route geometry or public live
 positions: Maine county transportation, New Hampshire community providers
@@ -244,36 +290,59 @@ providers, and on-demand Boston Harbor and Maine coastal water taxis. These
 are service-area reference points with links
 to the official provider—not pretend bus paths.
 
-Metro-North is different: the MTA publishes keyless realtime trip updates and
-alerts, but not GPS vehicle positions. Motion interpolates active New Haven,
-New Canaan, Danbury, and Waterbury trains between their reported stations and
-labels every popup “Estimated position from MTA trip updates.”
+Metro-North is different: the MTA's keyless realtime feed carries trip updates
+for every train of the day and a GPS position only for trains that are
+running. Motion shows a New Haven, New Canaan, Danbury, or Waterbury train at
+its reported GPS fix and labels it **live**. A train with no fix from the last
+five minutes is interpolated between its reported stations and labeled
+“Estimated position from MTA trip updates.”
 
 The gateway currently knows these live vehicle-position feeds:
 
 - Massachusetts: MBTA, Pioneer Valley Transit Authority, Brockton Area
   Transit, Montachusett RTA, and Franklin RTA (the last three through Passio's
-  public GTFS-realtime endpoints); WRTA, GATRA, and LRTA (public Cadavl
-  GTFS-realtime producers); MIT, Tufts, and Harvard campus shuttles and
-  Lexpress (Passio); Merrimack Valley Transit is included through the
-  optional Swiftly authorization
+  public GTFS-realtime endpoints); WRTA and GATRA (public Cadavl
+  GTFS-realtime producers); Lowell RTA (Cadavl); Lexpress; MIT, Tufts, and
+  Harvard campus shuttles, EZRide, the Longwood Collective, and Mass General
+  Brigham shuttles (all Passio); Nantucket WAVE and the Boston University,
+  Boston College, and UMass Boston shuttles (TransLoc); Merrimack Valley
+  Transit is a Swiftly feed that is not approved (see below)
 - Connecticut: CTtransit, HARTransit, River Valley Transit (the merged
   Middletown Area Transit / 9 Town Transit district, via Passio), Norwalk
-  Transit District, UConn / Windham Region Transit District (Passio), and
-  University of New Haven shuttles (Passio)
-- Rhode Island: RIPTA and Brown University shuttles (Passio)
+  Transit District, UConn / Windham Region Transit District, the Quinnipiac,
+  University of Hartford, and University of New Haven shuttles, and
+  Stamford's Harbor Point Trolley (all Passio); UConn Health and Eastern
+  Connecticut State University shuttles (TransLoc)
+- Rhode Island: RIPTA, Brown University and Providence College shuttles
+  (Passio), and University of Rhode Island shuttles (TransLoc)
 - Maine: Greater Portland METRO (including the former South Portland Bus
-  Service routes), Island Explorer, Bangor Community Connector (Passio), and
-  ARTS's Star City Connector (Passio); Casco Bay Lines ferries are included
-  through the optional Swiftly authorization
+  Service routes), Island Explorer, Bangor Community Connector,
+  Lewiston-Auburn citylink, and ARTS's Star City Connector (the last three
+  via Passio); Casco Bay Lines ferries through Swiftly, drawn in the ferry
+  layer
 - New Hampshire/Vermont: COAST (Passio) and Advance Transit, plus Nashua
   Transit System and Vermont's GMT, GMCN, Marble Valley, MOOver!, RCT,
   and Tri-Valley feeds
 
-The Swiftly-hosted providers above (Merrimack Valley, Casco Bay
-Lines, Nashua, Advance Transit, and the Vermont agencies) use Swiftly's
-authorized realtime API. Their adapters are included, but they report
-`needs-key` until `SWIFTLY_API_KEY` is configured.
+TransLoc tenants publish keyless GTFS-realtime at
+`https://<tenant>.transloc.com/subscriptions/gtfsrt/vehicles.ashx`, with route
+ids that match the tenant's own GTFS export.
+
+The legacy `boston` gateway region (the MBTA core) serves the shuttles that
+run inside it: MIT, Tufts, Harvard, Boston University, Boston College, UMass
+Boston, EZRide, Longwood, and Mass General Brigham.
+
+The Swiftly-hosted providers (Merrimack Valley, Casco Bay Lines, Nashua,
+Advance Transit, and the Vermont agencies) use Swiftly's authorized realtime
+API. Swiftly issues one key but enables it agency by agency, and only for
+agencies that pre-approve third-party sharing or approve in writing. Motion's
+key covers Casco Bay Lines (and RIPTA, which is read from its own keyless feed
+instead). The gateway therefore sends the key only to agencies listed in
+`SWIFTLY_APPROVED_AGENCIES` in `worker/src/feeds.ts`; every other Swiftly feed
+reports `needs-approval` and is never called, and all feeds report `needs-key`
+until `SWIFTLY_API_KEY` is configured. Swiftly allows 180 requests per 15
+minutes, so approved feeds are cached for 30 seconds and shared by every
+region.
 Agencies that publish only schedules, use a closed tracker, or do not expose a
 current vehicle feed still appear as scheduled route ribbons, but are not
 misrepresented as live dots.
@@ -445,7 +514,7 @@ The card shows what each feed actually publishes:
 |---|---|
 | MBTA | Next six stops with ETA, clock time, track (commuter rail), and delay against the schedule, from `/predictions?filter[trip]=…`, polled every 15 s only while following |
 | Amtrak | Upcoming stations with ETA and early/late, from the Amtraker train record |
-| Metro-North | Next stop and minutes only; position is estimated between stations |
+| Metro-North | Next stop and minutes only; position is the train's GPS fix, or an estimate between stations when the feed has none |
 | Aircraft | Best-effort scheduled route for the callsign |
 | Regional buses, vessels | Route, vehicle number, speed |
 
@@ -624,21 +693,46 @@ documented `freshness_exempt`), and commit the refreshed `feed-freshness.json`.
   BRTA (RouteMatch), Manchester Transit (RouteShout), and VTA (Strategic
   Mapping) run closed trackers with alerts-only or no GTFS-realtime; CATA and
   Concord Coach have no public tracker at all. Those operators remain
-  scheduled ribbons only. WRTA, GATRA, and LRTA publish public Cadavl
-  GTFS-realtime (now live). Bangor Community Connector, Lexpress, Harvard
-  shuttles, University of New Haven shuttles, and ARTS publish public Passio
-  GTFS-realtime (now wired). All six new endpoints answered on 2026-10-04,
-  but only New Haven carried a vehicle during that Saturday-evening check;
-  the gateway drops any vehicle outside New England, so a weekday decode
-  confirming in-state vehicles for the other five is still open.
+  scheduled ribbons only. WRTA and GATRA turned out to publish public Cadavl
+  GTFS-realtime (now live). LRTA, Bangor Community Connector, Lewiston-Auburn
+  citylink, Lexpress, Harvard, Longwood, the University of New Haven,
+  Providence College, Boston University, URI, and Eastern Connecticut State
+  were added on Sunday 2026-10-04 with valid, fresh feeds
+  that carried no vehicles because none of them was running. Passio's
+  GTFS-realtime matched its rider app exactly for every system that did have
+  buses out that day, so these are expected to populate on weekdays; confirm
+  with `/api/transit?region=ma` and `?region=me` on a weekday.
+- Swiftly-hosted agencies other than Casco Bay Lines (Merrimack Valley,
+  Nashua, Advance Transit, Green Mountain Transit, GMCN, Marble Valley,
+  MOOver!, RCT, Tri-Valley, Vermont Translines, South Portland) need each
+  agency's written approval before Swiftly will enable the key for them.
+- An October 2026 tracker survey found public rider maps with no open feed
+  for Greater Bridgeport Transit (Trapeze WebWatch), SEAT (Swiftly), Massport's
+  Logan shuttles, the Dartmouth Campus Connector, and BSOOB Transit (Trillium
+  maps), the 128 Business Council (TripShot), and C&J and Peter Pan (uTrack).
+  Milford Transit, NECTD, NWCTD, CTrail's Hartford Line and Shore Line East,
+  Plymouth & Brockton, and the smaller Maine and New Hampshire operators have
+  no tracker. The only snowplow source found is VTrans's own app data file,
+  which is empty outside winter.
+- Scheduled services found missing in the same audit and not yet drawn,
+  because none publishes GTFS and each needs a hand-built corridor: C&J's
+  full network (the map has only a Logan–Seabrook–Portsmouth stub; Dover,
+  Boston South Station, and New York are missing), Go Buses (Alewife and
+  Newton to New York), Downeast Transportation's
+  year-round Hancock County routes, York County Community Action's Sanford
+  routes, the 128 Business Council shuttles, Seastreak's New York–Martha's
+  Vineyard–Nantucket ferry, the Bustins Island ferry, the AMC and Franconia
+  Notch hiker shuttles, several Cape Air city pairs, and New England Airlines'
+  Westerly–Block Island flights.
 - Cyr Bus Line (Bangor–Caribou) and the Winnipesaukee Transit System publish
   no GTFS. Cyr is drawn as an official-schedule corridor and WTS is a
-  directory marker; neither has live positions.
+  directory marker; neither has live positions. ARTS's Passio GTFS-realtime
+  answered on 2026-10-04 with no vehicles (its loop runs Saturdays only).
 - Peter Pan's public GTFS has not been re-published since June 2024, so its
   corridors are shown as scheduled service relationships rather than a
   current timetable.
-- Metro-North train locations are estimates between realtime station
-  predictions, not direct train GPS coordinates.
+- Metro-North reports GPS only for trains that are running; a train without a
+  recent fix is an estimate between realtime station predictions.
 - Non-MBTA ferry operators generally publish schedules, not GTFS-realtime
   positions. AIS supplies actual vessel movement when a ship is broadcasting,
   and passenger-ship metadata is used to classify ferries when available.
@@ -657,7 +751,8 @@ documented `freshness_exempt`), and commit the refreshed `feed-freshness.json`.
   no incident markers.
 - Current GBFS coverage is Bluebikes' 13 Greater Boston municipalities plus
   Hartford, New Haven, and Providence. Other systems can be added as soon as
-  they publish discoverable public feeds.
+  they publish discoverable public feeds; until then they appear as reference
+  markers in the Other bike-share systems layer, not as live stations.
 - Public truck, delivery, and company-fleet positions are generally private
   telematics, and there is no national public live freight-train position feed.
   Motion maps the public FRA rail network instead of claiming scheduled or

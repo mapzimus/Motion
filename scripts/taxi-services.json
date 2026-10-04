@@ -1,0 +1,1863 @@
+{
+ "description": "Curated taxi and cab services for New England in Motion: licensed taxicab companies, dispatch associations, and official taxi stands, each confirmed from an official list, an airport or station page, or the operator's own site. A directory, not live cab positions. Built into public/data/reference-places.geojson by build-reference-places.py.",
+ "compiledAt": "2026-10-04",
+ "reviewNotes": "Four candidates were left out on review: three confirmed only by a 2019-dated regional list and one whose own site was suspended. Every url and sourceUrl answered on 2026-10-04.",
+ "services": [
+  {
+   "id": "ct-hartford-union-station-taxis",
+   "name": "Hartford Union Station taxi service",
+   "kind": "stand",
+   "state": "ct",
+   "city": "Hartford",
+   "serviceArea": "Union Station Transportation Center, downtown Hartford",
+   "coordinates": [
+    -72.68157,
+    41.76884
+   ],
+   "positionAccuracy": "stand",
+   "url": "https://www.hartfordtransit.org/union-station/",
+   "sourceUrl": "https://www.hartfordtransit.org/union-station/",
+   "sourceName": "Greater Hartford Transit District Union Station page",
+   "notes": "Transit district describes the station as a hub with rail, bus and taxi services"
+  },
+  {
+   "id": "ct-new-haven-union-station-taxi-lane",
+   "name": "New Haven Union Station taxi lane",
+   "kind": "stand",
+   "state": "ct",
+   "city": "New Haven",
+   "serviceArea": "Union Station (Amtrak, Metro-North, CTrail), New Haven",
+   "coordinates": [
+    -72.92662,
+    41.29752
+   ],
+   "positionAccuracy": "stand",
+   "url": "https://unionstationnewhaven.com/travel-options/taxis-rideshare/",
+   "sourceUrl": "https://unionstationnewhaven.com/travel-options/taxis-rideshare/",
+   "sourceName": "Union Station New Haven official site",
+   "notes": "Taxi and rideshare lanes are in front of the station on Union Avenue"
+  },
+  {
+   "id": "ct-new-haven-tweed-airport-taxis",
+   "name": "Tweed-New Haven Airport taxi staging (M7 Ride)",
+   "kind": "stand",
+   "state": "ct",
+   "city": "New Haven",
+   "serviceArea": "Tweed-New Haven Airport (HVN)",
+   "coordinates": [
+    -72.89122,
+    41.26889
+   ],
+   "positionAccuracy": "stand",
+   "phone": "+1-203-777-7777",
+   "url": "https://flytweed.com/travel/drive-park/ground-transportation/",
+   "sourceUrl": "https://flytweed.com/travel/drive-park/ground-transportation/",
+   "sourceName": "Tweed-New Haven Airport ground transportation page",
+   "notes": "M7 Ride cabs stage at the arrivals terminal before each arrival"
+  },
+  {
+   "id": "ct-windsor-locks-bradley-airport-taxi-stand",
+   "name": "Bradley International Airport taxi stand",
+   "kind": "stand",
+   "state": "ct",
+   "city": "Windsor Locks",
+   "serviceArea": "Bradley International Airport (BDL) to all Connecticut towns",
+   "coordinates": [
+    -72.68534,
+    41.93041
+   ],
+   "positionAccuracy": "stand",
+   "phone": "+1-860-627-3128",
+   "url": "https://bradleyairport.com/directions-parking/taxi-limo-rideapp/",
+   "sourceUrl": "https://bradleyairport.com/directions-parking/taxi-limo-rideapp/",
+   "sourceName": "Bradley International Airport taxi page",
+   "notes": "Outside Arrivals/Baggage Claim between exit doors 2 and 3, with an attendant on site; queue-line fares are set by CTDOT"
+  },
+  {
+   "id": "ct-danbury-danbury-ride-taxi",
+   "name": "Danbury Ride Taxi Service",
+   "kind": "company",
+   "state": "ct",
+   "city": "Danbury",
+   "serviceArea": "Danbury and surrounding towns",
+   "coordinates": [
+    -73.45348,
+    41.39177
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-203-731-0022",
+   "url": "https://danburytaxi-ct.com/",
+   "sourceUrl": "https://danburytaxi-ct.com/",
+   "sourceName": "Company website"
+  },
+  {
+   "id": "ct-greenwich-greenwich-taxi",
+   "name": "Greenwich Taxi, Inc.",
+   "kind": "company",
+   "state": "ct",
+   "city": "Greenwich",
+   "serviceArea": "Greenwich",
+   "coordinates": [
+    -73.62463,
+    41.02159
+   ],
+   "positionAccuracy": "address",
+   "phone": "+1-203-869-6000",
+   "url": "https://greenwichtaxiinc.com/",
+   "sourceUrl": "https://greenwichtaxiinc.com/",
+   "sourceName": "Company website",
+   "notes": "Family owned and operated"
+  },
+  {
+   "id": "ct-hartford-ab-cab",
+   "name": "A.B. Cab LLP",
+   "kind": "company",
+   "state": "ct",
+   "city": "Hartford",
+   "serviceArea": "Greater Hartford area",
+   "coordinates": [
+    -72.67485,
+    41.76195
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-860-937-0374",
+   "url": "https://www.abcabllp.com/",
+   "sourceUrl": "https://www.abcabllp.com/",
+   "sourceName": "Company website"
+  },
+  {
+   "id": "ct-hartford-arrow-cab",
+   "name": "Arrow Cab, Inc.",
+   "kind": "company",
+   "state": "ct",
+   "city": "Hartford",
+   "serviceArea": "Greater Hartford, Glastonbury and Middletown, including Bradley Airport trips",
+   "coordinates": [
+    -72.67207,
+    41.76195
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-860-558-4825",
+   "url": "https://arrowcabct.com/",
+   "sourceUrl": "https://arrowcabct.com/contact-us/",
+   "sourceName": "Company website"
+  },
+  {
+   "id": "ct-hartford-m7-taxi",
+   "name": "M7 Taxi (Greater Hartford)",
+   "kind": "company",
+   "state": "ct",
+   "city": "Hartford",
+   "serviceArea": "Hartford, West Hartford, East Hartford, New Britain, Manchester and 13 neighboring towns",
+   "coordinates": [
+    -72.67346,
+    41.76375
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-203-777-7777",
+   "url": "https://www.m7ride.com/",
+   "sourceUrl": "https://www.ghtdlink.com/freedom-ride/",
+   "sourceName": "Greater Hartford Transit District Freedom Ride page",
+   "notes": "Accessible taxis; operates the transit district Freedom Ride taxi voucher program. Phone from the M7 website"
+  },
+  {
+   "id": "ct-new-haven-a-and-s-taxi",
+   "name": "A & S Taxi LLC",
+   "kind": "company",
+   "state": "ct",
+   "city": "New Haven",
+   "serviceArea": "New Haven County",
+   "coordinates": [
+    -72.92433,
+    41.30738
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-203-361-6198",
+   "url": "https://aandstaxi.com/",
+   "sourceUrl": "https://aandstaxi.com/",
+   "sourceName": "Company website"
+  },
+  {
+   "id": "ct-stamford-independent-taxi",
+   "name": "Independent Taxi",
+   "kind": "company",
+   "state": "ct",
+   "city": "Stamford",
+   "serviceArea": "Stamford",
+   "coordinates": [
+    -73.54411,
+    41.05087
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-203-968-6800",
+   "url": "https://www.stamfordct.gov/government/public-safety-health-welfare/health-human-services/programs-services/seniors-and-adults-with-disabilities/share-the-fare",
+   "sourceUrl": "https://www.stamfordct.gov/government/public-safety-health-welfare/health-human-services/programs-services/seniors-and-adults-with-disabilities/share-the-fare",
+   "sourceName": "City of Stamford Share the Fare taxi program page",
+   "notes": "Accepts City of Stamford Share the Fare vouchers"
+  },
+  {
+   "id": "ct-stamford-stamford-taxi",
+   "name": "Stamford Taxi",
+   "kind": "company",
+   "state": "ct",
+   "city": "Stamford",
+   "serviceArea": "Stamford",
+   "coordinates": [
+    -73.54273,
+    41.05267
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-203-325-2611",
+   "url": "https://www.stamfordct.gov/government/public-safety-health-welfare/health-human-services/programs-services/seniors-and-adults-with-disabilities/share-the-fare",
+   "sourceUrl": "https://www.stamfordct.gov/government/public-safety-health-welfare/health-human-services/programs-services/seniors-and-adults-with-disabilities/share-the-fare",
+   "sourceName": "City of Stamford Share the Fare taxi program page",
+   "notes": "Accepts City of Stamford Share the Fare vouchers"
+  },
+  {
+   "id": "ct-stamford-usa-taxi",
+   "name": "USA Taxi",
+   "kind": "company",
+   "state": "ct",
+   "city": "Stamford",
+   "serviceArea": "Stamford",
+   "coordinates": [
+    -73.54135,
+    41.05087
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-203-487-0007",
+   "url": "https://www.stamfordct.gov/government/public-safety-health-welfare/health-human-services/programs-services/seniors-and-adults-with-disabilities/share-the-fare",
+   "sourceUrl": "https://www.stamfordct.gov/government/public-safety-health-welfare/health-human-services/programs-services/seniors-and-adults-with-disabilities/share-the-fare",
+   "sourceName": "City of Stamford Share the Fare taxi program page",
+   "notes": "Accepts City of Stamford Share the Fare vouchers"
+  },
+  {
+   "id": "ct-torrington-torrington-taxi",
+   "name": "Torrington Taxi",
+   "kind": "company",
+   "state": "ct",
+   "city": "Torrington",
+   "serviceArea": "Torrington and Litchfield County",
+   "coordinates": [
+    -73.12077,
+    41.795
+   ],
+   "positionAccuracy": "address",
+   "phone": "+1-860-689-7752",
+   "url": "https://www.torringtontaxi.com/",
+   "sourceUrl": "https://www.torringtontaxi.com/",
+   "sourceName": "Company website"
+  },
+  {
+   "id": "ct-waterford-yellow-cab-new-london",
+   "name": "Yellow Cab (Curtin Transportation Group)",
+   "kind": "company",
+   "state": "ct",
+   "city": "Waterford",
+   "serviceArea": "Southeastern New London County (New London area)",
+   "coordinates": [
+    -72.1596,
+    41.38357
+   ],
+   "positionAccuracy": "address",
+   "phone": "+1-860-443-4321",
+   "url": "https://www.curtintransportationgroup.com/yellow-cab",
+   "sourceUrl": "https://www.curtintransportationgroup.com/yellow-cab",
+   "sourceName": "Company website",
+   "notes": "Open Monday to Friday, 7 am to 8 pm"
+  },
+  {
+   "id": "ct-west-haven-m7-ride",
+   "name": "M7 Ride",
+   "kind": "company",
+   "state": "ct",
+   "city": "West Haven",
+   "serviceArea": "Greater New Haven, Bridgeport and New London areas",
+   "coordinates": [
+    -72.98529,
+    41.29105
+   ],
+   "positionAccuracy": "address",
+   "phone": "+1-203-777-7777",
+   "url": "https://www.m7ride.com/",
+   "sourceUrl": "https://www.m7ride.com/contact/",
+   "sourceName": "Company website",
+   "notes": "24 hours; wheelchair-accessible vehicles"
+  },
+  {
+   "id": "ct-westport-westport-star-taxi",
+   "name": "Westport Taxi & Limousine (Westport Star Taxi)",
+   "kind": "company",
+   "state": "ct",
+   "city": "Westport",
+   "serviceArea": "Westport, Wilton and Weston",
+   "coordinates": [
+    -73.35994,
+    41.1451
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-203-227-5157",
+   "url": "https://westportstartaxi.com/",
+   "sourceUrl": "https://westportstartaxi.com/",
+   "sourceName": "Company website"
+  },
+  {
+   "id": "ma-boston-back-bay-station-taxis",
+   "name": "Back Bay Station taxi and pick-up area",
+   "kind": "stand",
+   "state": "ma",
+   "city": "Boston",
+   "serviceArea": "Amtrak and MBTA Back Bay Station, Boston",
+   "coordinates": [
+    -71.07524,
+    42.34741
+   ],
+   "positionAccuracy": "stand",
+   "url": "https://www.amtrak.com/stations/bby",
+   "sourceUrl": "https://www.amtrak.com/stations/bby",
+   "sourceName": "Amtrak station page (Back Bay)",
+   "notes": "Amtrak lists taxis, rideshare and pick-up/drop-off near the parking lot on the north end of the station"
+  },
+  {
+   "id": "ma-boston-logan-airport-taxi-stands",
+   "name": "Boston Logan International Airport taxi stands",
+   "kind": "stand",
+   "state": "ma",
+   "city": "Boston",
+   "serviceArea": "Arrivals level of Terminals A, B, C and E at Logan Airport (BOS)",
+   "coordinates": [
+    -71.01739,
+    42.36658
+   ],
+   "positionAccuracy": "stand",
+   "url": "https://www.massport.com/logan-airport/getting-to-logan/taxi-limos",
+   "sourceUrl": "https://www.massport.com/logan-airport/getting-to-logan/taxi-limos",
+   "sourceName": "Massport Logan Airport taxi information",
+   "notes": "Designated taxi stands with dispatchers on the Arrivals level of every terminal"
+  },
+  {
+   "id": "ma-nantucket-airport-taxi-pickup",
+   "name": "Nantucket Memorial Airport taxi pick-up",
+   "kind": "stand",
+   "state": "ma",
+   "city": "Nantucket",
+   "serviceArea": "Nantucket Memorial Airport (ACK); island-wide rides",
+   "coordinates": [
+    -70.06425,
+    41.25637
+   ],
+   "positionAccuracy": "stand",
+   "url": "https://www.nantucket-ma.gov/3858/Airport-Taxi-List",
+   "sourceUrl": "https://nantucket-ma.gov/744/Taxi-Information",
+   "sourceName": "Town of Nantucket taxi information",
+   "notes": "Only airport-permitted Nantucket taxis may use the designated airport pick-up spots"
+  },
+  {
+   "id": "ma-provincetown-airport-taxis",
+   "name": "Provincetown Municipal Airport taxis",
+   "kind": "stand",
+   "state": "ma",
+   "city": "Provincetown",
+   "serviceArea": "Provincetown Municipal Airport (PVC) to Provincetown and the Outer Cape",
+   "coordinates": [
+    -70.21692,
+    42.07602
+   ],
+   "positionAccuracy": "stand",
+   "url": "https://www.provincetown-ma.gov/2475/Ground-Transportation",
+   "sourceUrl": "https://www.provincetown-ma.gov/2475/Ground-Transportation",
+   "sourceName": "Town of Provincetown airport ground transportation page",
+   "notes": "In summer taxis often wait at the terminal; otherwise call from the phones outside the terminal doors"
+  },
+  {
+   "id": "ma-marthas-vineyard-airport-taxi-stand",
+   "name": "Martha's Vineyard Airport taxi stand",
+   "kind": "stand",
+   "state": "ma",
+   "city": "West Tisbury",
+   "serviceArea": "Martha's Vineyard Airport (MVY); all six island towns",
+   "coordinates": [
+    -70.61165,
+    41.38937
+   ],
+   "positionAccuracy": "stand",
+   "url": "https://mvyairport.com/ground-transportation/",
+   "sourceUrl": "https://mvyairport.com/ground-transportation/",
+   "sourceName": "Martha's Vineyard Airport ground transportation page",
+   "notes": "Taxicabs wait at the curb in front of Gate 4"
+  },
+  {
+   "id": "ma-worcester-union-station-taxis",
+   "name": "Worcester Union Station taxi service",
+   "kind": "stand",
+   "state": "ma",
+   "city": "Worcester",
+   "serviceArea": "Union Station intermodal hub, downtown Worcester",
+   "coordinates": [
+    -71.79523,
+    42.26138
+   ],
+   "positionAccuracy": "stand",
+   "url": "https://www.worcesterma.gov/union-station",
+   "sourceUrl": "https://www.worcesterma.gov/union-station",
+   "sourceName": "City of Worcester Union Station page",
+   "notes": "City lists taxi service among the station's intermodal connections"
+  },
+  {
+   "id": "ma-boston-boston-cab-association",
+   "name": "Boston Cab Association (Boston Cab Dispatch)",
+   "kind": "association",
+   "state": "ma",
+   "city": "Boston",
+   "serviceArea": "City of Boston",
+   "coordinates": [
+    -71.07039,
+    42.33082
+   ],
+   "positionAccuracy": "address",
+   "phone": "+1-617-536-5010",
+   "url": "https://www.bostoncab.us/",
+   "sourceUrl": "https://www.boston.gov/departments/age-strong-commission/how-buy-taxi-coupons",
+   "sourceName": "City of Boston list of licensed taxi companies (Boston.gov, updated 8/6/26)",
+   "notes": "Wheelchair-accessible vans available. Address and phone from the association's site; the city list shows 60 Kilmarnock St and 617-536-3200"
+  },
+  {
+   "id": "ma-boston-itoa-cab-association",
+   "name": "I.T.O.A. Cab Association (Independent Taxi Operators Association)",
+   "kind": "association",
+   "state": "ma",
+   "city": "Boston",
+   "serviceArea": "City of Boston, including Logan Airport",
+   "coordinates": [
+    -71.06185,
+    42.34478
+   ],
+   "positionAccuracy": "address",
+   "phone": "+1-617-825-4000",
+   "url": "https://www.itoataxi.com/",
+   "sourceUrl": "https://www.boston.gov/departments/age-strong-commission/how-buy-taxi-coupons",
+   "sourceName": "City of Boston list of licensed taxi companies (Boston.gov, updated 8/6/26)",
+   "notes": "24 hours. The association's site lists 617-268-1313 for dispatch"
+  },
+  {
+   "id": "ma-boston-metro-cab-association",
+   "name": "Metro Cab Association",
+   "kind": "association",
+   "state": "ma",
+   "city": "Boston",
+   "serviceArea": "City of Boston, including Logan Airport; based in Allston",
+   "coordinates": [
+    -71.13747,
+    42.35633
+   ],
+   "positionAccuracy": "address",
+   "phone": "+1-617-782-5500",
+   "url": "https://metro-cab.com/",
+   "sourceUrl": "https://www.boston.gov/departments/age-strong-commission/how-buy-taxi-coupons",
+   "sourceName": "City of Boston list of licensed taxi companies (Boston.gov, updated 8/6/26)",
+   "notes": "24 hours; wheelchair-accessible vehicles. Address from the association's site; the city list shows 84 Braintree St"
+  },
+  {
+   "id": "ma-boston-tunnel-taxi",
+   "name": "Tunnel Taxi",
+   "kind": "association",
+   "state": "ma",
+   "city": "Boston",
+   "serviceArea": "East Boston and the City of Boston",
+   "coordinates": [
+    -71.04201,
+    42.37157
+   ],
+   "positionAccuracy": "address",
+   "phone": "+1-617-567-2700",
+   "url": "https://www.boston.gov/departments/age-strong-commission/how-buy-taxi-coupons",
+   "sourceUrl": "https://www.boston.gov/departments/age-strong-commission/how-buy-taxi-coupons",
+   "sourceName": "City of Boston list of licensed taxi companies (Boston.gov, updated 8/6/26)"
+  },
+  {
+   "id": "ma-revere-city-cab-association",
+   "name": "City Cab Association",
+   "kind": "association",
+   "state": "ma",
+   "city": "Revere",
+   "serviceArea": "City of Boston (Boston-licensed taxis dispatched from Revere)",
+   "coordinates": [
+    -71.00429,
+    42.40189
+   ],
+   "positionAccuracy": "address",
+   "phone": "+1-617-536-5100",
+   "url": "https://www.boston.gov/departments/age-strong-commission/how-buy-taxi-coupons",
+   "sourceUrl": "https://www.boston.gov/departments/age-strong-commission/how-buy-taxi-coupons",
+   "sourceName": "City of Boston list of licensed taxi companies (Boston.gov, updated 8/6/26)"
+  },
+  {
+   "id": "ma-amherst-celebrity-cab",
+   "name": "Celebrity Cab Company",
+   "kind": "company",
+   "state": "ma",
+   "city": "Amherst",
+   "serviceArea": "Amherst and the Five College area",
+   "coordinates": [
+    -72.51871,
+    42.37546
+   ],
+   "positionAccuracy": "city",
+   "url": "https://celebritycabcompany.com/",
+   "sourceUrl": "https://celebritycabcompany.com/who-we-are",
+   "sourceName": "Company website",
+   "notes": "Reservations available 24/7"
+  },
+  {
+   "id": "ma-cambridge-cambridge-taxi-cab",
+   "name": "Cambridge Taxi Cab",
+   "kind": "company",
+   "state": "ma",
+   "city": "Cambridge",
+   "serviceArea": "Cambridge and Greater Boston, including Logan Airport",
+   "coordinates": [
+    -71.11545,
+    42.36088
+   ],
+   "positionAccuracy": "address",
+   "phone": "+1-617-649-7000",
+   "url": "https://www.cambridgetaxicab.com/",
+   "sourceUrl": "https://www.cambridgetaxicab.com/",
+   "sourceName": "Company website",
+   "notes": "24 hours"
+  },
+  {
+   "id": "ma-edgartown-bluefish-taxi",
+   "name": "Bluefish Taxi",
+   "kind": "company",
+   "state": "ma",
+   "city": "Edgartown",
+   "serviceArea": "Martha's Vineyard, including the airport (MVY) and ferry terminals",
+   "coordinates": [
+    -70.51478,
+    41.38863
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-508-627-7373",
+   "url": "https://www.bluefishtaxi.net/",
+   "sourceUrl": "https://mvyairport.com/ground-transportation/",
+   "sourceName": "Martha's Vineyard Airport ground transportation page",
+   "notes": "24 hours"
+  },
+  {
+   "id": "ma-edgartown-stagecoach-taxi",
+   "name": "Stagecoach Taxi",
+   "kind": "company",
+   "state": "ma",
+   "city": "Edgartown",
+   "serviceArea": "Martha's Vineyard, including the airport (MVY)",
+   "coordinates": [
+    -70.51478,
+    41.39103
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-508-627-4566",
+   "url": "https://mvstagecoachtaxi.com/",
+   "sourceUrl": "https://mvyairport.com/ground-transportation/",
+   "sourceName": "Martha's Vineyard Airport ground transportation page"
+  },
+  {
+   "id": "ma-fall-river-fall-river-taxi-service",
+   "name": "Fall River Taxi Service, Inc.",
+   "kind": "company",
+   "state": "ma",
+   "city": "Fall River",
+   "serviceArea": "Fall River and surrounding towns",
+   "coordinates": [
+    -71.1545,
+    41.70095
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-508-673-5843",
+   "url": "https://www.fallrivertaxiserviceinc.com/",
+   "sourceUrl": "https://www.fallrivertaxiserviceinc.com/",
+   "sourceName": "Company website"
+  },
+  {
+   "id": "ma-falmouth-falmouth-taxi",
+   "name": "Falmouth Taxi",
+   "kind": "company",
+   "state": "ma",
+   "city": "Falmouth",
+   "serviceArea": "Falmouth; listed as a taxi provider at Cape Cod Gateway Airport (HYA)",
+   "coordinates": [
+    -70.61789,
+    41.55147
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-508-548-3100",
+   "url": "https://www.flyhyacc.com/ground-transportation",
+   "sourceUrl": "https://www.flyhyacc.com/ground-transportation",
+   "sourceName": "Cape Cod Gateway Airport ground transportation page"
+  },
+  {
+   "id": "ma-framingham-tommys-taxi",
+   "name": "Tommy's Taxi",
+   "kind": "company",
+   "state": "ma",
+   "city": "Framingham",
+   "serviceArea": "Framingham and MetroWest, with rides to Boston and Worcester",
+   "coordinates": [
+    -71.42092,
+    42.28223
+   ],
+   "positionAccuracy": "address",
+   "phone": "+1-508-872-3500",
+   "url": "https://www.tommystaxicab.com/",
+   "sourceUrl": "https://www.tommystaxicab.com/",
+   "sourceName": "Company website"
+  },
+  {
+   "id": "ma-gloucester-gloucester-taxi-livery",
+   "name": "Gloucester Taxi & Livery Service",
+   "kind": "company",
+   "state": "ma",
+   "city": "Gloucester",
+   "serviceArea": "Gloucester",
+   "coordinates": [
+    -70.66271,
+    42.61409
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-978-283-0099",
+   "url": "https://gloucester-ma.gov/370/Local-Transportation-Information",
+   "sourceUrl": "https://gloucester-ma.gov/370/Local-Transportation-Information",
+   "sourceName": "City of Gloucester local transportation page"
+  },
+  {
+   "id": "ma-hyannis-cape-taxi",
+   "name": "Cape Taxi",
+   "kind": "company",
+   "state": "ma",
+   "city": "Hyannis",
+   "serviceArea": "Hyannis area; listed as a taxi provider at Cape Cod Gateway Airport (HYA)",
+   "coordinates": [
+    -70.28233,
+    41.65473
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-508-790-0222",
+   "url": "https://www.flyhyacc.com/ground-transportation",
+   "sourceUrl": "https://www.flyhyacc.com/ground-transportation",
+   "sourceName": "Cape Cod Gateway Airport ground transportation page"
+  },
+  {
+   "id": "ma-lawrence-american-taxi",
+   "name": "American Taxi",
+   "kind": "company",
+   "state": "ma",
+   "city": "Lawrence",
+   "serviceArea": "Lawrence area",
+   "coordinates": [
+    -71.16122,
+    42.69651
+   ],
+   "positionAccuracy": "address",
+   "phone": "+1-978-682-4747",
+   "url": "https://www.theamericantaxi.com/",
+   "sourceUrl": "https://www.theamericantaxi.com/",
+   "sourceName": "Company website"
+  },
+  {
+   "id": "ma-lowell-luna-taxi",
+   "name": "Luna Taxi",
+   "kind": "company",
+   "state": "ma",
+   "city": "Lowell",
+   "serviceArea": "Lowell and the Merrimack Valley",
+   "coordinates": [
+    -71.31322,
+    42.64612
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-978-421-6321",
+   "url": "https://lunataxi.com/",
+   "sourceUrl": "https://lunataxi.com/contact-us/",
+   "sourceName": "Company website"
+  },
+  {
+   "id": "ma-malden-malden-trans",
+   "name": "Malden Trans, Inc.",
+   "kind": "company",
+   "state": "ma",
+   "city": "Malden",
+   "serviceArea": "Malden area",
+   "coordinates": [
+    -71.07273,
+    42.42735
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-781-322-9401",
+   "url": "https://www.maldentrans.com/",
+   "sourceUrl": "https://www.maldentrans.com/",
+   "sourceName": "Company website",
+   "notes": "Family-owned operator of taxi cabs, shuttle and charter vehicles"
+  },
+  {
+   "id": "ma-somerville-green-cab-yellow-cab",
+   "name": "Green Cab and Yellow Cab of Somerville",
+   "kind": "company",
+   "state": "ma",
+   "city": "Medford",
+   "serviceArea": "Somerville, Medford, Cambridge and Arlington",
+   "coordinates": [
+    -71.09089,
+    42.41026
+   ],
+   "positionAccuracy": "address",
+   "phone": "+1-617-625-5000",
+   "url": "https://greenandyellowcab.com/",
+   "sourceUrl": "https://greenandyellowcab.com/",
+   "sourceName": "Company website",
+   "notes": "Metered taxis under City of Somerville rates; office address in Medford"
+  },
+  {
+   "id": "ma-nantucket-aardvark-cab",
+   "name": "Aardvark Cab",
+   "kind": "company",
+   "state": "ma",
+   "city": "Nantucket",
+   "serviceArea": "Nantucket island",
+   "coordinates": [
+    -70.09906,
+    41.28385
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-508-228-2223",
+   "url": "https://www.nantucket-ma.gov/3857/Taxi-List",
+   "sourceUrl": "https://www.nantucket-ma.gov/3857/Taxi-List",
+   "sourceName": "Town of Nantucket licensed taxi list"
+  },
+  {
+   "id": "ma-nantucket-all-point-taxi",
+   "name": "All Point Taxi, Inc.",
+   "kind": "company",
+   "state": "ma",
+   "city": "Nantucket",
+   "serviceArea": "Nantucket island",
+   "coordinates": [
+    -70.09906,
+    41.28625
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-508-228-5779",
+   "url": "https://www.nantucket-ma.gov/3857/Taxi-List",
+   "sourceUrl": "https://www.nantucket-ma.gov/3857/Taxi-List",
+   "sourceName": "Town of Nantucket licensed taxi list"
+  },
+  {
+   "id": "ma-new-bedford-blue-bird-taxi",
+   "name": "Blue Bird Taxi and Car Service",
+   "kind": "company",
+   "state": "ma",
+   "city": "New Bedford",
+   "serviceArea": "New Bedford and the South Coast",
+   "coordinates": [
+    -70.93704,
+    41.61544
+   ],
+   "positionAccuracy": "address",
+   "phone": "+1-508-999-1124",
+   "url": "https://www.bluebirdtransportation.com/",
+   "sourceUrl": "https://explorenewbedford.org/listings/transportation/blue-bird-taxi-and-car-service/",
+   "sourceName": "City of New Bedford tourism office listing"
+  },
+  {
+   "id": "ma-northampton-gogreen-cab",
+   "name": "GoGreen Cab",
+   "kind": "company",
+   "state": "ma",
+   "city": "Northampton",
+   "serviceArea": "Northampton and Amherst",
+   "coordinates": [
+    -72.63199,
+    42.3176
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-413-586-0707",
+   "url": "https://www.gogreencabnoho.com/",
+   "sourceUrl": "https://www.gogreencabnoho.com/",
+   "sourceName": "Company website"
+  },
+  {
+   "id": "ma-pittsfield-county-rainbow-taxi",
+   "name": "County Rainbow Taxi",
+   "kind": "company",
+   "state": "ma",
+   "city": "Pittsfield",
+   "serviceArea": "Pittsfield area",
+   "coordinates": [
+    -73.25188,
+    42.44976
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-413-499-4300",
+   "url": "https://countyrainbowtaxi.com/",
+   "sourceUrl": "https://countyrainbowtaxi.com/",
+   "sourceName": "Company website",
+   "notes": "Office hours 5 am to midnight, 365 days a year"
+  },
+  {
+   "id": "ma-provincetown-atlantic-rides",
+   "name": "Atlantic Rides (formerly Black & White Taxi)",
+   "kind": "company",
+   "state": "ma",
+   "city": "Provincetown",
+   "serviceArea": "Provincetown, Truro and the Outer Cape",
+   "coordinates": [
+    -70.18497,
+    42.05286
+   ],
+   "positionAccuracy": "address",
+   "phone": "+1-508-413-5413",
+   "url": "https://provincetownrides.com/",
+   "sourceUrl": "https://provincetownrides.com/",
+   "sourceName": "Company website",
+   "notes": "Also listed on the Town of Provincetown airport ground transportation page"
+  },
+  {
+   "id": "ma-provincetown-cape-cab",
+   "name": "Cape Cab",
+   "kind": "company",
+   "state": "ma",
+   "city": "Provincetown",
+   "serviceArea": "Provincetown and Cape Cod, including Provincetown Municipal Airport (PVC)",
+   "coordinates": [
+    -70.18749,
+    42.05126
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-508-487-2222",
+   "url": "https://capecabtaxi.com/",
+   "sourceUrl": "https://www.provincetown-ma.gov/2475/Ground-Transportation",
+   "sourceName": "Town of Provincetown airport ground transportation page"
+  },
+  {
+   "id": "ma-quincy-quincycab",
+   "name": "QuincyCab (Yellow Cab of Quincy)",
+   "kind": "company",
+   "state": "ma",
+   "city": "Quincy",
+   "serviceArea": "Quincy and the South Shore",
+   "coordinates": [
+    -71.00427,
+    42.25094
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-617-471-8294",
+   "url": "https://quincycab.com/",
+   "sourceUrl": "https://quincycab.com/contact/",
+   "sourceName": "Company website",
+   "notes": "Company site lists its office as 42 Waters St, Quincy; point is Quincy City Hall"
+  },
+  {
+   "id": "ma-salem-americab-taxi",
+   "name": "Americab Taxi Salem",
+   "kind": "company",
+   "state": "ma",
+   "city": "Salem",
+   "serviceArea": "Salem and the North Shore, including Peabody, Lynn and Danvers",
+   "coordinates": [
+    -70.90208,
+    42.51497
+   ],
+   "positionAccuracy": "address",
+   "phone": "+1-978-744-7440",
+   "url": "https://www.americabtaxisalem.com/",
+   "sourceUrl": "https://www.americabtaxisalem.com/",
+   "sourceName": "Company website",
+   "notes": "City of Salem Taxi/TNC page names Americab as a licensed taxi operator (list dated 2020)"
+  },
+  {
+   "id": "ma-salem-salem-taxi",
+   "name": "Salem Taxi",
+   "kind": "company",
+   "state": "ma",
+   "city": "Salem",
+   "serviceArea": "Salem and surrounding North Shore towns",
+   "coordinates": [
+    -70.89541,
+    42.52185
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-978-741-2235",
+   "url": "https://www.salem-taxi.com/",
+   "sourceUrl": "https://www.salem-taxi.com/",
+   "sourceName": "Company website",
+   "notes": "City of Salem Taxi/TNC page names Salem Taxi as a licensed taxi operator (list dated 2020)"
+  },
+  {
+   "id": "ma-springfield-trinity-yellow-cab",
+   "name": "Trinity & Yellow Cab",
+   "kind": "company",
+   "state": "ma",
+   "city": "Springfield",
+   "serviceArea": "Springfield area",
+   "coordinates": [
+    -72.59,
+    42.1014
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-413-223-7151",
+   "url": "https://trinitytaxi.weebly.com/",
+   "sourceUrl": "https://trinitytaxi.weebly.com/",
+   "sourceName": "Company website",
+   "notes": "Wheelchair-accessible cabs available"
+  },
+  {
+   "id": "ma-vineyard-haven-marthas-vineyard-taxi",
+   "name": "Martha's Vineyard Taxi",
+   "kind": "company",
+   "state": "ma",
+   "city": "Vineyard Haven",
+   "serviceArea": "Martha's Vineyard, including the Vineyard Haven ferry terminal and the airport (MVY)",
+   "coordinates": [
+    -70.60124,
+    41.45448
+   ],
+   "positionAccuracy": "address",
+   "phone": "+1-508-693-8660",
+   "url": "https://mvtaxi.com/",
+   "sourceUrl": "https://mvyairport.com/ground-transportation/",
+   "sourceName": "Martha's Vineyard Airport ground transportation page"
+  },
+  {
+   "id": "ma-worcester-red-cab",
+   "name": "Red Cab (Worcester)",
+   "kind": "company",
+   "state": "ma",
+   "city": "Worcester",
+   "serviceArea": "Worcester, including Worcester Regional Airport (ORH)",
+   "coordinates": [
+    -71.80188,
+    42.26255
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-508-792-9999",
+   "url": "https://www.massport.com/worcester-airport/getting-to-worcester-airport/ways-to-get-to-worcester-airport",
+   "sourceUrl": "https://www.massport.com/worcester-airport/getting-to-worcester-airport/ways-to-get-to-worcester-airport",
+   "sourceName": "Massport Worcester Regional Airport ground transportation page"
+  },
+  {
+   "id": "ma-worcester-yellow-cab",
+   "name": "Worcester Yellow Cab",
+   "kind": "company",
+   "state": "ma",
+   "city": "Worcester",
+   "serviceArea": "Worcester and central Massachusetts, including Worcester Regional Airport (ORH)",
+   "coordinates": [
+    -71.82158,
+    42.2444
+   ],
+   "positionAccuracy": "address",
+   "phone": "+1-508-754-3211",
+   "url": "https://www.yellowcabworcester.com/",
+   "sourceUrl": "https://www.massport.com/worcester-airport/getting-to-worcester-airport/ways-to-get-to-worcester-airport",
+   "sourceName": "Massport Worcester Regional Airport ground transportation page"
+  },
+  {
+   "id": "me-portland-jetport-taxi-stand",
+   "name": "Portland International Jetport taxis",
+   "kind": "stand",
+   "state": "me",
+   "city": "Portland",
+   "serviceArea": "Portland International Jetport (PWM) to Greater Portland",
+   "coordinates": [
+    -70.31159,
+    43.64725
+   ],
+   "positionAccuracy": "stand",
+   "phone": "+1-207-879-1903",
+   "url": "https://portlandjetport.org/ground-transportation",
+   "sourceUrl": "https://portlandjetport.org/ground-transportation",
+   "sourceName": "Portland International Jetport ground transportation page",
+   "notes": "Ground Transportation booth is right outside Baggage Claim; taxis available from the first to the last flights; published flat rates"
+  },
+  {
+   "id": "me-portland-transportation-center-taxis",
+   "name": "Portland Transportation Center taxis",
+   "kind": "stand",
+   "state": "me",
+   "city": "Portland",
+   "serviceArea": "Portland Transportation Center (Amtrak Downeaster and Concord Coach Lines)",
+   "coordinates": [
+    -70.29128,
+    43.65399
+   ],
+   "positionAccuracy": "stand",
+   "url": "https://amtrakdowneaster.com/stations/portland/",
+   "sourceUrl": "https://amtrakdowneaster.com/stations/portland/",
+   "sourceName": "Amtrak Downeaster Portland station page",
+   "notes": "Taxis are typically available on site"
+  },
+  {
+   "id": "me-augusta-blue-cap-taxi",
+   "name": "Blue Cap Taxi",
+   "kind": "company",
+   "state": "me",
+   "city": "Augusta",
+   "serviceArea": "Augusta and surrounding areas",
+   "coordinates": [
+    -69.77439,
+    44.3148
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-207-255-7769",
+   "url": "https://bluecaptaxi.com/",
+   "sourceUrl": "https://bluecaptaxi.com/",
+   "sourceName": "Company website"
+  },
+  {
+   "id": "me-bangor-brads-cab",
+   "name": "Brad's Cab",
+   "kind": "company",
+   "state": "me",
+   "city": "Bangor",
+   "serviceArea": "Bangor area, including Bangor International Airport (BGR)",
+   "coordinates": [
+    -68.77021,
+    44.80242
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-207-941-9695",
+   "url": "https://flybangor.com/airport-information/ground-transportation/",
+   "sourceUrl": "https://flybangor.com/airport-information/ground-transportation/",
+   "sourceName": "Bangor International Airport ground transportation page"
+  },
+  {
+   "id": "me-bangor-city-cab",
+   "name": "City Cab (Bangor)",
+   "kind": "company",
+   "state": "me",
+   "city": "Bangor",
+   "serviceArea": "Bangor area, including Bangor International Airport (BGR)",
+   "coordinates": [
+    -68.77021,
+    44.80482
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-207-942-4990",
+   "url": "https://flybangor.com/airport-information/ground-transportation/",
+   "sourceUrl": "https://flybangor.com/airport-information/ground-transportation/",
+   "sourceName": "Bangor International Airport ground transportation page"
+  },
+  {
+   "id": "me-bar-harbor-acadian-cab",
+   "name": "Acadian Cab",
+   "kind": "company",
+   "state": "me",
+   "city": "Bar Harbor",
+   "serviceArea": "Bar Harbor, Acadia National Park and Mount Desert Island; rides from Bar Harbor (BHB) and Bangor (BGR) airports",
+   "coordinates": [
+    -68.20434,
+    44.38884
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-207-801-8253",
+   "url": "https://acadiancab.com/",
+   "sourceUrl": "https://www.bhbairport.com/transportation.html",
+   "sourceName": "Hancock County-Bar Harbor Airport transportation page",
+   "notes": "Open 7 am to 8 pm; the airport recommends reserving ahead"
+  },
+  {
+   "id": "me-bar-harbor-coastal-cab",
+   "name": "Bar Harbor Coastal Cab",
+   "kind": "company",
+   "state": "me",
+   "city": "Bar Harbor",
+   "serviceArea": "Bar Harbor and Mount Desert Island; rides from Bangor International Airport (BGR)",
+   "coordinates": [
+    -68.20434,
+    44.38644
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-207-288-1222",
+   "url": "https://barharborcoastalcab.com/",
+   "sourceUrl": "https://flybangor.com/airport-information/ground-transportation/",
+   "sourceName": "Bangor International Airport ground transportation page",
+   "notes": "Reservations by text or phone"
+  },
+  {
+   "id": "me-biddeford-hi5-cab",
+   "name": "Hi5 Cab (HI5 LLC)",
+   "kind": "company",
+   "state": "me",
+   "city": "Biddeford",
+   "serviceArea": "Biddeford, Saco, Sanford and the Kennebunks",
+   "coordinates": [
+    -70.45645,
+    43.49339
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-207-303-9113",
+   "url": "https://www.hi5.llc/",
+   "sourceUrl": "https://www.hi5.llc/",
+   "sourceName": "Company website",
+   "notes": "24 hours; flat rates"
+  },
+  {
+   "id": "me-newport-abc-taxi",
+   "name": "ABC Taxi",
+   "kind": "company",
+   "state": "me",
+   "city": "Newport",
+   "serviceArea": "Newport and Bangor area, with long-distance rides from Bangor International Airport (BGR)",
+   "coordinates": [
+    -69.27394,
+    44.83534
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-207-659-4455",
+   "url": "https://abctaxime.com/",
+   "sourceUrl": "https://flybangor.com/airport-information/ground-transportation/",
+   "sourceName": "Bangor International Airport ground transportation page",
+   "notes": "24 hours"
+  },
+  {
+   "id": "me-portland-airport-cab",
+   "name": "Airport Cab",
+   "kind": "company",
+   "state": "me",
+   "city": "Portland",
+   "serviceArea": "Portland and surrounding areas",
+   "coordinates": [
+    -70.25736,
+    43.65924
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-207-899-5335",
+   "url": "https://www.airportcabmaine.com/",
+   "sourceUrl": "https://www.airportcabmaine.com/",
+   "sourceName": "Company website",
+   "notes": "24 hours"
+  },
+  {
+   "id": "me-portland-airport-express-cab",
+   "name": "Portland Airport Express Cab",
+   "kind": "company",
+   "state": "me",
+   "city": "Portland",
+   "serviceArea": "Portland and Greater Portland, including the Jetport",
+   "coordinates": [
+    -70.26381,
+    43.6465
+   ],
+   "positionAccuracy": "address",
+   "phone": "+1-207-423-4642",
+   "url": "https://www.portlandairportexpresscab.com/",
+   "sourceUrl": "https://www.portlandairportexpresscab.com/",
+   "sourceName": "Company website",
+   "notes": "24 hours"
+  },
+  {
+   "id": "me-rockland-flagship-taxi",
+   "name": "Flagship Taxi",
+   "kind": "company",
+   "state": "me",
+   "city": "Rockland",
+   "serviceArea": "Greater Rockland and Camden area",
+   "coordinates": [
+    -69.12998,
+    44.0963
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-207-222-3108",
+   "url": "https://www.flagshiptaxi.com/",
+   "sourceUrl": "https://www.flagshiptaxi.com/",
+   "sourceName": "Company website"
+  },
+  {
+   "id": "me-rockland-rockland-yellow-cab",
+   "name": "Rockland Yellow Cab",
+   "kind": "company",
+   "state": "me",
+   "city": "Rockland",
+   "serviceArea": "Rockland area, including Knox County Regional Airport (RKD)",
+   "coordinates": [
+    -69.12708,
+    44.0963
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-207-596-3440",
+   "url": "https://www.knoxcountymaine.gov/county_departments/knox_county_regional_airport/passengers.php",
+   "sourceUrl": "https://www.knoxcountymaine.gov/county_departments/knox_county_regional_airport/passengers.php",
+   "sourceName": "Knox County Regional Airport passenger information page"
+  },
+  {
+   "id": "me-rockland-schooner-bay-taxi",
+   "name": "Schooner Bay Taxi / Joe's Taxi",
+   "kind": "company",
+   "state": "me",
+   "city": "Rockland",
+   "serviceArea": "Rockland area, including Knox County Regional Airport (RKD)",
+   "coordinates": [
+    -69.12853,
+    44.0981
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-207-594-5000",
+   "url": "https://www.knoxcountymaine.gov/county_departments/knox_county_regional_airport/passengers.php",
+   "sourceUrl": "https://www.knoxcountymaine.gov/county_departments/knox_county_regional_airport/passengers.php",
+   "sourceName": "Knox County Regional Airport passenger information page"
+  },
+  {
+   "id": "me-wells-ocean-taxi",
+   "name": "Ocean Taxi LLC",
+   "kind": "company",
+   "state": "me",
+   "city": "Wells",
+   "serviceArea": "Wells, the Kennebunks and surrounding southern Maine coast towns",
+   "coordinates": [
+    -70.59087,
+    43.32151
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-207-569-5660",
+   "url": "https://oceantaxis.com/",
+   "sourceUrl": "https://oceantaxis.com/",
+   "sourceName": "Company website"
+  },
+  {
+   "id": "nh-manchester-airport-taxi-zones",
+   "name": "Manchester-Boston Regional Airport taxi zones",
+   "kind": "stand",
+   "state": "nh",
+   "city": "Manchester",
+   "serviceArea": "Manchester-Boston Regional Airport (MHT) to Manchester and southern New Hampshire",
+   "coordinates": [
+    -71.43833,
+    42.9274
+   ],
+   "positionAccuracy": "stand",
+   "url": "https://www.flymanchester.com/ground-transportation/taxi-service/",
+   "sourceUrl": "https://www.flymanchester.com/ground-transportation/taxi-service/",
+   "sourceName": "Manchester-Boston Regional Airport taxi service page",
+   "notes": "Taxi zones on the roadway center islands outside Arrivals/Baggage Claim; fixed-price zones; wheelchair-accessible vehicles on request"
+  },
+  {
+   "id": "nh-concord-concord-cab",
+   "name": "Concord Cab",
+   "kind": "company",
+   "state": "nh",
+   "city": "Concord",
+   "serviceArea": "Concord and surrounding area",
+   "coordinates": [
+    -71.50877,
+    43.20344
+   ],
+   "positionAccuracy": "address",
+   "phone": "+1-603-225-4222",
+   "url": "https://keepnhmoving.com/provider/concord-cab/",
+   "sourceUrl": "https://keepnhmoving.com/provider/concord-cab/",
+   "sourceName": "Keep NH Moving statewide provider directory",
+   "notes": "Hours 5 am to midnight"
+  },
+  {
+   "id": "nh-keene-sunshine-taxi",
+   "name": "Sunshine Taxi of Keene",
+   "kind": "company",
+   "state": "nh",
+   "city": "Keene",
+   "serviceArea": "Keene area",
+   "coordinates": [
+    -72.27771,
+    42.93442
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-603-762-9217",
+   "url": "https://sunshine-taxi-of-keene.ueniweb.com/",
+   "sourceUrl": "https://sunshine-taxi-of-keene.ueniweb.com/",
+   "sourceName": "Company website"
+  },
+  {
+   "id": "nh-lebanon-dp-taxi",
+   "name": "DP Taxi & Rideshare",
+   "kind": "company",
+   "state": "nh",
+   "city": "Lebanon",
+   "serviceArea": "Lebanon and the Upper Valley, including Lebanon Municipal Airport (LEB)",
+   "coordinates": [
+    -72.2518,
+    43.64451
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-603-443-7701",
+   "url": "https://flyleb.com/190/Ground-Transportation",
+   "sourceUrl": "https://flyleb.com/190/Ground-Transportation",
+   "sourceName": "Lebanon Municipal Airport ground transportation page"
+  },
+  {
+   "id": "nh-lebanon-joes-transport",
+   "name": "Joe's Transport",
+   "kind": "company",
+   "state": "nh",
+   "city": "Lebanon",
+   "serviceArea": "Upper Valley of New Hampshire and Vermont, including Lebanon Municipal Airport (LEB)",
+   "coordinates": [
+    -72.2518,
+    43.64211
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-603-667-8299",
+   "url": "https://joestransport.wixsite.com/joestransport",
+   "sourceUrl": "https://flyleb.com/190/Ground-Transportation",
+   "sourceName": "Lebanon Municipal Airport ground transportation page"
+  },
+  {
+   "id": "nh-meredith-lakes-taxi",
+   "name": "Lake's Taxi",
+   "kind": "company",
+   "state": "nh",
+   "city": "Meredith",
+   "serviceArea": "Lakes Region; based in Meredith",
+   "coordinates": [
+    -71.50135,
+    43.65698
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-603-707-2354",
+   "url": "https://keepnhmoving.com/provider/lakes-taxi/",
+   "sourceUrl": "https://keepnhmoving.com/provider/lakes-taxi/",
+   "sourceName": "Keep NH Moving statewide provider directory",
+   "notes": "Call anytime to check availability"
+  },
+  {
+   "id": "nh-milford-milford-taxi",
+   "name": "Milford Taxi",
+   "kind": "company",
+   "state": "nh",
+   "city": "Milford",
+   "serviceArea": "Milford and Hillsborough County",
+   "coordinates": [
+    -71.65806,
+    42.83194
+   ],
+   "positionAccuracy": "address",
+   "phone": "+1-603-672-3344",
+   "url": "https://keepnhmoving.com/provider/milford-taxi/",
+   "sourceUrl": "https://keepnhmoving.com/provider/milford-taxi/",
+   "sourceName": "Keep NH Moving statewide provider directory",
+   "notes": "Closed Sundays"
+  },
+  {
+   "id": "nh-nashua-granite-state-taxi",
+   "name": "Granite State Taxi & Transportation",
+   "kind": "company",
+   "state": "nh",
+   "city": "Nashua",
+   "serviceArea": "Nashua and immediately surrounding towns",
+   "coordinates": [
+    -71.4649,
+    42.7582
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-603-417-6116",
+   "url": "https://www.granitestatetaxi.com/",
+   "sourceUrl": "https://www.granitestatetaxi.com/contact",
+   "sourceName": "Company website"
+  },
+  {
+   "id": "nh-nashua-sk-taxi",
+   "name": "S K Taxi",
+   "kind": "company",
+   "state": "nh",
+   "city": "Nashua",
+   "serviceArea": "Nashua, with airport trips throughout New England",
+   "coordinates": [
+    -71.46633,
+    42.76054
+   ],
+   "positionAccuracy": "address",
+   "phone": "+1-603-882-5155",
+   "url": "https://keepnhmoving.com/provider/s-k-taxi/",
+   "sourceUrl": "https://keepnhmoving.com/provider/s-k-taxi/",
+   "sourceName": "Keep NH Moving statewide provider directory",
+   "notes": "24 hours"
+  },
+  {
+   "id": "nh-north-conway-fast-taxi",
+   "name": "Fast Taxi",
+   "kind": "company",
+   "state": "nh",
+   "city": "North Conway",
+   "serviceArea": "North Conway and the Mount Washington Valley",
+   "coordinates": [
+    -71.12382,
+    44.03778
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-603-356-0000",
+   "url": "https://www.fastaxi.net/",
+   "sourceUrl": "https://keepnhmoving.com/provider/fast-taxi/",
+   "sourceName": "Keep NH Moving statewide provider directory",
+   "notes": "Operating since 1999; fleet includes vans for large parties"
+  },
+  {
+   "id": "nh-portsmouth-abbys-cab",
+   "name": "Abby's Cab",
+   "kind": "company",
+   "state": "nh",
+   "city": "Portsmouth",
+   "serviceArea": "Portsmouth and the greater Seacoast",
+   "coordinates": [
+    -70.75365,
+    43.06985
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-603-431-4555",
+   "url": "https://abbyscab.com/",
+   "sourceUrl": "https://keepnhmoving.com/provider/abbys-cab/",
+   "sourceName": "Keep NH Moving statewide provider directory",
+   "notes": "Metered; uses rates set by the Portsmouth Taxi Commission"
+  },
+  {
+   "id": "nh-portsmouth-annies-taxi",
+   "name": "Annie's Taxi",
+   "kind": "company",
+   "state": "nh",
+   "city": "Portsmouth",
+   "serviceArea": "Portsmouth and the Seacoast, including Kittery, Eliot, Hampton and Rye",
+   "coordinates": [
+    -70.75365,
+    43.07225
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-603-531-9955",
+   "url": "https://anniestaxi.com/",
+   "sourceUrl": "https://keepnhmoving.com/provider/annies-taxi/",
+   "sourceName": "Keep NH Moving statewide provider directory"
+  },
+  {
+   "id": "ri-block-island-old-harbor-taxi-stand",
+   "name": "Block Island taxi stand (Old Harbor ferry docks)",
+   "kind": "stand",
+   "state": "ri",
+   "city": "New Shoreham",
+   "serviceArea": "Block Island; taxis also wait at New Harbor and the airport",
+   "coordinates": [
+    -71.55805,
+    41.17271
+   ],
+   "positionAccuracy": "stand",
+   "url": "https://newshorehamri.gov/303/Taxis-Charter-Buses-Limousines-on-Block-",
+   "sourceUrl": "https://www.blockislandinfo.com/getting-here/taxi-transportation/",
+   "sourceName": "Block Island Tourism Council taxi page; Town of New Shoreham taxi licensing page",
+   "notes": "All island taxis are licensed by the Town of New Shoreham (32 active taxi licenses); most offer island tours"
+  },
+  {
+   "id": "ri-warwick-tf-green-airport-taxi-pickup",
+   "name": "T.F. Green Airport primary taxi pick-up",
+   "kind": "stand",
+   "state": "ri",
+   "city": "Warwick",
+   "serviceArea": "Rhode Island T.F. Green International Airport (PVD)",
+   "coordinates": [
+    -71.43545,
+    41.72613
+   ],
+   "positionAccuracy": "stand",
+   "url": "https://flyri.com/passengers/taxi-ride-sharing/",
+   "sourceUrl": "https://flyri.com/passengers/taxi-ride-sharing/",
+   "sourceName": "Rhode Island Airport Corporation taxi and ride sharing page",
+   "notes": "Primary Taxi Pick-Up is outside the lower-level Arrivals/Baggage Claim area; follow terminal signage"
+  },
+  {
+   "id": "ri-east-providence-lions-taxi",
+   "name": "Lion's Taxi",
+   "kind": "company",
+   "state": "ri",
+   "city": "East Providence",
+   "serviceArea": "East Providence, Providence, Cranston, Barrington and T.F. Green Airport",
+   "coordinates": [
+    -71.3761,
+    41.81449
+   ],
+   "positionAccuracy": "address",
+   "phone": "+1-401-434-9600",
+   "url": "https://ripuc.ri.gov/sites/g/files/xkgbur841/files/2026-01/Taxi%20by%20Territory%201_26_26.pdf",
+   "sourceUrl": "https://ripuc.ri.gov/sites/g/files/xkgbur841/files/2026-01/Taxi%20by%20Territory%201_26_26.pdf",
+   "sourceName": "RI Division of Public Utilities and Carriers, Taxi Companies by Territory (January 26, 2026)",
+   "notes": "RI DPUC certificates T-380 and T-631"
+  },
+  {
+   "id": "ri-narragansett-gansett-cab",
+   "name": "Gansett Cab",
+   "kind": "company",
+   "state": "ri",
+   "city": "Narragansett",
+   "serviceArea": "Narragansett, South Kingstown and Charlestown",
+   "coordinates": [
+    -71.47931,
+    41.43053
+   ],
+   "positionAccuracy": "address",
+   "phone": "+1-401-996-2959",
+   "url": "https://ripuc.ri.gov/sites/g/files/xkgbur841/files/2026-01/Taxi%20by%20Territory%201_26_26.pdf",
+   "sourceUrl": "https://ripuc.ri.gov/sites/g/files/xkgbur841/files/2026-01/Taxi%20by%20Territory%201_26_26.pdf",
+   "sourceName": "RI Division of Public Utilities and Carriers, Taxi Companies by Territory (January 26, 2026)",
+   "notes": "RI DPUC certificate T-484"
+  },
+  {
+   "id": "ri-providence-access-taxicab",
+   "name": "Access Taxicab",
+   "kind": "company",
+   "state": "ri",
+   "city": "Providence",
+   "serviceArea": "Providence and T.F. Green Airport",
+   "coordinates": [
+    -71.45108,
+    41.82323
+   ],
+   "positionAccuracy": "address",
+   "phone": "+1-401-861-6666",
+   "url": "https://joaccesstaxicabri.com/",
+   "sourceUrl": "https://ripuc.ri.gov/sites/g/files/xkgbur841/files/2026-01/Taxi%20by%20Territory%201_26_26.pdf",
+   "sourceName": "RI Division of Public Utilities and Carriers, Taxi Companies by Territory (January 26, 2026)",
+   "notes": "24 hours. RI DPUC certificate T-350"
+  },
+  {
+   "id": "ri-providence-city-express",
+   "name": "City Express LLC",
+   "kind": "company",
+   "state": "ri",
+   "city": "Providence",
+   "serviceArea": "Providence, Cranston, Johnston, North Providence, Pawtucket, Smithfield, Woonsocket and T.F. Green Airport",
+   "coordinates": [
+    -71.44784,
+    41.84844
+   ],
+   "positionAccuracy": "address",
+   "phone": "+1-401-286-9277",
+   "url": "https://ripuc.ri.gov/sites/g/files/xkgbur841/files/2026-01/Taxi%20by%20Territory%201_26_26.pdf",
+   "sourceUrl": "https://ripuc.ri.gov/sites/g/files/xkgbur841/files/2026-01/Taxi%20by%20Territory%201_26_26.pdf",
+   "sourceName": "RI Division of Public Utilities and Carriers, Taxi Companies by Territory (January 26, 2026)",
+   "notes": "RI DPUC certificates T-462 and T-469"
+  },
+  {
+   "id": "ri-providence-city-taxi",
+   "name": "City Taxi Inc.",
+   "kind": "company",
+   "state": "ri",
+   "city": "Providence",
+   "serviceArea": "Providence, Pawtucket, Central Falls, East Providence, North Providence, Johnston, Lincoln, Cumberland, Smithfield, North Smithfield, Woonsocket, Barrington and T.F. Green Airport",
+   "coordinates": [
+    -71.42021,
+    41.83742
+   ],
+   "positionAccuracy": "address",
+   "phone": "+1-401-944-2000",
+   "url": "https://ripuc.ri.gov/sites/g/files/xkgbur841/files/2026-01/Taxi%20by%20Territory%201_26_26.pdf",
+   "sourceUrl": "https://ripuc.ri.gov/sites/g/files/xkgbur841/files/2026-01/Taxi%20by%20Territory%201_26_26.pdf",
+   "sourceName": "RI Division of Public Utilities and Carriers, Taxi Companies by Territory (January 26, 2026)",
+   "notes": "RI DPUC certificate T-464"
+  },
+  {
+   "id": "ri-providence-dollars-taxi",
+   "name": "Dollars Taxi LLC",
+   "kind": "company",
+   "state": "ri",
+   "city": "Providence",
+   "serviceArea": "Providence, Pawtucket, Cranston, East Providence, North Providence, Lincoln, Smithfield and Warwick",
+   "coordinates": [
+    -71.43661,
+    41.85434
+   ],
+   "positionAccuracy": "address",
+   "phone": "+1-401-481-3485",
+   "url": "https://ripuc.ri.gov/sites/g/files/xkgbur841/files/2026-01/Taxi%20by%20Territory%201_26_26.pdf",
+   "sourceUrl": "https://ripuc.ri.gov/sites/g/files/xkgbur841/files/2026-01/Taxi%20by%20Territory%201_26_26.pdf",
+   "sourceName": "RI Division of Public Utilities and Carriers, Taxi Companies by Territory (January 26, 2026)",
+   "notes": "RI DPUC certificate T-475"
+  },
+  {
+   "id": "ri-providence-e-and-v-taxi",
+   "name": "E&V Taxi LLC",
+   "kind": "company",
+   "state": "ri",
+   "city": "Providence",
+   "serviceArea": "Providence, Cranston, Johnston, North Providence and T.F. Green Airport",
+   "coordinates": [
+    -71.43335,
+    41.80987
+   ],
+   "positionAccuracy": "address",
+   "phone": "+1-401-331-9560",
+   "url": "https://ripuc.ri.gov/sites/g/files/xkgbur841/files/2026-01/Taxi%20by%20Territory%201_26_26.pdf",
+   "sourceUrl": "https://ripuc.ri.gov/sites/g/files/xkgbur841/files/2026-01/Taxi%20by%20Territory%201_26_26.pdf",
+   "sourceName": "RI Division of Public Utilities and Carriers, Taxi Companies by Territory (January 26, 2026)",
+   "notes": "RI DPUC certificate T-450"
+  },
+  {
+   "id": "ri-providence-providence-taxi",
+   "name": "Providence Taxi, LLP",
+   "kind": "company",
+   "state": "ri",
+   "city": "Providence",
+   "serviceArea": "Providence, Cranston and T.F. Green Airport",
+   "coordinates": [
+    -71.46379,
+    41.81725
+   ],
+   "positionAccuracy": "address",
+   "phone": "+1-401-301-6599",
+   "url": "https://ripuc.ri.gov/sites/g/files/xkgbur841/files/2026-01/Taxi%20by%20Territory%201_26_26.pdf",
+   "sourceUrl": "https://ripuc.ri.gov/sites/g/files/xkgbur841/files/2026-01/Taxi%20by%20Territory%201_26_26.pdf",
+   "sourceName": "RI Division of Public Utilities and Carriers, Taxi Companies by Territory (January 26, 2026)",
+   "notes": "RI DPUC certificate T-419"
+  },
+  {
+   "id": "ri-providence-united-cab",
+   "name": "United Cab, LLC",
+   "kind": "company",
+   "state": "ri",
+   "city": "Providence",
+   "serviceArea": "Providence, Cranston, Johnston, North Providence, Lincoln, Barrington, Bristol, Warren and T.F. Green Airport",
+   "coordinates": [
+    -71.43444,
+    41.84974
+   ],
+   "positionAccuracy": "address",
+   "phone": "+1-401-261-5355",
+   "url": "https://unitedcabllc.com/",
+   "sourceUrl": "https://ripuc.ri.gov/sites/g/files/xkgbur841/files/2026-01/Taxi%20by%20Territory%201_26_26.pdf",
+   "sourceName": "RI Division of Public Utilities and Carriers, Taxi Companies by Territory (January 26, 2026)",
+   "notes": "24 hours. RI DPUC certificates T-423 and T-425"
+  },
+  {
+   "id": "ri-warwick-anytime-anywhere-taxi",
+   "name": "Anytime Anywhere Taxi, LLC",
+   "kind": "company",
+   "state": "ri",
+   "city": "Warwick",
+   "serviceArea": "East Bay: Barrington, Warren, Bristol (including Roger Williams University) and East Providence",
+   "coordinates": [
+    -71.48607,
+    41.71958
+   ],
+   "positionAccuracy": "address",
+   "phone": "+1-401-241-1691",
+   "url": "https://ripuc.ri.gov/sites/g/files/xkgbur841/files/2026-01/Taxi%20by%20Territory%201_26_26.pdf",
+   "sourceUrl": "https://ripuc.ri.gov/sites/g/files/xkgbur841/files/2026-01/Taxi%20by%20Territory%201_26_26.pdf",
+   "sourceName": "RI Division of Public Utilities and Carriers, Taxi Companies by Territory (January 26, 2026)",
+   "notes": "RI DPUC certificate T-427; office address in Warwick"
+  },
+  {
+   "id": "ri-warwick-supermega7-taxi",
+   "name": "Supermega7 Taxi LLC",
+   "kind": "company",
+   "state": "ri",
+   "city": "Warwick",
+   "serviceArea": "Warwick, West Warwick, Cranston, Pawtucket, Providence and T.F. Green Airport",
+   "coordinates": [
+    -71.43648,
+    41.73166
+   ],
+   "positionAccuracy": "address",
+   "phone": "+1-401-301-5383",
+   "url": "https://ripuc.ri.gov/sites/g/files/xkgbur841/files/2026-01/Taxi%20by%20Territory%201_26_26.pdf",
+   "sourceUrl": "https://ripuc.ri.gov/sites/g/files/xkgbur841/files/2026-01/Taxi%20by%20Territory%201_26_26.pdf",
+   "sourceName": "RI Division of Public Utilities and Carriers, Taxi Companies by Territory (January 26, 2026)",
+   "notes": "RI DPUC certificates T-466, T-472 and T-473"
+  },
+  {
+   "id": "vt-south-burlington-btv-airport-taxi-queue",
+   "name": "Patrick Leahy Burlington International Airport taxi queue",
+   "kind": "stand",
+   "state": "vt",
+   "city": "South Burlington",
+   "serviceArea": "Burlington International Airport (BTV) to Burlington and northern Vermont",
+   "coordinates": [
+    -73.15494,
+    44.46918
+   ],
+   "positionAccuracy": "stand",
+   "url": "https://btv.aero/rental-cars-taxis/",
+   "sourceUrl": "https://btv.aero/rental-cars-taxis/",
+   "sourceName": "Burlington International Airport rental cars and taxis page",
+   "notes": "Metered taxis licensed by the airport; a $4 airport surcharge applies from the airport queue"
+  },
+  {
+   "id": "vt-brattleboro-royal-transports",
+   "name": "Royal Transports",
+   "kind": "company",
+   "state": "vt",
+   "city": "Brattleboro",
+   "serviceArea": "Brattleboro and nearby Vermont, New Hampshire and Massachusetts border towns",
+   "coordinates": [
+    -72.56058,
+    42.85529
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-802-275-2391",
+   "url": "https://royaltransports.org/",
+   "sourceUrl": "https://royaltransports.org/",
+   "sourceName": "Company website",
+   "notes": "24 hours; taxi and airport shuttle service"
+  },
+  {
+   "id": "vt-burlington-burlington-taxi",
+   "name": "Burlington Taxi",
+   "kind": "company",
+   "state": "vt",
+   "city": "Burlington",
+   "serviceArea": "Burlington and the airport (BTV), with rides across Vermont",
+   "coordinates": [
+    -73.20624,
+    44.47721
+   ],
+   "positionAccuracy": "address",
+   "phone": "+1-802-448-2038",
+   "url": "https://burlington-taxi.com/",
+   "sourceUrl": "https://btv.aero/rental-cars-taxis/",
+   "sourceName": "Burlington International Airport list of licensed taxis"
+  },
+  {
+   "id": "vt-burlington-freedom-cab",
+   "name": "Freedom Cab of Vermont",
+   "kind": "company",
+   "state": "vt",
+   "city": "Burlington",
+   "serviceArea": "Burlington area, including the airport (BTV), local colleges and ski areas",
+   "coordinates": [
+    -73.21286,
+    44.47738
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-802-829-7511",
+   "url": "https://www.freedomcabvt.com/",
+   "sourceUrl": "https://btv.aero/rental-cars-taxis/",
+   "sourceName": "Burlington International Airport list of licensed taxis",
+   "notes": "24 hours"
+  },
+  {
+   "id": "vt-burlington-north-cab",
+   "name": "North Cab",
+   "kind": "company",
+   "state": "vt",
+   "city": "Burlington",
+   "serviceArea": "Burlington and the airport (BTV), with long-distance rides including Montreal",
+   "coordinates": [
+    -73.21286,
+    44.47498
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-802-309-6364",
+   "url": "https://northcabrides.com/",
+   "sourceUrl": "https://btv.aero/rental-cars-taxis/",
+   "sourceName": "Burlington International Airport list of licensed taxis",
+   "notes": "24 hours"
+  },
+  {
+   "id": "vt-montpelier-idrivevt",
+   "name": "iDriveVT",
+   "kind": "company",
+   "state": "vt",
+   "city": "Montpelier",
+   "serviceArea": "Montpelier and central Vermont, with airport transfers across New England",
+   "coordinates": [
+    -72.57553,
+    44.25921
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-802-498-5895",
+   "url": "https://idrivevt.com/",
+   "sourceUrl": "https://idrivevt.com/",
+   "sourceName": "Company website",
+   "notes": "Advance booking recommended"
+  },
+  {
+   "id": "vt-rutland-cooper-cab",
+   "name": "Cooper Cab",
+   "kind": "company",
+   "state": "vt",
+   "city": "Rutland",
+   "serviceArea": "Rutland and the surrounding area, including Killington and Rutland-Southern Vermont Regional Airport (RUT)",
+   "coordinates": [
+    -72.97789,
+    43.604
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-802-478-4748",
+   "url": "https://coopercab.com/",
+   "sourceUrl": "https://flyrutlandvt.com/ground-transportation/",
+   "sourceName": "Rutland-Southern Vermont Regional Airport ground transportation page",
+   "notes": "Holds a Rutland City taxi license"
+  },
+  {
+   "id": "vt-rutland-green-mountain-boys-taxi",
+   "name": "Green Mountain Boys Taxi",
+   "kind": "company",
+   "state": "vt",
+   "city": "Rutland",
+   "serviceArea": "Rutland County, including Killington, Pico, Okemo and Rutland-Southern Vermont Regional Airport (RUT)",
+   "coordinates": [
+    -72.97789,
+    43.6064
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-802-779-1637",
+   "url": "https://gmbtaxi.com/",
+   "sourceUrl": "https://flyrutlandvt.com/ground-transportation/",
+   "sourceName": "Rutland-Southern Vermont Regional Airport ground transportation page",
+   "notes": "24 hours; holds a Rutland City taxi license"
+  },
+  {
+   "id": "vt-stowe-blazer-taxi",
+   "name": "Blazer Taxi Service",
+   "kind": "company",
+   "state": "vt",
+   "city": "Stowe",
+   "serviceArea": "Stowe, Burlington and Montpelier; on demand in Middlebury",
+   "coordinates": [
+    -72.68603,
+    44.46444
+   ],
+   "positionAccuracy": "city",
+   "url": "https://www.taxistowevt.com/home.html",
+   "sourceUrl": "https://www.taxistowevt.com/home.html",
+   "sourceName": "Company website",
+   "notes": "24 hours; in business since 2004"
+  },
+  {
+   "id": "vt-stowe-mountain-top-taxi",
+   "name": "Stowe's Mountain Top Taxi",
+   "kind": "company",
+   "state": "vt",
+   "city": "Stowe",
+   "serviceArea": "Stowe area, with airport transfers",
+   "coordinates": [
+    -72.68603,
+    44.46684
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-802-696-4984",
+   "url": "https://stowesmountaintoptaxi.com/",
+   "sourceUrl": "https://stowesmountaintoptaxi.com/",
+   "sourceName": "Company website",
+   "notes": "24 hours"
+  },
+  {
+   "id": "vt-vergennes-middlebury-taxi",
+   "name": "Middlebury Taxi",
+   "kind": "company",
+   "state": "vt",
+   "city": "Vergennes",
+   "serviceArea": "Addison County (Middlebury, Vergennes) and Chittenden County",
+   "coordinates": [
+    -73.25096,
+    44.16864
+   ],
+   "positionAccuracy": "city",
+   "phone": "+1-802-877-3535",
+   "url": "https://www.middleburytaxi.com/",
+   "sourceUrl": "https://www.middleburytaxi.com/",
+   "sourceName": "Company website",
+   "notes": "Family owned; based in Addison County just outside Vergennes"
+  }
+ ]
+}

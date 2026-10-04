@@ -10,6 +10,8 @@ Four feature classes share one GeoJSON file, distinguished by ``group``:
 * ``ev-charging`` – public DC fast and Level 2 charging from the NREL/NLR
   Alternative Fuel Stations API (DEMO_KEY, rate limited).
 * ``drawbridge`` – hand-curated movable bridges with 33 CFR 117 opening rules
+* ``taxi``       – curated taxi and cab services (scripts/taxi-services.json)
+  plus OpenStreetMap taxi stands; a directory, never live cab positions
   (scripts/drawbridges.json).
 
 Every feature carries title, provider, sourceUrl, dataStatus 'reference', and a
@@ -24,6 +26,7 @@ import heapq
 import json
 import math
 import os
+import re
 import sys
 import time
 import urllib.error
@@ -37,6 +40,21 @@ BOUNDARIES_PATH = ROOT / "public" / "data" / "regions.geojson"
 INFRASTRUCTURE_PATH = ROOT / "public" / "data" / "infrastructure.geojson"
 HERITAGE_PATH = ROOT / "scripts" / "heritage-railroads.json"
 DRAWBRIDGE_PATH = ROOT / "scripts" / "drawbridges.json"
+TAXI_PATH = ROOT / "scripts" / "taxi-services.json"
+TAXI_OSM_CACHE = ROOT / "scripts" / "taxi-osm-cache.json"
+OVERPASS_URLS = (
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+)
+# Six-state envelope for the OpenStreetMap taxi-stand query (south, west, north, east).
+TAXI_OSM_BBOX = (40.9, -73.8, 47.5, -66.9)
+STATE_KEYS = ("ct", "ma", "me", "nh", "ri", "vt")
+TAXI_KIND_LABELS = {
+    "company": "Taxi company",
+    "association": "Taxi dispatch association",
+    "stand": "Taxi stand",
+}
 USER_AGENT = "mapzimus/Motion reference-places-builder"
 # Region keys in scripts/regions-config.json order, filled from
 # data/regions.geojson by load_region_geometries().
@@ -47,6 +65,7 @@ COLORS = {
     "park-ride": "#7fb7ff",
     "ev-charging": "#6ee7a8",
     "drawbridge": "#f7c948",
+    "taxi": "#ffe14d",
 }
 
 # State park-and-ride services. Rhode Island publishes no official RIDOT
@@ -577,11 +596,218 @@ def drawbridge_features(region_geometries):
 
 # --------------------------------------------------------------------------
 
+def write_collection(output, features, sources):
+    counts = {}
+    for feature in features:
+        group = feature["properties"]["group"]
+        state = feature["properties"].get("state", "?")
+        counts.setdefault(group, {"total": 0})
+        counts[group]["total"] += 1
+        counts[group][state] = counts[group].get(state, 0) + 1
+
+    collection = {
+        "type": "FeatureCollection",
+        "metadata": {
+            "note": "Reference places: heritage railroads, park-and-ride lots, public EV charging, movable bridges, and taxi and cab services. Nothing here is a live vehicle position.",
+            "builtFrom": sources,
+            "counts": counts,
+            "colors": COLORS,
+        },
+        "features": features,
+    }
+    output.write_text(
+        json.dumps(collection, ensure_ascii=False, separators=(",", ":")),
+        encoding="utf-8",
+    )
+    print(f"Wrote {len(features)} features to {output}")
+    for group, group_counts in counts.items():
+        print(f"  {group}: {json.dumps(group_counts)}")
+
+
+def fetch_osm_taxi_stands():
+    """Query Overpass for taxi stands and taxi offices inside the six-state envelope."""
+    south, west, north, east = TAXI_OSM_BBOX
+    box = f"({south},{west},{north},{east})"
+    query = (
+        "[out:json][timeout:120];"
+        f'(nwr["amenity"="taxi"]{box};nwr["office"="taxi"]{box};);'
+        "out center tags;"
+    )
+    body = urllib.parse.urlencode({"data": query}).encode("utf-8")
+    last_error = None
+    for attempt in range(6):
+        url = OVERPASS_URLS[attempt % len(OVERPASS_URLS)]
+        try:
+            request = urllib.request.Request(url, data=body, headers={"User-Agent": USER_AGENT})
+            with urllib.request.urlopen(request, timeout=180) as response:
+                return json.loads(response.read().decode("utf-8")).get("elements", [])
+        except Exception as error:  # noqa: BLE001 - public Overpass servers are often busy
+            last_error = error
+            time.sleep(6 * (attempt + 1))
+    raise RuntimeError(f"Overpass taxi query failed: {last_error}")
+
+
+def osm_taxi_stands(region_geometries, refresh=False):
+    """In-state OpenStreetMap taxi elements, from the checked-in cache.
+
+    Overpass is slow and often unavailable, and only a few dozen elements fall
+    inside New England, so builds read scripts/taxi-osm-cache.json. Pass
+    refresh=True (--refresh-taxi-osm) to query Overpass and rewrite the cache.
+    """
+    if not refresh and TAXI_OSM_CACHE.exists():
+        return json.loads(TAXI_OSM_CACHE.read_text(encoding="utf-8"))["elements"]
+    kept = []
+    for element in fetch_osm_taxi_stands():
+        center = element.get("center", element)
+        if center.get("lon") is None or center.get("lat") is None:
+            continue
+        coordinates = rounded([center["lon"], center["lat"]])
+        regions = regions_for([coordinates], region_geometries)
+        if not any(key in regions for key in STATE_KEYS):
+            continue  # the envelope also covers New York and Quebec
+        kept.append({
+            "type": element["type"],
+            "id": element["id"],
+            "lon": coordinates[0],
+            "lat": coordinates[1],
+            "tags": element.get("tags", {}),
+        })
+    kept.sort(key=lambda item: (item["type"], item["id"]))
+    TAXI_OSM_CACHE.write_text(
+        json.dumps({
+            "description": "OpenStreetMap amenity=taxi and office=taxi elements inside the six New England states. Refresh with build-reference-places.py --refresh-taxi-osm.",
+            "license": "© OpenStreetMap contributors, ODbL 1.0",
+            "fetchedAt": time.strftime("%Y-%m-%d"),
+            "elements": kept,
+        }, ensure_ascii=False, indent=1) + "\n",
+        encoding="utf-8",
+    )
+    print(f"  taxi: cached {len(kept)} OpenStreetMap elements in {TAXI_OSM_CACHE.name}")
+    return kept
+
+
+def taxi_features(region_geometries, skip_osm=False, refresh_osm=False):
+    """Taxi and cab services: the curated directory plus OpenStreetMap stands.
+
+    Nothing here is a live cab. A company whose garage address is unknown sits
+    on its city's downtown point and says so in the popup.
+    """
+    features = []
+    sources = []
+    curated_stands = []
+    if TAXI_PATH.exists():
+        catalog = json.loads(TAXI_PATH.read_text(encoding="utf-8"))
+        for service in catalog.get("services", []):
+            coordinates = rounded(service["coordinates"])
+            regions = regions_for([coordinates], region_geometries, [service["state"]])
+            link = next(
+                (u for u in (service.get("url"), service.get("sourceUrl")) if str(u or "").startswith("https://")),
+                None,
+            )
+            if not link:
+                print(f"  taxi: skipped {service['id']} (no https link)", file=sys.stderr)
+                continue
+            kind = service.get("kind", "company")
+            area = clean_text(service.get("serviceArea")) or clean_text(service.get("city"))
+            details = [
+                clean_text(service.get("phone")),
+                clean_text(service.get("notes")),
+                "Map point is the city center, not a garage or stand"
+                if service.get("positionAccuracy") == "city" else "",
+            ]
+            features.append({
+                "type": "Feature",
+                "id": f"taxi-{service['id']}",
+                "geometry": {"type": "Point", "coordinates": coordinates},
+                "properties": {
+                    "group": "taxi",
+                    "dataStatus": "reference",
+                    "color": COLORS["taxi"],
+                    "title": clean_text(service["name"]),
+                    "status": f"{TAXI_KIND_LABELS.get(kind, 'Taxi service')} · {area}",
+                    "details": " · ".join(part for part in details if part),
+                    "provider": clean_text(service.get("sourceName")) or "Operator listing",
+                    "sourceUrl": link,
+                    "kind": kind,
+                    "city": clean_text(service.get("city")),
+                    "state": service["state"],
+                    "regions": regions,
+                },
+            })
+            if kind == "stand":
+                curated_stands.append(coordinates)
+        sources.append({"source": TAXI_PATH.name, "count": len(features), "compiledAt": catalog.get("compiledAt", "")})
+        print(f"  taxi: {len(features)} curated services")
+    else:
+        print(f"  taxi: {TAXI_PATH.name} missing; OpenStreetMap stands only", file=sys.stderr)
+
+    if skip_osm:
+        sources.append({"source": "OpenStreetMap", "status": "skipped", "reason": "--skip-taxi-osm"})
+        return features, sources
+
+    stands = 0
+    for element in osm_taxi_stands(region_geometries, refresh_osm):
+        tags = element.get("tags", {})
+        center = element.get("center", element)
+        if center.get("lon") is None or center.get("lat") is None:
+            continue
+        coordinates = rounded([center["lon"], center["lat"]])
+        regions = regions_for([coordinates], region_geometries)
+        state = next((key for key in STATE_KEYS if key in regions), None)
+        if not state:
+            continue  # the envelope also covers New York and Quebec
+        name = clean_text(tags.get("name")) or clean_text(tags.get("operator"))
+        if re.search(r"drop.?off", name, re.I):
+            continue
+        if any(distance_km(coordinates, other) < 0.15 for other in curated_stands):
+            continue  # the curated directory already has this stand
+        office = tags.get("office") == "taxi"
+        capacity = clean_int(tags.get("capacity"))
+        details = [
+            f"{capacity} cab spaces" if capacity else "",
+            clean_text(tags.get("phone") or tags.get("contact:phone")),
+            clean_text(tags.get("opening_hours")),
+        ]
+        features.append({
+            "type": "Feature",
+            "id": f"taxi-osm-{element['type']}-{element['id']}",
+            "geometry": {"type": "Point", "coordinates": coordinates},
+            "properties": {
+                "group": "taxi",
+                "dataStatus": "reference",
+                "color": COLORS["taxi"],
+                "title": name or "Taxi stand",
+                "status": "Taxi office" if office else "Taxi stand",
+                "details": " · ".join(part for part in details if part),
+                "provider": "OpenStreetMap contributors",
+                "sourceUrl": f"https://www.openstreetmap.org/{element['type']}/{element['id']}",
+                "kind": "company" if office else "stand",
+                "state": state,
+                "regions": regions,
+            },
+        })
+        stands += 1
+    sources.append({"source": "OpenStreetMap amenity=taxi / office=taxi", "cache": TAXI_OSM_CACHE.name, "count": stands})
+    print(f"  taxi: {stands} OpenStreetMap stands and offices")
+    return features, sources
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, default=OUTPUT)
     parser.add_argument("--skip-ev", action="store_true", help="Do not call the AFDC API")
     parser.add_argument("--skip-park-ride", action="store_true", help="Do not call state park-and-ride services")
+    parser.add_argument("--skip-taxi-osm", action="store_true", help="Leave OpenStreetMap taxi stands out")
+    parser.add_argument(
+        "--refresh-taxi-osm",
+        action="store_true",
+        help="Query Overpass for taxi stands and rewrite scripts/taxi-osm-cache.json",
+    )
+    parser.add_argument(
+        "--taxi-only",
+        action="store_true",
+        help="Rebuild only the taxi group and keep every other group from the existing output",
+    )
     parser.add_argument("--api-key", default=os.environ.get("NREL_API_KEY", "DEMO_KEY"))
     parser.add_argument(
         "--retag-only",
@@ -593,6 +819,15 @@ def main():
     region_geometries = load_region_geometries()
     if args.retag_only:
         retag_existing(args.output, region_geometries)
+        return
+    if args.taxi_only:
+        collection = json.loads(args.output.read_text(encoding="utf-8"))
+        print("Taxi and cab services")
+        taxis, taxi_sources = taxi_features(region_geometries, args.skip_taxi_osm, args.refresh_taxi_osm)
+        features = [f for f in collection["features"] if f["properties"]["group"] != "taxi"] + taxis
+        built_from = [e for e in collection.get("metadata", {}).get("builtFrom", []) if e.get("group") != "taxi"]
+        built_from.append({"group": "taxi", "status": "ok", "count": len(taxis), "sources": taxi_sources})
+        write_collection(args.output, features, built_from)
         return
     graph = None
     if INFRASTRUCTURE_PATH.exists():
@@ -632,31 +867,16 @@ def main():
             print(f"  ev-charging: SKIPPED ({error})", file=sys.stderr)
             sources.append({"group": "ev-charging", "status": "skipped", "error": str(error)})
 
-    counts = {}
-    for feature in features:
-        group = feature["properties"]["group"]
-        state = feature["properties"].get("state", "?")
-        counts.setdefault(group, {"total": 0})
-        counts[group]["total"] += 1
-        counts[group][state] = counts[group].get(state, 0) + 1
+    print("Taxi and cab services")
+    try:
+        taxis, taxi_sources = taxi_features(region_geometries, args.skip_taxi_osm, args.refresh_taxi_osm)
+        features.extend(taxis)
+        sources.append({"group": "taxi", "status": "ok", "count": len(taxis), "sources": taxi_sources})
+    except Exception as error:  # noqa: BLE001 - report and continue
+        print(f"  taxi: SKIPPED ({error})", file=sys.stderr)
+        sources.append({"group": "taxi", "status": "skipped", "error": str(error)})
 
-    collection = {
-        "type": "FeatureCollection",
-        "metadata": {
-            "note": "Reference places: heritage railroads, park-and-ride lots, public EV charging, and movable bridges. Nothing here is a live vehicle position.",
-            "builtFrom": sources,
-            "counts": counts,
-            "colors": COLORS,
-        },
-        "features": features,
-    }
-    args.output.write_text(
-        json.dumps(collection, ensure_ascii=False, separators=(",", ":")),
-        encoding="utf-8",
-    )
-    print(f"Wrote {len(features)} features to {args.output}")
-    for group, group_counts in counts.items():
-        print(f"  {group}: {json.dumps(group_counts)}")
+    write_collection(args.output, features, sources)
 
 
 if __name__ == "__main__":

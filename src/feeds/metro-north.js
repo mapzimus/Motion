@@ -1,9 +1,12 @@
-// Metro-North does not publish GPS vehicle positions. These dots interpolate
-// between stations using the official MTA GTFS-Realtime trip-update feed.
+// Metro-North trains from the official MTA GTFS-Realtime feed. A train that is
+// running reports a GPS position, shown as live. A train with no fresh fix is
+// placed between the two stations its realtime stop times straddle and is
+// labelled estimated.
 
 import { CONFIG } from './config.js';
 import { createFleet } from './fleet.js';
 import { gatewayRegion } from './regions.js';
+import { trainItem } from './metro-north-normalize.js';
 
 let stopsPromise = null;
 
@@ -17,47 +20,6 @@ function loadStops() {
       .then((payload) => payload.stops ?? {});
   }
   return stopsPromise;
-}
-
-function bearingBetween(from, to) {
-  const radians = Math.atan2(to.lng - from.lng, to.lat - from.lat);
-  return (radians * 180 / Math.PI + 360) % 360;
-}
-
-function trainItem(trip, stops) {
-  const previous = stops[trip.previousStopId];
-  const next = stops[trip.nextStopId];
-  const destination = stops[trip.destinationStopId];
-  if (!previous || !next) return null;
-  const progress = Math.max(0, Math.min(1, Number(trip.progress) || 0));
-  const minutes = Math.max(0, Math.round((trip.nextTime * 1000 - Date.now()) / 60_000));
-  return {
-    id: `mnr-${trip.id}`,
-    detail: {
-      trainNumber: trip.label ? String(trip.label) : '',
-      routeName: `${trip.routeName} Line`,
-      headsign: destination?.name ?? '',
-      nextStop: next.name,
-      nextMinutes: minutes,
-    },
-    lng: previous.lng + (next.lng - previous.lng) * progress,
-    lat: previous.lat + (next.lat - previous.lat) * progress,
-    props: {
-      group: 'commuter',
-      dataStatus: 'estimated',
-      color: trip.color ?? CONFIG.MNR_COLOR,
-      bearing: bearingBetween(previous, next),
-      hasBearing: true,
-      stale: Date.now() - Date.parse(trip.updatedAt) > CONFIG.MNR_STALE_MS,
-      title: `Metro-North · ${trip.routeName} Line`,
-      dest: `${trip.label ? `Train ${trip.label}` : 'Train'}${destination ? ` to ${destination.name}` : ''}`,
-      status: `${previous.name} → ${next.name} · ${minutes ? `${minutes} min` : 'due'}`,
-      meta: 'Estimated position from MTA trip updates',
-      provider: 'MTA Metro-North GTFS-Realtime',
-      sourceUrl: 'https://www.mta.info/developers',
-      updatedAt: trip.updatedAt,
-    },
-  };
 }
 
 function normalizeAlerts(alerts, stops) {
@@ -105,7 +67,7 @@ export function startMetroNorth(onCounts, onAlerts, initialRegion, enabled = tru
       const payload = await response.json();
       if (generation !== requestGeneration) return;
       const items = (payload.trips ?? [])
-        .map((trip) => trainItem(trip, stops))
+        .map((trip) => trainItem(trip, stops, { color: CONFIG.MNR_COLOR, staleAfterMs: CONFIG.MNR_STALE_MS }))
         .filter(Boolean);
       const visible = fleet.update(items);
       onCounts({ commuter: visible.length });

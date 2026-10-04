@@ -182,7 +182,9 @@ function mnrCard(item) {
     stops: d.nextStop
       ? [{ name: d.nextStop, eta: d.nextMinutes ? `${d.nextMinutes} min` : 'Due', clock: '', delay: '', late: false }]
       : null,
-    stopsNote: 'Metro-North position is estimated between stations. The feed exposes the next stop only.',
+    stopsNote: p.dataStatus === 'live'
+      ? 'Metro-North position is the reported GPS fix of the train. The feed exposes the next stop only.'
+      : 'Metro-North position is estimated between stations. The feed exposes the next stop only.',
     meta: '',
   };
 }

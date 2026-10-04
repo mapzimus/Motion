@@ -2,9 +2,54 @@
 
 ## Unreleased
 
-Closes the gaps found by the 2026-10-04 coverage audit.
+### Shared & active travel
+- New **Other bike-share systems** reference layer: 50 labeled markers for
+  New England bike-share and e-bike systems that publish no usable public
+  GBFS feed — ValleyBike Share (nine Pioneer Valley towns plus UMass),
+  Rideable Nashua, Portland Bike Share, Port Bikeshare (Newburyport),
+  Minuteman Bikeshare, CATMA's Bird e-bikes, CargoB's 15 cargo-bike hubs,
+  Metro Mobility, the Community Pedal Power e-bike library, Coast Provincetown,
+  and Sandy Pedals. The Bikes preset switches it on with the live layer.
+- A failed startup fetch now shows the error overlay instead of hanging on
+  "Loading New England…".
 
-### Regions
+### Live vehicles
+- Metro-North trains on the New Haven, New Canaan, Danbury, and Waterbury lines
+  now use the GPS position the MTA feed reports and are labeled live. Trains
+  without a fresh fix keep the between-stations estimate.
+- Twelve more live feeds: Lowell RTA, Lexpress, Harvard, EZRide, Longwood
+  Collective, Mass General Brigham, Quinnipiac, University of Hartford,
+  University of New Haven, Providence College, Bangor Community Connector, and
+  Lewiston-Auburn citylink.
+- Seven TransLoc feeds: Nantucket WAVE, Boston University, Boston College,
+  UMass Boston, URI, Eastern Connecticut State, and UConn Health. Stamford's
+  Harbor Point Trolley is live too.
+- The MBTA-core region now shows the campus and hospital shuttles that run
+  inside it.
+- The Swiftly key is sent only to agencies that approved sharing (Casco Bay
+  Lines), and approved feeds are cached for 30 seconds. Previously a configured
+  key was sent to every Swiftly feed and rejected by nine of them every poll.
+
+### Transit coverage
+- Eight more schedule feeds: EZRide, Longwood Collective, Mass General Brigham,
+  Quinnipiac, University of Hartford, University of New Haven, Providence
+  College, and Roger Williams University.
+- Harbor Point Trolley and UConn Health shuttles added. Nantucket WAVE now
+  reads its own TransLoc export.
+- Greater Portland METRO reads the agency's own GTFS; the catalog mirror had
+  expired on 2026-10-03.
+
+### Taxi and cab services
+- New reference layer: 106 licensed cab companies, dispatch associations, and
+  official taxi stands confirmed from licensing lists, airport pages, and
+  operator sites, plus 30 OpenStreetMap taxi stands. Off by default, under
+  Ground & rail.
+
+### Build
+- The Python builders write to `public/data/` again; they still pointed at the
+  old `data/` folder after the Vite restructure and could not run.
+
+### Regions (coverage audit, 2026-10-04)
 - Four new named regions: Waterbury & Northwest Hills (CT), Monadnock Region
   (NH), Montpelier & Central Vermont, and Northeast Kingdom (VT). Every county
   and Connecticut planning region is now inside a named region.
@@ -14,26 +59,17 @@ Closes the gaps found by the 2026-10-04 coverage audit.
   to the statewide view only.
 - `regions-marine.geojson` rebuilt; it had no North Shore outline.
 
-### Transit coverage
-- New schedule feeds: University of New Haven shuttles and ARTS's Star City
-  Connector (Presque Isle).
-- New live-bus feeds: LRTA (Cadavl), Lexpress, Harvard, Bangor Community
-  Connector, University of New Haven, and ARTS (Passio).
+### Coverage audit follow-ups
+- ARTS's Saturday Star City Connector loop in Presque Isle is drawn from the
+  agency's Passio GTFS, with its live feed wired; the rest of ARTS stays a
+  demand-response marker.
 - Cyr Bus Line's Bangor–Caribou coach drawn as a road-routed official-schedule
   corridor; Winnipesaukee Transit System added as a directory marker.
-- Greater Portland METRO now reads the agency's Cadavl origin feed; the
-  Mobility Database mirror had stopped at 2026-10-03.
-
-### Geometry
 - Feeds with no track shapes (Sullivan County, Waldo DASH, Mashantucket, ARTS)
   are labeled approximate with a "Scheduled stop sequence" provider instead of
   passing as exact ribbons.
 - Trips whose shape ids are missing from `shapes.txt` fall back to their stop
   sequence instead of vanishing (ARTS ships an empty `shapes.txt`).
-
-### Build and CI
-- Builders write to `public/data/` again (they still pointed at the old
-  `data/` folder after the Vite move, so nothing could be rebuilt).
 - CI runs `scripts/check-feed-freshness.py` before the offline guard.
 - Seasonal feeds ending 2026-10-12/13 and VTA's ended summer feed carry dated
   `freshness_exempt` reasons; VTA popups note the stale schedule.

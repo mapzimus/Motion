@@ -82,10 +82,30 @@
       "source": "calendar.txt",
       "url": "https://easternct.transloc.com/Secure/Admin/Reports/GTFSDownload.aspx"
     },
-    "university-of-new-haven": {
+    "quinnipiac": {
+      "serviceEnd": "2027-12-31",
+      "source": "calendar.txt",
+      "url": "https://passio3.com/quinnUni/passioTransit/gtfs/google_transit.zip"
+    },
+    "uhartford": {
+      "serviceEnd": "2027-12-31",
+      "source": "calendar.txt",
+      "url": "https://passio3.com/HartfordAmerica/passioTransit/gtfs/google_transit.zip"
+    },
+    "unewhaven": {
       "serviceEnd": "2027-12-31",
       "source": "calendar.txt",
       "url": "https://passio3.com/newhaven/passioTransit/gtfs/google_transit.zip"
+    },
+    "harbor-point": {
+      "serviceEnd": "2027-12-31",
+      "source": "calendar.txt",
+      "url": "https://passio3.com/buildingland/passioTransit/gtfs/google_transit.zip"
+    },
+    "uconn-health": {
+      "serviceEnd": "2050-12-30",
+      "source": "calendar.txt",
+      "url": "https://uconnhealth.transloc.com/Secure/Admin/Reports/GTFSDownload.aspx"
     },
     "brta": {
       "serviceEnd": "2027-03-01",
@@ -138,9 +158,9 @@
       "url": "https://files.mobilitydatabase.org/mdb-433/latest.zip"
     },
     "nantucket-wave": {
-      "serviceEnd": "2027-03-01",
+      "serviceEnd": "2050-12-30",
       "source": "calendar.txt",
-      "url": "https://files.mobilitydatabase.org/mdb-426/latest.zip"
+      "url": "https://nrtawave.transloc.com/Secure/Admin/Reports/GTFSDownload.aspx"
     },
     "pvta": {
       "serviceEnd": "2026-12-19",
@@ -156,7 +176,7 @@
       "serviceEnd": "2026-10-03",
       "source": "calendar.txt",
       "url": "https://files.mobilitydatabase.org/mdb-420/latest.zip",
-      "exempt": "Seasonal feed: the published summer schedule ended 2026-10-03 (same in the Trillium source, rechecked 2026-10-04); remove this exemption once the fall/winter feed is published."
+      "exempt": "Seasonal feed: the published summer schedule ends 2026-10-03 (same in the Trillium source checked 2026-09-27); remove this exemption once the fall/winter feed is published."
     },
     "wrta": {
       "serviceEnd": "2027-01-02",
@@ -171,10 +191,10 @@
     "concord-coach": {
       "serviceEnd": "2029-05-28",
       "source": "calendar.txt",
-      "url": "https://raw.githubusercontent.com/maxtkc/concord-coach-gtfs/main/concord_coach_gtfs.zip"
+      "url": "https://github.com/maxtkc/concord-coach-gtfs/raw/refs/heads/main/concord_coach_gtfs.zip"
     },
     "greyhound-flix": {
-      "serviceEnd": "2027-04-04",
+      "serviceEnd": "2027-03-27",
       "source": "calendar.txt",
       "url": "https://gtfs.gis.flix.tech/gtfs_generic_us.zip"
     },
@@ -192,8 +212,7 @@
     "boston-harbor-islands": {
       "serviceEnd": "2026-10-12",
       "source": "calendar_dates.txt",
-      "url": "https://files.mobilitydatabase.org/mdb-2679/latest.zip",
-      "exempt": "Seasonal feed: the published schedule ends 2026-10-12; remove this exemption once the next season's feed is published."
+      "url": "https://files.mobilitydatabase.org/mdb-2679/latest.zip"
     },
     "hy-line": {
       "serviceEnd": "2027-04-01",
@@ -208,8 +227,7 @@
     "block-island-ferry": {
       "serviceEnd": "2026-10-12",
       "source": "calendar.txt",
-      "url": "https://files.mobilitydatabase.org/mdb-554/latest.zip",
-      "exempt": "Seasonal feed: the published schedule ends 2026-10-12; remove this exemption once the next season's feed is published."
+      "url": "https://files.mobilitydatabase.org/mdb-554/latest.zip"
     },
     "lexpress": {
       "serviceEnd": "2027-12-31",
@@ -244,8 +262,7 @@
     "vineyard-fast-ferry": {
       "serviceEnd": "2026-10-12",
       "source": "calendar.txt",
-      "url": "https://files.mobilitydatabase.org/mdb-419/latest.zip",
-      "exempt": "Seasonal feed: the published schedule ends 2026-10-12; remove this exemption once the next season's feed is published."
+      "url": "https://files.mobilitydatabase.org/mdb-419/latest.zip"
     },
     "seastreak": {
       "serviceEnd": "2026-12-30",
@@ -260,14 +277,12 @@
     "freedom-cruise": {
       "serviceEnd": "2026-10-12",
       "source": "calendar.txt",
-      "url": "https://data.trilliumtransit.com/gtfs/freedomcruiseline-ma-us/freedomcruiseline-ma-us.zip",
-      "exempt": "Seasonal feed: the published schedule ends 2026-10-12; remove this exemption once the next season's feed is published."
+      "url": "https://data.trilliumtransit.com/gtfs/freedomcruiseline-ma-us/freedomcruiseline-ma-us.zip"
     },
     "thompson-island-ferry": {
       "serviceEnd": "2026-10-13",
       "source": "calendar.txt",
-      "url": "https://www.nps.gov/external-resources/gtfs/boha/cathleen-stone-island-ferry.zip",
-      "exempt": "Seasonal feed: the published schedule ends 2026-10-13; remove this exemption once the next season's feed is published."
+      "url": "https://www.nps.gov/external-resources/gtfs/boha/cathleen-stone-island-ferry.zip"
     },
     "yankee-line": {
       "serviceEnd": "2027-04-01",
@@ -304,6 +319,21 @@
       "source": "calendar.txt",
       "url": "https://umb.transloc.com/Secure/Admin/Reports/GTFSDownload.aspx"
     },
+    "ezride": {
+      "serviceEnd": "2027-12-31",
+      "source": "calendar.txt",
+      "url": "https://passio3.com/charlesriver/passioTransit/gtfs/google_transit.zip"
+    },
+    "longwood": {
+      "serviceEnd": "2027-12-31",
+      "source": "calendar.txt",
+      "url": "https://passio3.com/longwoodcollective/passioTransit/gtfs/google_transit.zip"
+    },
+    "mgb": {
+      "serviceEnd": "2027-12-31",
+      "source": "calendar.txt",
+      "url": "https://passio3.com/mgb/passioTransit/gtfs/google_transit.zip"
+    },
     "ripta": {
       "serviceEnd": "2027-01-15",
       "source": "calendar_dates.txt",
@@ -318,6 +348,16 @@
       "serviceEnd": "2050-12-30",
       "source": "calendar.txt",
       "url": "https://uri.transloc.com/Secure/Admin/Reports/GTFSDownload.aspx"
+    },
+    "providence-college": {
+      "serviceEnd": "2033-09-26",
+      "source": "calendar.txt",
+      "url": "https://passio3.com/providence/passioTransit/gtfs/google_transit.zip"
+    },
+    "rwu": {
+      "serviceEnd": "2027-12-31",
+      "source": "calendar.txt",
+      "url": "https://passio3.com/rogerwu/passioTransit/gtfs/google_transit.zip"
     },
     "mbta-stations": {
       "serviceEnd": "2026-12-12",
@@ -417,8 +457,7 @@
     "island-explorer": {
       "serviceEnd": "2026-10-12",
       "source": "calendar.txt",
-      "url": "https://files.mobilitydatabase.org/tld-6900/latest.zip",
-      "exempt": "Seasonal feed: the published schedule ends 2026-10-12; remove this exemption once the next season's feed is published."
+      "url": "https://files.mobilitydatabase.org/tld-6900/latest.zip"
     },
     "bangor": {
       "serviceEnd": "2027-12-31",
@@ -479,11 +518,6 @@
       "serviceEnd": "2030-10-01",
       "source": "calendar.txt",
       "url": "https://rapid.nationalrtap.org/GTFSFileManagement/UserUploadFiles/12036/WCAP_GTFS_ZIP.zip"
-    },
-    "arts": {
-      "serviceEnd": "2027-12-31",
-      "source": "calendar.txt",
-      "url": "https://passio3.com/arts/passioTransit/gtfs/google_transit.zip"
     }
   }
 }

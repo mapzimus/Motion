@@ -706,7 +706,7 @@ for (const required of [
 ]) {
   if (!localServiceNames.has(required)) throw new Error(`Missing on-demand water service: ${required}`);
 }
-const REFERENCE_PLACE_MINIMUMS = { 'heritage-rail': 15, 'park-ride': 350, 'ev-charging': 5000, drawbridge: 20 };
+const REFERENCE_PLACE_MINIMUMS = { 'heritage-rail': 15, 'park-ride': 350, 'ev-charging': 5000, drawbridge: 20, taxi: 100 };
 const referencePlaceCounts = {};
 const referencePlaceIds = new Set();
 for (const feature of referencePlaces.features ?? []) {
@@ -727,6 +727,7 @@ for (const feature of referencePlaces.features ?? []) {
       || (properties.group === 'heritage-rail' && !['rail-network', 'approximate'].includes(properties.geometryAccuracy))
       || (properties.group === 'ev-charging' && typeof properties.fastCharge !== 'boolean')
       || (properties.group === 'drawbridge' && !/^33 CFR 117\.\d+$/.test(properties.cfrSection ?? ''))
+      || (properties.group === 'taxi' && !['company', 'association', 'stand'].includes(properties.kind))
       || referencePlaceIds.has(feature.id)) {
     throw new Error(`Invalid or duplicate reference place: ${feature.id ?? properties.title}`);
   }
