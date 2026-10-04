@@ -1,14 +1,14 @@
 {
   "description": "Last date each scheduled GTFS feed publishes service for. Written by build-regional-routes.py and check-feed-freshness.py; checked offline by check-route-geometry.mjs.",
-  "checkedAt": "2026-09-30",
+  "checkedAt": "2026-10-04",
   "feeds": {
     "amtrak": {
-      "serviceEnd": "2027-09-27",
+      "serviceEnd": "2027-10-04",
       "source": "calendar.txt",
       "url": "https://content.amtrak.com/content/gtfs/GTFS.zip"
     },
     "shore-line-east": {
-      "serviceEnd": "2027-09-27",
+      "serviceEnd": "2027-10-04",
       "source": "calendar.txt",
       "url": "https://content.amtrak.com/content/gtfs/GTFS.zip"
     },
@@ -82,6 +82,21 @@
       "source": "calendar.txt",
       "url": "https://easternct.transloc.com/Secure/Admin/Reports/GTFSDownload.aspx"
     },
+    "quinnipiac": {
+      "serviceEnd": "2027-12-31",
+      "source": "calendar.txt",
+      "url": "https://passio3.com/quinnUni/passioTransit/gtfs/google_transit.zip"
+    },
+    "uhartford": {
+      "serviceEnd": "2027-12-31",
+      "source": "calendar.txt",
+      "url": "https://passio3.com/HartfordAmerica/passioTransit/gtfs/google_transit.zip"
+    },
+    "unewhaven": {
+      "serviceEnd": "2027-12-31",
+      "source": "calendar.txt",
+      "url": "https://passio3.com/newhaven/passioTransit/gtfs/google_transit.zip"
+    },
     "brta": {
       "serviceEnd": "2027-03-01",
       "source": "calendar.txt",
@@ -108,12 +123,12 @@
       "url": "https://files.mobilitydatabase.org/mdb-429/latest.zip"
     },
     "gatra": {
-      "serviceEnd": "2026-11-02",
+      "serviceEnd": "2026-11-09",
       "source": "calendar_dates.txt",
       "url": "https://gtfs.gatra.cadavl.com/GATRA/GTFS/GTFS_GATRA.zip"
     },
     "lrta": {
-      "serviceEnd": "2026-10-30",
+      "serviceEnd": "2026-11-04",
       "source": "calendar_dates.txt",
       "url": "https://gtfs.lrta.cadavl.com/LRTA/GTFS/GTFS_LRTA.zip"
     },
@@ -154,7 +169,7 @@
       "exempt": "Seasonal feed: the published summer schedule ends 2026-10-03 (same in the Trillium source checked 2026-09-27); remove this exemption once the fall/winter feed is published."
     },
     "wrta": {
-      "serviceEnd": "2026-12-28",
+      "serviceEnd": "2027-01-02",
       "source": "calendar_dates.txt",
       "url": "https://gtfs.wrta.cadavl.com/WRTA/GTFS/GTFS_WRTA.zip"
     },
@@ -294,6 +309,21 @@
       "source": "calendar.txt",
       "url": "https://umb.transloc.com/Secure/Admin/Reports/GTFSDownload.aspx"
     },
+    "ezride": {
+      "serviceEnd": "2027-12-31",
+      "source": "calendar.txt",
+      "url": "https://passio3.com/charlesriver/passioTransit/gtfs/google_transit.zip"
+    },
+    "longwood": {
+      "serviceEnd": "2027-12-31",
+      "source": "calendar.txt",
+      "url": "https://passio3.com/longwoodcollective/passioTransit/gtfs/google_transit.zip"
+    },
+    "mgb": {
+      "serviceEnd": "2027-12-31",
+      "source": "calendar.txt",
+      "url": "https://passio3.com/mgb/passioTransit/gtfs/google_transit.zip"
+    },
     "ripta": {
       "serviceEnd": "2027-01-15",
       "source": "calendar_dates.txt",
@@ -308,6 +338,16 @@
       "serviceEnd": "2050-12-30",
       "source": "calendar.txt",
       "url": "https://uri.transloc.com/Secure/Admin/Reports/GTFSDownload.aspx"
+    },
+    "providence-college": {
+      "serviceEnd": "2033-09-26",
+      "source": "calendar.txt",
+      "url": "https://passio3.com/providence/passioTransit/gtfs/google_transit.zip"
+    },
+    "rwu": {
+      "serviceEnd": "2027-12-31",
+      "source": "calendar.txt",
+      "url": "https://passio3.com/rogerwu/passioTransit/gtfs/google_transit.zip"
     },
     "mbta-stations": {
       "serviceEnd": "2026-12-12",
@@ -420,9 +460,9 @@
       "url": "https://files.mobilitydatabase.org/tld-4756/latest.zip"
     },
     "greater-portland": {
-      "serviceEnd": "2026-10-28",
+      "serviceEnd": "2026-11-03",
       "source": "calendar_dates.txt",
-      "url": "https://files.mobilitydatabase.org/mdb-2642/latest.zip"
+      "url": "https://gtfs.gptd.cadavl.com/GPTD/GTFS/GTFS_GPTD.zip"
     },
     "citylink": {
       "serviceEnd": "2028-01-01",
