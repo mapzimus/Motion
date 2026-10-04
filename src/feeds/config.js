@@ -155,6 +155,8 @@ export const CONFIG = {
   COMMUTER_COLOR: '#a58add',
   BUS_COLOR: '#f2b84b',
   FERRY_COLOR: '#2eb7c5',
+  // Gateway transit feeds whose vehicles are boats, not buses.
+  FERRY_FEEDS: ['casco-bay'],
   CAMERA_COLOR: '#d2d7dd',
   INCIDENT_COLOR: '#ff5c5c',
   ROAD_COLOR: '#8a949f',

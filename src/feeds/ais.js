@@ -7,6 +7,7 @@
 import { CONFIG } from './config.js';
 import { createFleet } from './fleet.js';
 import { gatewayRegion } from './regions.js';
+import { operatorFerryNames } from './regional.js';
 
 export function startAis(onCounts, initialRegion, enabled = true) {
   if (!CONFIG.GATEWAY_BASE || !enabled) {
@@ -138,7 +139,10 @@ export function startAis(onCounts, initialRegion, enabled = true) {
     for (const [mmsi, info] of statics) {
       if (now - info.at > CONFIG.AIS_PRUNE_MS && !vessels.has(mmsi)) statics.delete(mmsi);
     }
-    const items = [...vessels.entries()].map(([mmsi, vessel]) => {
+    const items = [...vessels.entries()]
+      // An operator feed already shows this boat with route and trip detail.
+      .filter(([, vessel]) => !operatorFerryNames.has(String(vessel.name ?? '').trim().toUpperCase()))
+      .map(([mmsi, vessel]) => {
       const looksLikeFerry =
         (vessel.shipType >= 60 && vessel.shipType <= 69) ||
         /ferry|seastreak|steamship|island queen|cape flyer/i.test(vessel.name);
