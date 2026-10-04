@@ -102,10 +102,18 @@ function setGroupChecked(group, checked, manual = false) {
   if (manual) manualGroupOverrides.add(group.key);
 }
 
+// The preset whose result is still on screen; any manual change clears it.
+function setActivePreset(key) {
+  for (const button of document.querySelectorAll('[data-layer-preset]')) {
+    button.setAttribute('aria-pressed', String(button.dataset.layerPreset === key));
+  }
+}
+
 // Every preset — Default/Routes/Clear, the vehicle presets and the scenes —
 // runs through here. A scene switches region first (which, like any region
-// change, ends following), then applies its layers. Layer changes are recorded
-// as manual overrides so permalinks round-trip them.
+// change, ends following), then applies its layers. Only groups a preset
+// moves away from their region default count as manual overrides, so a later
+// region change can still apply that region's bus default.
 export function applyLayerPreset(preset) {
   const plan = resolvePreset(preset, { region: getRegion(), groups: GROUPS, hasSubway });
   if (!plan) return false;
@@ -116,7 +124,12 @@ export function applyLayerPreset(preset) {
     for (const group of GROUPS) setGroupChecked(group, groupStartsOn(group, region));
   } else {
     const on = new Set(plan.groups);
-    for (const group of GROUPS) setGroupChecked(group, on.has(group.key), true);
+    for (const group of GROUPS) {
+      const checked = on.has(group.key);
+      const differsFromDefault = checked !== groupStartsOn(group, region);
+      setGroupChecked(group, checked, differsFromDefault);
+      if (!differsFromDefault) manualGroupOverrides.delete(group.key);
+    }
   }
   if (plan.statuses) {
     for (const [key] of statusState) statusState.set(key, plan.statuses.includes(key));
@@ -126,6 +139,7 @@ export function applyLayerPreset(preset) {
   }
   syncMaster();
   emitVisible();
+  setActivePreset(preset);
   return true;
 }
 
@@ -137,7 +151,14 @@ function renderPresetButtons(containerId, presets) {
     button.type = 'button';
     button.dataset.layerPreset = preset.key;
     button.textContent = preset.label;
+    button.setAttribute('aria-pressed', 'false');
     if (preset.region) button.title = `${regionName(preset.region)}: ${preset.label}`;
+    // A preset whose every group needs the gateway would act like "Clear".
+    const plan = resolvePreset(preset.key, { region: getRegion(), groups: GROUPS, hasSubway });
+    if (plan && preset.groups !== 'live' && preset.groups.length && !plan.groups.length) {
+      button.disabled = true;
+      button.title = 'Needs the Motion gateway';
+    }
     container.appendChild(button);
   }
 }
@@ -198,6 +219,7 @@ export function initPanel(routeInfo, visibleChangeHandler, regionChangeHandler, 
   regionSelect.value = selectedRegion;
   renderRegionCopy(selectedRegion);
   regionSelect.addEventListener('change', () => {
+    setActivePreset(null);
     renderRegionCopy(regionSelect.value);
     applyRegionDefaults(regionSelect.value);
     onRegionChange(regionSelect.value);
@@ -212,6 +234,7 @@ export function initPanel(routeInfo, visibleChangeHandler, regionChangeHandler, 
     statusState.set(input.value, input.checked);
     input.addEventListener('change', () => {
       statusState.set(input.value, input.checked);
+      setActivePreset(null);
       emitVisible();
     });
   }
@@ -240,6 +263,7 @@ export function initPanel(routeInfo, visibleChangeHandler, regionChangeHandler, 
     row.querySelector('input').addEventListener('change', (e) => {
       manualGroupOverrides.add(group.key);
       groupState.set(group.key, e.target.checked);
+      setActivePreset(null);
       syncMaster();
       emitVisible();
     });
@@ -298,6 +322,7 @@ export function initPanel(routeInfo, visibleChangeHandler, regionChangeHandler, 
       groupState.set(group.key, e.target.checked);
       rowInput(group.key).checked = e.target.checked;
     }
+    setActivePreset(null);
     emitVisible();
   });
 

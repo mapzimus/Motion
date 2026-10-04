@@ -49,4 +49,21 @@ for (const [lat, lng, label] of inNewEnglandWaters.slice(0, 4)) {
 assert.ok(!containsPoint('ma', [-70.426, 42.43]), 'land filter should still exclude the offshore anchorage');
 checks += 1;
 
+// Every region with a land polygon needs a marine twin; without one, vessels in
+// that region are silently clipped to the shoreline.
+const landKeys = read('regions.geojson').features.map((feature) => feature.properties.key);
+const marineKeys = new Set(JSON.parse(marineRaw).features.map((feature) => feature.properties.key));
+const missingMarine = landKeys.filter((key) => !marineKeys.has(key));
+assert.deepEqual(missingMarine, [], `regions-marine.geojson is missing: ${missingMarine.join(', ')}`);
+checks += 1;
+const northShoreWaters = [
+  [42.524, -70.873, 'Salem Sound'],
+  [42.42, -70.74, 'Nahant Bay offshore'],
+  [42.655, -70.6, 'Sandy Bay off Rockport'],
+];
+for (const [lat, lng, label] of northShoreWaters) {
+  assert.ok(containsPoint('north-shore', [lng, lat], { marine: true }), `${label} should pass the north-shore vessel filter`);
+  checks += 1;
+}
+
 console.log(`Marine region filter: ${checks} checks passed (${(marineRaw.length / 1024).toFixed(0)} KB)`);

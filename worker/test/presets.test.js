@@ -60,8 +60,9 @@ describe('layer presets and scenes', () => {
     }
   });
 
-  it('marks exactly the MBTA regions as having a subway', () => {
-    expect([...subwayRegions].sort()).toEqual(['boston', 'greater-boston', 'ma', 'new-england']);
+  it('marks exactly the regions with MBTA subway stations as having a subway', () => {
+    // North Shore reaches the Blue Line at Wonderland, Revere Beach and Beachmont.
+    expect([...subwayRegions].sort()).toEqual(['boston', 'greater-boston', 'ma', 'new-england', 'north-shore']);
   });
 });
 
@@ -100,9 +101,11 @@ describe('resolvePreset', () => {
     ]);
   });
 
-  it('All live selects every live-tagged group', () => {
+  it('All live selects every live-tagged group plus the subway where there is one', () => {
     const plan = resolvePreset('all-live', { region: 'new-england', groups, hasSubway });
-    expect(new Set(plan.groups)).toEqual(LIVE_GROUPS);
+    expect(new Set(plan.groups)).toEqual(new Set([...SUBWAY_GROUPS, ...LIVE_GROUPS]));
+    const outside = resolvePreset('all-live', { region: 'ct', groups, hasSubway });
+    expect(new Set(outside.groups)).toEqual(LIVE_GROUPS);
   });
 
   it('scenes switch region and layers together', () => {
@@ -117,7 +120,8 @@ describe('resolvePreset', () => {
     const commute = resolvePreset('boston-commute', { region: 'ct', groups, hasSubway });
     expect(commute.region).toBe('greater-boston');
     expect(commute.groups).toEqual([...SUBWAY_GROUPS, 'commuter', 'bus', 'ferry']);
-    expect(commute.statuses).toEqual(['live', 'estimated']);
+    // Route lines and stops are tagged scheduled; a commute view must keep them.
+    expect(commute.statuses).toEqual(ALL_STATUSES);
   });
 
   it('returns null for an unknown preset', () => {

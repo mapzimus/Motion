@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build data/regions.geojson from scripts/regions-config.json.
+"""Build public/data/regions.geojson from scripts/regions-config.json.
 
 Every map region (the six states, the MBTA core, Greater Boston inside I-495,
 and the named sub-state regions) is defined in the config file. This script
@@ -13,7 +13,7 @@ Checks that fail the build:
   * a configured town or county is missing from TIGERweb (or extra ones match)
   * a region's member count differs from ``memberCount`` in the config
   * the Greater Boston town list no longer matches a fresh I-495 ring
-    computation from data/infrastructure.geojson
+    computation from public/data/infrastructure.geojson
   * the output is larger than ``maxBytes``
 
 Usage:
@@ -316,7 +316,7 @@ def main():
     parser.add_argument(
         "--marine-only",
         action="store_true",
-        help="Read the existing data/regions.geojson and only rebuild data/regions-marine.geojson",
+        help="Read the existing public/data/regions.geojson and only rebuild public/data/regions-marine.geojson",
     )
     args = parser.parse_args()
     if args.marine_only:

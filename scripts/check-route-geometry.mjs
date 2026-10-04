@@ -785,8 +785,8 @@ for (const [group, minimum] of Object.entries(REFERENCE_PLACE_MINIMUMS)) {
 // every named region must have at least one scheduled route tagged for it, so
 // a region can never silently come up empty.
 {
-  const MAX_REGIONS_BYTES = 1_500_000;
   const regionConfig = JSON.parse(readFileSync(new URL('./regions-config.json', import.meta.url), 'utf8'));
+  const MAX_REGIONS_BYTES = regionConfig.maxBytes;
   const regionsRaw = readFileSync(new URL('../public/data/regions.geojson', import.meta.url));
   const regionCollection = JSON.parse(regionsRaw);
   const builtRegions = new Map(
