@@ -31,6 +31,7 @@ Every feature is labeled **live**, **estimated**, **scheduled**, or
 | Airports and landing facilities | 778 open airports, heliports, seaplane bases, and other facilities from the [FAA NASR subscription](https://www.faa.gov/air_traffic/flight_info/aeronav/aero_data/NASR_Subscription/) | 28-day built snapshot |
 | Harbor/coastal vessels and identifiable passenger ferries | [AISStream](https://aisstream.io) through a protected WebSocket relay | streaming |
 | Bike and scooter share | GBFS feeds for Bluebikes across 13 Greater Boston municipalities, Veo Hartford, Veo New Haven, and Spin Providence | 60 s |
+| Other bike-share systems | 50 reference markers for ValleyBike Share, Rideable Nashua, Portland Bike Share, Port Bikeshare, Minuteman Bikeshare, CATMA's Bird e-bikes, CargoB, Metro Mobility, the Community Pedal Power library, Coast Provincetown, and Sandy Pedals — systems with no usable public GBFS feed | built snapshot |
 | Work zones and closures | MassDOT WZDx plus the multi-state New England 511 WZDx feed for Maine, New Hampshire, and Vermont | 5 min |
 | Traffic incidents | New England 511 (Maine, New Hampshire, Vermont), CTroads, and MassDOT Highway Division roadway events (crashes, disabled vehicles, weather closures) | 60 s |
 | Public traffic cameras | New England 511, CTroads, and the MassDOT CCTV asset inventory | 5 min |
@@ -228,6 +229,22 @@ Medford, Newton, Revere, Salem, Somerville, and Watertown. The same regional
 layer also includes the separately operated Hartford, New Haven, and Providence
 systems. No discoverable public GBFS system is currently cataloged for Vermont,
 New Hampshire, or Maine, so the map does not fabricate stations there.
+
+The **Other bike-share systems** layer (`data/bikeshare-systems.geojson`,
+switched off by default, in the Shared & active travel section) marks the
+systems that exist but publish no usable feed, one labeled marker per member
+town: ValleyBike Share's nine Pioneer Valley municipalities plus UMass,
+Rideable Nashua, Portland Bike Share, Newburyport's Port Bikeshare, Minuteman
+Bikeshare (Acton, Concord, Lincoln, Maynard), CATMA's Bird e-bikes (Burlington,
+South Burlington, Winooski), Metro Mobility's day-rental cities, the Community
+Pedal Power e-bike library's three pickup points, Coast Provincetown, and Sandy
+Pedals on Nantucket. CargoB's 15 cargo-bike home stations use the exact
+coordinates from the operator's public station map. Town-center markers were
+geocoded with Nominatim (OpenStreetMap, ODbL). Drop Mobility (ValleyBike,
+Nashua) runs a GBFS server at `gbfs.dropmobility.com/systems/<id>/gbfs.json`,
+but it answers `unauthorized/missing_key`, so those systems go live only once
+the gateway holds a Drop key; Tandem Mobility's Movatic-app systems (Portland,
+Newburyport, Minuteman) publish no feed URL at all.
 
 The **Taxi & cab services** layer is a directory of who to call and where
 cabs queue, because no New England taxi fleet publishes vehicle positions.
@@ -688,7 +705,8 @@ refreshed `feed-freshness.json`.
   no incident markers.
 - Current GBFS coverage is Bluebikes' 13 Greater Boston municipalities plus
   Hartford, New Haven, and Providence. Other systems can be added as soon as
-  they publish discoverable public feeds.
+  they publish discoverable public feeds; until then they appear as reference
+  markers in the Other bike-share systems layer, not as live stations.
 - Public truck, delivery, and company-fleet positions are generally private
   telematics, and there is no national public live freight-train position feed.
   Motion maps the public FRA rail network instead of claiming scheduled or

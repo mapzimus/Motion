@@ -44,6 +44,8 @@ let allInfrastructureFC = EMPTY_FC;
 let infrastructureFC = EMPTY_FC;
 let allLocalServicesFC = EMPTY_FC;
 let localServicesFC = EMPTY_FC;
+let allBikeshareFC = EMPTY_FC;
+let bikeshareFC = EMPTY_FC;
 let allAirportsFC = EMPTY_FC;
 let airportsFC = EMPTY_FC;
 let allBorderCrossingsFC = EMPTY_FC;
@@ -367,6 +369,43 @@ function setupLayers() {
       'circle-stroke-color': '#f4f6f8',
       'circle-stroke-width': 1.2,
       'circle-opacity': 0.9,
+    },
+  });
+
+  // Bike-share systems with no public feed: one marker per town, labeled so
+  // the operator reads off the map the way airports and water taxis do.
+  map.addSource('bikeshare-systems', { type: 'geojson', data: EMPTY_FC });
+  map.addLayer({
+    id: 'bikeshare-points',
+    type: 'circle',
+    source: 'bikeshare-systems',
+    filter: ['==', ['get', 'group'], 'bikeshare'],
+    layout: { visibility: 'none' },
+    paint: {
+      'circle-color': CONFIG.BIKESHARE_REF_COLOR,
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 3.5, 12, 7],
+      'circle-stroke-color': '#151a21',
+      'circle-stroke-width': 1.4,
+      'circle-opacity': 0.92,
+    },
+  });
+  map.addLayer({
+    id: 'bikeshare-labels',
+    type: 'symbol',
+    source: 'bikeshare-systems',
+    filter: ['==', ['get', 'group'], 'bikeshare'],
+    minzoom: 8,
+    layout: {
+      visibility: 'none',
+      'text-field': ['get', 'title'],
+      'text-size': 10,
+      'text-offset': [0, 1.3],
+      'text-allow-overlap': false,
+    },
+    paint: {
+      'text-color': CONFIG.BIKESHARE_REF_COLOR,
+      'text-halo-color': '#10151b',
+      'text-halo-width': 1.5,
     },
   });
 
@@ -925,7 +964,7 @@ function setupLayers() {
   }
   // Operational point layers remain clickable above route ribbons and dense
   // infrastructure without covering moving vehicle symbols.
-  for (const layerId of ['local-service-points', 'camera-points', 'incident-points']) {
+  for (const layerId of ['local-service-points', 'bikeshare-points', 'camera-points', 'incident-points']) {
     map.moveLayer(layerId, 'veh-bike-dots');
   }
   setupConditionLayers();
@@ -1104,6 +1143,7 @@ function wirePopups() {
   wireRoadworkPopups();
   wireInformationPopup('incident-points');
   wireInformationPopup('local-service-points');
+  wireInformationPopup('bikeshare-points');
   wireInformationPopup('airport-public-points');
   wireInformationPopup('airport-private-points');
   wireInformationPopup('border-crossing-points');
@@ -1577,6 +1617,7 @@ function renderAirportStatus() {
 function renderReferenceData() {
   infrastructureFC = filterSpatialFeatureCollection(allInfrastructureFC, activeRegion);
   localServicesFC = filterSpatialFeatureCollection(allLocalServicesFC, activeRegion);
+  bikeshareFC = filterSpatialFeatureCollection(allBikeshareFC, activeRegion);
   airportsFC = filterSpatialFeatureCollection(allAirportsFC, activeRegion);
   borderCrossingsFC = {
     ...allBorderCrossingsFC,
@@ -1586,6 +1627,7 @@ function renderReferenceData() {
   };
   map?.getSource('infrastructure')?.setData(infrastructureFC);
   map?.getSource('local-services')?.setData(localServicesFC);
+  map?.getSource('bikeshare-systems')?.setData(bikeshareFC);
   map?.getSource('airports')?.setData(airportsFC);
   map?.getSource('border-crossings')?.setData(borderCrossingsFC);
   renderReferencePlaces();
@@ -1637,6 +1679,10 @@ async function ensureReferenceData() {
       if (!response.ok) throw new Error(`local services ${response.status}`);
       return response.json();
     }),
+    fetch(CONFIG.BIKESHARE_SYSTEMS_URL).then((response) => {
+      if (!response.ok) throw new Error(`bike-share systems ${response.status}`);
+      return response.json();
+    }),
     fetch(CONFIG.AIRPORTS_URL).then((response) => {
       if (!response.ok) throw new Error(`airports ${response.status}`);
       return response.json();
@@ -1645,11 +1691,13 @@ async function ensureReferenceData() {
       if (!response.ok) throw new Error(`border crossings ${response.status}`);
       return response.json();
     }),
-  ]).then(([infrastructure, local, airports, borders]) => {
+  ]).then(([infrastructure, local, bikeshare, airports, borders]) => {
     if (infrastructure.status === 'fulfilled') allInfrastructureFC = infrastructure.value;
     else console.warn('Reference road/rail data unavailable:', infrastructure.reason);
     if (local.status === 'fulfilled') allLocalServicesFC = local.value;
     else console.warn('Local-service catalog unavailable:', local.reason);
+    if (bikeshare.status === 'fulfilled') allBikeshareFC = bikeshare.value;
+    else console.warn('Bike-share system catalog unavailable:', bikeshare.reason);
     if (airports.status === 'fulfilled') allAirportsFC = airports.value;
     else console.warn('FAA airport catalog unavailable:', airports.reason);
     if (borders.status === 'fulfilled') allBorderCrossingsFC = borders.value;
@@ -1666,7 +1714,7 @@ export async function loadReferenceData() {
 
 export function referenceCountsForRegion() {
   const counts = {};
-  for (const collection of [infrastructureFC, localServicesFC, airportsFC, borderCrossingsFC, referencePlacesFC]) {
+  for (const collection of [infrastructureFC, localServicesFC, bikeshareFC, airportsFC, borderCrossingsFC, referencePlacesFC]) {
     for (const feature of collection.features ?? []) {
       const group = feature.properties?.group;
       if (group) counts[group] = (counts[group] ?? 0) + 1;
@@ -1702,7 +1750,7 @@ let activeRegion = DEFAULT_REGION;
 
 export function setVisibleGroups(groups, statuses = ['live', 'estimated', 'scheduled', 'reference']) {
   pendingFilters = { groups, statuses };
-  if (groups.some((group) => ['roads', 'freight', 'local', 'airport', 'border', 'airport-status'].includes(group))) {
+  if (groups.some((group) => ['roads', 'freight', 'local', 'bikeshare', 'airport', 'border', 'airport-status'].includes(group))) {
     ensureReferenceData();
   }
   if (groups.some((group) => REFERENCE_PLACE_GROUPS.includes(group))) {
@@ -1838,6 +1886,9 @@ function applyGroupFilter(groups, statuses) {
   map.setFilter('incident-points', ['all', ['==', ['get', 'group'], 'incident'], statusVisible]);
   map.setFilter('camera-points', ['all', ['==', ['get', 'group'], 'camera'], statusVisible]);
   map.setFilter('local-service-points', ['all', ['==', ['get', 'group'], 'local'], statusVisible]);
+  for (const layerId of ['bikeshare-points', 'bikeshare-labels']) {
+    map.setFilter(layerId, ['all', ['==', ['get', 'group'], 'bikeshare'], statusVisible]);
+  }
   for (const layerId of ['airport-public-points', 'airport-private-points', 'airport-labels']) {
     map.setLayoutProperty(
       layerId,
@@ -1884,6 +1935,8 @@ function applyGroupFilter(groups, statuses) {
     ['incident-points', 'incident', 'live'],
     ['camera-points', 'camera', 'live'],
     ['local-service-points', 'local', null],
+    ['bikeshare-points', 'bikeshare', 'reference'],
+    ['bikeshare-labels', 'bikeshare', 'reference'],
     ['walking-routes', 'walking', 'reference'],
     ['cycling-routes', 'cycling', 'reference'],
   ]) {
@@ -1965,7 +2018,7 @@ export function focusAlert(alert) {
 // the suburbs. Falls back to the group's route ribbons when no vehicle is
 // reporting (e.g. ferries between rush hours).
 export async function focusGroup(groupKey, routeIds = []) {
-  if (['roads', 'freight', 'local', 'airport', 'border', 'airport-status'].includes(groupKey)) {
+  if (['roads', 'freight', 'local', 'bikeshare', 'airport', 'border', 'airport-status'].includes(groupKey)) {
     await ensureReferenceData();
   }
   if (REFERENCE_PLACE_GROUPS.includes(groupKey)) {
@@ -1986,7 +2039,7 @@ export async function focusGroup(groupKey, routeIds = []) {
       .flatMap(lineCoordinates);
   }
   if (!coords.length) {
-    coords = [roadworkFC, roadEventsFC, camerasFC, infrastructureFC, localServicesFC, airportsFC, borderCrossingsFC, referencePlacesFC, weatherFC, airportStatusFC]
+    coords = [roadworkFC, roadEventsFC, camerasFC, infrastructureFC, localServicesFC, bikeshareFC, airportsFC, borderCrossingsFC, referencePlacesFC, weatherFC, airportStatusFC]
       .flatMap((collection) => collection.features)
       .filter((feature) => feature.properties.group === groupKey)
       .flatMap((feature) => feature.geometry.type === 'Point'
