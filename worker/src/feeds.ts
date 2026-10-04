@@ -128,6 +128,40 @@ export const TRANSIT_FEEDS: TransitFeed[] = [
     url: 'https://passio3.com/lexpress/passioTransit/gtfs/realtime/vehiclePositions',
   },
   {
+    // TransLoc tenants publish keyless GTFS-realtime at /subscriptions/gtfsrt/vehicles.ashx.
+    // Route ids (TL-n) join the tenant's own GTFS export, which is why the static feeds for
+    // these systems read <tenant>.transloc.com rather than a catalog mirror.
+    // Live-verified 2026-10-04: ten vehicles on Nantucket.
+    id: 'nantucket-wave',
+    agency: 'Nantucket WAVE',
+    states: ['ma'],
+    url: 'https://nrtawave.transloc.com/subscriptions/gtfsrt/vehicles.ashx',
+  },
+  {
+    // Valid, fresh feed with no vehicles on Sunday 2026-10-04 (the BU Shuttle was not running).
+    id: 'bu',
+    agency: 'Boston University shuttles',
+    states: ['ma'],
+    url: 'https://bu.transloc.com/subscriptions/gtfsrt/vehicles.ashx',
+    mbtaCore: true,
+  },
+  {
+    // Live-verified 2026-10-04: four vehicles around Chestnut Hill.
+    id: 'bc',
+    agency: 'Boston College shuttles',
+    states: ['ma'],
+    url: 'https://bc.transloc.com/subscriptions/gtfsrt/vehicles.ashx',
+    mbtaCore: true,
+  },
+  {
+    // Live-verified 2026-10-04: five vehicles between JFK/UMass and the campus.
+    id: 'umb',
+    agency: 'UMass Boston shuttles',
+    states: ['ma'],
+    url: 'https://umb.transloc.com/subscriptions/gtfsrt/vehicles.ashx',
+    mbtaCore: true,
+  },
+  {
     id: 'cttransit',
     agency: 'CTtransit',
     states: ['ct'],
@@ -184,6 +218,27 @@ export const TRANSIT_FEEDS: TransitFeed[] = [
     url: 'https://passio3.com/newhaven/passioTransit/gtfs/realtime/vehiclePositions',
   },
   {
+    // Stamford's free Harbor Point / downtown trolley, Passio system "buildingland"
+    // (Building and Land Technology). Live-verified 2026-10-04: one vehicle near the station.
+    id: 'harbor-point',
+    agency: 'Harbor Point Trolley',
+    states: ['ct'],
+    url: 'https://passio3.com/buildingland/passioTransit/gtfs/realtime/vehiclePositions',
+  },
+  {
+    // Live-verified 2026-10-04: one vehicle on the Farmington campus.
+    id: 'uconn-health',
+    agency: 'UConn Health shuttles',
+    states: ['ct'],
+    url: 'https://uconnhealth.transloc.com/subscriptions/gtfsrt/vehicles.ashx',
+  },
+  {
+    id: 'easternct',
+    agency: 'Eastern Connecticut State University shuttles',
+    states: ['ct'],
+    url: 'https://easternct.transloc.com/subscriptions/gtfsrt/vehicles.ashx',
+  },
+  {
     id: 'ripta',
     agency: 'Rhode Island Public Transit Authority',
     states: ['ri'],
@@ -200,6 +255,12 @@ export const TRANSIT_FEEDS: TransitFeed[] = [
     agency: 'Providence College shuttles',
     states: ['ri'],
     url: 'https://passio3.com/providence/passioTransit/gtfs/realtime/vehiclePositions',
+  },
+  {
+    id: 'uri',
+    agency: 'University of Rhode Island shuttles',
+    states: ['ri'],
+    url: 'https://uri.transloc.com/subscriptions/gtfsrt/vehicles.ashx',
   },
   {
     id: 'greater-portland',

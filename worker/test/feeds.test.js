@@ -29,15 +29,15 @@ describe('realtime transit feed registry', () => {
     const ids = (region) => feedsForRegion(region).map((feed) => feed.id);
     expect(ids('ma')).toEqual(expect.arrayContaining(['wrta', 'gatra', 'mit', 'tufts']));
     expect(ids('ct')).toContain('uconn-wrtd');
-    expect(ids('ri')).toContain('brown');
-    expect(ids('ct')).toEqual(expect.arrayContaining(['quinnipiac', 'uhartford', 'unewhaven']));
+    expect(ids('ri')).toEqual(expect.arrayContaining(['brown', 'uri', 'providence-college']));
+    expect(ids('ct')).toEqual(expect.arrayContaining(['quinnipiac', 'uhartford', 'unewhaven', 'harbor-point']));
     expect(ids('me')).toEqual(expect.arrayContaining(['bangor', 'citylink']));
-    expect(ids('ma')).toEqual(expect.arrayContaining(['lrta', 'harvard', 'ezride', 'longwood', 'mgb', 'lexpress']));
+    expect(ids('ma')).toEqual(expect.arrayContaining(['lrta', 'harvard', 'ezride', 'longwood', 'mgb', 'lexpress', 'nantucket-wave', 'bu', 'bc', 'umb']));
   });
 
   it('serves only MBTA-core shuttles for the legacy boston region', () => {
     const core = feedsForRegion('boston');
-    expect(core.map((feed) => feed.id).sort()).toEqual(['ezride', 'harvard', 'longwood', 'mgb', 'mit', 'tufts']);
+    expect(core.map((feed) => feed.id).sort()).toEqual(['bc', 'bu', 'ezride', 'harvard', 'longwood', 'mgb', 'mit', 'tufts', 'umb']);
     for (const feed of core) expect(feed.states, feed.id).toContain('ma');
   });
 
