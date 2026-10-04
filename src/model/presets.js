@@ -14,7 +14,7 @@ export const GROUP_KEYS = [
   ...SUBWAY_GROUPS,
   'commuter', 'bus', 'amtrak', 'local',
   'ferry', 'plane', 'air-service', 'airport', 'vessel',
-  'bike', 'walking', 'cycling',
+  'bike', 'bikeshare', 'walking', 'cycling',
   'traffic', 'roadwork', 'incident', 'camera',
   'roads', 'freight', 'border', 'heritage-rail', 'park-ride', 'ev-charging', 'drawbridge',
   'weather', 'airport-status',
@@ -32,7 +32,7 @@ export const VEHICLE_PRESETS = [
   { key: 'water', label: 'Water', groups: ['ferry', 'vessel'] },
   { key: 'air', label: 'Air', groups: ['plane', 'air-service', 'airport', 'airport-status'] },
   { key: 'roads', label: 'Roads', groups: ['traffic', 'incident', 'roadwork', 'camera'] },
-  { key: 'bikes', label: 'Bikes', groups: ['bike', 'cycling'] },
+  { key: 'bikes', label: 'Bikes', groups: ['bike', 'bikeshare', 'cycling'] },
   { key: 'all-live', label: 'All live', groups: 'live' },
 ];
 

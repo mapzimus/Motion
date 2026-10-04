@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Shared & active travel
+- New **Other bike-share systems** reference layer: 50 labeled markers for
+  New England bike-share and e-bike systems that publish no usable public
+  GBFS feed — ValleyBike Share (nine Pioneer Valley towns plus UMass),
+  Rideable Nashua, Portland Bike Share, Port Bikeshare (Newburyport),
+  Minuteman Bikeshare, CATMA's Bird e-bikes, CargoB's 15 cargo-bike hubs,
+  Metro Mobility, the Community Pedal Power e-bike library, Coast Provincetown,
+  and Sandy Pedals. The Bikes preset switches it on with the live layer.
+- A failed startup fetch now shows the error overlay instead of hanging on
+  "Loading New England…".
+
 ## 1.0.0 — 2026-09-27
 
 The first complete release of New England in Motion.
