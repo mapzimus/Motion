@@ -1,7 +1,7 @@
 // Panel UI: layer toggles, alert feed, connection status, loading states.
 
 import { CONFIG } from './feeds/config.js';
-import { focusAlert, focusGroup } from './map/map.js';
+import { focusAlert, focusGroup, getBasemap, setBasemap } from './map/map.js';
 import { REGIONS, REGION_GROUPS, busDefaultOn, hasSubway, regionInfo, regionName } from './feeds/regions.js';
 import { SCENES, VEHICLE_PRESETS, resolvePreset } from './model/presets.js';
 
@@ -204,6 +204,8 @@ export function initPanel(routeInfo, visibleChangeHandler, regionChangeHandler, 
     }
   });
 
+  renderBasemapOptions();
+
   for (const input of document.querySelectorAll('#data-status-filters input')) {
     statusState.set(input.value, input.checked);
     input.addEventListener('change', () => {
@@ -304,6 +306,33 @@ export function initPanel(routeInfo, visibleChangeHandler, regionChangeHandler, 
   setInterval(renderStatus, 1000);
   renderRegionAvailability(selectedRegion);
   emitVisible();
+}
+
+function renderBasemapOptions() {
+  const container = el('basemap-options');
+  if (!container) return;
+  container.innerHTML = '';
+  const buttons = CONFIG.BASEMAPS.map((basemap) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.dataset.basemap = basemap.key;
+    button.textContent = basemap.label;
+    container.appendChild(button);
+    return button;
+  });
+  const sync = () => {
+    const active = getBasemap();
+    for (const button of buttons) {
+      button.setAttribute('aria-pressed', String(button.dataset.basemap === active));
+    }
+  };
+  for (const button of buttons) {
+    button.addEventListener('click', () => {
+      setBasemap(button.dataset.basemap);
+      sync();
+    });
+  }
+  sync();
 }
 
 function renderRegionCopy(key) {
