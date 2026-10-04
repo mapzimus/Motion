@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Scheduled and live routes
+- Hospital shuttles, scheduled and live: the Longwood Collective's LMA
+  shuttles (14 routes) and Mass General Brigham's hospital shuttles (24
+  routes), both via Passio GTFS and GTFS-realtime, tagged
+  `serviceClass: "hospital"`.
+- Five more campus systems: University of Hartford, University of New Haven,
+  Quinnipiac, Roger Williams, and Providence College (all but Roger Williams
+  also live through the gateway).
+- Greater Portland METRO now reads the agency's own GTFS URL; the Mobility
+  Database mirror had fallen behind and was about to expire.
+
 ### Shared & active travel
 - New **Other bike-share systems** reference layer: 50 labeled markers for
   New England bike-share and e-bike systems that publish no usable public

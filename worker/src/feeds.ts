@@ -73,6 +73,45 @@ export const TRANSIT_FEEDS: TransitFeed[] = [
     url: 'https://passio3.com/tufts/passioTransit/gtfs/realtime/vehiclePositions',
   },
   {
+    // Hospital shuttles (Passio since January 2026); route ids join the
+    // regional-feeds static GTFS of the same id.
+    id: 'longwood',
+    agency: 'Longwood Collective LMA shuttles',
+    states: ['ma'],
+    url: 'https://passio3.com/longwoodcollective/passioTransit/gtfs/realtime/vehiclePositions',
+  },
+  {
+    id: 'mgb',
+    agency: 'Mass General Brigham hospital shuttles',
+    states: ['ma'],
+    url: 'https://passio3.com/mgb/passioTransit/gtfs/realtime/vehiclePositions',
+  },
+  {
+    id: 'uhartford',
+    agency: 'University of Hartford shuttles',
+    states: ['ct'],
+    url: 'https://passio3.com/HartfordAmerica/passioTransit/gtfs/realtime/vehiclePositions',
+  },
+  {
+    id: 'unewhaven',
+    agency: 'University of New Haven shuttles',
+    states: ['ct'],
+    url: 'https://passio3.com/newhaven/passioTransit/gtfs/realtime/vehiclePositions',
+  },
+  {
+    id: 'quinnipiac',
+    agency: 'Quinnipiac University shuttles',
+    states: ['ct'],
+    url: 'https://passio3.com/quinnUni/passioTransit/gtfs/realtime/vehiclePositions',
+  },
+  {
+    // Roger Williams publishes static GTFS only; its Passio realtime endpoint 404s.
+    id: 'providence-college',
+    agency: 'Providence College shuttles',
+    states: ['ri'],
+    url: 'https://passio3.com/providence/passioTransit/gtfs/realtime/vehiclePositions',
+  },
+  {
     id: 'cttransit',
     agency: 'CTtransit',
     states: ['ct'],

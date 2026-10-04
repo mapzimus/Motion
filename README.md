@@ -23,7 +23,7 @@ Every feature is labeled **live**, **estimated**, **scheduled**, or
 | MBTA subway, Silver Line, buses, commuter rail, ferries | [MBTA V3 API](https://www.mbta.com/developers/v3-api) | 10 s |
 | Regional buses | Agency GTFS-realtime feeds, normalized by the gateway | 20 s |
 | Metro-North New Haven branches | [MTA GTFS-Realtime](https://www.mta.info/developers) trip predictions and alerts; positions are explicitly estimated between stations | 30 s |
-| Scheduled/reference bus, rail, ferry, boat, and air-service routes and stops | 93 GTFS sources plus 80 official-service corridors, including Amtrak, Metro-North, Shore Line East, regional coaches, university shuttles, 93 ferry routes, municipal water shuttles, small-island lifelines, island air taxis, and 38,000+ scheduled stops | built snapshot |
+| Scheduled/reference bus, rail, ferry, boat, and air-service routes and stops | 100 GTFS sources plus 80 official-service corridors, including Amtrak, Metro-North, Shore Line East, regional coaches, university and hospital shuttles, 93 ferry routes, municipal water shuttles, small-island lifelines, island air taxis, and 38,000+ scheduled stops | built snapshot |
 | Small-town, county, flex, volunteer, microtransit, and on-demand water-service catalog | 50 official-directory service markers across all six states | built snapshot |
 | Amtrak | [Amtrak official static GTFS](https://content.amtrak.com/content/gtfs/GTFS.zip) for scheduled routes/stations; [Amtraker](https://amtraker.com) community API for live trains | built snapshot + 90 s |
 | Aircraft and air services | [ADSB.lol](https://api.adsb.lol/) with [adsb.fi](https://adsb.fi/) failover; 18 optional official Cape Air/Tradewind schedules and Penobscot Island Air on-demand corridors | 45 s + built snapshot |
@@ -156,8 +156,17 @@ DASH loops in Maine (2 routes), C&J Bus Lines' Portsmouth–Boston/Logan coach
 touches Vermont). University shuttles are drawn in the bus group and tagged
 `serviceClass: "campus"`: Harvard (3 drawn routes), MIT (7), Tufts (7), Boston
 University (5), Boston College (13), UMass Boston (1), Brown (4), the
-University of Rhode Island (3), and Eastern Connecticut State University (3);
-special-event, charter, and out-of-service patterns are filtered out. Tri-County
+University of Rhode Island (3), Eastern Connecticut State University (3), the
+University of Hartford (4), the University of New Haven (12), Quinnipiac (10),
+Roger Williams (6), and Providence College (2); special-event, charter, and
+out-of-service patterns are filtered out. Hospital shuttles are drawn the same
+way and tagged `serviceClass: "hospital"`: the Longwood Collective's LMA
+shuttles (14 routes, including the M2 Cambridge–Longwood line) and Mass
+General Brigham's hospital shuttles (24 routes across MGH, Brigham and
+Women's, Charlestown, Cooley Dickinson, and Assembly Row). Both publish
+static and realtime GTFS through Passio. Massport's on-airport shuttles and
+Logan Express are scheduled ribbons only: Massport publishes static GTFS but
+no public realtime feed (its bus locator lives in the FlyLogan app). Tri-County
 Transit's North Country GTFS is reachable but its calendar ended on
 2026-06-30, so its two flex routes stay directory markers until it is
 re-published.
@@ -254,12 +263,16 @@ The gateway currently knows these live vehicle-position feeds:
 - Massachusetts: MBTA, Pioneer Valley Transit Authority, Brockton Area
   Transit, Montachusett RTA, and Franklin RTA (the last three through Passio's
   public GTFS-realtime endpoints); WRTA and GATRA (public Cadavl
-  GTFS-realtime producers); MIT and Tufts campus shuttles (Passio); Merrimack
+  GTFS-realtime producers); MIT and Tufts campus shuttles and the Longwood
+  Collective and Mass General Brigham hospital shuttles (Passio); Merrimack
   Valley Transit is included through the optional Swiftly authorization
 - Connecticut: CTtransit, HARTransit, River Valley Transit (the merged
   Middletown Area Transit / 9 Town Transit district, via Passio), Norwalk
-  Transit District, and UConn / Windham Region Transit District (Passio)
-- Rhode Island: RIPTA and Brown University shuttles (Passio)
+  Transit District, UConn / Windham Region Transit District, and the
+  University of Hartford, University of New Haven, and Quinnipiac shuttles
+  (all Passio)
+- Rhode Island: RIPTA, Brown University, and Providence College shuttles
+  (Passio); Roger Williams publishes static GTFS only
 - Maine: Greater Portland METRO (including the former South Portland Bus
   Service routes) and Island Explorer; Casco Bay Lines ferries are included
   through the optional Swiftly authorization
