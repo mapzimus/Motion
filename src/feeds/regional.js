@@ -6,6 +6,10 @@ import { createFleet } from './fleet.js';
 import { gatewayRegion } from './regions.js';
 
 const POLL_MS = 20_000;
+
+// Upper-case names of ferries currently reported by an operator feed, so the
+// AIS layer can skip the same boat instead of drawing it twice.
+export const operatorFerryNames = new Set();
 const MPS_TO_MPH = 2.23694;
 
 export function startRegional(onCounts, initialRegion, enabled = true) {
@@ -34,7 +38,11 @@ export function startRegional(onCounts, initialRegion, enabled = true) {
       const payload = await response.json();
       if (thisGeneration !== requestGeneration) return;
 
-      const items = (payload.vehicles ?? []).map((vehicle) => ({
+      operatorFerryNames.clear();
+      const items = (payload.vehicles ?? []).map((vehicle) => {
+        const isFerry = CONFIG.FERRY_FEEDS.includes(vehicle.feed);
+        if (isFerry && vehicle.label) operatorFerryNames.add(String(vehicle.label).trim().toUpperCase());
+        return {
         id: `regional-${vehicle.id}`,
         detail: {
           label: vehicle.label ? String(vehicle.label) : '',
@@ -44,9 +52,9 @@ export function startRegional(onCounts, initialRegion, enabled = true) {
         lng: vehicle.lng,
         lat: vehicle.lat,
         props: {
-          group: 'bus',
+          group: isFerry ? 'ferry' : 'bus',
           dataStatus: 'live',
-          color: CONFIG.BUS_COLOR,
+          color: isFerry ? CONFIG.FERRY_COLOR : CONFIG.BUS_COLOR,
           bearing: vehicle.bearing ?? 0,
           hasBearing: Number.isFinite(vehicle.bearing),
           stale: Date.now() - Date.parse(vehicle.updatedAt) > CONFIG.STALE_AFTER_MS,
@@ -59,9 +67,11 @@ export function startRegional(onCounts, initialRegion, enabled = true) {
           provider: `${vehicle.agency} GTFS-Realtime`,
           updatedAt: vehicle.updatedAt,
         },
-      }));
+        };
+      });
       const visible = fleet.update(items);
-      onCounts({ bus: visible.length });
+      const ferries = visible.filter((item) => item.props.group === 'ferry').length;
+      onCounts({ bus: visible.length - ferries, ferry: ferries });
 
       const unavailable = (payload.feeds ?? []).filter((feed) => feed.state !== 'live');
       if (unavailable.length) {
