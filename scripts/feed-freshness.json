@@ -97,6 +97,16 @@
       "source": "calendar.txt",
       "url": "https://passio3.com/newhaven/passioTransit/gtfs/google_transit.zip"
     },
+    "harbor-point": {
+      "serviceEnd": "2027-12-31",
+      "source": "calendar.txt",
+      "url": "https://passio3.com/buildingland/passioTransit/gtfs/google_transit.zip"
+    },
+    "uconn-health": {
+      "serviceEnd": "2050-12-30",
+      "source": "calendar.txt",
+      "url": "https://uconnhealth.transloc.com/Secure/Admin/Reports/GTFSDownload.aspx"
+    },
     "brta": {
       "serviceEnd": "2027-03-01",
       "source": "calendar.txt",
@@ -148,9 +158,9 @@
       "url": "https://files.mobilitydatabase.org/mdb-433/latest.zip"
     },
     "nantucket-wave": {
-      "serviceEnd": "2027-03-01",
+      "serviceEnd": "2050-12-30",
       "source": "calendar.txt",
-      "url": "https://files.mobilitydatabase.org/mdb-426/latest.zip"
+      "url": "https://nrtawave.transloc.com/Secure/Admin/Reports/GTFSDownload.aspx"
     },
     "pvta": {
       "serviceEnd": "2026-12-19",
