@@ -66,10 +66,60 @@ export function configureGateway(capabilities) {
   trafficAvailable = Boolean(capabilities?.traffic);
 }
 
+// ---- basemap ---------------------------------------------------------------
+// setStyle() throws away every source, layer and image we added, so a swap
+// rebuilds them on style.load and re-pushes the data held in module state.
+
+const BASEMAP_STORAGE_KEY = 'motion-basemap';
+let activeBasemap = null;
+
+const basemapByKey = (key) => CONFIG.BASEMAPS.find((basemap) => basemap.key === key);
+
+function initialBasemap() {
+  const requested = new URLSearchParams(window.location.search).get('basemap');
+  let saved = null;
+  try {
+    saved = localStorage.getItem(BASEMAP_STORAGE_KEY);
+  } catch {
+    // Storage blocked: fall through to the default.
+  }
+  return basemapByKey(requested) ? requested : basemapByKey(saved) ? saved : CONFIG.BASEMAPS[0].key;
+}
+
+// Resolved lazily so the panel can show the saved choice before the map exists.
+export function getBasemap() {
+  if (!activeBasemap) activeBasemap = initialBasemap();
+  return activeBasemap;
+}
+
+export function setBasemap(key) {
+  const basemap = basemapByKey(key);
+  if (!basemap || key === activeBasemap) return;
+  activeBasemap = key;
+  try {
+    localStorage.setItem(BASEMAP_STORAGE_KEY, key);
+  } catch {
+    // Private mode: keeping it for this visit is enough.
+  }
+  if (!map) return;
+  layersReady = false;
+  map.once('style.load', onStyleReady);
+  // diff: false forces a full reload; a diffed swap strips our layers
+  // without ever firing style.load.
+  map.setStyle(basemap.style, { diff: false });
+}
+
+function onStyleReady() {
+  setupLayers();
+  layersReady = true;
+  if (pendingFilters) applyGroupFilter(pendingFilters.groups, pendingFilters.statuses);
+  applyRegion(false);
+}
+
 export function initMap() {
   map = new maplibregl.Map({
     container: 'map',
-    style: CONFIG.BASEMAP_STYLE,
+    style: basemapByKey(getBasemap()).style,
     center: CONFIG.MAP_CENTER,
     zoom: CONFIG.MAP_ZOOM,
     minZoom: 5,
@@ -90,12 +140,13 @@ export function initMap() {
   map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
 
   return new Promise((resolve) => {
-    map.on('load', () => {
-      setupLayers();
+    // style.load fires as soon as the style JSON is in; waiting for `load`
+    // would also wait on the basemap's sprite and first tiles.
+    map.once('style.load', () => {
+      onStyleReady();
+      // Layer click/hover listeners live on the map, not the style, so they
+      // survive basemap swaps and are wired once.
       wirePopups();
-      layersReady = true;
-      if (pendingFilters) applyGroupFilter(pendingFilters.groups, pendingFilters.statuses);
-      applyRegion(false);
       resolve(map);
     });
   });
@@ -194,12 +245,19 @@ function registerModeIcons() {
     'icon-share-scooter': makeIcon(CONFIG.BIKE_FREE_COLOR, scooter),
   };
   for (const [name, image] of Object.entries(icons)) {
-    map.addImage(name, image, { pixelRatio: 2 });
+    addImageOnce(name, image);
   }
 }
 
+// setStyle() can carry images over from the previous style; re-adding one
+// that exists throws, which would abort the rest of the layer setup.
+function addImageOnce(name, image) {
+  if (map.hasImage(name)) map.removeImage(name);
+  map.addImage(name, image, { pixelRatio: 2 });
+}
+
 function setupLayers() {
-  map.addImage('nav-chevron', chevronImage(), { pixelRatio: 2 });
+  addImageOnce('nav-chevron', chevronImage());
   registerModeIcons();
 
   // Live congestion raster under everything else we draw. The gateway uses

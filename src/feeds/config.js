@@ -204,8 +204,40 @@ export const CONFIG = {
     'weather', 'airport-status',
   ],
 
-  BASEMAP_STYLE: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
-  BASEMAP_STYLE_LIGHT: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
+  // First entry is the default. Every basemap must work with the dark panel
+  // and the light vehicle outlines drawn in map.js.
+  BASEMAPS: [
+    { key: 'dark', label: 'Dark', style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json' },
+    { key: 'dark-plain', label: 'Dark, no labels', style: 'https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json' },
+    {
+      key: 'satellite',
+      label: 'Satellite',
+      style: {
+        version: 8,
+        glyphs: 'https://tiles.basemaps.cartocdn.com/fonts/{fontstack}/{range}.pbf',
+        sources: {
+          imagery: {
+            type: 'raster',
+            tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+            tileSize: 256,
+            maxzoom: 19,
+            attribution: 'Imagery © Esri, Maxar, Earthstar Geographics, and the GIS User Community',
+          },
+          labels: {
+            type: 'raster',
+            tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}'],
+            tileSize: 256,
+            maxzoom: 19,
+            attribution: 'Labels © Esri, HERE, Garmin, FAO, NOAA, USGS',
+          },
+        },
+        layers: [
+          { id: 'imagery', type: 'raster', source: 'imagery', paint: { 'raster-saturation': -0.2, 'raster-brightness-max': 0.85 } },
+          { id: 'labels', type: 'raster', source: 'labels' },
+        ],
+      },
+    },
+  ],
 };
 
 // Persist only the gateway address. Provider credentials are Worker secrets.
