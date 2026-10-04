@@ -14,7 +14,7 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT = ROOT / "data" / "border-crossings.geojson"
+OUTPUT = ROOT / "public" / "data" / "border-crossings.geojson"
 GEOCODE_CACHE = ROOT / "scripts" / "border-crossing-coordinates.json"
 CBSA_CSV = "https://www.cbsa-asfc.gc.ca/data/offices-bureaux-en.csv"
 CBSA_DIRECTORY = "https://www.cbsa-asfc.gc.ca/do-rb/menu-eng.html"

@@ -34,13 +34,13 @@ FERRY_WATER_CACHE_PATH = ROOT / "scripts" / "ferry-water-cache.json"
 FERRY_GEOMETRY_SOURCES_PATH = ROOT / "scripts" / "ferry-geometry-sources.json"
 ROAD_ROUTE_CACHE_PATH = ROOT / "scripts" / "road-route-cache.json"
 ROAD_ROUTE_CONTROLS_PATH = ROOT / "scripts" / "road-route-controls.json"
-BOUNDARIES_PATH = ROOT / "data" / "regions.geojson"
+BOUNDARIES_PATH = ROOT / "public" / "data" / "regions.geojson"
 # Region keys in scripts/regions-config.json order, filled from
 # data/regions.geojson in main(). Every route and stop is tagged with each
 # region its geometry touches.
 REGION_ORDER: list[str] = []
-OUTPUT_PATH = ROOT / "data" / "regional-routes.geojson"
-MNR_STOPS_PATH = ROOT / "data" / "mnr-stops.json"
+OUTPUT_PATH = ROOT / "public" / "data" / "regional-routes.geojson"
+MNR_STOPS_PATH = ROOT / "public" / "data" / "mnr-stops.json"
 FRESHNESS_PATH = ROOT / "scripts" / "feed-freshness.json"
 BORROWED_SHAPE_NOTE = (
     "Track path follows published shapes of other trains on the same corridor between this service's stations."

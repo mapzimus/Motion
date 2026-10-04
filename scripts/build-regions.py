@@ -36,9 +36,9 @@ from shapely.ops import linemerge, unary_union
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = ROOT / "scripts" / "regions-config.json"
-INFRASTRUCTURE_PATH = ROOT / "data" / "infrastructure.geojson"
-OUTPUT = ROOT / "data" / "regions.geojson"
-MARINE_OUTPUT = ROOT / "data" / "regions-marine.geojson"
+INFRASTRUCTURE_PATH = ROOT / "public" / "data" / "infrastructure.geojson"
+OUTPUT = ROOT / "public" / "data" / "regions.geojson"
+MARINE_OUTPUT = ROOT / "public" / "data" / "regions-marine.geojson"
 
 TIGERWEB = "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb"
 STATES_QUERY = f"{TIGERWEB}/State_County/MapServer/0/query"

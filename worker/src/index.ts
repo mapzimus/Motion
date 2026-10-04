@@ -1,5 +1,6 @@
 import { transit_realtime } from 'gtfs-realtime-bindings';
-import { feedsForRegion, type TransitFeed } from './feeds';
+import { feedsForRegion, swiftlyApproved, type TransitFeed } from './feeds';
+import { MNR_ROUTES, metroNorthTrips } from './metro-north';
 import { insideNewEngland, isRegionId, type RegionId } from './regions';
 import { MASSDOT_EVENTS_URL, parseErsEvents } from './massdot-events';
 import { HUB_NAME } from './ais-hub';
@@ -153,23 +154,49 @@ function regionFrom(url: URL): RegionId | null {
   return isRegionId(region) ? region : null;
 }
 
-async function readTransitFeed(feed: TransitFeed, env: Env) {
-  const swiftlyKey = secret(env, 'SWIFTLY_API_KEY');
-  if (feed.authorization === 'swiftly' && !configured(swiftlyKey)) {
-    return { feed: feed.id, agency: feed.agency, state: 'needs-key' as const, vehicles: [] };
+// Swiftly allows 180 requests per 15 minutes per key. Every region that lists a
+// Swiftly feed shares one cached copy of its protobuf for this long.
+const SWIFTLY_CACHE_SECONDS = 30;
+const TRANSIT_ACCEPT = 'application/x-protobuf, application/octet-stream;q=0.9, */*;q=0.8';
+
+async function swiftlyFeedBytes(feed: TransitFeed, key: string, ctx: ExecutionContext): Promise<Uint8Array> {
+  const cacheKey = new Request(`https://swiftly-cache.motion.invalid/${feed.id}`);
+  const cached = await caches.default.match(cacheKey);
+  if (cached) return new Uint8Array(await cached.arrayBuffer());
+
+  const upstream = await fetch(feed.url, { headers: { accept: TRANSIT_ACCEPT, authorization: key } });
+  if (!upstream.ok) throw new Error(`${feed.id} ${upstream.status}`);
+  const bytes = new Uint8Array(await upstream.arrayBuffer());
+  ctx.waitUntil(caches.default.put(cacheKey, new Response(bytes, {
+    headers: { 'cache-control': `public, max-age=${SWIFTLY_CACHE_SECONDS}`, 'content-type': 'application/octet-stream' },
+  })));
+  return bytes;
+}
+
+async function readTransitFeed(feed: TransitFeed, env: Env, ctx: ExecutionContext) {
+  let bytes: Uint8Array;
+  if (feed.authorization === 'swiftly') {
+    const swiftlyKey = secret(env, 'SWIFTLY_API_KEY');
+    if (!configured(swiftlyKey)) {
+      return { feed: feed.id, agency: feed.agency, state: 'needs-key' as const, vehicles: [] };
+    }
+    // The key works only for agencies that approved sharing; never send it to the rest.
+    if (!swiftlyApproved(feed)) {
+      return { feed: feed.id, agency: feed.agency, state: 'needs-approval' as const, vehicles: [] };
+    }
+    bytes = await swiftlyFeedBytes(feed, swiftlyKey ?? '', ctx);
+  } else {
+    // Cadavl producers (Greater Portland, WRTA, GATRA) answer 406 to a bare
+    // application/x-protobuf Accept header; they serve application/octet-stream.
+    const upstream = await fetch(feed.url, {
+      headers: { accept: TRANSIT_ACCEPT },
+      cf: { cacheEverything: true, cacheTtl: 15 },
+    });
+    if (!upstream.ok) throw new Error(`${feed.id} ${upstream.status}`);
+    bytes = new Uint8Array(await upstream.arrayBuffer());
   }
 
-  // Cadavl producers (Greater Portland, WRTA, GATRA) answer 406 to a bare
-  // application/x-protobuf Accept header; they serve application/octet-stream.
-  const headers = new Headers({ accept: 'application/x-protobuf, application/octet-stream;q=0.9, */*;q=0.8' });
-  if (feed.authorization === 'swiftly') headers.set('authorization', swiftlyKey ?? '');
-  const upstream = await fetch(feed.url, {
-    headers,
-    cf: { cacheEverything: true, cacheTtl: 15 },
-  });
-  if (!upstream.ok) throw new Error(`${feed.id} ${upstream.status}`);
-
-  const message = transit_realtime.FeedMessage.decode(new Uint8Array(await upstream.arrayBuffer()));
+  const message = transit_realtime.FeedMessage.decode(bytes);
   const headerTimestamp = numberValue(message.header.timestamp);
   const vehicles = message.entity.flatMap((entity) => {
     const vehicle = entity.vehicle;
@@ -204,7 +231,7 @@ async function transit(request: Request, url: URL, env: Env, ctx: ExecutionConte
 
   return cachedJson(request, ctx, 15, async () => {
     const feeds = feedsForRegion(region);
-    const settled = await Promise.allSettled(feeds.map((feed) => readTransitFeed(feed, env)));
+    const settled = await Promise.allSettled(feeds.map((feed) => readTransitFeed(feed, env, ctx)));
     const feedStatus = settled.map((result, index) =>
       result.status === 'fulfilled'
         ? { feed: result.value.feed, agency: result.value.agency, state: result.value.state, count: result.value.vehicles.length }
@@ -213,18 +240,11 @@ async function transit(request: Request, url: URL, env: Env, ctx: ExecutionConte
     const vehicles = settled.flatMap((result) =>
       result.status === 'fulfilled' ? result.value.vehicles : [],
     );
-    // Healthy when every attempted feed answered (needs-key feeds are skipped, not failures).
+    // Healthy when any attempted feed answered (needs-key and needs-approval feeds are skipped, not failures).
     markProvider('regionalTransit', !settled.length || settled.some((result) => result.status === 'fulfilled'));
     return json({ region, vehicles, feeds: feedStatus });
   });
 }
-
-const MNR_ROUTES: Record<string, { name: string; color: string }> = {
-  '3': { name: 'New Haven', color: '#ee0034' },
-  '4': { name: 'New Canaan', color: '#ee0034' },
-  '5': { name: 'Danbury', color: '#ee0034' },
-  '6': { name: 'Waterbury', color: '#ee0034' },
-};
 
 function translatedText(value: {
   translation?: Array<{ text?: string | null; language?: string | null }> | null;
@@ -232,13 +252,6 @@ function translatedText(value: {
   return value?.translation?.find((entry) => entry.language === 'en')?.text ??
     value?.translation?.find((entry) => !entry.language?.includes('html'))?.text ??
     value?.translation?.[0]?.text ?? '';
-}
-
-function realtimeEventTime(update: {
-  arrival?: { time?: unknown } | null;
-  departure?: { time?: unknown } | null;
-}): number | null {
-  return numberValue(update.departure?.time) ?? numberValue(update.arrival?.time);
 }
 
 function mnrAlertSeverity(text: string): number {
@@ -271,44 +284,7 @@ async function metroNorth(request: Request, ctx: ExecutionContext): Promise<Resp
     );
     const feedTimestamp = numberValue(tripMessage.header.timestamp) ?? Math.floor(Date.now() / 1000);
 
-    const trips = tripMessage.entity.flatMap((entity) => {
-      const update = entity.tripUpdate;
-      const routeId = update?.trip?.routeId ?? '';
-      const route = MNR_ROUTES[routeId];
-      if (!update || !route) return [];
-      const timedStops = (update.stopTimeUpdate ?? []).flatMap((stop) => {
-        const time = realtimeEventTime(stop);
-        return time === null || !stop.stopId ? [] : [{ stopId: stop.stopId, time }];
-      });
-      if (timedStops.length < 2) return [];
-
-      let previousIndex = -1;
-      for (let index = 0; index < timedStops.length; index += 1) {
-        if (timedStops[index].time <= feedTimestamp) previousIndex = index;
-        else break;
-      }
-      if (previousIndex < 0 || previousIndex >= timedStops.length - 1) return [];
-      const previous = timedStops[previousIndex];
-      const next = timedStops[previousIndex + 1];
-      const duration = Math.max(1, next.time - previous.time);
-      const progress = Math.max(0, Math.min(1, (feedTimestamp - previous.time) / duration));
-      const label = entity.vehicle?.vehicle?.label || entity.vehicle?.vehicle?.id || entity.id;
-      return [{
-        id: entity.id,
-        tripId: update.trip?.tripId ?? '',
-        label,
-        routeId,
-        routeName: route.name,
-        color: route.color,
-        previousStopId: previous.stopId,
-        previousTime: previous.time,
-        nextStopId: next.stopId,
-        nextTime: next.time,
-        destinationStopId: timedStops.at(-1)?.stopId ?? next.stopId,
-        progress,
-        updatedAt: new Date(feedTimestamp * 1000).toISOString(),
-      }];
-    });
+    const trips = metroNorthTrips(tripMessage.entity, feedTimestamp);
 
     const alertNow = numberValue(alertMessage.header.timestamp) ?? feedTimestamp;
     const alerts = alertMessage.entity.flatMap((entity) => {
@@ -344,7 +320,8 @@ async function metroNorth(request: Request, ctx: ExecutionContext): Promise<Resp
 
     return json({
       provider: 'MTA Metro-North GTFS-Realtime',
-      positioning: 'estimated-between-stations',
+      // Per trip: 'gps' when the MTA reports a fresh train position, else 'estimated'.
+      positioning: 'gps-with-station-estimates',
       updatedAt: new Date(feedTimestamp * 1000).toISOString(),
       trips,
       alerts,

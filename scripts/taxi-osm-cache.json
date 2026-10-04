@@ -1,0 +1,422 @@
+{
+ "description": "OpenStreetMap amenity=taxi and office=taxi elements inside the six New England states. Refresh with build-reference-places.py --refresh-taxi-osm.",
+ "license": "© OpenStreetMap contributors, ODbL 1.0",
+ "fetchedAt": "2026-10-04",
+ "elements": [
+  {
+   "type": "node",
+   "id": 533179284,
+   "lon": -71.23543,
+   "lat": 42.37456,
+   "tags": {
+    "amenity": "taxi",
+    "check_date": "2023-08-04"
+   }
+  },
+  {
+   "type": "node",
+   "id": 564529877,
+   "lon": -71.10007,
+   "lat": 42.36258,
+   "tags": {
+    "amenity": "taxi",
+    "check_date": "2022-12-30"
+   }
+  },
+  {
+   "type": "node",
+   "id": 667695454,
+   "lon": -71.4661,
+   "lat": 42.98701,
+   "tags": {
+    "amenity": "taxi"
+   }
+  },
+  {
+   "type": "node",
+   "id": 815762441,
+   "lon": -71.13091,
+   "lat": 42.35063,
+   "tags": {
+    "amenity": "taxi"
+   }
+  },
+  {
+   "type": "node",
+   "id": 981441735,
+   "lon": -71.10302,
+   "lat": 42.36503,
+   "tags": {
+    "amenity": "taxi",
+    "check_date": "2025-11-03",
+    "level": "0"
+   }
+  },
+  {
+   "type": "node",
+   "id": 1032140798,
+   "lon": -71.79649,
+   "lat": 42.26128,
+   "tags": {
+    "amenity": "taxi",
+    "name": "Bus Station Taxis"
+   }
+  },
+  {
+   "type": "node",
+   "id": 1032140867,
+   "lon": -71.79566,
+   "lat": 42.26072,
+   "tags": {
+    "amenity": "taxi",
+    "name": "Train Station Taxis"
+   }
+  },
+  {
+   "type": "node",
+   "id": 1231127021,
+   "lon": -71.00499,
+   "lat": 42.25195,
+   "tags": {
+    "amenity": "taxi",
+    "name": "Quincy Center"
+   }
+  },
+  {
+   "type": "node",
+   "id": 1459467607,
+   "lon": -72.63201,
+   "lat": 42.31666,
+   "tags": {
+    "amenity": "taxi",
+    "name": "Green Cab"
+   }
+  },
+  {
+   "type": "node",
+   "id": 1558256816,
+   "lon": -72.68224,
+   "lat": 41.76859,
+   "tags": {
+    "amenity": "taxi"
+   }
+  },
+  {
+   "type": "node",
+   "id": 2122550836,
+   "lon": -70.9864,
+   "lat": 42.39487,
+   "tags": {
+    "amenity": "taxi"
+   }
+  },
+  {
+   "type": "node",
+   "id": 2182951955,
+   "lon": -70.66979,
+   "lat": 41.52329,
+   "tags": {
+    "amenity": "taxi"
+   }
+  },
+  {
+   "type": "node",
+   "id": 2441601849,
+   "lon": -72.9268,
+   "lat": 41.29763,
+   "tags": {
+    "amenity": "taxi",
+    "check_date": "2026-01-19"
+   }
+  },
+  {
+   "type": "node",
+   "id": 3627205850,
+   "lon": -71.15553,
+   "lat": 42.70808,
+   "tags": {
+    "addr:city": "Lawrence",
+    "addr:street": "Newbury Street",
+    "amenity": "taxi",
+    "name": "Taxi Merrimack"
+   }
+  },
+  {
+   "type": "node",
+   "id": 4080240394,
+   "lon": -73.22145,
+   "lat": 41.177,
+   "tags": {
+    "amenity": "taxi",
+    "name": "Connecticut Transportation Solutions, LLC"
+   }
+  },
+  {
+   "type": "node",
+   "id": 5917682575,
+   "lon": -70.85324,
+   "lat": 42.67133,
+   "tags": {
+    "addr:city": "Ipswich",
+    "addr:housenumber": "84",
+    "addr:postcode": "01938",
+    "addr:state": "MA",
+    "addr:street": "Topsfield Road",
+    "name": "Airport Connection",
+    "office": "taxi",
+    "phone": "+1-978-356-7238",
+    "website": "https://airportconnectionllc.com/"
+   }
+  },
+  {
+   "type": "node",
+   "id": 7563917805,
+   "lon": -69.78375,
+   "lat": 44.32909,
+   "tags": {
+    "addr:city": "Augusta",
+    "addr:housenumber": "162",
+    "addr:postcode": "04330",
+    "addr:state": "ME",
+    "addr:street": "Mount Vernon Avenue",
+    "amenity": "taxi"
+   }
+  },
+  {
+   "type": "node",
+   "id": 8109709361,
+   "lon": -71.43841,
+   "lat": 42.92804,
+   "tags": {
+    "amenity": "taxi"
+   }
+  },
+  {
+   "type": "node",
+   "id": 8358424012,
+   "lon": -71.11834,
+   "lat": 42.38965,
+   "tags": {
+    "amenity": "taxi",
+    "capacity": "3"
+   }
+  },
+  {
+   "type": "node",
+   "id": 10753686988,
+   "lon": -73.42155,
+   "lat": 41.09568,
+   "tags": {
+    "amenity": "taxi"
+   }
+  },
+  {
+   "type": "node",
+   "id": 10753686989,
+   "lon": -73.54106,
+   "lat": 41.0469,
+   "tags": {
+    "addr:city": "Stamford",
+    "addr:postcode": "06902",
+    "addr:state": "CT",
+    "addr:street": "Station Place",
+    "amenity": "taxi",
+    "name": "Amtrak Metro North Taxi Stand"
+   }
+  },
+  {
+   "type": "node",
+   "id": 10753712135,
+   "lon": -73.4486,
+   "lat": 41.39634,
+   "tags": {
+    "amenity": "taxi"
+   }
+  },
+  {
+   "type": "node",
+   "id": 11727916482,
+   "lon": -71.44446,
+   "lat": 41.8553,
+   "tags": {
+    "addr:city": "Providence",
+    "addr:housenumber": "60",
+    "addr:postcode": "02904",
+    "addr:state": "RI",
+    "addr:street": "Joseph Street",
+    "contact:phone": "+1 401-274-1101",
+    "name": "Charles Taxi Transportation",
+    "office": "taxi",
+    "opening_hours": "24/7",
+    "website": "https://charlestaxitransportation.com"
+   }
+  },
+  {
+   "type": "node",
+   "id": 12181111183,
+   "lon": -68.27064,
+   "lat": 44.25805,
+   "tags": {
+    "access": "yes",
+    "amenity": "taxi",
+    "description": "The island has a courtesy shuttle that originates here every half hour, :00 and :30.  The shuttle can also be requested by phone at no cost to visitors.",
+    "fee": "no"
+   }
+  },
+  {
+   "type": "node",
+   "id": 12206346134,
+   "lon": -72.79063,
+   "lat": 41.73319,
+   "tags": {
+    "amenity": "taxi",
+    "level": "2",
+    "name": "UConn Musculoskeletal Institute And Surgery Center Patient Drop Off"
+   }
+  },
+  {
+   "type": "node",
+   "id": 13885156102,
+   "lon": -72.68225,
+   "lat": 41.76844,
+   "tags": {
+    "amenity": "taxi"
+   }
+  },
+  {
+   "type": "way",
+   "id": 179221577,
+   "lon": -71.4679,
+   "lat": 42.75931,
+   "tags": {
+    "addr:city": "Nashua",
+    "addr:housenumber": "136",
+    "addr:postcode": "03060",
+    "addr:street": "West Pearl Street",
+    "amenity": "taxi",
+    "building": "yes",
+    "name": "Nashua Taxi",
+    "phone": "+1-603-882-7444"
+   }
+  },
+  {
+   "type": "way",
+   "id": 180514490,
+   "lon": -71.46624,
+   "lat": 42.76053,
+   "tags": {
+    "addr:city": "Nashua",
+    "addr:housenumber": "12 1/2",
+    "addr:postcode": "03060",
+    "addr:street": "High Street",
+    "amenity": "taxi",
+    "building": "yes",
+    "name": "SK Taxi",
+    "phone": "+1-603-882-5155"
+   }
+  },
+  {
+   "type": "way",
+   "id": 213068906,
+   "lon": -70.59538,
+   "lat": 41.56849,
+   "tags": {
+    "addr:housenumber": "292",
+    "addr:street": "Teaticket Highway",
+    "building": "yes",
+    "name": "White Tie Limosine",
+    "office": "taxi",
+    "phone": "+1-508-548-1066",
+    "website": "https://whitetielimo.com"
+   }
+  },
+  {
+   "type": "way",
+   "id": 684297915,
+   "lon": -71.02012,
+   "lat": 42.08399,
+   "tags": {
+    "amenity": "taxi"
+   }
+  },
+  {
+   "type": "way",
+   "id": 779792849,
+   "lon": -72.58827,
+   "lat": 42.09955,
+   "tags": {
+    "amenity": "taxi"
+   }
+  },
+  {
+   "type": "way",
+   "id": 846189381,
+   "lon": -71.06432,
+   "lat": 42.28539,
+   "tags": {
+    "amenity": "taxi"
+   }
+  },
+  {
+   "type": "way",
+   "id": 846967310,
+   "lon": -71.06439,
+   "lat": 42.28513,
+   "tags": {
+    "amenity": "taxi"
+   }
+  },
+  {
+   "type": "way",
+   "id": 1041514825,
+   "lon": -70.60096,
+   "lat": 41.45549,
+   "tags": {
+    "access": "permit",
+    "amenity": "taxi",
+    "capacity": "9",
+    "capacity:disabled": "0",
+    "operator": "SSA",
+    "operator:type": "public",
+    "parking": "surface"
+   }
+  },
+  {
+   "type": "way",
+   "id": 1105224364,
+   "lon": -70.29144,
+   "lat": 43.65435,
+   "tags": {
+    "amenity": "taxi"
+   }
+  },
+  {
+   "type": "way",
+   "id": 1202686084,
+   "lon": -70.89685,
+   "lat": 42.52476,
+   "tags": {
+    "amenity": "taxi"
+   }
+  },
+  {
+   "type": "way",
+   "id": 1300637241,
+   "lon": -70.75735,
+   "lat": 43.07651,
+   "tags": {
+    "amenity": "taxi",
+    "capacity": "1"
+   }
+  },
+  {
+   "type": "way",
+   "id": 1486413537,
+   "lon": -70.18575,
+   "lat": 42.05125,
+   "tags": {
+    "amenity": "taxi"
+   }
+  }
+ ]
+}

@@ -30,7 +30,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import ferry_water as fw  # noqa: E402
 
-REGIONAL_ROUTES = ROOT / "data" / "regional-routes.geojson"
+REGIONAL_ROUTES = ROOT / "public" / "data" / "regional-routes.geojson"
 CACHE_PATH = ROOT / "scripts" / "ferry-water-cache.json"
 REPORT_PATH = ROOT / "scripts" / "ferry-water-report.md"
 SUPPLEMENTAL_FILES = [

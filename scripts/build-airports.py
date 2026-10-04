@@ -12,7 +12,7 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT = ROOT / "data" / "airports.geojson"
+OUTPUT = ROOT / "public" / "data" / "airports.geojson"
 DEFAULT_APT_URL = "https://nfdc.faa.gov/webContent/28DaySub/extra/06_Aug_2026_APT_CSV.zip"
 SOURCE_PAGE = "https://www.faa.gov/air_traffic/flight_info/aeronav/Aero_Data/NASR_Subscription/2026-08-06/"
 NEW_ENGLAND = {"CT", "RI", "MA", "VT", "NH", "ME"}

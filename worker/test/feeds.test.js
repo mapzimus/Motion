@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TRANSIT_FEEDS, feedsForRegion } from '../src/feeds';
+import { SWIFTLY_APPROVED_AGENCIES, TRANSIT_FEEDS, feedsForRegion, swiftlyAgencyKey, swiftlyApproved } from '../src/feeds';
 import staticFeeds from '../../scripts/regional-feeds.json';
 
 const NEW_ENGLAND_STATES = new Set(['ct', 'ma', 'me', 'nh', 'ri', 'vt']);
@@ -29,7 +29,25 @@ describe('realtime transit feed registry', () => {
     const ids = (region) => feedsForRegion(region).map((feed) => feed.id);
     expect(ids('ma')).toEqual(expect.arrayContaining(['wrta', 'gatra', 'mit', 'tufts']));
     expect(ids('ct')).toContain('uconn-wrtd');
-    expect(ids('ri')).toContain('brown');
-    expect(ids('boston')).toEqual([]);
+    expect(ids('ri')).toEqual(expect.arrayContaining(['brown', 'uri', 'providence-college']));
+    expect(ids('ct')).toEqual(expect.arrayContaining(['quinnipiac', 'uhartford', 'unewhaven', 'harbor-point']));
+    expect(ids('me')).toEqual(expect.arrayContaining(['bangor', 'citylink']));
+    expect(ids('ma')).toEqual(expect.arrayContaining(['lrta', 'harvard', 'ezride', 'longwood', 'mgb', 'lexpress', 'nantucket-wave', 'bu', 'bc', 'umb']));
+  });
+
+  it('serves only MBTA-core shuttles for the legacy boston region', () => {
+    const core = feedsForRegion('boston');
+    expect(core.map((feed) => feed.id).sort()).toEqual(['bc', 'bu', 'ezride', 'harvard', 'longwood', 'mgb', 'mit', 'tufts', 'umb']);
+    for (const feed of core) expect(feed.states, feed.id).toContain('ma');
+  });
+
+  it('sends the Swiftly key only to agencies that approved sharing', () => {
+    const swiftly = TRANSIT_FEEDS.filter((feed) => feed.authorization === 'swiftly');
+    expect(swiftly.length).toBeGreaterThan(1);
+    for (const feed of swiftly) expect(swiftlyAgencyKey(feed), feed.id).toBeTruthy();
+    expect(swiftly.filter(swiftlyApproved).map((feed) => feed.id)).toEqual(['casco-bay']);
+    expect([...SWIFTLY_APPROVED_AGENCIES]).toEqual(['casco-bay-lines']);
+    // A keyless feed is never "Swiftly approved", whatever its URL.
+    expect(swiftlyApproved(TRANSIT_FEEDS.find((feed) => feed.id === 'ripta'))).toBe(false);
   });
 });

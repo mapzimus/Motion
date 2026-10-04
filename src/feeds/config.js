@@ -175,6 +175,7 @@ export const CONFIG = {
   PARK_RIDE_COLOR: '#7fb7ff',
   EV_CHARGING_COLOR: '#6ee7a8',
   DRAWBRIDGE_COLOR: '#f7c948',
+  TAXI_COLOR: '#ffe14d',
 
   CAMERA_POLL_MS: 5 * 60_000,
   ROAD_EVENT_POLL_MS: 60_000,
@@ -205,7 +206,7 @@ export const CONFIG = {
   DEFAULT_OFF_GROUPS: [
     'bus', 'bike', 'roadwork', 'traffic', 'incident', 'camera',
     'roads', 'freight', 'walking', 'cycling', 'local', 'airport', 'border', 'air-service',
-    'bikeshare', 'heritage-rail', 'park-ride', 'ev-charging', 'drawbridge',
+    'bikeshare', 'heritage-rail', 'park-ride', 'ev-charging', 'drawbridge', 'taxi',
     'weather', 'airport-status',
   ],
 
