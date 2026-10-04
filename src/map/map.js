@@ -1816,7 +1816,7 @@ function applyGroupFilter(groups, statuses) {
 export function fitPadding() {
   // Keep targets clear of the console on desktop; on mobile the panel closes.
   return window.innerWidth > 760
-    ? { top: 70, right: 70, bottom: 70, left: 420 }
+    ? { top: 70, right: 70, bottom: 70, left: 410 }
     : { top: 60, right: 40, bottom: 60, left: 40 };
 }
 
