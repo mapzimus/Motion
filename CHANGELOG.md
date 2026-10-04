@@ -1,5 +1,32 @@
 # Changelog
 
+## Unreleased
+
+### Live vehicles
+- Metro-North trains on the New Haven, New Canaan, Danbury, and Waterbury lines
+  now use the GPS position the MTA feed reports and are labeled live. Trains
+  without a fresh fix keep the between-stations estimate.
+- Twelve more live feeds: Lowell RTA, Lexpress, Harvard, EZRide, Longwood
+  Collective, Mass General Brigham, Quinnipiac, University of Hartford,
+  University of New Haven, Providence College, Bangor Community Connector, and
+  Lewiston-Auburn citylink.
+- The MBTA-core region now shows the campus and hospital shuttles that run
+  inside it.
+- The Swiftly key is sent only to agencies that approved sharing (Casco Bay
+  Lines), and approved feeds are cached for 30 seconds. Previously a configured
+  key was sent to every Swiftly feed and rejected by nine of them every poll.
+
+### Transit coverage
+- Eight more schedule feeds: EZRide, Longwood Collective, Mass General Brigham,
+  Quinnipiac, University of Hartford, University of New Haven, Providence
+  College, and Roger Williams University.
+- Greater Portland METRO reads the agency's own GTFS; the catalog mirror had
+  expired on 2026-10-03.
+
+### Build
+- The Python builders write to `public/data/` again; they still pointed at the
+  old `data/` folder after the Vite restructure and could not run.
+
 ## 1.0.0 — 2026-09-27
 
 The first complete release of New England in Motion.
