@@ -32,9 +32,9 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT = ROOT / "data" / "reference-places.geojson"
-BOUNDARIES_PATH = ROOT / "data" / "regions.geojson"
-INFRASTRUCTURE_PATH = ROOT / "data" / "infrastructure.geojson"
+OUTPUT = ROOT / "public" / "data" / "reference-places.geojson"
+BOUNDARIES_PATH = ROOT / "public" / "data" / "regions.geojson"
+INFRASTRUCTURE_PATH = ROOT / "public" / "data" / "infrastructure.geojson"
 HERITAGE_PATH = ROOT / "scripts" / "heritage-railroads.json"
 DRAWBRIDGE_PATH = ROOT / "scripts" / "drawbridges.json"
 USER_AGENT = "mapzimus/Motion reference-places-builder"

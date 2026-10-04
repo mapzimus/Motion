@@ -73,6 +73,27 @@ export const TRANSIT_FEEDS: TransitFeed[] = [
     url: 'https://passio3.com/tufts/passioTransit/gtfs/realtime/vehiclePositions',
   },
   {
+    // Public Cadavl producer (same platform as WRTA/GATRA/METRO). Answered 200 on 2026-10-04 (Saturday, no vehicles); confirm in-state vehicles on a weekday.
+    id: 'lrta',
+    agency: 'Lowell Regional Transit Authority',
+    states: ['ma'],
+    url: 'https://gtfsrt.lrta.cadavl.com/ProfilGtfsRt2_0RSProducer-LRTA/VehiclePosition.pb',
+  },
+  {
+    // Passio; static feed id "lexpress". No weekend service, so a Saturday decode showed no vehicles.
+    id: 'lexpress',
+    agency: 'Lexpress',
+    states: ['ma'],
+    url: 'https://passio3.com/lexpress/passioTransit/gtfs/realtime/vehiclePositions',
+  },
+  {
+    // Passio; static feed id "harvard".
+    id: 'harvard',
+    agency: 'Harvard University shuttles',
+    states: ['ma'],
+    url: 'https://passio3.com/harvard/passioTransit/gtfs/realtime/vehiclePositions',
+  },
+  {
     id: 'cttransit',
     agency: 'CTtransit',
     states: ['ct'],
@@ -110,6 +131,13 @@ export const TRANSIT_FEEDS: TransitFeed[] = [
     url: 'https://passio3.com/uconn/passioTransit/gtfs/realtime/vehiclePositions',
   },
   {
+    // Passio "newhaven" system (University of New Haven, not UNH Wildcat). Carried an in-state vehicle on 2026-10-04.
+    id: 'university-of-new-haven',
+    agency: 'University of New Haven shuttles',
+    states: ['ct'],
+    url: 'https://passio3.com/newhaven/passioTransit/gtfs/realtime/vehiclePositions',
+  },
+  {
     id: 'ripta',
     agency: 'Rhode Island Public Transit Authority',
     states: ['ri'],
@@ -132,6 +160,20 @@ export const TRANSIT_FEEDS: TransitFeed[] = [
     agency: 'Island Explorer',
     states: ['me'],
     url: 'https://islandexplorertracker.availtec.com/InfoPoint/GTFS-Realtime.ashx?&Type=VehiclePosition&serverid=0',
+  },
+  {
+    // Passio; static feed id "bangor". Answered 200 on 2026-10-04 (Saturday evening, no vehicles).
+    id: 'bangor',
+    agency: 'Bangor Community Connector',
+    states: ['me'],
+    url: 'https://passio3.com/bangor/passioTransit/gtfs/realtime/vehiclePositions',
+  },
+  {
+    // Passio; Saturday-only Star City Connector in Presque Isle.
+    id: 'arts',
+    agency: 'Aroostook Regional Transportation System',
+    states: ['me'],
+    url: 'https://passio3.com/arts/passioTransit/gtfs/realtime/vehiclePositions',
   },
   {
     id: 'casco-bay',

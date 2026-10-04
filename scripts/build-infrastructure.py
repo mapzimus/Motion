@@ -14,7 +14,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT = ROOT / "data" / "infrastructure.geojson"
+OUTPUT = ROOT / "public" / "data" / "infrastructure.geojson"
 NEW_ENGLAND_BBOX = "-73.8,40.9,-66.7,47.6"
 ROAD_LAYER = (
     "https://tigerweb.geo.census.gov/arcgis/rest/services/"

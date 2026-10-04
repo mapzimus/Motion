@@ -251,6 +251,8 @@
         "Acton",
         "Amesbury",
         "Andover",
+        "Ashby",
+        "Ayer",
         "Billerica",
         "Boxford",
         "Carlisle",
@@ -273,14 +275,15 @@
         "Pepperell",
         "Rowley",
         "Salisbury",
+        "Shirley",
         "Tewksbury",
         "Townsend",
         "Tyngsborough",
         "West Newbury",
         "Westford"
       ],
-      "memberCount": 30,
-      "definition": "LRTA and MeVa (MVRTA) member communities, including Lowell, Lawrence and Haverhill",
+      "memberCount": 33,
+      "definition": "LRTA and MeVa (MVRTA) member communities, including Lowell, Lawrence and Haverhill, plus the Nashoba Valley towns of Ayer, Shirley and Ashby",
       "hasSubway": false,
       "busDefaultOn": true,
       "state": "MA"
@@ -374,14 +377,41 @@
       "name": "South Coast",
       "group": "ma",
       "parent": "ma",
-      "kind": "counties",
+      "kind": "towns",
       "members": [
-        "Bristol, MA"
+        "Acushnet",
+        "Attleboro",
+        "Bellingham",
+        "Berkley",
+        "Dartmouth",
+        "Dighton",
+        "Easton",
+        "Fairhaven",
+        "Fall River",
+        "Freetown",
+        "Lakeville",
+        "Mansfield",
+        "Marion",
+        "Mattapoisett",
+        "New Bedford",
+        "North Attleborough",
+        "Norton",
+        "Plainville",
+        "Raynham",
+        "Rehoboth",
+        "Rochester",
+        "Seekonk",
+        "Somerset",
+        "Swansea",
+        "Taunton",
+        "Wareham",
+        "Westport"
       ],
-      "memberCount": 1,
-      "definition": "Bristol County, Massachusetts",
+      "memberCount": 27,
+      "definition": "Bristol County plus GATRA's Norfolk and Plymouth County communities (Bellingham, Plainville, Lakeville, Marion, Mattapoisett, Rochester and Wareham)",
       "hasSubway": false,
-      "busDefaultOn": true
+      "busDefaultOn": true,
+      "state": "MA"
     },
     {
       "key": "cape-islands",
@@ -514,6 +544,21 @@
       "busDefaultOn": true
     },
     {
+      "key": "waterbury-northwest-hills",
+      "name": "Waterbury & Northwest Hills",
+      "group": "ct",
+      "parent": "ct",
+      "kind": "counties",
+      "members": [
+        "Naugatuck Valley, CT",
+        "Northwest Hills, CT"
+      ],
+      "memberCount": 2,
+      "definition": "Naugatuck Valley and Northwest Hills planning regions",
+      "hasSubway": false,
+      "busDefaultOn": true
+    },
+    {
       "key": "nh",
       "name": "New Hampshire",
       "group": "nh",
@@ -572,6 +617,20 @@
       "busDefaultOn": true
     },
     {
+      "key": "monadnock",
+      "name": "Monadnock Region (Keene)",
+      "group": "nh",
+      "parent": "nh",
+      "kind": "counties",
+      "members": [
+        "Cheshire, NH"
+      ],
+      "memberCount": 1,
+      "definition": "Cheshire County",
+      "hasSubway": false,
+      "busDefaultOn": true
+    },
+    {
       "key": "vt",
       "name": "Vermont",
       "group": "vt",
@@ -613,6 +672,37 @@
       ],
       "memberCount": 3,
       "definition": "Bennington, Windham and Rutland counties",
+      "hasSubway": false,
+      "busDefaultOn": true
+    },
+    {
+      "key": "central-vt",
+      "name": "Montpelier & Central Vermont",
+      "group": "vt",
+      "parent": "vt",
+      "kind": "counties",
+      "members": [
+        "Washington, VT",
+        "Lamoille, VT"
+      ],
+      "memberCount": 2,
+      "definition": "Washington and Lamoille counties",
+      "hasSubway": false,
+      "busDefaultOn": true
+    },
+    {
+      "key": "northeast-kingdom",
+      "name": "Northeast Kingdom",
+      "group": "vt",
+      "parent": "vt",
+      "kind": "counties",
+      "members": [
+        "Caledonia, VT",
+        "Orleans, VT",
+        "Essex, VT"
+      ],
+      "memberCount": 3,
+      "definition": "Caledonia, Orleans and Essex counties",
       "hasSubway": false,
       "busDefaultOn": true
     },

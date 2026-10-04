@@ -160,7 +160,7 @@ def corridor_paths(ferry_ways):
         for feature in json.loads((ROOT / "scripts" / name).read_text(encoding="utf-8"))["features"]:
             if feature.get("properties", {}).get("group") == "ferry":
                 add_geometry(feature.get("geometry"))
-    routes = ROOT / "data" / "regional-routes.geojson"
+    routes = ROOT / "public" / "data" / "regional-routes.geojson"
     if routes.exists():
         for feature in json.loads(routes.read_text(encoding="utf-8")).get("features", []):
             if feature.get("properties", {}).get("group") == "ferry":

@@ -1,5 +1,43 @@
 # Changelog
 
+## Unreleased
+
+Closes the gaps found by the 2026-10-04 coverage audit.
+
+### Regions
+- Four new named regions: Waterbury & Northwest Hills (CT), Monadnock Region
+  (NH), Montpelier & Central Vermont, and Northeast Kingdom (VT). Every county
+  and Connecticut planning region is now inside a named region.
+- Merrimack Valley gains Ayer, Shirley, and Ashby; South Coast becomes a
+  27-town list that adds GATRA's Bellingham, Plainville, Lakeville, Marion,
+  Mattapoisett, Rochester, and Wareham. No Massachusetts municipality is left
+  to the statewide view only.
+- `regions-marine.geojson` rebuilt; it had no North Shore outline.
+
+### Transit coverage
+- New schedule feeds: University of New Haven shuttles and ARTS's Star City
+  Connector (Presque Isle).
+- New live-bus feeds: LRTA (Cadavl), Lexpress, Harvard, Bangor Community
+  Connector, University of New Haven, and ARTS (Passio).
+- Cyr Bus Line's Bangor–Caribou coach drawn as a road-routed official-schedule
+  corridor; Winnipesaukee Transit System added as a directory marker.
+- Greater Portland METRO now reads the agency's Cadavl origin feed; the
+  Mobility Database mirror had stopped at 2026-10-03.
+
+### Geometry
+- Feeds with no track shapes (Sullivan County, Waldo DASH, Mashantucket, ARTS)
+  are labeled approximate with a "Scheduled stop sequence" provider instead of
+  passing as exact ribbons.
+- Trips whose shape ids are missing from `shapes.txt` fall back to their stop
+  sequence instead of vanishing (ARTS ships an empty `shapes.txt`).
+
+### Build and CI
+- Builders write to `public/data/` again (they still pointed at the old
+  `data/` folder after the Vite move, so nothing could be rebuilt).
+- CI runs `scripts/check-feed-freshness.py` before the offline guard.
+- Seasonal feeds ending 2026-10-12/13 and VTA's ended summer feed carry dated
+  `freshness_exempt` reasons; VTA popups note the stale schedule.
+
 ## 1.0.0 — 2026-09-27
 
 The first complete release of New England in Motion.
