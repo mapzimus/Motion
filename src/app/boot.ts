@@ -86,7 +86,7 @@ async function loadGatewayCapabilities(): Promise<Record<string, unknown>> {
 // ---------------------------------------------------------------------------
 
 export async function boot(): Promise<void> {
-  setLoading('LOADING NEW ENGLAND…');
+  setLoading('Loading New England…');
   const [routes, , capabilities] = await Promise.all([
     fetchRoutes(),
     loadRegions(),
@@ -136,7 +136,7 @@ export async function boot(): Promise<void> {
   if (permalink.on || permalink.off || permalink.statuses) ui.applyVisibleState(permalink);
   configureGateway(capabilities);
 
-  setLoading('RENDERING BASEMAP…');
+  setLoading('Drawing the map…');
   await initMap();
   // A permalink already positioned the camera; only fit the region otherwise.
   setRegion(selectedRegion, { fit: !permalink.center });
@@ -176,7 +176,7 @@ export async function boot(): Promise<void> {
   });
   onStatus((state: string, detail?: any) => updateStatus(state, detail));
 
-  setLoading('ACQUIRING LIVE FEEDS…');
+  setLoading('Connecting to live feeds…');
   startMbta(routeInfo, ui.formatVehicleStatus);
   startAmtrak((counts: Record<string, number>) => updateCounts(counts, 'amtrak'));
   regionalControllers.push(

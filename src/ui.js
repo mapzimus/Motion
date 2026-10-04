@@ -309,10 +309,10 @@ export function initPanel(routeInfo, visibleChangeHandler, regionChangeHandler, 
 function renderRegionCopy(key) {
   const region = regionInfo(key);
   const name = region?.name ?? regionName(key);
-  el('region-eyebrow').textContent = `${name.toUpperCase()} · REAL-TIME TELEMETRY`;
+  el('region-eyebrow').textContent = `Live map · ${name}`;
   const definition = region?.definition ? `${region.definition}. ` : '';
   el('region-tagline').textContent =
-    `${name} selected. ${definition}Live points outside this boundary are hidden.`;
+    `${definition}Live points outside this boundary are hidden.`;
   renderRegionAvailability(key);
 }
 
@@ -496,22 +496,22 @@ function renderStatus() {
   switch (status.state) {
     case 'live': {
       const total = totalCount();
-      const hint = total === 0 ? ' (overnight shutdown?)' : '';
-      text.textContent = `LIVE · ${total} vehicle${total === 1 ? '' : 's'}${hint} · ${age}s ago`;
+      const hint = total === 0 ? ' (service may be closed overnight)' : '';
+      text.textContent = `Live · ${total.toLocaleString()} vehicle${total === 1 ? '' : 's'}${hint} · updated ${age} s ago`;
       break;
     }
     case 'paused':
-      text.textContent = 'PAUSED · tab in background';
+      text.textContent = 'Paused · tab in background';
       break;
     case 'error': {
       const wait = status.retryAtMs
         ? Math.max(0, Math.ceil((status.retryAtMs - Date.now()) / 1000))
         : 0;
-      text.textContent = `OFFLINE · retrying in ${wait}s`;
+      text.textContent = `Offline · retrying in ${wait} s`;
       break;
     }
     default:
-      text.textContent = 'CONNECTING…';
+      text.textContent = 'Connecting…';
   }
 }
 
@@ -545,7 +545,7 @@ export function renderAlerts(alerts) {
   const list = el('alerts-list');
   list.innerHTML = '';
   if (!alerts.length) {
-    list.innerHTML = '<li class="alert-empty">No active alerts — smooth sailing.</li>';
+    list.innerHTML = '<li class="alert-empty">No active alerts.</li>';
     return;
   }
   for (const a of alerts) {

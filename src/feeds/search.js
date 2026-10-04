@@ -272,7 +272,7 @@ function highlightRoute(entry) {
 
 function fitPadding() {
   return window.innerWidth > 760
-    ? { top: 70, right: 70, bottom: 70, left: 420 }
+    ? { top: 70, right: 70, bottom: 70, left: 410 }
     : { top: 60, right: 40, bottom: 60, left: 40 };
 }
 
