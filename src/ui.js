@@ -1,7 +1,7 @@
 // Panel UI: layer toggles, alert feed, connection status, loading states.
 
 import { CONFIG } from './feeds/config.js';
-import { focusAlert, focusGroup } from './map/map.js';
+import { focusAlert, focusGroup, getBasemap, setBasemap } from './map/map.js';
 import { REGIONS, REGION_GROUPS, busDefaultOn, hasSubway, regionInfo, regionName } from './feeds/regions.js';
 import { SCENES, VEHICLE_PRESETS, resolvePreset } from './model/presets.js';
 
@@ -205,6 +205,8 @@ export function initPanel(routeInfo, visibleChangeHandler, regionChangeHandler, 
     }
   });
 
+  renderBasemapOptions();
+
   for (const input of document.querySelectorAll('#data-status-filters input')) {
     statusState.set(input.value, input.checked);
     input.addEventListener('change', () => {
@@ -307,13 +309,40 @@ export function initPanel(routeInfo, visibleChangeHandler, regionChangeHandler, 
   emitVisible();
 }
 
+function renderBasemapOptions() {
+  const container = el('basemap-options');
+  if (!container) return;
+  container.innerHTML = '';
+  const buttons = CONFIG.BASEMAPS.map((basemap) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.dataset.basemap = basemap.key;
+    button.textContent = basemap.label;
+    container.appendChild(button);
+    return button;
+  });
+  const sync = () => {
+    const active = getBasemap();
+    for (const button of buttons) {
+      button.setAttribute('aria-pressed', String(button.dataset.basemap === active));
+    }
+  };
+  for (const button of buttons) {
+    button.addEventListener('click', () => {
+      setBasemap(button.dataset.basemap);
+      sync();
+    });
+  }
+  sync();
+}
+
 function renderRegionCopy(key) {
   const region = regionInfo(key);
   const name = region?.name ?? regionName(key);
-  el('region-eyebrow').textContent = `${name.toUpperCase()} · REAL-TIME TELEMETRY`;
+  el('region-eyebrow').textContent = `Live map · ${name}`;
   const definition = region?.definition ? `${region.definition}. ` : '';
   el('region-tagline').textContent =
-    `${name} selected. ${definition}Live points outside this boundary are hidden.`;
+    `${definition}Live points outside this boundary are hidden.`;
   renderRegionAvailability(key);
 }
 
@@ -497,22 +526,22 @@ function renderStatus() {
   switch (status.state) {
     case 'live': {
       const total = totalCount();
-      const hint = total === 0 ? ' (overnight shutdown?)' : '';
-      text.textContent = `LIVE · ${total} vehicle${total === 1 ? '' : 's'}${hint} · ${age}s ago`;
+      const hint = total === 0 ? ' (service may be closed overnight)' : '';
+      text.textContent = `Live · ${total.toLocaleString()} vehicle${total === 1 ? '' : 's'}${hint} · updated ${age} s ago`;
       break;
     }
     case 'paused':
-      text.textContent = 'PAUSED · tab in background';
+      text.textContent = 'Paused · tab in background';
       break;
     case 'error': {
       const wait = status.retryAtMs
         ? Math.max(0, Math.ceil((status.retryAtMs - Date.now()) / 1000))
         : 0;
-      text.textContent = `OFFLINE · retrying in ${wait}s`;
+      text.textContent = `Offline · retrying in ${wait} s`;
       break;
     }
     default:
-      text.textContent = 'CONNECTING…';
+      text.textContent = 'Connecting…';
   }
 }
 
@@ -546,7 +575,7 @@ export function renderAlerts(alerts) {
   const list = el('alerts-list');
   list.innerHTML = '';
   if (!alerts.length) {
-    list.innerHTML = '<li class="alert-empty">No active alerts — smooth sailing.</li>';
+    list.innerHTML = '<li class="alert-empty">No active alerts.</li>';
     return;
   }
   for (const a of alerts) {

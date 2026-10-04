@@ -11,7 +11,7 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 
   <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet"
         integrity="sha384-MinO0mNliZ3vwppuPOUnGa+iq619pfMhLVUXfC4LHwSCvF9H+6P/KO4Q7qBOYV5V" crossorigin="anonymous">
@@ -26,9 +26,9 @@
 
   <aside id="panel">
     <header class="panel-head">
-      <div class="eyebrow" id="region-eyebrow">NEW ENGLAND · REAL-TIME TELEMETRY</div>
-      <h1>New England<br><span class="grad">in Motion</span></h1>
-      <p class="tagline" id="region-tagline">Live and scheduled transportation across New England. Pick a metro area, a region, a state, or all six states.</p>
+      <p class="eyebrow" id="region-eyebrow">Live map · New England</p>
+      <h1>New England in Motion</h1>
+      <p class="tagline" id="region-tagline">Transit, ferries, aircraft and road conditions across New England, live. Choose a metro area, region or state.</p>
     </header>
 
     <div class="panel-scroll">
@@ -56,12 +56,16 @@
       <section class="panel-section region-section">
         <label for="region-select"><h2>Geography</h2></label>
         <select id="region-select" class="region-select" aria-label="Choose map geography"></select>
-        <p class="region-note">Live points are clipped to official Census boundaries.</p>
-        <div id="map-stats" class="map-stats" aria-label="Map coverage statistics" aria-live="polite">
-          <div class="stat-card"><strong id="stat-live">0</strong><span>live vehicles</span></div>
-          <div class="stat-card"><strong id="stat-routes">0</strong><span>scheduled routes</span></div>
-          <div class="stat-card"><strong id="stat-stations">0</strong><span>scheduled stops</span></div>
-          <div class="stat-card"><strong id="stat-reference">0</strong><span>reference places</span></div>
+        <p class="region-note">Live points are clipped to Census boundaries.</p>
+        <p id="map-stats" class="stats-line" aria-label="Map coverage statistics" aria-live="polite">
+          <span><strong id="stat-live">0</strong> live</span>
+          <span><strong id="stat-routes">0</strong> routes</span>
+          <span><strong id="stat-stations">0</strong> stops</span>
+          <span><strong id="stat-reference">0</strong> places</span>
+        </p>
+        <div class="basemap-row">
+          <span class="filter-caption">Basemap</span>
+          <div id="basemap-options" class="preset-chips" role="group" aria-label="Basemap"></div>
         </div>
       </section>
 
@@ -85,7 +89,7 @@
           </div>
         </div>
         <div class="data-status-wrap">
-          <div class="filter-caption">Data truth</div>
+          <div class="filter-caption">Include</div>
           <div id="data-status-filters" class="data-status-filters" aria-label="Filter by data status">
             <label><input type="checkbox" value="live" checked><span class="live">Live</span></label>
             <label><input type="checkbox" value="estimated" checked><span class="estimated">Estimated</span></label>
@@ -93,7 +97,7 @@
             <label><input type="checkbox" value="reference" checked><span class="reference">Reference</span></label>
           </div>
         </div>
-        <p class="layer-note">Stop labels scale with zoom: rail first, ferry landings at harbor level, and tiny bus-stop names at street level.</p>
+        <p class="layer-note">Stop names appear as you zoom in: rail first, then ferry landings, then bus stops.</p>
         <div class="master-row line-row">
           <span class="bullet bullet-t">T</span>
           <span class="line-name">Subway</span>
@@ -117,7 +121,7 @@
     <footer class="panel-foot">
       <div class="status-line">
         <span class="live-dot" id="status-dot"></span>
-        <span id="status-text">CONNECTING…</span>
+        <span id="status-text">Connecting…</span>
       </div>
       <div class="credits">
         Data MBTA · agency GTFS · 511 · WZDx · NWS · FAA · ADS-B · AIS · GBFS<br>
@@ -151,11 +155,11 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <button id="panel-toggle" aria-label="Toggle control panel" aria-controls="panel" aria-expanded="false">☰</button>
+  <button id="panel-toggle" aria-label="Toggle control panel" aria-controls="panel" aria-expanded="false"><span class="when-closed">Layers</span><span class="when-open">Close</span></button>
 
   <div id="overlay">
-    <div class="radar"></div>
-    <div id="overlay-text">CONTACTING MBTA…</div>
+    <div class="loader-bar" aria-hidden="true"></div>
+    <div id="overlay-text">Loading New England…</div>
   </div>
 
   <script type="module" src="src/main.tsx"></script>
