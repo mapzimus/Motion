@@ -29,9 +29,9 @@ const subwayRegions = new Set(
 const hasSubway = (key) => subwayRegions.has(key);
 
 describe('layer presets and scenes', () => {
-  it('lists 31 unique layer groups', () => {
-    expect(GROUP_KEYS).toHaveLength(31);
-    expect(new Set(GROUP_KEYS).size).toBe(31);
+  it('lists 32 unique layer groups', () => {
+    expect(GROUP_KEYS).toHaveLength(32);
+    expect(new Set(GROUP_KEYS).size).toBe(32);
   });
 
   it('matches the groups js/ui.js builds, in panel order', () => {

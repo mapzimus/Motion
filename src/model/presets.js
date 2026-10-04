@@ -12,7 +12,7 @@ export const SUBWAY_GROUPS = ['red', 'orange', 'green', 'blue', 'silver', 'matta
 // Every layer group key, in panel order. Tests check presets against this.
 export const GROUP_KEYS = [
   ...SUBWAY_GROUPS,
-  'commuter', 'bus', 'amtrak', 'local',
+  'commuter', 'bus', 'amtrak', 'local', 'taxi',
   'ferry', 'plane', 'air-service', 'airport', 'vessel',
   'bike', 'walking', 'cycling',
   'traffic', 'roadwork', 'incident', 'camera',

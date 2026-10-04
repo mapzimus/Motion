@@ -10,6 +10,9 @@
   Collective, Mass General Brigham, Quinnipiac, University of Hartford,
   University of New Haven, Providence College, Bangor Community Connector, and
   Lewiston-Auburn citylink.
+- Seven TransLoc feeds: Nantucket WAVE, Boston University, Boston College,
+  UMass Boston, URI, Eastern Connecticut State, and UConn Health. Stamford's
+  Harbor Point Trolley is live too.
 - The MBTA-core region now shows the campus and hospital shuttles that run
   inside it.
 - The Swiftly key is sent only to agencies that approved sharing (Casco Bay
@@ -20,8 +23,16 @@
 - Eight more schedule feeds: EZRide, Longwood Collective, Mass General Brigham,
   Quinnipiac, University of Hartford, University of New Haven, Providence
   College, and Roger Williams University.
+- Harbor Point Trolley and UConn Health shuttles added. Nantucket WAVE now
+  reads its own TransLoc export.
 - Greater Portland METRO reads the agency's own GTFS; the catalog mirror had
   expired on 2026-10-03.
+
+### Taxi and cab services
+- New reference layer: 106 licensed cab companies, dispatch associations, and
+  official taxi stands confirmed from licensing lists, airport pages, and
+  operator sites, plus 30 OpenStreetMap taxi stands. Off by default, under
+  Ground & rail.
 
 ### Build
 - The Python builders write to `public/data/` again; they still pointed at the
