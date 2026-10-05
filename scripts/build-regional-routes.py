@@ -59,6 +59,7 @@ FERRY_UPDATE_COMMAND = "py -3 -X utf8 scripts/build-regional-routes.py --update-
 FERRY_TERMINAL_MATCH_KM = 1.5
 ROAD_GEOMETRY_NOTE = "Approximate road-following path from published stops; the carrier may use a different roadway."
 RAIL_GEOMETRY_NOTE = "Approximate rail-following controls replace a sparse provider-shape gap."
+STOP_SEQUENCE_NOTE = "This feed publishes no track shapes; the line connects scheduled stops in order."
 RAIL_SEGMENT_CONTROLS = {
     "metro-north:6": {
         ((-73.18708, 41.17868), (-73.54285, 41.04661)): [
@@ -829,6 +830,14 @@ def effective_route_type(feed, route):
     return int(route.get("route_type") or -1)
 
 
+def fallback_key(feed, trip):
+    """Group stop-sequence fallback trips by route and direction (or per trip)."""
+    key = (trip.get("route_id"), trip.get("direction_id") or "")
+    if feed.get("all_stop_patterns"):
+        key = (*key, trip.get("trip_id"))
+    return key
+
+
 def coordinates_from_stops(archive, selected_trip_ids):
     if not selected_trip_ids:
         return {}
@@ -1309,10 +1318,7 @@ def process_feed(
         elif not feed.get("shape_only"):
             # all_stop_patterns keeps every trip (deduplicated by path below) so
             # short-turn and extension patterns are not dropped.
-            key = (route_id, trip.get("direction_id") or "")
-            if feed.get("all_stop_patterns"):
-                key = (*key, trip.get("trip_id"))
-            fallback_trip_by_route_direction.setdefault(key, trip.get("trip_id"))
+            fallback_trip_by_route_direction.setdefault(fallback_key(feed, trip), trip.get("trip_id"))
 
     shape_points = defaultdict(list)
     for row in read_rows(archive, "shapes.txt"):
@@ -1327,10 +1333,24 @@ def process_feed(
             continue
         shape_points[shape_id].append((sequence, (lon, lat)))
 
+    # Some Passio feeds ship an empty shapes.txt while every trip still carries
+    # a shape_id. A shape_id with no points is treated like a blank one so the
+    # route falls back to its stop sequence instead of vanishing.
+    if not feed.get("shape_only"):
+        dangling = 0
+        for trip in trip_rows:
+            shape_id = (trip.get("shape_id") or "").strip()
+            if trip.get("route_id") not in selected_routes or not shape_id or shape_id in shape_points:
+                continue
+            fallback_trip_by_route_direction.setdefault(fallback_key(feed, trip), trip.get("trip_id"))
+            dangling += 1
+        if dangling:
+            print(f"     {dangling} trips reference shape ids missing from shapes.txt; using stop sequences", flush=True)
+
     geometries = []
     for shape_id, values in shape_points.items():
         if shape_id in shape_to_route:
-            geometries.append((shape_to_route[shape_id], [point for _, point in sorted(values)]))
+            geometries.append((shape_to_route[shape_id], [point for _, point in sorted(values)], "shape"))
     donor_shapes = [
         [point for _, point in sorted(shape_points[shape_id])]
         for shape_id in sorted(donor_shape_ids)
@@ -1368,14 +1388,15 @@ def process_feed(
             points, borrowed = snap_stops_to_donor_shapes(points, donor_shapes)
             if borrowed:
                 borrowed_shape_routes.add(route_for_fallback[trip_id])
-        geometries.append((route_for_fallback[trip_id], points))
+        geometries.append((route_for_fallback[trip_id], points, "stops"))
 
     seen = set()
     paths_by_route = defaultdict(list)
     route_regions = defaultdict(set)
+    path_origins = defaultdict(set)
     approximate_routes = set()
     approximate_rail_routes = set()
-    for route_id, source_points in geometries:
+    for route_id, source_points, origin in geometries:
         for points in contiguous_valid_runs(source_points):
             source_path_regions = {
                 region for region, geometry in region_geometries.items()
@@ -1418,6 +1439,7 @@ def process_feed(
                     if any(point_in_geometry(point, geometry) for point in routed_points)
                 }
                 route_regions[route_id].update(source_path_regions | path_regions)
+                path_origins[route_id].add(origin)
                 signature = (route_id, tuple(routed_points))
                 if signature in seen:
                     continue
@@ -1461,6 +1483,12 @@ def process_feed(
             properties["geometryProvider"] = feed.get("borrowed_shape_provider") or "Same-feed corridor shapes"
             properties["geometryNote"] = BORROWED_SHAPE_NOTE
             properties["scheduleNote"] += f" · {BORROWED_SHAPE_NOTE}"
+        elif path_origins.get(route_id) == {"stops"}:
+            # Every surviving path was built from the stop sequence (no shapes,
+            # no road repair, no borrowed track), so label the straight chords.
+            properties["geometryAccuracy"] = "approximate"
+            properties["geometryProvider"] = "Scheduled stop sequence"
+            properties["geometryNote"] = STOP_SEQUENCE_NOTE
         if feed.get("expired_note"):
             properties["scheduleNote"] += f" · {feed['expired_note']}"
         route_url = route.get("route_url") if feed.get("use_route_urls") else None

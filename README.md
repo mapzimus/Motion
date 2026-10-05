@@ -3,8 +3,8 @@
 One live map of transportation moving across Connecticut, Maine,
 Massachusetts, New Hampshire, Rhode Island, and Vermont. Start with Greater
 Boston (the 128 cities and towns inside I-495), narrow to the 17-municipality
-MBTA core, pick one of 23 named regions such as Cape Cod & Islands, the
-Pioneer Valley or Midcoast Maine, switch to a single state, or zoom out to all
+MBTA core, pick one of 28 named regions such as Cape Cod & Islands, the
+Pioneer Valley, the Northeast Kingdom or Midcoast Maine, switch to a single state, or zoom out to all
 New England.
 
 The map combines live and scheduled public transportation, aircraft, boats,
@@ -23,8 +23,8 @@ Every feature is labeled **live**, **estimated**, **scheduled**, or
 | MBTA subway, Silver Line, buses, commuter rail, ferries | [MBTA V3 API](https://www.mbta.com/developers/v3-api) | 10 s |
 | Regional buses | Agency GTFS-realtime feeds, normalized by the gateway | 20 s |
 | Metro-North New Haven branches | [MTA GTFS-Realtime](https://www.mta.info/developers) train GPS positions, trip predictions, and alerts; a train with no fresh GPS fix is estimated between stations and labeled so | 30 s |
-| Scheduled/reference bus, rail, ferry, boat, and air-service routes and stops | 103 GTFS sources plus 80 official-service corridors, including Amtrak, Metro-North, Shore Line East, regional coaches, university shuttles, 93 ferry routes, municipal water shuttles, small-island lifelines, island air taxis, and 38,000+ scheduled stops | built snapshot |
-| Small-town, county, flex, volunteer, microtransit, and on-demand water-service catalog | 50 official-directory service markers across all six states | built snapshot |
+| Scheduled/reference bus, rail, ferry, boat, and air-service routes and stops | 104 GTFS sources plus 81 official-service corridors, including Amtrak, Metro-North, Shore Line East, regional coaches, university shuttles, 93 ferry routes, municipal water shuttles, small-island lifelines, island air taxis, and 38,000+ scheduled stops | built snapshot |
+| Small-town, county, flex, volunteer, microtransit, and on-demand water-service catalog | 51 official-directory service markers across all six states | built snapshot |
 | Taxi and cab services | 106 licensed cab companies, dispatch associations, and official airport and station taxi stands from state and municipal licensing lists, airport ground-transportation pages, and operator sites, plus 30 [OpenStreetMap](https://www.openstreetmap.org/copyright) taxi stands. A directory, not live cab positions | built snapshot |
 | Amtrak | [Amtrak official static GTFS](https://content.amtrak.com/content/gtfs/GTFS.zip) for scheduled routes/stations; [Amtraker](https://amtraker.com) community API for live trains | built snapshot + 90 s |
 | Aircraft and air services | [ADSB.lol](https://api.adsb.lol/) with [adsb.fi](https://adsb.fi/) failover; 18 optional official Cape Air/Tradewind schedules and Penobscot Island Air on-demand corridors | 45 s + built snapshot |
@@ -61,11 +61,11 @@ private, repositioning, and irregular flights may not have an itinerary.
 
 The checked-in route snapshot contains more than 1,200 bus, commuter-rail,
 Amtrak, ferry, passenger-boat, and air-service route features plus more than
-37,000 scheduled bus stops, ferry landings, T stops, and rail stations,
-assembled from 93 GTFS sources and 80 official-service corridors. Scheduled
+38,000 scheduled bus stops, ferry landings, T stops, and rail stations,
+assembled from 104 GTFS sources and 81 official-service corridors. Scheduled
 routes remain visible when an operator publishes no live positions. Every view
-except the MBTA core, Greater Boston, statewide Massachusetts and All New
-England starts with the scheduled bus layer on,
+except the MBTA core, Greater Boston, the North Shore, statewide Massachusetts
+and All New England starts with the scheduled bus layer on,
 and the sidebar reports scheduled route counts separately from live vehicles,
 so a missing realtime credential no longer makes service look absent.
 Rail and T stops are visible first, named ferry landings appear at harbor
@@ -76,30 +76,39 @@ accessibility information.
 ### Regions
 
 Every region lives in one file, `scripts/regions-config.json`;
-`scripts/build-regions.py` turns it into `data/regions.geojson`, and the
+`scripts/build-regions.py` turns it into `public/data/regions.geojson`, and the
 picker, the permalink, the route tags and the default layers all read from
 there. The picker groups regions by state:
 
 - **Boston area:** *Greater Boston (inside I-495)*, the default for first-time
   visitors: the 128 Massachusetts cities and towns with at least half their
   area inside the I-495 ring (closed along the coast). The builder recomputes
-  the ring from `data/infrastructure.geojson` and fails if the town list
+  the ring from `public/data/infrastructure.geojson` and fails if the town list
   drifts. *MBTA core* (key `boston`, formerly labelled Greater Boston):
   Boston, Cambridge, Somerville, Brookline, Newton, Quincy, Braintree,
   Chelsea, Everett, Revere, Malden, Medford, Arlington, Belmont, Watertown,
   Milton, and Winthrop.
 - **Massachusetts:** Merrimack Valley (LRTA and MeVa member communities,
-  including Lowell and Lawrence), Worcester County, Pioneer Valley (Hampden,
-  Hampshire, Franklin), the Berkshires, South Coast (Bristol County), Cape Cod
-  & Islands.
+  including Lowell and Lawrence, plus the Nashoba Valley towns of Ayer,
+  Shirley and Ashby), North Shore (Lynn to Newburyport), Worcester County,
+  Pioneer Valley (Hampden, Hampshire, Franklin), the Berkshires, South Coast
+  (Bristol County plus GATRA's Norfolk and Plymouth County communities:
+  Bellingham, Plainville, Lakeville, Marion, Mattapoisett, Rochester and
+  Wareham), Cape Cod & Islands. Every Massachusetts municipality is now in at
+  least one named region.
 - **Rhode Island:** Providence metro (Providence, Kent, Bristol), Newport &
   South County (Newport, Washington, including Block Island).
 - **Connecticut** (2022 Census planning regions): Hartford (Capitol), New
   Haven & Shoreline, Fairfield County (Western CT and Greater Bridgeport),
-  Eastern Connecticut.
+  Eastern Connecticut, Waterbury & Northwest Hills (Naugatuck Valley and
+  Northwest Hills). All nine planning regions are covered.
 - **New Hampshire:** NH Seacoast, Manchester, Nashua & Concord, Lakes & White
-  Mountains.
-- **Vermont:** Burlington & Champlain Valley, Southern Vermont.
+  Mountains, Monadnock Region (Cheshire County, Keene). With the Upper Valley
+  below, all ten counties are covered.
+- **Vermont:** Burlington & Champlain Valley, Southern Vermont, Montpelier &
+  Central Vermont (Washington, Lamoille), Northeast Kingdom (Caledonia,
+  Orleans, Essex). With the Upper Valley below, all fourteen counties are
+  covered.
 - **Maine:** Portland & Southern Maine, Midcoast Maine, Downeast & Acadia,
   Central & Western Maine, Bangor & the North.
 - **New England:** All New England and the Upper Valley (Windsor and Orange,
@@ -117,7 +126,7 @@ Above the layer list, **Default**, **Routes** and **Clear** work as before.
 The **Show** row switches on one kind of vehicle (Rail, Buses, Water, Air,
 Roads, Bikes, or All live). The **Scenes** row sets a region and its layers in
 one tap: Boston commute, Harbor watch, Islands by sea & air, Road trip, and
-Maine islands. Presets live in `js/presets.js` as plain data.
+Maine islands. Presets live in `src/model/presets.js` as plain data.
 Metro-North's New Haven, New Canaan, Danbury, and Waterbury lines are included
 in Connecticut; connected routes are allowed to continue outside the selected
 boundary so riders can see the full trip into New York City.
@@ -170,7 +179,19 @@ drawn as ordinary buses. Nantucket WAVE is read from its own TransLoc GTFS
 export rather than a catalog mirror, so its route ids match its live feed. Tri-County
 Transit's North Country GTFS is reachable but its calendar ended on
 2026-06-30, so its two flex routes stay directory markers until it is
-re-published.
+re-published. In Aroostook County, ARTS's Saturday Star City Connector loop in
+Presque Isle (2 route patterns) is drawn from the agency's Passio GTFS; the
+rest of ARTS stays a demand-response marker. Cyr Bus Line's daily
+Bangor–Caribou coach publishes no GTFS, so it follows the stop order on the
+carrier's official schedule as a road-routed corridor, like Dartmouth Coach.
+Winnipesaukee Transit System (Laconia, Gilford, Tilton, Franklin) publishes no
+GTFS either and is listed as a directory marker. In Aroostook County, ARTS's Saturday Star City Connector loop in
+Presque Isle (2 route patterns) is drawn from the agency's Passio GTFS; the
+rest of ARTS stays a demand-response marker. Cyr Bus Line's daily
+Bangor–Caribou coach publishes no GTFS, so it follows the stop order on the
+carrier's official schedule as a road-routed corridor, like Dartmouth Coach.
+Winnipesaukee Transit System (Laconia, Gilford, Tilton, Franklin) publishes no
+GTFS either and is listed as a directory marker.
 
 Vermont includes regional routes from every discoverable public GTFS source in
 the current audit, including Green Mountain Transit, Vermont Translines, and
@@ -261,8 +282,9 @@ medical-transport services are out of scope. Rebuild just this group with
 `py -3 -X utf8 scripts\build-reference-places.py --taxi-only`.
 
 The **Local & on-demand services** layer fills a different gap. It currently
-catalogs 50 services that do not have reliable route geometry or public live
-positions: Maine county transportation, New Hampshire community providers, Massachusetts microtransit, Connecticut's nine CTDOT
+catalogs 51 services that do not have reliable route geometry or public live
+positions: Maine county transportation, New Hampshire community providers
+(including the Winnipesaukee Transit System), Massachusetts microtransit, Connecticut's nine CTDOT
 microtransit programs, RIPTA Flex zones, Vermont's regional demand-response
 providers, and on-demand Boston Harbor and Maine coastal water taxis. These
 are service-area reference points with links
@@ -294,9 +316,10 @@ The gateway currently knows these live vehicle-position feeds:
 - Rhode Island: RIPTA, Brown University and Providence College shuttles
   (Passio), and University of Rhode Island shuttles (TransLoc)
 - Maine: Greater Portland METRO (including the former South Portland Bus
-  Service routes), Island Explorer, Bangor Community Connector, and
-  Lewiston-Auburn citylink (the last two via Passio); Casco Bay Lines ferries
-  through Swiftly, drawn in the ferry layer
+  Service routes), Island Explorer, Bangor Community Connector,
+  Lewiston-Auburn citylink, and ARTS's Star City Connector (the last three
+  via Passio); Casco Bay Lines ferries through Swiftly, drawn in the ferry
+  layer
 - New Hampshire/Vermont: COAST (Passio) and Advance Transit, plus Nashua
   Transit System and Vermont's GMT, GMCN, Marble Valley, MOOver!, RCT,
   and Tri-Valley feeds
@@ -331,7 +354,12 @@ run only at build time, remain labeled approximate in the popup, and never make
 network requests from a visitor's browser. Amtrak's build uses only official
 nonempty rail shapes and never substitutes straight stop-to-stop lines. A
 geometry check prevents a future feed update from restoring a map-spanning
-straight bus or Amtrak line.
+straight bus or Amtrak line. A feed that publishes no track shapes at all
+(Sullivan County, Waldo DASH, Mashantucket, ARTS) is drawn stop-to-stop and
+its popup says so: those ribbons carry `geometryAccuracy: "approximate"` with
+a "Scheduled stop sequence" provider. A feed whose trips reference shape ids
+that are missing from `shapes.txt` falls back to the same stop sequences
+instead of disappearing.
 
 Rebuild the static route snapshot after agencies update their schedules:
 
@@ -394,9 +422,14 @@ py -3 -X utf8 scripts\check-feed-freshness.py
 
 It exits non-zero and names the feed when a schedule ends within seven days.
 A feed with no current replacement can carry `"freshness_exempt": "<reason>"`
-in `scripts/regional-feeds.json` (currently Peter Pan's 2024 GTFS and VTA's
-seasonal summer feed). Feeds whose server rejects scripted downloads can set a
-per-feed `"user_agent"`.
+in `scripts/regional-feeds.json` (currently Peter Pan's 2024 GTFS, VTA's
+summer feed, and the seasonal Island Explorer, Boston Harbor Islands, Block
+Island Ferry, Vineyard Fast Ferry, Freedom Cruise Line, and Thompson Island
+feeds whose published seasons end in mid-October 2026; each exemption names
+the date and should be removed when the next season's feed appears). A feed
+can also carry `"expired_note"`, appended to every route popup, when its last
+published schedule is known to be stale (VTA's summer 2026 feed). Feeds whose
+server rejects scripted downloads can set a per-feed `"user_agent"`.
 
 Reviewed interstate controls keep New York-bound coaches off bus-restricted
 Connecticut and New York parkways. Use `--refresh-road-cache` when those
@@ -425,7 +458,7 @@ adjacent U.S. state tag, so state filters keep the correct crossings in view.
 
 The **Movement infrastructure** section also carries four reference-place
 layers built by `scripts/build-reference-places.py` into
-`data/reference-places.geojson`. Heritage and scenic railroads are a
+`public/data/reference-places.geojson`. Heritage and scenic railroads are a
 hand-curated list of operators confirmed running in 2026 (Conway Scenic, the
 Cog, Hobo/Winnipesaukee, Essex, Naugatuck, Cape Cod Central, Berkshire Scenic,
 Vermont Rail System's Champlain Valley Dinner Train, Maine Narrow Gauge,
@@ -578,8 +611,8 @@ How the vessel feed works:
   last viewer leaves. Deploys drop the upstream; the saved snapshot covers the
   gap while it reconnects. The Durable Object migration applies on the first
   `wrangler deploy` after this change.
-- **Coastal filter.** Vessels are filtered against `data/regions-marine.geojson`
-  (each region grown about 0.2 degrees, or 0.06 degrees for the MBTA core, and
+- **Coastal filter.** Vessels are filtered against `public/data/regions-marine.geojson`
+  (states and All New England grown 0.2 degrees, sub-regions 0.1 degrees, the MBTA core 0.06 degrees, and
   clipped to the AIS box) so ships just offshore are not cut off. Rebuild it
   with `py -3 scripts/build-regions.py --marine-only`.
 - **Lakes gap.** Inland lakes such as Champlain and Winnipesaukee rarely show
@@ -642,12 +675,14 @@ npm test
 npm run deploy:dry-run
 ```
 
-`npm run check` includes an offline feed-freshness guard: every feed in
-`scripts/regional-feeds.json` must appear in `scripts/feed-freshness.json`, and
-every non-exempt feed must publish service at least seven days past that file's
-`checkedAt` date. When it fails, run `scripts\check-feed-freshness.py`, replace
-the expired feed URL (or add a documented `freshness_exempt`), and commit the
-refreshed `feed-freshness.json`.
+CI (`.github/workflows/ci.yml`) first runs `scripts/check-feed-freshness.py`,
+which downloads every schedule feed and fails when a non-exempt feed stops
+publishing service within seven days. `npm run check` then applies the same
+rule offline: every feed in `scripts/regional-feeds.json` must appear in
+`scripts/feed-freshness.json`, and every non-exempt feed must publish service
+at least seven days past that file's `checkedAt` date. When either fails, run
+`scripts\check-feed-freshness.py`, replace the expired feed URL (or add a
+documented `freshness_exempt`), and commit the refreshed `feed-freshness.json`.
 
 ## Remaining data gaps
 
@@ -683,12 +718,16 @@ refreshed `feed-freshness.json`.
   because none publishes GTFS and each needs a hand-built corridor: C&J's
   full network (the map has only a Logan–Seabrook–Portsmouth stub; Dover,
   Boston South Station, and New York are missing), Go Buses (Alewife and
-  Newton to New York), Cyr Bus Line (Bangor–Caribou), Downeast Transportation's
+  Newton to New York), Downeast Transportation's
   year-round Hancock County routes, York County Community Action's Sanford
   routes, the 128 Business Council shuttles, Seastreak's New York–Martha's
   Vineyard–Nantucket ferry, the Bustins Island ferry, the AMC and Franconia
   Notch hiker shuttles, several Cape Air city pairs, and New England Airlines'
   Westerly–Block Island flights.
+- Cyr Bus Line (Bangor–Caribou) and the Winnipesaukee Transit System publish
+  no GTFS. Cyr is drawn as an official-schedule corridor and WTS is a
+  directory marker; neither has live positions. ARTS's Passio GTFS-realtime
+  answered on 2026-10-04 with no vehicles (its loop runs Saturdays only).
 - Peter Pan's public GTFS has not been re-published since June 2024, so its
   corridors are shown as scheduled service relationships rather than a
   current timetable.
@@ -698,8 +737,15 @@ refreshed `feed-freshness.json`.
   positions. AIS supplies actual vessel movement when a ship is broadcasting,
   and passenger-ship metadata is used to classify ferries when available.
 - Work-zone geometry is currently strongest in Massachusetts, Maine, New
-  Hampshire, and Vermont. Connecticut road disruptions still appear through
-  the CTroads incident feed rather than a uniform WZDx layer.
+  Hampshire, and Vermont. The USDOT WZDx feed registry lists no Connecticut
+  or Rhode Island feed (checked 2026-10-04), so Connecticut road disruptions
+  still appear through the CTroads incident feed rather than a uniform WZDx
+  layer.
+- Rhode Island has no road-condition coverage at all: RIDOT shares incident
+  and closure data only with Waze, publishes no public camera or incident
+  API, and its ArcGIS hosts were unreachable when checked. RIDOT also
+  publishes no park-and-ride dataset, so the park-and-ride layer is empty
+  there.
 - Rhode Island publishes no coordinate-bearing incident or road-event feed:
   RIDOT's traveler page (dot.ri.gov/travel) is text only, so Rhode Island has
   no incident markers.
