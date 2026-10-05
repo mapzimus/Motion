@@ -303,6 +303,7 @@ const requiredRoadRoutedRoutes = [
   'boston-express:BX93S',
   'dartmouth-coach:boston-logan',
   'dartmouth-coach:nyc',
+  'cyr-bus:bangor-caribou',
 ];
 const approximateRouteIds = new Set(approximate.map((feature) => feature.properties.route));
 const missingRepairs = requiredRoadRoutedRoutes.filter((route) => !approximateRouteIds.has(route));

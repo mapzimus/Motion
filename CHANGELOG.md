@@ -65,6 +65,31 @@
 - The Python builders write to `public/data/` again; they still pointed at the
   old `data/` folder after the Vite restructure and could not run.
 
+### Regions (coverage audit, 2026-10-04)
+- Four new named regions: Waterbury & Northwest Hills (CT), Monadnock Region
+  (NH), Montpelier & Central Vermont, and Northeast Kingdom (VT). Every county
+  and Connecticut planning region is now inside a named region.
+- Merrimack Valley gains Ayer, Shirley, and Ashby; South Coast becomes a
+  27-town list that adds GATRA's Bellingham, Plainville, Lakeville, Marion,
+  Mattapoisett, Rochester, and Wareham. No Massachusetts municipality is left
+  to the statewide view only.
+- `regions-marine.geojson` rebuilt; it had no North Shore outline.
+
+### Coverage audit follow-ups
+- ARTS's Saturday Star City Connector loop in Presque Isle is drawn from the
+  agency's Passio GTFS, with its live feed wired; the rest of ARTS stays a
+  demand-response marker.
+- Cyr Bus Line's Bangor–Caribou coach drawn as a road-routed official-schedule
+  corridor; Winnipesaukee Transit System added as a directory marker.
+- Feeds with no track shapes (Sullivan County, Waldo DASH, Mashantucket, ARTS)
+  are labeled approximate with a "Scheduled stop sequence" provider instead of
+  passing as exact ribbons.
+- Trips whose shape ids are missing from `shapes.txt` fall back to their stop
+  sequence instead of vanishing (ARTS ships an empty `shapes.txt`).
+- CI runs `scripts/check-feed-freshness.py` before the offline guard.
+- Seasonal feeds ending 2026-10-12/13 and VTA's ended summer feed carry dated
+  `freshness_exempt` reasons; VTA popups note the stale schedule.
+
 ## 1.0.0 — 2026-09-27
 
 The first complete release of New England in Motion.

@@ -282,6 +282,13 @@ export const TRANSIT_FEEDS: TransitFeed[] = [
     url: 'https://passio3.com/bangor/passioTransit/gtfs/realtime/vehiclePositions',
   },
   {
+    // Passio; Saturday-only Star City Connector loop in Presque Isle (static feed id "arts").
+    id: 'arts',
+    agency: 'Aroostook Regional Transportation System',
+    states: ['me'],
+    url: 'https://passio3.com/arts/passioTransit/gtfs/realtime/vehiclePositions',
+  },
+  {
     // Passio system "avcog"; its GTFS route ids match the AVCOG-published static feed.
     id: 'citylink',
     agency: 'Lewiston-Auburn citylink',

@@ -57,6 +57,24 @@
       "type": "Feature",
       "geometry": {
         "type": "LineString",
+        "coordinates": [[-68.80828,44.81618],[-68.663,45.238],[-68.52363,45.60978],[-68.41624,45.87464],[-68.15946,46.1137],[-67.8405,46.126],[-67.86736,46.5126],[-68.01156,46.69096],[-68.01168,46.86063]]
+      },
+      "properties": {
+        "route": "cyr-bus:bangor-caribou",
+        "group": "bus",
+        "color": "#4f8fd6",
+        "agency": "Cyr Bus Line",
+        "name": "Bangor ↔ Caribou",
+        "kind": "regional-static",
+        "regions": ["me","bangor-north"],
+        "sourceUrl": "https://www.johntcyrandsons.com/",
+        "scheduleNote": "Official carrier schedule · one daily round trip · Bangor (Concord Coach terminal) · Howland · Medway · Sherman · Oakfield · Houlton · Mars Hill · Presque Isle · Caribou · no public live vehicle feed"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
         "coordinates": [[-71.458979,43.60753],[-71.458411,43.607628],[-71.457812,43.607838],[-71.454508,43.609365],[-71.436832,43.618163],[-71.416234,43.614084],[-71.404105,43.610882],[-71.401299,43.609559],[-71.381499,43.594709],[-71.370372,43.589794],[-71.362865,43.587548],[-71.343961,43.583482],[-71.332565,43.581662],[-71.319873,43.579983],[-71.265025,43.573885],[-71.252934,43.572456],[-71.243395,43.571192],[-71.239371,43.570712],[-71.232756,43.57036],[-71.229857,43.570475],[-71.223232,43.570963],[-71.21057,43.582469],[-71.209,43.583]]
       },
       "properties": {
