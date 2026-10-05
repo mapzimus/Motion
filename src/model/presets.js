@@ -43,7 +43,6 @@ export const SCENES = [
     label: 'Boston commute',
     region: 'greater-boston',
     groups: [...SUBWAY_GROUPS, 'commuter', 'bus', 'ferry'],
-    statuses: ['live', 'estimated'],
   },
   { key: 'harbor-watch', label: 'Harbor watch', region: 'boston', groups: ['ferry', 'vessel'] },
   {
@@ -79,6 +78,14 @@ const isLiveGroup = (group) => /\blive\b/.test(group.truth ?? '');
 //   region         -> the region to switch to first (scenes only), else null
 //   statuses       -> the full data-truth filter to apply, or null to keep it
 //                     (scenes always set one; vehicle presets keep it)
+/**
+ * @param {string} key
+ * @param {{
+ *   region?: string,
+ *   groups?: Array<{ key: string, truth?: string, needsKey?: boolean }>,
+ *   hasSubway?: (region: string) => boolean,
+ * }} [options]
+ */
 export function resolvePreset(key, { region, groups = [], hasSubway = () => false } = {}) {
   const available = new Set(groups.filter((group) => !group.needsKey).map((group) => group.key));
   const keep = (keys) => keys.filter((groupKey) => available.has(groupKey));
@@ -101,8 +108,10 @@ export function resolvePreset(key, { region, groups = [], hasSubway = () => fals
   const preset = presetByKey(key);
   if (!preset) return null;
   const targetRegion = preset.region ?? null;
+  // Subway rows carry no truth tag, so "live" lists them explicitly; the
+  // hasSubway filter below drops them where there is no subway.
   let wanted = preset.groups === 'live'
-    ? groups.filter(isLiveGroup).map((group) => group.key)
+    ? [...SUBWAY_GROUPS, ...groups.filter(isLiveGroup).map((group) => group.key)]
     : preset.groups;
   // Subway rows are hidden outside subway regions; don't switch them on there.
   if (!hasSubway(targetRegion ?? region)) {

@@ -103,6 +103,10 @@ export function setBasemap(key) {
   } catch {
     // Private mode: keeping it for this visit is enough.
   }
+  const url = new URL(window.location.href);
+  if (key === CONFIG.BASEMAPS[0].key) url.searchParams.delete('basemap');
+  else url.searchParams.set('basemap', key);
+  history.replaceState(null, '', url);
   if (!map) return;
   layersReady = false;
   map.once('style.load', onStyleReady);

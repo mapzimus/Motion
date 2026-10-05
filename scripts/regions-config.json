@@ -323,9 +323,9 @@
         "West Newbury"
       ],
       "memberCount": 26,
-      "definition": "Massachusetts North Shore coastal communities from Revere to Newburyport",
-      "hasSubway": false,
-      "busDefaultOn": false,
+      "definition": "Massachusetts North Shore communities from Revere to Newburyport, including Cape Ann",
+      "hasSubway": true,
+      "busDefaultOn": true,
       "state": "MA"
     },
     {

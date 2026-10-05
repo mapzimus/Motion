@@ -223,8 +223,11 @@ h2 {
 }
 .layer-presets button:hover,
 .preset-chips button:hover { color: var(--text); background: var(--surface-2); }
+.layer-presets button[aria-pressed="true"],
 .preset-chips button[aria-pressed="true"],
 .preset-chips button.on { color: var(--text); background: var(--surface-3); border-color: transparent; }
+.preset-chips button:disabled { opacity: 0.4; cursor: not-allowed; }
+.preset-chips button:disabled:hover { color: var(--text-2); background: transparent; }
 
 .preset-rows { display: grid; gap: 8px; margin-bottom: 12px; }
 .preset-row { display: grid; grid-template-columns: 48px 1fr; align-items: start; gap: 8px; }

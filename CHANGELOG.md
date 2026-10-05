@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### Regions, presets & basemaps
+- New **North Shore** region: 26 communities from Revere to Newburyport,
+  Cape Ann included, with its own vessel boundary so the Salem ferry and boats
+  off Cape Ann stay visible offshore. Blue Line rows show there and buses
+  start switched on.
+- **Basemap** picker: Dark, Dark without labels, and Satellite. The choice is
+  remembered and `?basemap=` stays in sync with it.
+- "All live" now includes the subway; "Boston commute" no longer hides route
+  lines and stops; presets whose layers all need the gateway are disabled
+  instead of clearing the map; the active preset is highlighted; applying a
+  preset no longer stops the next region's bus default from applying.
+- Panel restyle: solid surface, IBM Plex Sans, sentence-case copy, a labeled
+  Layers/Close button on phones.
+- `scripts/build-regions.py` writes to `public/data/` again, and
+  `npm run check` fails when any region lacks a marine boundary.
+
 ### Shared & active travel
 - New **Other bike-share systems** reference layer: 50 labeled markers for
   New England bike-share and e-bike systems that publish no usable public

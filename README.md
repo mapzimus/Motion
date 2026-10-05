@@ -3,8 +3,8 @@
 One live map of transportation moving across Connecticut, Maine,
 Massachusetts, New Hampshire, Rhode Island, and Vermont. Start with Greater
 Boston (the 128 cities and towns inside I-495), narrow to the 17-municipality
-MBTA core, pick one of 28 named regions such as Cape Cod & Islands, the
-Pioneer Valley, the Northeast Kingdom or Midcoast Maine, switch to a single state, or zoom out to all
+MBTA core, pick one of 28 named regions such as the North Shore, Cape Cod &
+Islands, the Pioneer Valley, the Northeast Kingdom or Midcoast Maine, switch to a single state, or zoom out to all
 New England.
 
 The map combines live and scheduled public transportation, aircraft, boats,
@@ -90,12 +90,12 @@ there. The picker groups regions by state:
   Milton, and Winthrop.
 - **Massachusetts:** Merrimack Valley (LRTA and MeVa member communities,
   including Lowell and Lawrence, plus the Nashoba Valley towns of Ayer,
-  Shirley and Ashby), North Shore (Lynn to Newburyport), Worcester County,
-  Pioneer Valley (Hampden, Hampshire, Franklin), the Berkshires, South Coast
-  (Bristol County plus GATRA's Norfolk and Plymouth County communities:
-  Bellingham, Plainville, Lakeville, Marion, Mattapoisett, Rochester and
-  Wareham), Cape Cod & Islands. Every Massachusetts municipality is now in at
-  least one named region.
+  Shirley and Ashby), North Shore (Revere to Newburyport, including Cape
+  Ann), Worcester County, Pioneer Valley (Hampden, Hampshire, Franklin), the
+  Berkshires, South Coast (Bristol County plus GATRA's Norfolk and Plymouth
+  County communities: Bellingham, Plainville, Lakeville, Marion,
+  Mattapoisett, Rochester and Wareham), Cape Cod & Islands. Every
+  Massachusetts municipality is now in at least one named region.
 - **Rhode Island:** Providence metro (Providence, Kent, Bristol), Newport &
   South County (Newport, Washington, including Block Island).
 - **Connecticut** (2022 Census planning regions): Hartford (Capitol), New
@@ -126,7 +126,13 @@ Above the layer list, **Default**, **Routes** and **Clear** work as before.
 The **Show** row switches on one kind of vehicle (Rail, Buses, Water, Air,
 Roads, Bikes, or All live). The **Scenes** row sets a region and its layers in
 one tap: Boston commute, Harbor watch, Islands by sea & air, Road trip, and
-Maine islands. Presets live in `src/model/presets.js` as plain data.
+Maine islands. Presets live in `src/model/presets.js` as plain data; the
+active preset stays highlighted until you change a layer by hand, and presets
+whose layers all need the gateway are disabled rather than clearing the map.
+
+**Basemap**, under Geography, switches between Dark (CARTO Dark Matter), Dark
+without labels, and Satellite (Esri World Imagery with Esri place labels). The
+choice is remembered, and `?basemap=satellite` opens it directly.
 Metro-North's New Haven, New Canaan, Danbury, and Waterbury lines are included
 in Connecticut; connected routes are allowed to continue outside the selected
 boundary so riders can see the full trip into New York City.
@@ -477,7 +483,7 @@ region, and are reference points rather than live status.
 
 The **Find** box at the top of the console searches everything already loaded
 on the page — 38,000+ stops, stations, and ferry landings, every scheduled
-route ribbon, the eight geographies, and municipalities that appear in stop
+route ribbon, every geography, and municipalities that appear in stop
 names — with no external geocoder. Arrow keys, Enter, and Esc work as in any
 combobox. Picking a stop flies to it and opens its popup; picking a route
 highlights the ribbon and fits it in view; picking a geography switches the
@@ -663,7 +669,9 @@ Vercel aircraft relay ─────────────────┘
   ADSB.lol · adsb.fi · route lookup
 ```
 
-The frontend remains plain HTML/CSS/JavaScript. The gateways are TypeScript and
+The frontend is plain JavaScript bundled with Vite; Preact signal stores in
+`src/stores/` feed a panel that `src/ui.js` still renders directly during the
+component migration. The gateways are TypeScript and
 run on Cloudflare Workers and Vercel Functions. Cloudflare gateway tests execute
 inside the Workers runtime with Cloudflare's Vitest integration.
 
