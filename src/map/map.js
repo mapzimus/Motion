@@ -1,6 +1,8 @@
 // Map engine: MapLibre GL setup, route ribbons, one animated layer-pair per
 // vehicle fleet, source-agnostic popups, and alert-focus navigation.
 
+import * as maplibregl from 'maplibre-gl';
+import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { CONFIG } from '../feeds/config.js';
 import { AIRPORT_STATUS_LABELS } from '../model/legendConfig.js';
 import { lookupFlightRoute } from '../feeds/flight-routes.js';
@@ -32,6 +34,10 @@ import { PALETTE, VESSEL_BANDS } from '../model/palette.js';
 import { GLYPHS, iconName, parseIconName } from './glyphs.js';
 
 const EMPTY_FC = { type: 'FeatureCollection', features: [] };
+
+// v6 ships ESM only. Vite does not leave import.meta.url pointing at the
+// published worker, so the bundled worker URL has to be set before any map.
+maplibregl.setWorkerUrl(workerUrl);
 
 // Static routes and stops: operator color when zoomed out, per-route shade when
 // zoomed in. Subway and Amtrak carry no opColor and keep their baked color.
@@ -66,7 +72,7 @@ const FLEETS = ['bike', 'vessel', 'amtrak', 'regional', 'mnr', 'mbta', 'plane'];
 const RAIL_GROUPS = ['red', 'orange', 'green', 'blue', 'silver', 'mattapan', 'commuter', 'amtrak'];
 const ICON_GROUPS = ['bus', 'ferry', 'plane', 'vessel', 'bike'];
 // Sprite color for a vehicle that arrives without one; drawn on first use by
-// the styleimagemissing handler like any other icon-<shape>-<hex6> sprite.
+// the missing-image resolver like any other icon-<shape>-<hex6> sprite.
 const FALLBACK_ICON_COLOR = '#8a939c';
 // Glyph shape per vehicle; shared mobility splits docks from free vehicles.
 const ICON_SHAPE_EXPR = [
@@ -207,6 +213,10 @@ export function initMap() {
     maxZoom: 17.5,
     maxBounds: CONFIG.MAP_BOUNDS,
     attributionControl: false,
+    // v6 defaults this to 4, which changes vector-tile slicing and
+    // queryRenderedFeatures. undefined keeps the 4.x overscale behavior the
+    // legend's viewport route list depends on.
+    zoomLevelsToOverscale: undefined,
   });
   window.__map = map; // console/debug access
 
@@ -228,7 +238,9 @@ export function initMap() {
       // Layer click/hover listeners live on the map, not the style, so they
       // survive basemap swaps and are wired once.
       wirePopups();
-      map.on('styleimagemissing', drawMissingIcon);
+      // v6 ignores addImage inside a styleimagemissing listener. The resolver
+      // is what actually supplies a sprite the style asked for.
+      map.setMissingStyleImageResolver(drawMissingIcon);
       wireLegend();
       resolve(map);
     });
@@ -321,7 +333,7 @@ const planeIconSize = (airliner) => [
 
 // Sprites are named icon-<shape>-<hex6> (glyphs.js). The common ones are
 // drawn up front; route shades and overflow colors are drawn on first use by
-// the styleimagemissing handler.
+// the missing-image resolver.
 function registerModeIcons() {
   const bikeColors = CONFIG.SHARED_MOBILITY_SYSTEMS.map((system) => system.color).filter(Boolean);
   const preset = {
@@ -344,10 +356,10 @@ function registerModeIcons() {
   addImageOnce('icon-seaplane-base', facilityIcon(seaplaneGlyph));
 }
 
-function drawMissingIcon(event) {
-  const sprite = parseIconName(event.id);
-  if (!sprite || map.hasImage(event.id)) return;
-  map.addImage(event.id, makeIcon(sprite.color, GLYPHS[sprite.shape]), { pixelRatio: 2 });
+function drawMissingIcon(id) {
+  const sprite = parseIconName(id);
+  if (!sprite || map.hasImage(id)) return;
+  map.addImage(id, makeIcon(sprite.color, GLYPHS[sprite.shape]), { pixelRatio: 2 });
 }
 
 // setStyle() can carry images over from the previous style; re-adding one

@@ -19,7 +19,7 @@
   "dependencies": {
     "@preact/signals": "^2.11.3",
     "gtfs-realtime-bindings": "^2.2.0",
-    "maplibre-gl": "^4.7.1",
+    "maplibre-gl": "^6.13.0",
     "preact": "^11.0.0"
   },
   "devDependencies": {
