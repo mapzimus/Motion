@@ -82,7 +82,6 @@
   {"id":"unh-wildcat","agency":"UNH Wildcat Transit","states":["nh","me"],"url":"https://rapid.nationalrtap.org/GTFSFileManagement/UserUploadFiles/11637/google_transit.zip","source_url":"https://www.unh.edu/transportation/buses-shuttles/wildcat-transit-routes-stops","provider":"University of New Hampshire official static GTFS"},
   {"id":"dartmouth-college","agency":"Dartmouth College shuttles","states":["nh","vt"],"url":"https://files.mobilitydatabase.org/mdb-1958/latest.zip","source_url":"https://www.dartmouth.edu/transportation/"},
   {"id":"sullivan-county","agency":"Sullivan County Transportation","states":["nh"],"url":"https://rapid.nationalrtap.org/GTFSFileManagement/UserUploadFiles/11917/sct_agency.zip","source_url":"https://www.scshelps.org/transportation/"},
-  {"id":"cj-bus","agency":"C&J Bus Lines","states":["nh","ma"],"url":"https://rapid.nationalrtap.org/GTFSFileManagement/UserUploadFiles/13306/gtfs.zip","source_url":"https://www.ridecj.com/"},
 
   {"id":"gmt","agency":"Green Mountain Transit","states":["vt"],"url":"https://files.mobilitydatabase.org/mdb-629/latest.zip"},
   {"id":"gmcn","agency":"Green Mountain Community Network","states":["vt","ma","ny"],"url":"https://files.mobilitydatabase.org/mdb-539/latest.zip"},

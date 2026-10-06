@@ -167,9 +167,8 @@ Connecticut Transit District (5 routes) and Northwestern Connecticut Transit
 District (6 routes) now publish static GTFS and draw as scheduled ribbons
 instead of directory markers, as do Sullivan County Transportation in New
 Hampshire (8 routes), Waldo Community Action Partners' Rockland and Belfast
-DASH loops in Maine (2 routes), C&J Bus Lines' Portsmouth–Boston/Logan coach
-(1 route), and Yankee Trails' Albany–Bennington line (1 route, kept only where it
-touches Vermont). University shuttles are drawn in the bus group and tagged
+DASH loops in Maine (2 routes), and Yankee Trails' Albany–Bennington line (1
+route, kept only where it touches Vermont). University shuttles are drawn in the bus group and tagged
 `serviceClass: "campus"`: Harvard (3 drawn routes), MIT (7), Tufts (7), Boston
 University (5), Boston College (13), UMass Boston (1), Brown (4), the
 University of Rhode Island (3), Eastern Connecticut State University (3),
@@ -191,13 +190,18 @@ rest of ARTS stays a demand-response marker. Cyr Bus Line's daily
 Bangor–Caribou coach publishes no GTFS, so it follows the stop order on the
 carrier's official schedule as a road-routed corridor, like Dartmouth Coach.
 Winnipesaukee Transit System (Laconia, Gilford, Tilton, Franklin) publishes no
-GTFS either and is listed as a directory marker. In Aroostook County, ARTS's Saturday Star City Connector loop in
-Presque Isle (2 route patterns) is drawn from the agency's Passio GTFS; the
-rest of ARTS stays a demand-response marker. Cyr Bus Line's daily
-Bangor–Caribou coach publishes no GTFS, so it follows the stop order on the
-carrier's official schedule as a road-routed corridor, like Dartmouth Coach.
-Winnipesaukee Transit System (Laconia, Gilford, Tilton, Franklin) publishes no
 GTFS either and is listed as a directory marker.
+
+C&J Bus Lines publishes only a two-trip GTFS stub, so its network is drawn from
+the carrier's official timetables instead: Dover, Portsmouth, and Seabrook to
+Boston South Station (about every two hours), to Logan Airport (every 30
+minutes for most of the day), and non-stop to New York's Port Authority Bus
+Terminal (two or three trips a day). The six C&J stops carry their street
+addresses. Hand-built bus corridors can now list named stops in a `stops`
+property and set `roadRouteEveryLeg` so that legs shorter than the usual 20 km
+repair threshold also follow roads. The New York line reuses the map's
+reviewed Boston–New York coach corridor, so it is drawn through Boston; C&J's
+non-stop coaches may bypass downtown, and the popup says so.
 
 Vermont includes regional routes from every discoverable public GTFS source in
 the current audit, including Green Mountain Transit, Vermont Translines, and
@@ -725,10 +729,8 @@ documented `freshness_exempt`), and commit the refreshed `feed-freshness.json`.
   no tracker. The only snowplow source found is VTrans's own app data file,
   which is empty outside winter.
 - Scheduled services found missing in the same audit and not yet drawn,
-  because none publishes GTFS and each needs a hand-built corridor: C&J's
-  full network (the map has only a Logan–Seabrook–Portsmouth stub; Dover,
-  Boston South Station, and New York are missing), Go Buses (Alewife and
-  Newton to New York), Downeast Transportation's
+  because none publishes GTFS and each needs a hand-built corridor: Go Buses
+  (Alewife and Newton to New York), Downeast Transportation's
   year-round Hancock County routes, York County Community Action's Sanford
   routes, the 128 Business Council shuttles, Seastreak's New York–Martha's
   Vineyard–Nantucket ferry, the Bustins Island ferry, the AMC and Franconia
