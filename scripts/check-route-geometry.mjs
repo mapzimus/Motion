@@ -307,6 +307,7 @@ const requiredRoadRoutedRoutes = [
   'cj:boston-south-station',
   'cj:logan',
   'cj:nyc',
+  'go-buses:boston-nyc',
 ];
 const approximateRouteIds = new Set(approximate.map((feature) => feature.properties.route));
 const missingRepairs = requiredRoadRoutedRoutes.filter((route) => !approximateRouteIds.has(route));

@@ -76,6 +76,9 @@
   York's Port Authority, road-routed from the official timetables, with the
   six C&J stops and their addresses.
 - Hand-built bus corridors can list named stops and road-route every leg.
+- Go Buses' Alewife–Riverside–New York coach drawn as a road-routed corridor
+  with its two Boston-area stops. All cached road segments were refetched
+  because the routing controls changed; no existing route moved by more than 2%.
 
 ### Regions, presets & basemaps
 - New **North Shore** region: 26 communities from Revere to Newburyport,
