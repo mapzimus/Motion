@@ -43,4 +43,4 @@ http
       res.end(data);
     });
   })
-  .listen(PORT, () => console.log(`New England in Motion -> http://localhost:${PORT}`));
+  .listen(PORT, () => console.log(`Motion -> http://localhost:${PORT}`));
