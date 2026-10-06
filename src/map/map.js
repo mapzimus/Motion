@@ -63,6 +63,9 @@ const FLEETS = ['bike', 'vessel', 'amtrak', 'regional', 'mnr', 'mbta', 'plane'];
 // mode gets its own silhouette so it reads at first glance.
 const RAIL_GROUPS = ['red', 'orange', 'green', 'blue', 'silver', 'mattapan', 'commuter', 'amtrak'];
 const ICON_GROUPS = ['bus', 'ferry', 'plane', 'vessel', 'bike'];
+// Sprite color for a vehicle that arrives without one; drawn on first use by
+// the styleimagemissing handler like any other icon-<shape>-<hex6> sprite.
+const FALLBACK_ICON_COLOR = '#8a939c';
 // Glyph shape per vehicle; shared mobility splits docks from free vehicles.
 const ICON_SHAPE_EXPR = [
   'match', ['get', 'group'],
@@ -964,8 +967,8 @@ function setupLayers() {
       layout: {
         'icon-image': [
           'step', ['zoom'],
-          ['concat', 'icon-', ICON_SHAPE_EXPR, '-', ['slice', ['get', 'color'], 1]],
-          13.5, ['concat', 'icon-', ICON_SHAPE_EXPR, '-', ['slice', ['coalesce', ['get', 'routeColor'], ['get', 'color']], 1]],
+          ['concat', 'icon-', ICON_SHAPE_EXPR, '-', ['slice', ['coalesce', ['get', 'color'], FALLBACK_ICON_COLOR], 1]],
+          13.5, ['concat', 'icon-', ICON_SHAPE_EXPR, '-', ['slice', ['coalesce', ['get', 'routeColor'], ['get', 'color'], FALLBACK_ICON_COLOR], 1]],
         ],
         'icon-size': [
           'interpolate', ['linear'], ['zoom'],

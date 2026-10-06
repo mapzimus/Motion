@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildRouteKeyIndex, stampRouteColors } from './routeColors.js';
+import { buildRouteKeyIndex, stampRouteColors, stationShadeKey } from './routeColors.js';
 import { assignPalette } from './palette.js';
 import { setRouteKeyIndex, colorFor } from '../stores/legend.js';
 
@@ -37,5 +37,17 @@ describe('routeColors', () => {
     stampRouteColors([f], new Map(), new Map());
     expect(f.properties).not.toHaveProperty('opColor');
     expect(f.properties).not.toHaveProperty('routeColor');
+  });
+
+  it('shades an MBTA station like the MBTA line it serves', () => {
+    expect(stationShadeKey('mbta-stations:1')).toBe('1');
+    expect(stationShadeKey('cttransit:9')).toBe('cttransit:9');
+    const routeLine = { properties: { kind: 'mbta', group: 'bus', legendKey: 'mbta', route: '1', color: '#999999' } as Record<string, any> };
+    const stop = station('bus', 'mbta', ['mbta-stations:1']) as { properties: Record<string, any> };
+    const idx = new Map([['bus', new Map([['mbta', { label: 'MBTA', routes: 150, stops: 1 }]])]]);
+    const assignment = new Map([['bus', assignPalette('bus', [{ key: 'mbta', routes: 150, live: 0 }])]]);
+    stampRouteColors([routeLine, stop], assignment, idx);
+    expect(stop.properties.routeColor).toBe(routeLine.properties.routeColor);
+    expect(stop.properties.routeColor).not.toBe(stop.properties.opColor);
   });
 });

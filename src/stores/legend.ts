@@ -16,6 +16,8 @@ import {
   type ViewportRoutes,
 } from '../model/legendRows.js';
 import { visibleGroups } from './layers.js';
+import { region } from './region.js';
+import { hasSubway } from '../feeds/regions.js';
 
 export interface RouteKeyEntry { label: string; routes: number; stops: number }
 export interface LiveKeyEntry { n: number; label?: string; color?: string }
@@ -136,4 +138,4 @@ export const legendSections = computed(() => buildLegendSections({
   assignment: paletteAssignment.value,
   viewport: viewportRoutes.value,
   subwayColors: subwayColors.value,
-}));
+}, { hasSubway: hasSubway(region.value) }));

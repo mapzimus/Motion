@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   LEGEND_ROW_CAP,
   VIEWPORT_ZOOM,
+  bikeRows,
   buildLegendSections,
   countLiveKeys,
   legendFooter,
@@ -10,7 +11,7 @@ import {
   viewportRoutesFromFeatures,
   type LegendInputs,
 } from './legendRows.js';
-import { LEGEND_GROUPS, STALE_NOTE } from './legendConfig.js';
+import { BIKE_STATE_ROWS, LEGEND_GROUPS, STALE_NOTE } from './legendConfig.js';
 import { PALETTE, PALETTE_START, assignPalette } from './palette.js';
 
 const entry = (routes: number, label = 'x') => ({ label, routes, stops: 0 });
@@ -153,8 +154,43 @@ describe('buildLegendSections', () => {
   });
 
   it('uses fixed rows where the config has them', () => {
-    const [bike] = buildLegendSections(inputs({ groups: ['bike'] }));
-    expect(bike.rows.map((r) => r.key)).toEqual(LEGEND_GROUPS.bike.fixedRows!.map((r) => r.key));
+    const [weather] = buildLegendSections(inputs({ groups: ['weather'] }));
+    expect(weather.rows.map((r) => r.key)).toEqual(LEGEND_GROUPS.weather.fixedRows!.map((r) => r.key));
+  });
+
+  it('lists live bikeshare systems in their own map colors, then the low and empty dock rows', () => {
+    // First-seen colors can be a low/empty dock color; the system color must win.
+    const live = new Map([['bike', new Map([
+      ['spin-providence', { n: 40, label: 'Spin · Providence', color: '#ff7f32' }],
+      ['bluebikes', { n: 400, label: 'Bluebikes · 13 Greater Boston municipalities', color: '#ffb454' }],
+    ])]]);
+    const [bike] = buildLegendSections(inputs({ groups: ['bike'], live }));
+    expect(bike.rows).toEqual([
+      { key: 'bluebikes', label: 'Bluebikes · 13 Greater Boston municipalities', color: '#4d9fec', live: 400 },
+      { key: 'spin-providence', label: 'Spin · Providence', color: '#ff7f32', live: 40 },
+      ...BIKE_STATE_ROWS,
+    ]);
+    expect(BIKE_STATE_ROWS.map((r) => r.label)).toEqual(['1-2 bikes left', 'Empty dock']);
+  });
+
+  it('shows only the dock state rows when no bikeshare system is live', () => {
+    expect(bikeRows(undefined)).toEqual(BIKE_STATE_ROWS);
+  });
+
+  it('keeps an unknown bikeshare system with its live label and color', () => {
+    const rows = bikeRows(new Map([['new-sys', { n: 3, label: 'New system', color: '#123456' }]]));
+    expect(rows[0]).toEqual({ key: 'new-sys', label: 'New system', color: '#123456', live: 3 });
+  });
+
+  it('leaves the Subway section out where the region has no subway', () => {
+    const on = inputs({ groups: ['red', 'bus'] });
+    expect(buildLegendSections(on, { hasSubway: false }).map((s) => s.group)).toEqual(['bus']);
+    expect(buildLegendSections(on, { hasSubway: true }).map((s) => s.group)).toEqual(['subway', 'bus']);
+  });
+
+  it('does not mark catalog-only local services as fading', () => {
+    expect(LEGEND_GROUPS.local.fades).toBeFalsy();
+    expect(legendFooter(['local'])).toEqual([]);
   });
 
   it('switches route groups to viewport routes grouped by operator when zoomed in', () => {

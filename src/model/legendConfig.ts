@@ -50,10 +50,17 @@ const localRows: LegendRow[] = [
   { key: 'water-taxi', label: 'Water taxi', color: '#2eb7c5' },
 ];
 
-const bikeRows: LegendRow[] = [
-  { key: 'ok', label: 'Bikes available', color: CONFIG.BIKE_COLOR },
+interface BikeSystem { id: string; name: string; color?: string }
+const bikeSystems = CONFIG.SHARED_MOBILITY_SYSTEMS as BikeSystem[];
+
+/** Bikeshare systems in catalog order; docks and free vehicles wear the system color. */
+export const BIKE_SYSTEMS: ReadonlyArray<{ key: string; label: string; color: string }> = bikeSystems
+  .map((system) => ({ key: system.id, label: system.name, color: system.color ?? CONFIG.BIKE_COLOR }));
+
+/** Dock states that override the system color, listed after the system rows. */
+export const BIKE_STATE_ROWS: LegendRow[] = [
   { key: 'low', label: '1-2 bikes left', color: CONFIG.BIKE_LOW_COLOR },
-  { key: 'empty', label: 'Empty', color: CONFIG.BIKE_EMPTY_COLOR },
+  { key: 'empty', label: 'Empty dock', color: CONFIG.BIKE_EMPTY_COLOR },
 ];
 
 const taxiRows: LegendRow[] = [
@@ -71,7 +78,8 @@ export const LEGEND_GROUPS: Record<string, LegendGroup> = {
   commuter: { name: 'Commuter & regional rail (MBTA, Metro-North, CTrail)', glyph: 'rail', notes: [], fades: true },
   bus: { name: 'Buses, shuttles & coaches', glyph: 'bus', notes: [], fades: true },
   amtrak: { name: 'Amtrak', glyph: 'rail', notes: [], fades: true },
-  local: { name: 'On-demand & community services', glyph: 'bus', notes: [], fades: true, fixedRows: localRows },
+  // Catalog points, not live positions: they never fade.
+  local: { name: 'On-demand & community services', glyph: 'bus', notes: [], fixedRows: localRows },
   taxi: {
     name: 'Taxis',
     glyph: 'dot',
@@ -86,8 +94,7 @@ export const LEGEND_GROUPS: Record<string, LegendGroup> = {
   bike: {
     name: 'Bikeshare docks',
     glyph: 'bike',
-    notes: ['Dock color shows bikes left: available, 1-2, or empty'],
-    fixedRows: bikeRows,
+    notes: ['Color shows the system; docks with 1-2 or no bikes change color'],
   },
   bikeshare: { name: 'Bikeshare systems', glyph: 'bike', notes: [] },
   walking: { name: 'Walking routes', glyph: 'line', notes: [] },

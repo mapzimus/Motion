@@ -1,7 +1,7 @@
 // Pure builders behind the map key: operator rows from the route index and
 // live counts, viewport route rows from rendered map features, and the
 // per-group sections the Legend component draws. No map, DOM or store access.
-import { LEGEND_GROUPS, STALE_NOTE, type LegendGlyph } from './legendConfig.js';
+import { BIKE_STATE_ROWS, BIKE_SYSTEMS, LEGEND_GROUPS, STALE_NOTE, type LegendGlyph } from './legendConfig.js';
 import { paletteColorFor } from './palette.js';
 import { GROUP_KEYS, SUBWAY_GROUPS } from './presets.js';
 import type { LiveKeyCounts, LiveKeyEntry, RouteKeyEntry, RouteKeyIndex } from '../stores/legend.js';
@@ -47,6 +47,11 @@ export interface LegendSection {
   /** Zoomed in: routes in view grouped under their operator ([] = none in view). */
   operators?: OperatorBlock[];
   notes: string[];
+}
+
+export interface LegendOptions {
+  /** False where the region has no subway: the Subway section is left out. Default true. */
+  hasSubway?: boolean;
 }
 
 export interface ViewportRoute {
@@ -122,6 +127,28 @@ export function operatorRows(
     return row;
   });
   return capRows(rows, cap);
+}
+
+/**
+ * One row per bikeshare system seen live in the region, in its own map color
+ * and catalog order, then the low and empty dock rows whose colors override it.
+ */
+export function bikeRows(live: Map<string, LiveKeyEntry> | undefined): LegendRowView[] {
+  const known = new Map(BIKE_SYSTEMS.map((system, i) => [system.key, { ...system, rank: i }]));
+  const systems = [...(live ?? new Map<string, LiveKeyEntry>())]
+    .map(([key, e]) => {
+      const system = known.get(key);
+      const row: LegendRowView = {
+        key,
+        label: system?.label ?? e.label ?? key,
+        color: system?.color ?? e.color ?? FALLBACK_COLOR,
+      };
+      if (e.n) row.live = e.n;
+      return { row, rank: system?.rank ?? Infinity };
+    })
+    .sort((a, b) => a.rank - b.rank || a.row.label.localeCompare(b.row.label))
+    .map(({ row }) => row);
+  return [...systems, ...BIKE_STATE_ROWS];
 }
 
 /** Live vehicles per group and operator key across region-filtered fleets. */
@@ -261,12 +288,13 @@ export function sameNestedMap<T extends object>(
 
 /**
  * One section per switched-on group, in panel (GROUP_KEYS) order. The subway
- * lines share one "Subway" section, placed where the first line would be.
+ * lines share one "Subway" section, placed where the first line would be, and
+ * left out where the region has no subway.
  */
-export function buildLegendSections(inputs: LegendInputs): LegendSection[] {
+export function buildLegendSections(inputs: LegendInputs, { hasSubway = true }: LegendOptions = {}): LegendSection[] {
   const on = new Set(inputs.groups);
   const zoomedIn = inputs.zoom >= VIEWPORT_ZOOM;
-  const subway = subwaySection(on, inputs);
+  const subway = hasSubway ? subwaySection(on, inputs) : null;
   const rest = GROUP_KEYS.filter((group: string) =>
     on.has(group) && LEGEND_GROUPS[group] && !SUBWAY_GROUPS.includes(group)).map((group: string) => {
     const config = LEGEND_GROUPS[group];
@@ -279,7 +307,9 @@ export function buildLegendSections(inputs: LegendInputs): LegendSection[] {
       extra: [],
       notes: config.notes,
     };
-    if (config.fixedRows) {
+    if (group === 'bike') {
+      section.rows = bikeRows(inputs.live.get(group));
+    } else if (config.fixedRows) {
       section.rows = config.fixedRows;
     } else if (zoomedIn && VIEWPORT_GROUPS.includes(group)) {
       section.operators = viewportOperators(group, inputs.viewport.get(group) ?? new Map(), inputs);

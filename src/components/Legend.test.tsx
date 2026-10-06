@@ -1,8 +1,10 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterEach } from 'vitest';
 import { render } from 'preact';
 import { act } from 'preact/test-utils';
 import { Legend } from './Legend.js';
 import { setVisibleGroupList } from '../stores/layers.js';
+import { region } from '../stores/region.js';
+import { registerRegions } from '../feeds/regions.js';
 import { LEGEND_GROUPS, STALE_NOTE } from '../model/legendConfig.js';
 import {
   setLegendCollapsed,
@@ -24,7 +26,16 @@ function mount() {
 }
 
 describe('Legend', () => {
+  beforeAll(() => {
+    // Only the subway flag matters here; boundaries are not needed.
+    registerRegions({ features: [
+      { properties: { key: 'greater-boston', hasSubway: true } },
+      { properties: { key: 'ri' } },
+    ] });
+  });
+
   beforeEach(() => {
+    region.value = 'greater-boston';
     try { localStorage.clear(); } catch { /* storage blocked */ }
     root = document.createElement('div');
     document.body.appendChild(root);
@@ -117,6 +128,17 @@ describe('Legend', () => {
     expect([...subway.querySelectorAll('.legend-label')].map((e) => e.textContent)).toEqual(['Red Line', 'Orange Line']);
     act(() => setVisibleGroupList(['orange']));
     expect([...$('.legend-section')!.querySelectorAll('.legend-label')].map((e) => e.textContent)).toEqual(['Orange Line']);
+  });
+
+  it('drops the Subway section in a region without a subway and restores it after', () => {
+    act(() => {
+      region.value = 'ri';
+      setVisibleGroupList(['red', 'bus']);
+    });
+    mount();
+    expect(sectionNames()).toEqual([BUS]);
+    act(() => { region.value = 'greater-boston'; });
+    expect(sectionNames()).toEqual(['Subway', BUS]);
   });
 
   it('shows the stale note exactly once, as a footer', () => {
