@@ -1,4 +1,4 @@
-# New England in Motion
+# Motion
 
 One live map of transportation moving across Connecticut, Maine,
 Massachusetts, New Hampshire, Rhode Island, and Vermont. Start with Greater
