@@ -21,6 +21,7 @@ import urllib.parse
 import urllib.request
 import zipfile
 from collections import defaultdict
+from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -964,6 +965,67 @@ def station_features(
     return features
 
 
+def long_date(value: date) -> str:
+    """Spell a date the way the panel does.
+
+    >>> long_date(date(2026, 9, 8))
+    'September 8, 2026'
+    """
+    return f"{value:%B} {value.day}, {value.year}"
+
+
+def apply_season(properties: dict, today: date) -> dict:
+    """Demote a seasonal corridor to reference outside its published season.
+
+    `seasonStart` / `seasonEnd` are optional ISO dates copied from the
+    operator's page. A corridor with neither keeps its status. Inside the
+    season it keeps its status too; before or after it becomes "reference"
+    with a note saying when service runs. `seasonCheckedOn` records the build
+    date so scripts/check-route-geometry.mjs can verify the result.
+
+    >>> ended = apply_season({"seasonStart": "2026-06-18", "seasonEnd": "2026-09-08",
+    ...     "scheduleNote": "Official seasonal schedule · not live"}, date(2026, 10, 5))
+    >>> ended["dataStatus"], ended["seasonStatus"]
+    ('reference', 'ended')
+    >>> ended["scheduleNote"]
+    'Seasonal · season ended September 8, 2026; 2027 dates not yet published'
+    >>> early = apply_season({"seasonStart": "2027-05-21", "seasonEnd": "2027-10-13"}, date(2026, 12, 1))
+    >>> early["dataStatus"], early["scheduleNote"]
+    ('reference', 'Seasonal · next season starts May 21, 2027')
+    >>> running = apply_season({"seasonStart": "2026-05-21", "seasonEnd": "2026-10-13",
+    ...     "scheduleNote": "Official seasonal route · not live"}, date(2026, 10, 13))
+    >>> running["seasonStatus"], running["scheduleNote"], "dataStatus" in running
+    ('in-season', 'Official seasonal route · not live · season through October 13, 2026', False)
+    >>> apply_season({"season": "Year-round"}, date(2026, 10, 5))
+    {'season': 'Year-round'}
+    """
+    start_text = properties.get("seasonStart")
+    end_text = properties.get("seasonEnd")
+    if not start_text and not end_text:
+        return properties
+    start = date.fromisoformat(start_text) if start_text else None
+    end = date.fromisoformat(end_text) if end_text else None
+    if start and end and start > end:
+        raise ValueError(f"{properties.get('route', 'route')}: seasonStart is after seasonEnd")
+    properties["seasonCheckedOn"] = today.isoformat()
+    if start and today < start:
+        properties["seasonStatus"] = "upcoming"
+        properties["dataStatus"] = "reference"
+        properties["scheduleNote"] = f"Seasonal · next season starts {long_date(start)}"
+    elif end and today > end:
+        properties["seasonStatus"] = "ended"
+        properties["dataStatus"] = "reference"
+        properties["scheduleNote"] = (
+            f"Seasonal · season ended {long_date(end)}; {end.year + 1} dates not yet published"
+        )
+    else:
+        properties["seasonStatus"] = "in-season"
+        if end:
+            note = properties.get("scheduleNote", "Official seasonal schedule")
+            properties["scheduleNote"] = f"{note} · season through {long_date(end)}"
+    return properties
+
+
 def supplemental_ferry_stop_features(features):
     """Create named landing points from every checked-in ferry path endpoint."""
     stops_by_coordinate = {}
@@ -1588,7 +1650,9 @@ def process_feed(
     return features, len(selected_routes), source_metadata, freshness
 
 
-def main(update_road_cache=False, refresh_road_cache=False, update_ferry_cache=False, refresh_ferry_cache=False):
+def main(update_road_cache=False, refresh_road_cache=False, update_ferry_cache=False, refresh_ferry_cache=False,
+         season_date=None):
+    season_date = season_date or date.today()
     feeds = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
     boundaries = json.loads(BOUNDARIES_PATH.read_text(encoding="utf-8"))
     road_controls, controls_sha256 = load_road_route_controls()
@@ -1702,6 +1766,8 @@ def main(update_road_cache=False, refresh_road_cache=False, update_ferry_cache=F
         ordered = [key for key in REGION_ORDER if key in combined]
         ordered.extend(key for key in declared if key not in ordered)
         feature["properties"]["regions"] = ordered
+        # Out-of-season corridors stay on the map as reference lines.
+        apply_season(feature["properties"], season_date)
         feature["properties"].setdefault("dataStatus", "scheduled")
         if feature["properties"].get("group") == "ferry":
             feature["properties"].setdefault("geometryAccuracy", "approximate")
@@ -1826,10 +1892,17 @@ if __name__ == "__main__":
         action="store_true",
         help="recompute every ferry water geometry from its sources",
     )
+    parser.add_argument(
+        "--season-date",
+        type=date.fromisoformat,
+        default=None,
+        help="judge seasonal corridors as of this YYYY-MM-DD date instead of today",
+    )
     arguments = parser.parse_args()
     main(
         arguments.update_road_cache or arguments.refresh_road_cache,
         arguments.refresh_road_cache,
         arguments.update_ferry_cache or arguments.refresh_ferry_cache,
         arguments.refresh_ferry_cache,
+        arguments.season_date,
     )
