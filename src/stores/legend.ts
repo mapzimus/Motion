@@ -7,6 +7,7 @@ import {
   paletteColorFor,
   type OperatorStat,
 } from '../model/palette.js';
+import { vehicleColors, type VehicleColorProps, type VehicleColors } from '../model/vehicleColors.js';
 
 export interface RouteKeyEntry { label: string; routes: number; stops: number }
 export interface LiveKeyEntry { n: number; label?: string }
@@ -46,4 +47,16 @@ export function colorFor(group: string, key: string, fallback: string): string {
 /** How many routes an operator has in the active region (0 when unknown). */
 export function routeCountFor(group: string, key: string): number {
   return routeKeyIndex.peek().get(group)?.get(key)?.routes ?? 0;
+}
+
+/** A live vehicle's operator color and route shade under the current assignment, or null to keep its own. */
+export function liveVehicleColors(props: VehicleColorProps): VehicleColors | null {
+  return vehicleColors(props, colorFor, routeCountFor);
+}
+
+/** Apply liveVehicleColors to a feed item's props in place; returns the item. */
+export function paintVehicle<T extends { props: VehicleColorProps & { routeColor?: string } }>(item: T): T {
+  const colors = liveVehicleColors(item.props);
+  if (colors) Object.assign(item.props, colors);
+  return item;
 }

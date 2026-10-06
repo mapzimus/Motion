@@ -4,13 +4,20 @@
 import { CONFIG } from './config.js';
 import { createFleet } from './fleet.js';
 import { gatewayRegion } from './regions.js';
+import { regionalVehicleItem } from './regional-normalize.js';
+import { paintVehicle } from '../stores/legend.js';
 
 const POLL_MS = 20_000;
 
 // Upper-case names of ferries currently reported by an operator feed, so the
 // AIS layer can skip the same boat instead of drawing it twice.
 export const operatorFerryNames = new Set();
-const MPS_TO_MPH = 2.23694;
+const NORMALIZE_OPTS = {
+  ferryFeeds: CONFIG.FERRY_FEEDS,
+  busColor: CONFIG.BUS_COLOR,
+  ferryColor: CONFIG.FERRY_COLOR,
+  staleAfterMs: CONFIG.STALE_AFTER_MS,
+};
 
 export function startRegional(onCounts, initialRegion, enabled = true) {
   if (!CONFIG.GATEWAY_BASE || !enabled) {
@@ -39,35 +46,13 @@ export function startRegional(onCounts, initialRegion, enabled = true) {
       if (thisGeneration !== requestGeneration) return;
 
       operatorFerryNames.clear();
+      const now = Date.now();
       const items = (payload.vehicles ?? []).map((vehicle) => {
-        const isFerry = CONFIG.FERRY_FEEDS.includes(vehicle.feed);
-        if (isFerry && vehicle.label) operatorFerryNames.add(String(vehicle.label).trim().toUpperCase());
-        return {
-        id: `regional-${vehicle.id}`,
-        detail: {
-          label: vehicle.label ? String(vehicle.label) : '',
-          routeName: vehicle.route ?? '',
-          agency: vehicle.agency ?? '',
-        },
-        lng: vehicle.lng,
-        lat: vehicle.lat,
-        props: {
-          group: isFerry ? 'ferry' : 'bus',
-          dataStatus: 'live',
-          color: isFerry ? CONFIG.FERRY_COLOR : CONFIG.BUS_COLOR,
-          bearing: vehicle.bearing ?? 0,
-          hasBearing: Number.isFinite(vehicle.bearing),
-          stale: Date.now() - Date.parse(vehicle.updatedAt) > CONFIG.STALE_AFTER_MS,
-          title: vehicle.route ? `${vehicle.agency} · ${vehicle.route}` : vehicle.agency,
-          dest: vehicle.label ? `Vehicle ${vehicle.label}` : '',
-          status: Number.isFinite(vehicle.speedMps)
-            ? `${Math.round(vehicle.speedMps * MPS_TO_MPH)} mph`
-            : 'In service',
-          meta: `GTFS-RT · ${vehicle.feed}`,
-          provider: `${vehicle.agency} GTFS-Realtime`,
-          updatedAt: vehicle.updatedAt,
-        },
-        };
+        const item = paintVehicle(regionalVehicleItem(vehicle, now, NORMALIZE_OPTS));
+        if (item.props.group === 'ferry' && vehicle.label) {
+          operatorFerryNames.add(String(vehicle.label).trim().toUpperCase());
+        }
+        return item;
       });
       const visible = fleet.update(items);
       const ferries = visible.filter((item) => item.props.group === 'ferry').length;

@@ -8,6 +8,8 @@ import { CONFIG } from './config.js';
 import { createFleet } from './fleet.js';
 import { gatewayRegion } from './regions.js';
 import { operatorFerryNames } from './regional.js';
+import { vesselBand } from '../model/palette.js';
+import { paintVehicle } from '../stores/legend.js';
 
 export function startAis(onCounts, initialRegion, enabled = true) {
   if (!CONFIG.GATEWAY_BASE || !enabled) {
@@ -146,14 +148,20 @@ export function startAis(onCounts, initialRegion, enabled = true) {
       const looksLikeFerry =
         (vessel.shipType >= 60 && vessel.shipType <= 69) ||
         /ferry|seastreak|steamship|island queen|cape flyer/i.test(vessel.name);
-      return {
+      // Ferries join the ferry operators' palette; other vessels are colored by
+      // AIS ship-type band.
+      const band = looksLikeFerry ? null : vesselBand(vessel.shipType);
+      return paintVehicle({
         id: `vessel-${mmsi}`,
         lng: vessel.lng,
         lat: vessel.lat,
         props: {
           group: looksLikeFerry ? 'ferry' : 'vessel',
           dataStatus: 'live',
-          color: looksLikeFerry ? CONFIG.FERRY_COLOR : CONFIG.VESSEL_COLOR,
+          legendKey: band ? band.key : 'ais-ferry',
+          legendLabel: band ? band.label : 'Other ferries (AIS)',
+          modeColor: band ? band.color : CONFIG.FERRY_COLOR,
+          color: band ? band.color : CONFIG.FERRY_COLOR,
           bearing: vessel.heading ?? 0,
           hasBearing: Number.isFinite(vessel.heading),
           stale: now - vessel.at > CONFIG.AIS_STALE_MS,
@@ -165,7 +173,7 @@ export function startAis(onCounts, initialRegion, enabled = true) {
           sourceUrl: 'https://aisstream.io/',
           updatedAt: new Date(vessel.at).toISOString(),
         },
-      };
+      });
     });
     const visible = fleet.update(items);
     onCounts({

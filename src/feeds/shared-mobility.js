@@ -66,6 +66,7 @@ async function stationItems(system, feeds) {
     const timestamp = Number(station.last_reported) > 1e9
       ? new Date(Number(station.last_reported) * 1000).toISOString()
       : new Date(fallbackTime).toISOString();
+    const dockState = bikes === 0 ? 'empty' : bikes <= 2 ? 'low' : 'ok';
     return [{
       id: `${system.id}-station-${station.station_id}`,
       lng: Number(info.lon),
@@ -74,9 +75,12 @@ async function stationItems(system, feeds) {
         group: 'bike',
         dataStatus: 'live',
         markerKind: 'dock',
-        color: bikes === 0
+        legendKey: system.id,
+        legendLabel: system.name,
+        dockState,
+        color: dockState === 'empty'
           ? CONFIG.BIKE_EMPTY_COLOR
-          : bikes <= 2
+          : dockState === 'low'
             ? CONFIG.BIKE_LOW_COLOR
             : system.color,
         bearing: 0,
@@ -131,6 +135,8 @@ async function freeVehicleItems(system, feeds) {
         group: 'bike',
         dataStatus: 'live',
         markerKind: kind,
+        legendKey: system.id,
+        legendLabel: system.name,
         color: system.color ?? CONFIG.BIKE_FREE_COLOR,
         bearing: 0,
         hasBearing: false,

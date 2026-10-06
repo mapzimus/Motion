@@ -16,6 +16,11 @@ const registry = new Map(); // fleetId -> fleet API
 export const getFleet = (fleetId) => registry.get(fleetId);
 export const allFleets = () => [...registry.entries()];
 
+/** Re-run every fleet's colors through colorOf (see fleet.recolor). */
+export function recolorAllFleets(colorOf) {
+  for (const fleet of registry.values()) fleet.recolor(colorOf);
+}
+
 const easeOutCubic = (t) => 1 - (1 - t) ** 3;
 const linear = (t) => t;
 // Long glides (a followed vehicle stretched across a whole poll interval)
@@ -102,6 +107,25 @@ export function createFleet(fleetId) {
     frameListeners.forEach((fn) => fn());
   }
 
+  // colorOf(props) -> { color, routeColor } | null. Rewrites props in place so
+  // popups, the trip card and the follow ring pick the new color up; renders
+  // and notifies only when something actually changed.
+  function recolor(colorOf) {
+    let changed = false;
+    for (const item of latest.values()) {
+      const next = colorOf(item.props);
+      if (!next) continue;
+      if (next.color === item.props.color && next.routeColor === item.props.routeColor) continue;
+      item.props.color = next.color;
+      item.props.routeColor = next.routeColor;
+      changed = true;
+    }
+    if (!changed) return false;
+    if (animFrame === null) render(); // a running glide renders next frame
+    updateListeners.forEach((fn) => fn());
+    return true;
+  }
+
   const subscribe = (set) => (fn) => {
     set.add(fn);
     return () => set.delete(fn);
@@ -110,6 +134,7 @@ export function createFleet(fleetId) {
   const api = {
     id: fleetId,
     update,
+    recolor,
     has: (id) => latest.has(id),
     getItem: (id) => latest.get(id),
     getDisplayed: (id) => displayed.get(id),

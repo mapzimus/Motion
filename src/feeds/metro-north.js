@@ -7,6 +7,7 @@ import { CONFIG } from './config.js';
 import { createFleet } from './fleet.js';
 import { gatewayRegion } from './regions.js';
 import { trainItem } from './metro-north-normalize.js';
+import { paintVehicle } from '../stores/legend.js';
 
 let stopsPromise = null;
 
@@ -68,7 +69,8 @@ export function startMetroNorth(onCounts, onAlerts, initialRegion, enabled = tru
       if (generation !== requestGeneration) return;
       const items = (payload.trips ?? [])
         .map((trip) => trainItem(trip, stops, { color: CONFIG.MNR_COLOR, staleAfterMs: CONFIG.MNR_STALE_MS }))
-        .filter(Boolean);
+        .filter(Boolean)
+        .map(paintVehicle);
       const visible = fleet.update(items);
       onCounts({ commuter: visible.length });
       onAlerts(normalizeAlerts(payload.alerts ?? [], stops));
