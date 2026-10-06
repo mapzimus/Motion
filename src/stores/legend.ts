@@ -115,9 +115,13 @@ export function setLegendCollapsed(collapsed: boolean) {
   }
 }
 
+/** True while the legend is open and a route group is on, i.e. a route list can show. */
+export const viewportWanted = computed(() =>
+  !legendCollapsed.value && visibleGroups.value.some((group) => VIEWPORT_GROUPS.includes(group)));
+
 /** Whether the map should bother querying the routes in view (reads without subscribing). */
 export function wantsViewportRoutes(): boolean {
-  return !legendCollapsed.peek() && visibleGroups.peek().some((group) => VIEWPORT_GROUPS.includes(group));
+  return viewportWanted.peek();
 }
 
 /** Legend footer lines (the stale-position note, once). */

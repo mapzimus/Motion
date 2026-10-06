@@ -1794,7 +1794,10 @@ function scheduleViewportRoutes() {
   }, LEGEND_THROTTLE_MS);
 }
 
-/** Recount and requery for the legend now (it was just expanded or its groups changed). */
+/**
+ * Recount and requery for the legend now. Called by the legend bridge when a
+ * route list becomes possible (legend expanded or a route group switched on).
+ */
 export function refreshLegendFeeds() {
   scheduleLiveKeyCounts();
   scheduleViewportRoutes();
