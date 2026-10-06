@@ -13,11 +13,10 @@ export const SUBWAY_GROUPS = ['red', 'orange', 'green', 'blue', 'silver', 'matta
 export const GROUP_KEYS = [
   ...SUBWAY_GROUPS,
   'commuter', 'bus', 'amtrak', 'local', 'taxi',
-  'ferry', 'plane', 'air-service', 'airport', 'vessel',
+  'ferry', 'plane', 'air-service', 'airport', 'airport-status', 'vessel',
   'bike', 'bikeshare', 'walking', 'cycling',
-  'traffic', 'roadwork', 'incident', 'camera',
+  'traffic', 'roadwork', 'incident', 'camera', 'weather',
   'roads', 'freight', 'border', 'heritage-rail', 'park-ride', 'ev-charging', 'drawbridge',
-  'weather', 'airport-status',
 ];
 
 // The Routes preset: scheduled ribbons for every mode, subway lines only where

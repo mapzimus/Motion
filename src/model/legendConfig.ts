@@ -65,10 +65,10 @@ export const LEGEND_GROUPS: Record<string, LegendGroup> = {
   blue: { name: 'Blue Line', glyph: 'rail', notes: [FADED] },
   silver: { name: 'Silver Line', glyph: 'bus', notes: [FADED] },
   mattapan: { name: 'Mattapan Trolley', glyph: 'rail', notes: [FADED] },
-  commuter: { name: 'Commuter rail', glyph: 'rail', notes: [FADED] },
-  bus: { name: 'Buses', glyph: 'bus', notes: [FADED] },
+  commuter: { name: 'Commuter & regional rail (MBTA, Metro-North, CTrail)', glyph: 'rail', notes: [FADED] },
+  bus: { name: 'Buses, shuttles & coaches', glyph: 'bus', notes: [FADED] },
   amtrak: { name: 'Amtrak', glyph: 'rail', notes: [FADED] },
-  local: { name: 'Local and on-demand', glyph: 'bus', notes: [FADED], fixedRows: localRows },
+  local: { name: 'On-demand & community services', glyph: 'bus', notes: [FADED], fixedRows: localRows },
   taxi: {
     name: 'Taxis',
     glyph: 'dot',

@@ -130,6 +130,12 @@ Maine islands. Presets live in `src/model/presets.js` as plain data; the
 active preset stays highlighted until you change a layer by hand, and presets
 whose layers all need the gateway are disabled rather than clearing the map.
 
+The panel groups layers into Subway, Ground & rail, Air & water, Shared &
+active travel, Conditions & alerts (congestion, work zones, incidents,
+cameras, NWS weather alerts), and Movement infrastructure. Airport delays sit
+with the airports in Air & water. The map key (legend) lists the operators
+behind each layer.
+
 **Basemap**, under Geography, switches between Dark (CARTO Dark Matter), Dark
 without labels, and Satellite (Esri World Imagery with Esri place labels). The
 choice is remembered, and `?basemap=satellite` opens it directly.
@@ -291,7 +297,7 @@ says so. OpenStreetMap adds 30 mapped taxi stands, cached in
 medical-transport services are out of scope. Rebuild just this group with
 `py -3 -X utf8 scripts\build-reference-places.py --taxi-only`.
 
-The **Local & on-demand services** layer fills a different gap. It currently
+The **On-demand & community services** layer fills a different gap. It currently
 catalogs 51 services that do not have reliable route geometry or public live
 positions: Maine county transportation, New Hampshire community providers
 (including the Winnipesaukee Transit System), Massachusetts microtransit, Connecticut's nine CTDOT
