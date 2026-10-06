@@ -16,7 +16,7 @@ export const DEFAULT_REGION = 'greater-boston';
 // Boston existed: the MBTA core, which keeps the `boston` key.
 export const LEGACY_DEFAULT_REGION = 'boston';
 
-const STATE_KEYS = ['ct', 'me', 'ma', 'nh', 'ri', 'vt'];
+export const STATE_KEYS = ['ct', 'me', 'ma', 'nh', 'ri', 'vt'];
 // Region ids the Motion gateway and aircraft relay understand. Sub-regions ask
 // the gateway for their parent and are clipped to their own boundary here.
 const GATEWAY_KEYS = new Set(['boston', ...STATE_KEYS, 'new-england']);
@@ -205,6 +205,28 @@ export function containsPoint(key, point, { marine = false } = {}) {
       || point[1] < bbox[0][1] || point[1] > bbox[1][1])) return false;
     return pointInGeometry(point, feature.geometry);
   });
+}
+
+export function stateAt(point) {
+  return STATE_KEYS.find((key) => containsPoint(key, point)) ?? null;
+}
+
+// The smallest region (by bounding-box area) that contains the point. Unions
+// such as All New England contain everything, so they are skipped.
+export function smallestRegionAt(point) {
+  let best = null;
+  let bestArea = Infinity;
+  for (const region of REGIONS) {
+    if (region.kind === 'union' || !containsPoint(region.key, point)) continue;
+    const bounds = boundsForRegion(region.key);
+    if (!bounds) continue;
+    const area = (bounds[1][0] - bounds[0][0]) * (bounds[1][1] - bounds[0][1]);
+    if (area < bestArea) {
+      best = region.key;
+      bestArea = area;
+    }
+  }
+  return best;
 }
 
 export function filterItems(items, key = activeRegion, options = {}) {
