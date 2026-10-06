@@ -4,11 +4,13 @@ import {
   VIEWPORT_ZOOM,
   buildLegendSections,
   countLiveKeys,
+  legendFooter,
+  sameNestedMap,
   operatorRows,
   viewportRoutesFromFeatures,
   type LegendInputs,
 } from './legendRows.js';
-import { LEGEND_GROUPS } from './legendConfig.js';
+import { LEGEND_GROUPS, STALE_NOTE } from './legendConfig.js';
 import { PALETTE, PALETTE_START, assignPalette } from './palette.js';
 
 const entry = (routes: number, label = 'x') => ({ label, routes, stops: 0 });
@@ -102,17 +104,52 @@ describe('viewportRoutesFromFeatures', () => {
   });
 });
 
-describe('buildLegendSections', () => {
-  it('builds sections for ON groups only, in GROUP_KEYS order', () => {
-    const sections = buildLegendSections(inputs({ groups: ['ferry', 'bus', 'red'] }));
-    expect(sections.map((s) => s.group)).toEqual(['red', 'bus', 'ferry']);
-    expect(sections[1]).toMatchObject({ name: LEGEND_GROUPS.bus.name, glyph: 'bus', notes: LEGEND_GROUPS.bus.notes });
+describe('legend notes', () => {
+  it('keeps the stale note out of section notes and shows it once in the footer', () => {
+    const groups = ['red', 'bus', 'ferry', 'ev-charging'];
+    const sections = buildLegendSections(inputs({ groups }));
+    expect(sections.flatMap((s) => s.notes)).toEqual(['White ring = DC fast charging']);
+    expect(legendFooter(groups)).toEqual([STALE_NOTE]);
   });
 
-  it('gives subway sections a header color and no rows', () => {
-    const [red] = buildLegendSections(inputs({ groups: ['red'], subwayColors: new Map([['red', '#da291c']]) }));
-    expect(red.color).toBe('#da291c');
-    expect(red.rows).toEqual([]);
+  it('has no footer when no fading group is on', () => {
+    expect(legendFooter(['ev-charging', 'plane'])).toEqual([]);
+  });
+});
+
+describe('sameNestedMap', () => {
+  it('compares nested maps of flat records by content', () => {
+    const a = new Map([['bus', new Map([['mbta', { n: 2, label: 'MBTA' }]])]]);
+    expect(sameNestedMap(a, new Map([['bus', new Map([['mbta', { n: 2, label: 'MBTA' }]])]]))).toBe(true);
+    expect(sameNestedMap(a, new Map([['bus', new Map([['mbta', { n: 3, label: 'MBTA' }]])]]))).toBe(false);
+    expect(sameNestedMap(a, new Map([['bus', new Map([['mbta', { n: 2 }]])]]))).toBe(false);
+    expect(sameNestedMap(a, new Map())).toBe(false);
+  });
+});
+
+describe('buildLegendSections', () => {
+  it('builds sections for ON groups only, in GROUP_KEYS order', () => {
+    const sections = buildLegendSections(inputs({ groups: ['ferry', 'bus'] }));
+    expect(sections.map((s) => s.group)).toEqual(['bus', 'ferry']);
+  });
+
+  it('folds the subway lines that are on into one Subway section, with live counts', () => {
+    const live = new Map([['red', new Map([['mbta', { n: 12 }]])]]);
+    const sections = buildLegendSections(inputs({
+      groups: ['bus', 'blue', 'red'],
+      live,
+      subwayColors: new Map([['red', '#da291c'], ['blue', '#003da5']]),
+    }));
+    expect(sections.map((s) => s.group)).toEqual(['subway', 'bus']);
+    expect(sections[0]).toMatchObject({ name: 'Subway', glyph: 'rail', notes: [] });
+    expect(sections[0].rows).toEqual([
+      { key: 'red', label: LEGEND_GROUPS.red.name, color: '#da291c', live: 12 },
+      { key: 'blue', label: LEGEND_GROUPS.blue.name, color: '#003da5' },
+    ]);
+  });
+
+  it('leaves the Subway section out when no line is on', () => {
+    expect(buildLegendSections(inputs({ groups: ['bus'] })).some((s) => s.group === 'subway')).toBe(false);
   });
 
   it('uses fixed rows where the config has them', () => {
@@ -146,6 +183,11 @@ describe('buildLegendSections', () => {
     const [bus] = buildLegendSections(inputs({ groups: ['bus'], zoom: 15, viewport: new Map([['bus', new Map(many)]]) }));
     expect(bus.operators![0].rows).toHaveLength(LEGEND_ROW_CAP);
     expect(bus.operators![0].more).toBe(2);
+  });
+
+  it('gives zoomed-in route groups an empty operator list when nothing is in view', () => {
+    const [bus] = buildLegendSections(inputs({ groups: ['bus'], zoom: 15 }));
+    expect(bus.operators).toEqual([]);
   });
 
   it('keeps operator rows for non-route groups when zoomed in', () => {

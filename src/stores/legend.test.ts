@@ -9,6 +9,10 @@ import {
   legendSections,
   setLegendZoom,
   setViewportRoutes,
+  liveKeyCounts,
+  viewportRoutes,
+  wantsViewportRoutes,
+  setLegendCollapsed,
 } from './legend.js';
 import { setVisibleGroupList } from './layers.js';
 import { PALETTE, PALETTE_START } from '../model/palette.js';
@@ -81,5 +85,31 @@ describe('legend store', () => {
     expect(legendSections.value[0].operators![0].rows[0].label).toBe('1');
     setVisibleGroupList(['ferry']);
     expect(legendSections.value.map((s) => s.group)).toEqual(['ferry']);
+  });
+
+  it('skips writes that would not change the live counts or viewport routes', () => {
+    setLiveKeyCounts(new Map([['bus', new Map([['a', { n: 1 }]])]]));
+    const before = liveKeyCounts.value;
+    setLiveKeyCounts(new Map([['bus', new Map([['a', { n: 1 }]])]]));
+    expect(liveKeyCounts.value).toBe(before);
+    setLiveKeyCounts(new Map([['bus', new Map([['a', { n: 2 }]])]]));
+    expect(liveKeyCounts.value).not.toBe(before);
+
+    const route = { label: '1', color: '#aaaaaa', operatorKey: 'mbta', operatorLabel: 'MBTA', live: false };
+    setViewportRoutes(new Map([['bus', new Map([['1', route]])]]));
+    const routes = viewportRoutes.value;
+    setViewportRoutes(new Map([['bus', new Map([['1', { ...route }]])]]));
+    expect(viewportRoutes.value).toBe(routes);
+  });
+
+  it('wants viewport routes only when open and a route group is on', () => {
+    setLegendCollapsed(false);
+    setVisibleGroupList(['plane']);
+    expect(wantsViewportRoutes()).toBe(false);
+    setVisibleGroupList(['bus']);
+    expect(wantsViewportRoutes()).toBe(true);
+    setLegendCollapsed(true);
+    expect(wantsViewportRoutes()).toBe(false);
+    setLegendCollapsed(false);
   });
 });

@@ -1,7 +1,7 @@
 // Pure builders behind the map key: operator rows from the route index and
 // live counts, viewport route rows from rendered map features, and the
 // per-group sections the Legend component draws. No map, DOM or store access.
-import { LEGEND_GROUPS, type LegendGlyph } from './legendConfig.js';
+import { LEGEND_GROUPS, STALE_NOTE, type LegendGlyph } from './legendConfig.js';
 import { paletteColorFor } from './palette.js';
 import { GROUP_KEYS, SUBWAY_GROUPS } from './presets.js';
 import type { LiveKeyCounts, LiveKeyEntry, RouteKeyEntry, RouteKeyIndex } from '../stores/legend.js';
@@ -40,13 +40,11 @@ export interface LegendSection {
   group: string;
   name: string;
   glyph: LegendGlyph;
-  /** Header swatch color (subway lines). */
-  color?: string;
   rows: LegendRowView[];
   /** Rows past the cap: `more` is their count, `extra` the rows themselves. */
   more: number;
   extra: LegendRowView[];
-  /** Zoomed in: routes in view grouped under their operator. */
+  /** Zoomed in: routes in view grouped under their operator ([] = none in view). */
   operators?: OperatorBlock[];
   notes: string[];
 }
@@ -219,11 +217,58 @@ function viewportOperators(
   });
 }
 
-/** One section per switched-on group, in panel (GROUP_KEYS) order. */
+/** The subway lines that are on, as rows of one "Subway" section; null when none are on. */
+function subwaySection(on: Set<string>, inputs: LegendInputs): LegendSection | null {
+  const rows = SUBWAY_GROUPS.filter((group: string) => on.has(group)).map((group: string) => {
+    const row: LegendRowView = {
+      key: group,
+      label: LEGEND_GROUPS[group].name,
+      color: inputs.subwayColors.get(group) ?? FALLBACK_COLOR,
+    };
+    let n = 0;
+    for (const e of inputs.live.get(group)?.values() ?? []) n += e.n;
+    if (n) row.live = n;
+    return row;
+  });
+  if (!rows.length) return null;
+  return { group: 'subway', name: 'Subway', glyph: 'rail', rows, more: 0, extra: [], notes: [] };
+}
+
+/** Footer lines: the stale-position note, once, when any group that fades is on. */
+export function legendFooter(groups: readonly string[]): string[] {
+  return groups.some((group) => LEGEND_GROUPS[group]?.fades) ? [STALE_NOTE] : [];
+}
+
+/** True when two group -> key -> flat record maps hold the same contents. */
+export function sameNestedMap<T extends object>(
+  a: Map<string, Map<string, T>>,
+  b: Map<string, Map<string, T>>,
+): boolean {
+  if (a.size !== b.size) return false;
+  for (const [group, inner] of a) {
+    const other = b.get(group);
+    if (!other || other.size !== inner.size) return false;
+    for (const [key, value] of inner) {
+      const twin = other.get(key) as Record<string, unknown> | undefined;
+      if (!twin) return false;
+      const entries = Object.entries(value);
+      if (entries.length !== Object.keys(twin).length) return false;
+      if (entries.some(([k, v]) => twin[k] !== v)) return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * One section per switched-on group, in panel (GROUP_KEYS) order. The subway
+ * lines share one "Subway" section, placed where the first line would be.
+ */
 export function buildLegendSections(inputs: LegendInputs): LegendSection[] {
   const on = new Set(inputs.groups);
   const zoomedIn = inputs.zoom >= VIEWPORT_ZOOM;
-  return GROUP_KEYS.filter((group: string) => on.has(group) && LEGEND_GROUPS[group]).map((group: string) => {
+  const subway = subwaySection(on, inputs);
+  const rest = GROUP_KEYS.filter((group: string) =>
+    on.has(group) && LEGEND_GROUPS[group] && !SUBWAY_GROUPS.includes(group)).map((group: string) => {
     const config = LEGEND_GROUPS[group];
     const section: LegendSection = {
       group,
@@ -234,10 +279,7 @@ export function buildLegendSections(inputs: LegendInputs): LegendSection[] {
       extra: [],
       notes: config.notes,
     };
-    if (SUBWAY_GROUPS.includes(group)) {
-      const color = inputs.subwayColors.get(group);
-      if (color) section.color = color;
-    } else if (config.fixedRows) {
+    if (config.fixedRows) {
       section.rows = config.fixedRows;
     } else if (zoomedIn && VIEWPORT_GROUPS.includes(group)) {
       section.operators = viewportOperators(group, inputs.viewport.get(group) ?? new Map(), inputs);
@@ -251,4 +293,5 @@ export function buildLegendSections(inputs: LegendInputs): LegendSection[] {
     }
     return section;
   });
+  return subway ? [subway, ...rest] : rest;
 }

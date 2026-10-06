@@ -20,6 +20,8 @@ export interface LegendGroup {
   name: string;
   glyph: LegendGlyph;
   notes: string[];
+  /** Live vehicles fade when stale; the legend shows STALE_NOTE once for these. */
+  fades?: boolean;
   fixedRows?: LegendRow[];
 }
 
@@ -32,7 +34,8 @@ export const AIRPORT_STATUS_LABELS: Readonly<Record<string, string>> = {
   closure: 'Airport closure / NOTAM',
 };
 
-const FADED = 'Faded = position older than 90 s';
+/** Shown once in the legend footer when any group that `fades` is on. */
+export const STALE_NOTE = 'Faded = position older than 90 s';
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 const weatherRows: LegendRow[] = Object.entries(CONFIG.WEATHER_COLORS as Record<string, string>)
@@ -59,23 +62,23 @@ const taxiRows: LegendRow[] = [
 ];
 
 export const LEGEND_GROUPS: Record<string, LegendGroup> = {
-  red: { name: 'Red Line', glyph: 'rail', notes: [FADED] },
-  orange: { name: 'Orange Line', glyph: 'rail', notes: [FADED] },
-  green: { name: 'Green Line', glyph: 'rail', notes: [FADED] },
-  blue: { name: 'Blue Line', glyph: 'rail', notes: [FADED] },
-  silver: { name: 'Silver Line', glyph: 'bus', notes: [FADED] },
-  mattapan: { name: 'Mattapan Trolley', glyph: 'rail', notes: [FADED] },
-  commuter: { name: 'Commuter & regional rail (MBTA, Metro-North, CTrail)', glyph: 'rail', notes: [FADED] },
-  bus: { name: 'Buses, shuttles & coaches', glyph: 'bus', notes: [FADED] },
-  amtrak: { name: 'Amtrak', glyph: 'rail', notes: [FADED] },
-  local: { name: 'On-demand & community services', glyph: 'bus', notes: [FADED], fixedRows: localRows },
+  red: { name: 'Red Line', glyph: 'rail', notes: [], fades: true },
+  orange: { name: 'Orange Line', glyph: 'rail', notes: [], fades: true },
+  green: { name: 'Green Line', glyph: 'rail', notes: [], fades: true },
+  blue: { name: 'Blue Line', glyph: 'rail', notes: [], fades: true },
+  silver: { name: 'Silver Line', glyph: 'bus', notes: [], fades: true },
+  mattapan: { name: 'Mattapan Trolley', glyph: 'rail', notes: [], fades: true },
+  commuter: { name: 'Commuter & regional rail (MBTA, Metro-North, CTrail)', glyph: 'rail', notes: [], fades: true },
+  bus: { name: 'Buses, shuttles & coaches', glyph: 'bus', notes: [], fades: true },
+  amtrak: { name: 'Amtrak', glyph: 'rail', notes: [], fades: true },
+  local: { name: 'On-demand & community services', glyph: 'bus', notes: [], fades: true, fixedRows: localRows },
   taxi: {
     name: 'Taxis',
     glyph: 'dot',
     notes: ['Small dot = cab stand, larger = company'],
     fixedRows: taxiRows,
   },
-  ferry: { name: 'Ferries', glyph: 'boat', notes: [FADED] },
+  ferry: { name: 'Ferries', glyph: 'boat', notes: [], fades: true },
   plane: { name: 'Aircraft', glyph: 'plane', notes: [] },
   'air-service': { name: 'Airline service', glyph: 'line', notes: [] },
   airport: { name: 'Airports', glyph: 'dot', notes: [] },

@@ -8,7 +8,13 @@ import {
   type OperatorStat,
 } from '../model/palette.js';
 import { vehicleColors, type VehicleColorProps, type VehicleColors } from '../model/vehicleColors.js';
-import { buildLegendSections, type ViewportRoutes } from '../model/legendRows.js';
+import {
+  VIEWPORT_GROUPS,
+  buildLegendSections,
+  legendFooter as footerFor,
+  sameNestedMap,
+  type ViewportRoutes,
+} from '../model/legendRows.js';
 import { visibleGroups } from './layers.js';
 
 export interface RouteKeyEntry { label: string; routes: number; stops: number }
@@ -25,8 +31,9 @@ export function setRouteKeyIndex(index: RouteKeyIndex) {
   routeKeyIndex.value = index;
 }
 
+/** Replace the live counts; identical contents keep the old value so nothing recomputes. */
 export function setLiveKeyCounts(counts: LiveKeyCounts) {
-  liveKeyCounts.value = counts;
+  if (!sameNestedMap(liveKeyCounts.peek(), counts)) liveKeyCounts.value = counts;
 }
 
 /** group -> operator key -> palette color, ranked by static route count. */
@@ -74,13 +81,47 @@ export function setLegendZoom(zoom: number) {
   legendZoom.value = zoom;
 }
 
+/** Replace the routes in view; identical contents keep the old value. */
 export function setViewportRoutes(routes: ViewportRoutes) {
-  viewportRoutes.value = routes;
+  if (!sameNestedMap(viewportRoutes.peek(), routes)) viewportRoutes.value = routes;
 }
 
 export function setSubwayColors(colors: Map<string, string>) {
   subwayColors.value = colors;
 }
+
+const COLLAPSED_KEY = 'motion-legend';
+
+function readCollapsed(): boolean {
+  try {
+    const saved = localStorage.getItem(COLLAPSED_KEY);
+    if (saved) return saved === 'collapsed';
+  } catch {
+    // Storage blocked: fall through to the screen-size default.
+  }
+  return typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+    && window.matchMedia('(max-width: 760px)').matches;
+}
+
+/** Whether the legend panel is collapsed; remembered in localStorage('motion-legend'). */
+export const legendCollapsed = signal(readCollapsed());
+
+export function setLegendCollapsed(collapsed: boolean) {
+  legendCollapsed.value = collapsed;
+  try {
+    localStorage.setItem(COLLAPSED_KEY, collapsed ? 'collapsed' : 'open');
+  } catch {
+    // Private mode: the choice lasts for this visit.
+  }
+}
+
+/** Whether the map should bother querying the routes in view (reads without subscribing). */
+export function wantsViewportRoutes(): boolean {
+  return !legendCollapsed.peek() && visibleGroups.peek().some((group) => VIEWPORT_GROUPS.includes(group));
+}
+
+/** Legend footer lines (the stale-position note, once). */
+export const legendFooter = computed(() => footerFor(visibleGroups.value));
 
 /** One legend section per visible group, in panel order. */
 export const legendSections = computed(() => buildLegendSections({

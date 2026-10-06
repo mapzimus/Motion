@@ -1,15 +1,12 @@
 // The map key: one section per switched-on layer group with its glyph, operator
 // or route rows, counts and notes. Renders the legend store; computes nothing.
 import { useState } from 'preact/hooks';
-import { legendSections } from '../stores/legend.js';
+import { legendCollapsed, legendFooter, legendSections, setLegendCollapsed } from '../stores/legend.js';
 import { region } from '../stores/region.js';
 import { regionName } from '../feeds/regions.js';
 import { glyphSvgPath } from '../map/glyphs.js';
 import type { LegendGlyph } from '../model/legendConfig.js';
 import { VIEWPORT_GROUPS, type LegendRowView, type LegendSection, type OperatorBlock } from '../model/legendRows.js';
-
-const STORAGE_KEY = 'motion-legend';
-const PHONE_QUERY = '(max-width: 760px)';
 
 type SwatchKind = 'line' | 'glyph' | 'ring' | 'dot' | 'area';
 
@@ -19,7 +16,7 @@ const GLYPH_GROUPS = new Set(['local', 'plane', 'vessel', 'bike', 'bikeshare']);
 /** How a row's color sample is drawn: ribbon, vehicle shape, ring, dot or area. */
 function swatchKind(group: string, glyph: LegendGlyph): SwatchKind {
   if (RING_GROUPS.has(group)) return 'ring';
-  if (VIEWPORT_GROUPS.includes(group) || glyph === 'line') return 'line';
+  if (group === 'subway' || VIEWPORT_GROUPS.includes(group) || glyph === 'line') return 'line';
   if (GLYPH_GROUPS.has(group)) return 'glyph';
   if (glyph === 'area') return 'area';
   return 'dot';
@@ -104,51 +101,39 @@ function Section({ section }: { section: LegendSection }) {
   return (
     <section class="legend-section">
       <h3 class="legend-section-head">
-        <Glyph glyph={section.glyph} color={section.color} />
+        <Glyph glyph={section.glyph} />
         <span class="legend-section-name">{section.name}</span>
       </h3>
       <RowList rows={section.rows} extra={section.extra} kind={kind} glyph={section.glyph} />
       {section.operators?.map((block) => <Operator key={block.key} block={block} glyph={section.glyph} />)}
+      {section.operators?.length === 0 && <p class="legend-empty">No routes in view</p>}
       {section.notes.length > 0 && <p class="legend-notes">{section.notes.join(' · ')}</p>}
     </section>
   );
 }
 
-function initialCollapsed(): boolean {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) return saved === 'collapsed';
-  } catch {
-    // Storage blocked: fall through to the screen-size default.
-  }
-  return typeof window.matchMedia === 'function' && window.matchMedia(PHONE_QUERY).matches;
-}
-
 export function Legend() {
-  const [collapsed, setCollapsed] = useState(initialCollapsed);
-  const toggle = () => {
-    const next = !collapsed;
-    setCollapsed(next);
-    try {
-      localStorage.setItem(STORAGE_KEY, next ? 'collapsed' : 'open');
-    } catch {
-      // Private mode: the choice lasts for this visit.
-    }
-  };
+  const collapsed = legendCollapsed.value;
   const sections = legendSections.value;
+  const footer = legendFooter.value;
   return (
     <aside class={`legend${collapsed ? ' collapsed' : ''}`} aria-label="Map key">
-      <button type="button" class="legend-head" aria-expanded={!collapsed} aria-controls="legend-body" onClick={toggle}>
+      <button
+        type="button"
+        class="legend-head"
+        aria-expanded={!collapsed}
+        aria-controls="legend-body"
+        onClick={() => setLegendCollapsed(!collapsed)}
+      >
         <span class="legend-title">Key<span class="legend-region"> · {regionName(region.value)}</span></span>
         <span class="legend-chevron" aria-hidden="true" />
       </button>
-      {!collapsed && (
-        <div id="legend-body" class="legend-body">
-          {sections.length
-            ? sections.map((section) => <Section key={section.group} section={section} />)
-            : <p class="legend-empty">Turn on a layer to see its key.</p>}
-        </div>
-      )}
+      <div id="legend-body" class="legend-body" hidden={collapsed}>
+        {sections.length
+          ? sections.map((section) => <Section key={section.group} section={section} />)
+          : <p class="legend-empty">Turn on a layer to see its key.</p>}
+        {footer.map((line) => <p key={line} class="legend-footer">{line}</p>)}
+      </div>
     </aside>
   );
 }

@@ -3,9 +3,12 @@ import { render } from 'preact';
 import { act } from 'preact/test-utils';
 import { Legend } from './Legend.js';
 import { setVisibleGroupList } from '../stores/layers.js';
+import { LEGEND_GROUPS, STALE_NOTE } from '../model/legendConfig.js';
 import {
+  setLegendCollapsed,
   setLegendZoom,
   setLiveKeyCounts,
+  setSubwayColors,
   setRouteKeyIndex,
   setViewportRoutes,
 } from '../stores/legend.js';
@@ -13,6 +16,7 @@ import {
 let root: HTMLElement;
 const $ = (sel: string) => root.querySelector(sel);
 const $$ = (sel: string) => [...root.querySelectorAll(sel)];
+const BUS = LEGEND_GROUPS.bus.name;
 const sectionNames = () => $$('.legend-section-name').map((el) => el.textContent);
 
 function mount() {
@@ -29,6 +33,8 @@ describe('Legend', () => {
     setLiveKeyCounts(new Map());
     setViewportRoutes(new Map());
     setLegendZoom(10);
+    setLegendCollapsed(false);
+    try { localStorage.clear(); } catch { /* storage blocked */ }
   });
 
   afterEach(() => {
@@ -46,7 +52,7 @@ describe('Legend', () => {
     mount();
     expect(sectionNames()).toEqual([]);
     act(() => setVisibleGroupList(['ferry', 'bus']));
-    expect(sectionNames()).toEqual(['Buses', 'Ferries']);
+    expect(sectionNames()).toEqual([BUS, 'Ferries']);
     act(() => setVisibleGroupList(['ferry']));
     expect(sectionNames()).toEqual(['Ferries']);
   });
@@ -58,11 +64,12 @@ describe('Legend', () => {
     expect(toggle.getAttribute('aria-expanded')).toBe('true');
     act(() => toggle.click());
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
-    expect($('.legend-body')).toBeNull();
+    expect(toggle.getAttribute('aria-controls')).toBe('legend-body');
+    expect(($('#legend-body') as HTMLElement).hidden).toBe(true);
     expect(localStorage.getItem('motion-legend')).toBe('collapsed');
     act(() => toggle.click());
     expect(toggle.getAttribute('aria-expanded')).toBe('true');
-    expect(sectionNames()).toEqual(['Buses']);
+    expect(sectionNames()).toEqual([BUS]);
   });
 
   it('shows operator rows with counts and expands "+N more"', () => {
@@ -97,6 +104,36 @@ describe('Legend', () => {
     act(() => setLegendZoom(14));
     expect($('.legend-operator')!.textContent).toContain('MBTA');
     expect($$('.legend-row').map((r) => r.textContent)).toEqual([expect.stringContaining('Route 1')]);
+  });
+
+  it('shows one Subway section with a row per line that is on', () => {
+    act(() => {
+      setSubwayColors(new Map([['red', '#da291c'], ['orange', '#ed8b00']]));
+      setVisibleGroupList(['red', 'orange', 'bus']);
+    });
+    mount();
+    expect(sectionNames()).toEqual(['Subway', BUS]);
+    const subway = $('.legend-section')!;
+    expect([...subway.querySelectorAll('.legend-label')].map((e) => e.textContent)).toEqual(['Red Line', 'Orange Line']);
+    act(() => setVisibleGroupList(['orange']));
+    expect([...$('.legend-section')!.querySelectorAll('.legend-label')].map((e) => e.textContent)).toEqual(['Orange Line']);
+  });
+
+  it('shows the stale note exactly once, as a footer', () => {
+    act(() => setVisibleGroupList(['red', 'bus', 'ferry', 'commuter']));
+    mount();
+    const hits = [...root.querySelectorAll('p')].filter((p) => p.textContent?.includes(STALE_NOTE));
+    expect(hits).toHaveLength(1);
+    expect(hits[0].classList.contains('legend-footer')).toBe(true);
+  });
+
+  it('says so when no routes are in view while zoomed in', () => {
+    act(() => {
+      setVisibleGroupList(['bus']);
+      setLegendZoom(15);
+    });
+    mount();
+    expect($('.legend-section .legend-empty')!.textContent).toBe('No routes in view');
   });
 
   it('shows notes as a muted line', () => {

@@ -17,7 +17,14 @@ import {
   setActiveRegion,
 } from '../feeds/regions.js';
 import { buildRouteKeyIndex, stampRouteColors } from '../model/routeColors.js';
-import { setRouteKeyIndex, paletteAssignment, setLiveKeyCounts, setLegendZoom, setViewportRoutes } from '../stores/legend.js';
+import {
+  setRouteKeyIndex,
+  paletteAssignment,
+  setLiveKeyCounts,
+  setLegendZoom,
+  setViewportRoutes,
+  wantsViewportRoutes,
+} from '../stores/legend.js';
 import { countLiveKeys, viewportRoutesFromFeatures, VIEWPORT_ZOOM } from '../model/legendRows.js';
 import { PALETTE, VESSEL_BANDS } from '../model/palette.js';
 import { GLYPHS, iconName, parseIconName } from './glyphs.js';
@@ -1779,12 +1786,18 @@ function scheduleViewportRoutes() {
   if (viewportTimer || !map) return;
   viewportTimer = setTimeout(() => {
     viewportTimer = null;
-    // Zoomed out the legend lists operators, so skip the query.
-    if (!layersReady || map.getZoom() < VIEWPORT_ZOOM) return;
+    // Zoomed out, collapsed, or no route group on: the legend shows no route list.
+    if (!layersReady || map.getZoom() < VIEWPORT_ZOOM || !wantsViewportRoutes()) return;
     const layers = ['route-lines', ...FLEETS.flatMap((id) => [`veh-${id}-icons`, `veh-${id}-dots`])]
       .filter((id) => map.getLayer(id));
     setViewportRoutes(viewportRoutesFromFeatures(map.queryRenderedFeatures({ layers })));
   }, LEGEND_THROTTLE_MS);
+}
+
+/** Recount and requery for the legend now (it was just expanded or its groups changed). */
+export function refreshLegendFeeds() {
+  scheduleLiveKeyCounts();
+  scheduleViewportRoutes();
 }
 
 function wireLegend() {
