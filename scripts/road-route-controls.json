@@ -35,6 +35,7 @@
   "segments": {
     "driving:-72.59415,42.10641|-73.99527,40.75031": {"corridors": ["i91_to_new_haven", "new_haven_i95_to_bronx", "gwb_westbound", "nj_turnpike_to_lincoln_tunnel"]},
     "driving:-71.05618,42.35047|-73.99050,40.75695": {"corridors": ["i84_i684_bronx", "gwb_westbound", "nj_turnpike_to_lincoln_tunnel"]},
+    "driving:-71.25347,42.33623|-73.99285,40.75717": {"corridors": ["i84_i684_bronx", "gwb_westbound", "nj_turnpike_to_lincoln_tunnel"]},
     "driving:-71.05618,42.35047|-73.99527,40.75031": {"corridors": ["i84_i684_bronx", "gwb_westbound", "nj_turnpike_to_lincoln_tunnel"]},
     "driving:-71.05618,42.35047|-73.99562,40.71639": {"corridors": ["i84_i684_bronx", "gwb_westbound", "nj_turnpike_to_lincoln_tunnel"]},
     "driving:-71.05618,42.35047|-74.16431,40.73498": {"corridors": ["i84_i684_bronx", "gwb_westbound"]},

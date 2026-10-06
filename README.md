@@ -201,7 +201,11 @@ addresses. Hand-built bus corridors can now list named stops in a `stops`
 property and set `roadRouteEveryLeg` so that legs shorter than the usual 20 km
 repair threshold also follow roads. The New York line reuses the map's
 reviewed Boston–New York coach corridor, so it is drawn through Boston; C&J's
-non-stop coaches may bypass downtown, and the popup says so.
+non-stop coaches may bypass downtown, and the popup says so. Go Buses' daily
+Alewife–Riverside–New York coach (operated by Academy Bus) is drawn the same way
+from the stops on the operator's site, with its own reviewed bus-safe controls
+for the Riverside–Port Authority leg; it ends at Port Authority Gate 1, where it
+moved on September 1, 2026.
 
 Vermont includes regional routes from every discoverable public GTFS source in
 the current audit, including Green Mountain Transit, Vermont Translines, and
@@ -729,8 +733,8 @@ documented `freshness_exempt`), and commit the refreshed `feed-freshness.json`.
   no tracker. The only snowplow source found is VTrans's own app data file,
   which is empty outside winter.
 - Scheduled services found missing in the same audit and not yet drawn,
-  because none publishes GTFS and each needs a hand-built corridor: Go Buses
-  (Alewife and Newton to New York), Downeast Transportation's
+  because none publishes GTFS and each needs a hand-built corridor: Downeast
+  Transportation's
   year-round Hancock County routes, York County Community Action's Sanford
   routes, the 128 Business Council shuttles, Seastreak's New York–Martha's
   Vineyard–Nantucket ferry, the Bustins Island ferry, the AMC and Franconia
