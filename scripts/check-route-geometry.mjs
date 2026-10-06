@@ -743,6 +743,60 @@ for (const [group, minimum] of Object.entries(REFERENCE_PLACE_MINIMUMS)) {
   }
 }
 
+// FAA airspace reference (scripts/build-airspace.py): closed polygons inside
+// the New England box, the floor/ceiling the popup shows, and every class.
+{
+  const airspaceRaw = readFileSync(new URL('../public/data/airspace.geojson', import.meta.url));
+  const airspace = JSON.parse(airspaceRaw);
+  const AIRSPACE_MINIMUMS = { B: 1, C: 5, D: 10, sua: 10 };
+  // Offshore warning areas reach south of Long Island (~39.6° N); this box
+  // only catches swapped or garbage coordinates.
+  const [west, south, east, north] = [-75.0, 38.5, -65.0, 48.5];
+  const closedRing = (ring) => Array.isArray(ring) && ring.length >= 4
+    && ring.every((point) => Number.isFinite(point?.[0]) && Number.isFinite(point?.[1])
+      && point[0] >= west && point[0] <= east && point[1] >= south && point[1] <= north)
+    && samePoint(ring[0], ring.at(-1));
+  const airspaceCounts = {};
+  const airspaceIds = new Set();
+  const airspaceProblems = [];
+  for (const feature of airspace.features ?? []) {
+    const properties = feature.properties ?? {};
+    const geometry = feature.geometry ?? {};
+    const polygons = geometry.type === 'Polygon' ? [geometry.coordinates]
+      : geometry.type === 'MultiPolygon' ? geometry.coordinates : [];
+    const label = properties.airspaceId ?? properties.title ?? 'unknown';
+    if (!polygons.length || !polygons.every((polygon) => polygon?.length && polygon.every(closedRing))) {
+      airspaceProblems.push(`${label}: invalid or out-of-area polygon`);
+    }
+    if (properties.group !== 'airspace'
+        || properties.dataStatus !== 'reference'
+        || !(properties.styleKey in AIRSPACE_MINIMUMS)
+        || !properties.title
+        || !properties.floor
+        || !properties.ceiling
+        || !/^https:\/\//.test(properties.sourceUrl ?? '')
+        || (properties.kind === 'class') !== ['B', 'C', 'D'].includes(properties.styleKey)
+        || airspaceIds.has(properties.airspaceId)) {
+      airspaceProblems.push(`${label}: missing properties or duplicate id`);
+    }
+    airspaceIds.add(properties.airspaceId);
+    airspaceCounts[properties.styleKey] = (airspaceCounts[properties.styleKey] ?? 0) + 1;
+  }
+  for (const [key, minimum] of Object.entries(AIRSPACE_MINIMUMS)) {
+    if ((airspaceCounts[key] ?? 0) < minimum) airspaceProblems.push(`${key}: ${airspaceCounts[key] ?? 0} < ${minimum} features`);
+  }
+  if (!/^\d{4}-\d{2}-\d{2}T/.test(airspace.metadata?.fetchedAt ?? '') || !airspace.metadata?.sourceUrls?.length) {
+    airspaceProblems.push('metadata must record fetchedAt and sourceUrls');
+  }
+  if (airspaceProblems.length) {
+    throw new Error(`Airspace reference check failed (rebuild with py -3 -X utf8 scripts/build-airspace.py):\n${airspaceProblems.join('\n')}`);
+  }
+  console.log(
+    `Airspace check passed: ${airspace.features.length} features ${JSON.stringify(airspaceCounts)}, `
+    + `${airspaceRaw.length} bytes, fetched ${airspace.metadata.fetchedAt.slice(0, 10)}.`,
+  );
+}
+
 // Feed freshness (offline): scripts/feed-freshness.json is written by
 // build-regional-routes.py / check-feed-freshness.py. Every configured feed must
 // be listed, and each non-exempt feed must publish service at least
