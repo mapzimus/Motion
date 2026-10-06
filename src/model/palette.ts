@@ -56,6 +56,17 @@ export const OFFICIAL_COLORS: Readonly<Record<string, string>> = {
 /** Layer groups whose operators are colored from the palette. */
 export const PALETTE_GROUPS: readonly string[] = ['bus', 'ferry', 'commuter', 'air-service'];
 
+/**
+ * PALETTE slot each group's top operator starts on, so every mode keeps a
+ * familiar lead hue and no color leads two modes. Unlisted groups start at 0.
+ */
+export const PALETTE_START: Readonly<Record<string, number>> = {
+  bus: PALETTE.indexOf('#f2b84b'), // amber
+  ferry: PALETTE.indexOf('#00cdef'), // cyan
+  commuter: PALETTE.indexOf('#a378d4'), // violet
+  'air-service': PALETTE.indexOf('#48c9ff'), // sky
+};
+
 export interface OperatorStat { key: string; routes: number; live: number }
 
 /** FNV-1a 32-bit hash of a string, reduced to [0, mod). */
@@ -71,16 +82,18 @@ export function hashIndex(s: string, mod: number): number {
 /**
  * Hands out palette colors to a group's operators: ranked by route count,
  * then live vehicles, then key, so the result does not depend on input order.
- * Ranks 0-15 get PALETTE, 16-31 PALETTE_DIM, beyond that a hashed dim color.
+ * Ranks 0-15 get PALETTE, 16-31 PALETTE_DIM (both rotated to the group's
+ * PALETTE_START), beyond that a hashed dim color.
  */
 export function assignPalette(group: string, stats: OperatorStat[]): Map<string, string> {
   const ranked = [...stats].sort((a, b) =>
     (b.routes - a.routes) || (b.live - a.live) || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+  const start = PALETTE_START[group] ?? 0;
   const out = new Map<string, string>();
   ranked.forEach((s, rank) => {
     out.set(s.key, rank < 16
-      ? PALETTE[rank]
-      : PALETTE_DIM[rank < 32 ? rank - 16 : hashIndex(`${group}:${s.key}`, 16)]);
+      ? PALETTE[(start + rank) % 16]
+      : PALETTE_DIM[rank < 32 ? (start + rank - 16) % 16 : hashIndex(`${group}:${s.key}`, 16)]);
   });
   return out;
 }

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CONFIG } from '../feeds/config.js';
 import {
   OFFICIAL_COLORS, PALETTE, PALETTE_DIM, PALETTE_GROUPS, PLANE_BANDS, VESSEL_BANDS,
-  assignPalette, hashIndex, paletteColorFor, planeBand, routeShade, vesselBand,
+  PALETTE_START, assignPalette, hashIndex, paletteColorFor, planeBand, routeShade, vesselBand,
 } from './palette.js';
 
 const BG = '#0b0f14';
@@ -89,6 +89,26 @@ describe('assignPalette', () => {
     expect(m.get('k16')).toBe(PALETTE_DIM[0]);
     expect(m.get('k31')).toBe(PALETTE_DIM[15]);
     expect(m.get('k35')).toBe(PALETTE_DIM[hashIndex('bus:k35', 16)]);
+  });
+  it('starts each group on its own hue so modes never share a top color', () => {
+    const one = [{ key: 'top', routes: 5, live: 0 }, { key: 'next', routes: 1, live: 0 }];
+    expect(assignPalette('bus', one).get('top')).toBe('#f2b84b');
+    expect(assignPalette('ferry', one).get('top')).toBe('#00cdef');
+    expect(assignPalette('commuter', one).get('top')).toBe('#a378d4');
+    expect(assignPalette('air-service', one).get('top')).toBe('#48c9ff');
+    expect(assignPalette('ferry', one).get('next')).toBe(PALETTE[(PALETTE_START.ferry + 1) % 16]);
+    expect(assignPalette('unknown-group', one).get('top')).toBe(PALETTE[0]);
+  });
+  it('rotates the dim palette with the same start and stays deterministic', () => {
+    const many = Array.from({ length: 40 }, (_, i) => ({ key: `k${String(i).padStart(2, '0')}`, routes: 100 - i, live: 0 }));
+    const m = assignPalette('ferry', many);
+    const start = PALETTE_START.ferry;
+    expect(m.get('k00')).toBe(PALETTE[start]);
+    expect(m.get('k15')).toBe(PALETTE[(start + 15) % 16]);
+    expect(m.get('k16')).toBe(PALETTE_DIM[start]);
+    expect(m.get('k31')).toBe(PALETTE_DIM[(start + 15) % 16]);
+    expect(m.get('k35')).toBe(PALETTE_DIM[hashIndex('ferry:k35', 16)]);
+    expect([...assignPalette('ferry', [...many].reverse())].sort()).toEqual([...m].sort());
   });
   it('hashIndex is stable and bounded', () => {
     expect(hashIndex('x', 16)).toBe(hashIndex('x', 16));

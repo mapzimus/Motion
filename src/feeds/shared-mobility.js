@@ -82,7 +82,7 @@ async function stationItems(system, feeds) {
           ? CONFIG.BIKE_EMPTY_COLOR
           : dockState === 'low'
             ? CONFIG.BIKE_LOW_COLOR
-            : system.color,
+            : system.color ?? CONFIG.BIKE_COLOR,
         bearing: 0,
         hasBearing: false,
         stale: bikes === 0,

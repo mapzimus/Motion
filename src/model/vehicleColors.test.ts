@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { vehicleColors } from './vehicleColors.js';
-import { routeShade } from './palette.js';
+import { assignPalette, paletteColorFor, routeShade } from './palette.js';
+import { buildRouteKeyIndex, stampRouteColors } from './routeColors.js';
+import { regionalVehicleItem } from '../feeds/regional-normalize.js';
 
 const colorFor = (group: string, key: string, fallback: string) =>
   group === 'bus' && key === 'cj' ? '#5c88df' : fallback;
@@ -27,5 +29,38 @@ describe('vehicleColors', () => {
     expect(vehicleColors({ group: 'red', legendKey: 'mbta', color: '#da291c' }, colorFor, routeCountFor)).toBeNull();
     expect(vehicleColors({ group: 'vessel', legendKey: 'cargo', color: '#8fd16b' }, colorFor, routeCountFor)).toBeNull();
     expect(vehicleColors({ group: 'bus', color: '#f2b84b' }, colorFor, routeCountFor)).toBeNull();
+  });
+});
+
+describe('static routes and live vehicles agree', () => {
+  it('gives a vehicle the opColor and routeColor of the route it runs on', () => {
+    const route = (legendKey: string, id: string, kind: string) =>
+      ({ properties: { kind, group: 'bus', legendKey, route: id, color: '#f2b84b' } as Record<string, any> });
+    const features = [
+      route('cj', 'cj:boston-south-station', 'regional-static'),
+      route('cj', 'cj:logan', 'regional-static'),
+      route('mbta', '7', 'mbta'),
+      route('mbta', '77', 'mbta'),
+      route('mbta', '238', 'mbta'),
+    ];
+    const index = buildRouteKeyIndex(features);
+    const assignment = new Map([['bus', assignPalette('bus', [...index.get('bus')!].map(([key, e]) => ({ key, routes: e.routes, live: 0 })))]]);
+    stampRouteColors(features, assignment, index);
+    const resolve = (g: string, k: string, f: string) => paletteColorFor(g, k, assignment, f);
+    const count = (g: string, k: string) => index.get(g)?.get(k)?.routes ?? 0;
+
+    const regional = regionalVehicleItem(
+      { id: 'v', feed: 'cj', agency: 'C&J', route: 'boston-south-station', lng: 0, lat: 0, updatedAt: '2026-10-05T12:00:00Z' },
+      Date.parse('2026-10-05T12:00:00Z'),
+      { ferryFeeds: [], busColor: '#f2b84b', ferryColor: '#2eb7c5', staleAfterMs: 120_000 },
+    );
+    const mbta = { group: 'bus', legendKey: 'mbta', modeColor: '#f2b84b', shadeKey: '7' };
+
+    for (const [props, feature] of [[regional.props, features[0]], [mbta, features[2]]] as const) {
+      const live = vehicleColors(props, resolve, count)!;
+      expect(live.color).toBe(feature.properties.opColor);
+      expect(live.routeColor).toBe(feature.properties.routeColor);
+    }
+    expect(features[0].properties.routeColor).not.toBe(features[0].properties.opColor);
   });
 });

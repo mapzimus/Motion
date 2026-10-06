@@ -7,7 +7,7 @@ import {
   routeCountFor,
   setLiveKeyCounts,
 } from './legend.js';
-import { PALETTE } from '../model/palette.js';
+import { PALETTE, PALETTE_START } from '../model/palette.js';
 
 const entry = (routes: number) => ({ label: 'x', routes, stops: 0 });
 
@@ -47,7 +47,7 @@ describe('legend store', () => {
 
   it('colorFor reads the current assignment', () => {
     setRouteKeyIndex(new Map([['ferry', new Map([['f', entry(1)]])]]));
-    expect(colorFor('ferry', 'f', '#000000')).toBe(PALETTE[0]);
+    expect(colorFor('ferry', 'f', '#000000')).toBe(PALETTE[PALETTE_START.ferry]);
   });
 
   it('live counts never change colors', () => {
