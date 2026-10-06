@@ -171,6 +171,10 @@ export const CONFIG = {
   // Gateway transit feeds whose vehicles are boats, not buses.
   FERRY_FEEDS: ['casco-bay'],
   CAMERA_COLOR: '#d2d7dd',
+  ROAD_WEATHER_COLOR: '#7ec8e3',
+  MESSAGE_SIGN_COLOR: '#f0c14a',
+  PLOW_COLOR: '#d6e8ff',
+  AERIALWAY_COLOR: '#c4b5fd',
   INCIDENT_COLOR: '#ff5c5c',
   ROAD_COLOR: '#8a949f',
   FREIGHT_COLOR: '#b98b72',
@@ -186,6 +190,9 @@ export const CONFIG = {
   TAXI_COLOR: '#ffe14d',
 
   CAMERA_POLL_MS: 5 * 60_000,
+  ROAD_WEATHER_POLL_MS: 5 * 60_000,
+  MESSAGE_SIGN_POLL_MS: 5 * 60_000,
+  PLOW_POLL_MS: 60_000,
   ROAD_EVENT_POLL_MS: 60_000,
 
   // Conditions: NWS active weather alerts (zone polygons) and FAA airport
@@ -213,6 +220,8 @@ export const CONFIG = {
   TFR_COLORS: { VIP: '#ff4d4d', SECURITY: '#ff4d4d', SPECIAL: '#ff4d4d', HAZARDS: '#ff8a4c', default: '#ffc94d' },
   AIRSPACE_COLORS: { B: '#4f8dff', C: '#d65cd6', D: '#4f8dff', sua: '#ff9a3c' },
   AIRSPACE_URL: `${dataBase}airspace.geojson`,
+  PLOW_ROUTES_URL: `${dataBase}plow-routes.geojson`,
+  AERIALWAYS_URL: `${dataBase}aerialways.geojson`,
 
   TRAFFIC_TILE_TEMPLATE: gatewayBase
     ? `${gatewayBase}/api/traffic/{z}/{x}/{y}.png`
@@ -224,8 +233,9 @@ export const CONFIG = {
   // on: ~400 buses, ~600 bike stations, wall-to-wall traffic color).
   DEFAULT_OFF_GROUPS: [
     'bus', 'bike', 'roadwork', 'traffic', 'incident', 'camera',
+    'road-weather', 'message-sign', 'plow',
     'roads', 'freight', 'walking', 'cycling', 'local', 'airport', 'border', 'air-service',
-    'bikeshare', 'heritage-rail', 'park-ride', 'ev-charging', 'drawbridge', 'taxi',
+    'bikeshare', 'heritage-rail', 'aerialway', 'park-ride', 'ev-charging', 'drawbridge', 'taxi',
     'weather', 'airport-status',
     'airport-weather', 'tfr', 'airspace',
   ],

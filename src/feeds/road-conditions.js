@@ -3,9 +3,15 @@
 import { CONFIG } from './config.js';
 import {
   cameraCountForRegion,
+  messageSignCountForRegion,
+  plowCountForRegion,
   roadEventCountForRegion,
+  roadWeatherCountForRegion,
   setCameraData,
+  setMessageSignData,
+  setPlowData,
   setRoadEventsData,
+  setRoadWeatherData,
 } from '../map/map.js';
 
 function startFeed({ path, key, interval, enabled, setData, count }, onCounts) {
@@ -66,6 +72,30 @@ export function startRoadConditions(onCounts, capabilities = {}) {
       enabled: capabilities.cameras,
       setData: setCameraData,
       count: cameraCountForRegion,
+    }, onCounts),
+    startFeed({
+      path: '/api/road-weather',
+      key: 'road-weather',
+      interval: CONFIG.ROAD_WEATHER_POLL_MS,
+      enabled: capabilities.roadWeather,
+      setData: setRoadWeatherData,
+      count: roadWeatherCountForRegion,
+    }, onCounts),
+    startFeed({
+      path: '/api/message-signs',
+      key: 'message-sign',
+      interval: CONFIG.MESSAGE_SIGN_POLL_MS,
+      enabled: capabilities.messageSigns,
+      setData: setMessageSignData,
+      count: messageSignCountForRegion,
+    }, onCounts),
+    startFeed({
+      path: '/api/plows',
+      key: 'plow',
+      interval: CONFIG.PLOW_POLL_MS,
+      enabled: capabilities.plows,
+      setData: setPlowData,
+      count: plowCountForRegion,
     }, onCounts),
   ];
 

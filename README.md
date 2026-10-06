@@ -24,10 +24,10 @@ Every feature is labeled **live**, **estimated**, **scheduled**, or
 | Regional buses | Agency GTFS-realtime feeds, normalized by the gateway | 20 s |
 | Metro-North New Haven branches | [MTA GTFS-Realtime](https://www.mta.info/developers) train GPS positions, trip predictions, and alerts; a train with no fresh GPS fix is estimated between stations and labeled so | 30 s |
 | Scheduled/reference bus, rail, ferry, boat, and air-service routes and stops | 104 GTFS sources plus 81 official-service corridors, including Amtrak, Metro-North, Shore Line East, regional coaches, university shuttles, 93 ferry routes, municipal water shuttles, small-island lifelines, island air taxis, and 38,000+ scheduled stops | built snapshot |
-| Small-town, county, flex, volunteer, microtransit, and on-demand water-service catalog | 51 official-directory service markers across all six states | built snapshot |
+| Small-town, county, flex, volunteer, microtransit, and on-demand water-service catalog | 56 official-directory service markers across all six states, including MBTA The RIDE, the Bustins Island ferry, and Provincetown and Cape Ann whale watches | built snapshot |
 | Taxi and cab services | 106 licensed cab companies, dispatch associations, and official airport and station taxi stands from state and municipal licensing lists, airport ground-transportation pages, and operator sites, plus 30 [OpenStreetMap](https://www.openstreetmap.org/copyright) taxi stands. A directory, not live cab positions | built snapshot |
 | Amtrak | [Amtrak official static GTFS](https://content.amtrak.com/content/gtfs/GTFS.zip) for scheduled routes/stations; [Amtraker](https://amtraker.com) community API for live trains | built snapshot + 90 s |
-| Aircraft and air services | [ADSB.lol](https://api.adsb.lol/) with [adsb.fi](https://adsb.fi/) failover; 18 optional official Cape Air/Tradewind schedules and Penobscot Island Air on-demand corridors | 45 s + built snapshot |
+| Aircraft and air services | [ADSB.lol](https://api.adsb.lol/) with [adsb.fi](https://adsb.fi/) failover; 19 optional official Cape Air, Tradewind, New England Airlines, and Penobscot Island Air corridors | 45 s + built snapshot |
 | Airports and landing facilities | 778 open airports, heliports, seaplane bases, and other facilities from the [FAA NASR subscription](https://www.faa.gov/air_traffic/flight_info/aeronav/aero_data/NASR_Subscription/) | 28-day built snapshot |
 | Harbor/coastal vessels and identifiable passenger ferries | [AISStream](https://aisstream.io) when `AISSTREAM_API_KEY` is set; otherwise keyless [Open Waters AIS](https://openwaters.io/ais/) on the same gateway relay. Each Open Waters vessel carries its source credit (AISHub, aisstream, Open Waters AIS, and the Norwegian and Finnish lines when those sources appear) | streaming |
 | Bike and scooter share | GBFS feeds for Bluebikes across 13 Greater Boston municipalities, Veo Hartford, Veo New Haven, and Spin Providence | 60 s |
@@ -35,6 +35,10 @@ Every feature is labeled **live**, **estimated**, **scheduled**, or
 | Work zones and construction projects | MassDOT WZDx plus the multi-state New England 511 WZDx feed for Maine, New Hampshire, and Vermont (work-zone lines). Connecticut adds CTDOT capital-project areas in the construction phase, labeled construction projects | 5 min |
 | Traffic incidents | New England 511 (Maine, New Hampshire, Vermont), CTroads incidents and closures, and MassDOT Highway Division roadway events (crashes, disabled vehicles, weather closures) | 60 s |
 | Public traffic cameras | New England 511, CTroads, the MassDOT CCTV asset inventory, and RIDOT highway cameras | 5 min |
+| Road weather stations | New England 511 pavement and air readings for Maine, New Hampshire, and Vermont. Click a station for the latest numbers | 5 min |
+| Highway message signs | New England 511 and CTroads. Click a sign for the message it is posting | 5 min |
+| Snowplows | VTrans live trucks when the public file lists them (empty outside winter), plus NHDOT winter plow-route lines | 60 s trucks · built snapshot routes |
+| Ski lifts, gondolas, and tramways | OpenStreetMap chairlifts, gondolas, and aerial tramways. Lift lines, not live cabins | built snapshot |
 | Live congestion speeds | Public 511 traffic-flow tiles through the gateway; TomTom remains an optional configured fallback | live tiles |
 | Weather alerts | [NWS active alerts](https://api.weather.gov/) for the six states, drawn as severity-colored forecast-zone polygons; Extreme/Severe alerts also join the service-alert panel | 120 s (60 s edge cache) |
 | Airport delays | [FAA NAS airport status](https://nasstatus.faa.gov/) ground stops, ground-delay programs, arrival/departure delays, and closures, drawn as rings on the FAA airport markers | 120 s (60 s edge cache) |
@@ -861,8 +865,9 @@ documented `freshness_exempt`), and commit the refreshed `feed-freshness.json`.
   maps), the 128 Business Council (TripShot), and C&J and Peter Pan (uTrack).
   Milford Transit, NECTD, NWCTD, CTrail's Hartford Line and Shore Line East,
   Plymouth & Brockton, and the smaller Maine and New Hampshire operators have
-  no tracker. The only snowplow source found is VTrans's own app data file,
-  which is empty outside winter. Massport's bus-locator JSON (behind its
+  no tracker.   VTrans plow trucks are drawn when the public file lists them, and that
+  file is empty outside winter. New Hampshire plow routes are a reference
+  layer. No other state publishes keyless live plow positions. Massport's bus-locator JSON (behind its
   website's bus locator for the shuttles and Logan Express) is private and is
   not used, so those buses stay scheduled ribbons.
 - Scheduled services found missing in the same audit and not yet drawn,
@@ -870,9 +875,7 @@ documented `freshness_exempt`), and commit the refreshed `feed-freshness.json`.
   Transportation's
   year-round Hancock County routes, York County Community Action's Sanford
   routes, the 128 Business Council shuttles, Seastreak's New York–Martha's
-  Vineyard–Nantucket ferry, the Bustins Island ferry, the AMC and Franconia
-  Notch hiker shuttles, several Cape Air city pairs, and New England Airlines'
-  Westerly–Block Island flights.
+  Vineyard–Nantucket ferry, and several Cape Air city pairs.
 - Cyr Bus Line (Bangor–Caribou) and the Winnipesaukee Transit System publish
   no GTFS. Cyr is drawn as an official-schedule corridor and WTS is a
   directory marker; neither has live positions. ARTS's Passio GTFS-realtime
