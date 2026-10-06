@@ -9,12 +9,22 @@
 // - Browser sockets use the Hibernation API (ctx.acceptWebSocket) with the
 //   region kept in the socket attachment.
 // - A new browser socket immediately gets one Snapshot frame of every known
-//   vessel in its region, with the server `at` time so client stale logic works.
+//   vessel in its region, with the real time it was last heard (`at`) so the
+//   client can dim old positions and show their true age, and `quietMs`, the
+//   listening time since then, so the client prunes by the same rule.
 // - An alarm every 60 s reconnects the upstream (backoff + jitter), prunes old
 //   entries, saves the snapshot as ONE SQLite row, and closes the upstream
-//   after 5 minutes with no viewers. Deploys and evictions kill the upstream
+//   after 20 minutes with no viewers. Deploys and evictions kill the upstream
 //   socket; the saved snapshot lets a cold start serve old (dimmed) vessels
 //   until live frames catch up.
+//
+// Vessels age by LISTENING time, not wall-clock time. The hub keeps a clock
+// that only runs while the upstream is open; silence while nobody was
+// listening is not evidence a boat left. A vessel is pruned after 15 minutes
+// of listening without hearing it (60 minutes if it was moored, SOG < 1 kn:
+// moored boats report every ~3 minutes but volunteer receivers pick them up
+// only now and then), and anything older than 6 hours of real time is pruned
+// regardless. The clock is saved in the snapshot row so it survives eviction.
 
 import { DurableObject } from 'cloudflare:workers';
 import { aisFrameToText } from './ais-frames';
@@ -30,8 +40,19 @@ export const AIS_MESSAGE_TYPES = [
 ] as const;
 
 export const ALARM_MS = 60_000;
-export const PRUNE_MS = 15 * 60_000;
-export const IDLE_CLOSE_MS = 5 * 60_000;
+// Listening time without a report before a vessel is dropped.
+export const PRUNE_MOVING_MS = 15 * 60_000;
+export const PRUNE_MOORED_MS = 60 * 60_000;
+// Below this speed over ground (knots) a vessel counts as moored.
+export const MOORED_SOG_KN = 1;
+// Real-time cap: never serve a position older than this, listening or not.
+export const MAX_AGE_MS = 6 * 60 * 60_000;
+// Keep listening this long after the last viewer leaves, so the next visitor
+// gets a warm snapshot instead of an empty map. Cost trade-off: an open
+// upstream WebSocket keeps the Durable Object active (billed duration, no
+// hibernation) for the whole idle tail. 20 minutes x 128 MB is about 150 GB-s
+// per tail, versus about 38 GB-s at the previous 5 minutes.
+export const IDLE_CLOSE_MS = 20 * 60_000;
 const RECONNECT_BASE_MS = 2_000;
 const RECONNECT_MAX_MS = 60_000;
 const HEADING_UNAVAILABLE = 511;
@@ -59,19 +80,28 @@ export interface HubVessel {
   heading: number | null;
   name: string;
   shipType: number | null;
+  // Real time (epoch ms) it was last heard.
   at: number;
+  // Listening-clock value (ms) when it was last heard.
+  heard: number;
 }
 
 interface StaticInfo {
   name: string;
   shipType: number | null;
   at: number;
+  heard: number;
 }
+
+// Rows written before the listening clock have no `heard` or `listenedMs`.
+type Saved<T> = Omit<T, 'heard'> & { heard?: number };
 
 interface SavedSnapshot {
   savedAt: number;
-  vessels: HubVessel[];
-  statics: [string, StaticInfo][];
+  // Listening clock at save time.
+  listenedMs?: number;
+  vessels: Saved<HubVessel>[];
+  statics: [string, Saved<StaticInfo>][];
 }
 
 interface SocketAttachment {
@@ -91,6 +121,11 @@ const cleanName = (value: unknown): string =>
 export const boxContains = ([[south, west], [north, east]]: Box, lat: number, lng: number): boolean =>
   lat >= south && lat <= north && lng >= west && lng <= east;
 
+export const isMoored = (sog: number | null): boolean => sog !== null && sog >= 0 && sog < MOORED_SOG_KN;
+
+// Listening time a vessel may go unheard. Unknown speed counts as moving.
+export const quietLimitMs = (sog: number | null): number => (isMoored(sog) ? PRUNE_MOORED_MS : PRUNE_MOVING_MS);
+
 const regionsContaining = (lat: number, lng: number): Set<RegionId> =>
   new Set(REGION_IDS.filter((region) => boxContains(AIS_BOUNDS[region], lat, lng)));
 
@@ -104,6 +139,9 @@ export class AisHub extends DurableObject<Env> {
   statics = new Map<string, StaticInfo>();
   upstream: UpstreamSocket | null = null;
   upstreamOpen = false;
+  // Listening clock: banked ms of open upstream, plus the current open stretch.
+  listenedMs = 0;
+  listenSince: number | null = null;
   lastViewerAt: number;
   reconnectAttempts = 0;
   nextReconnectAt = 0;
@@ -134,6 +172,8 @@ export class AisHub extends DurableObject<Env> {
     const [client, server] = Object.values(pair);
     this.ctx.acceptWebSocket(server);
     server.serializeAttachment({ region } satisfies SocketAttachment);
+    // The alarm stops while idle, so drop anything past the 6-hour cap first.
+    this.prune(this.now());
     server.send(JSON.stringify(this.snapshotFor(region)));
 
     this.lastViewerAt = this.now();
@@ -144,8 +184,29 @@ export class AisHub extends DurableObject<Env> {
 
   snapshotFor(region: RegionId) {
     const box = AIS_BOUNDS[region];
-    const vessels = [...this.vessels.values()].filter((vessel) => boxContains(box, vessel.lat, vessel.lng));
-    return { MessageType: 'Snapshot', Region: region, At: this.now(), Vessels: vessels };
+    const now = this.now();
+    const clock = this.listenClock(now);
+    const vessels = [...this.vessels.values()]
+      .filter((vessel) => boxContains(box, vessel.lat, vessel.lng))
+      .map(({ heard, ...vessel }) => ({ ...vessel, quietMs: Math.max(0, clock - heard) }));
+    return { MessageType: 'Snapshot', Region: region, At: now, Vessels: vessels };
+  }
+
+  // ---- Listening clock ------------------------------------------------------
+
+  listenClock(now = this.now()): number {
+    return this.listenedMs + (this.listenSince === null ? 0 : Math.max(0, now - this.listenSince));
+  }
+
+  private startListening(): void {
+    if (this.listenSince === null) this.listenSince = this.now();
+  }
+
+  private stopListening(): void {
+    if (this.listenSince === null) return;
+    this.listenedMs = this.listenClock();
+    this.listenSince = null;
+    this.dirty = true; // save the banked clock even if no frame arrived
   }
 
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
@@ -214,6 +275,7 @@ export class AisHub extends DurableObject<Env> {
     socket.addEventListener('open', () => {
       if (this.upstream !== socket) return;
       this.upstreamOpen = true;
+      this.startListening();
       // AISStream closes a connection that has not subscribed within 3 s.
       socket.send(JSON.stringify({
         APIKey: key,
@@ -249,6 +311,7 @@ export class AisHub extends DurableObject<Env> {
   }
 
   private upstreamDropped(): void {
+    this.stopListening();
     this.upstream = null;
     this.upstreamOpen = false;
     this.reconnectAttempts += 1;
@@ -263,6 +326,7 @@ export class AisHub extends DurableObject<Env> {
 
   closeUpstream(reason: string): void {
     const socket = this.upstream;
+    this.stopListening();
     this.upstream = null;
     this.upstreamOpen = false;
     if (!socket) return;
@@ -295,6 +359,7 @@ export class AisHub extends DurableObject<Env> {
     this.framesIn += 1;
     if (this.reconnectAttempts) this.reconnectAttempts = 0;
     const now = this.now();
+    const heard = this.listenClock(now);
     const lat = finite(meta.latitude ?? meta.Latitude ?? report.Latitude);
     const lng = finite(meta.longitude ?? meta.Longitude ?? report.Longitude);
     const existing = this.vessels.get(mmsi);
@@ -305,6 +370,7 @@ export class AisHub extends DurableObject<Env> {
         name: cleanName(report.Name) || cleanName(meta.ShipName) || this.statics.get(mmsi)?.name || '',
         shipType: finite(report.Type ?? report.TypeAndCargo ?? report.ShipType),
         at: now,
+        heard,
       };
       this.statics.set(mmsi, info);
       if (existing) {
@@ -329,6 +395,7 @@ export class AisHub extends DurableObject<Env> {
       name: cleanName(meta.ShipName) || info?.name || existing?.name || '',
       shipType: info?.shipType ?? existing?.shipType ?? finite(meta.ShipType),
       at: now,
+      heard,
     };
     this.vessels.set(mmsi, vessel);
     this.dirty = true;
@@ -370,15 +437,20 @@ export class AisHub extends DurableObject<Env> {
     }
   }
 
+  // Drop vessels unheard for their listening-time limit, or older than the
+  // real-time cap. Static records live as long as their vessel; on their own
+  // they follow the same rule with unknown speed (15 min of listening).
   prune(now = this.now()): void {
+    const clock = this.listenClock(now);
     for (const [mmsi, vessel] of this.vessels) {
-      if (now - vessel.at > PRUNE_MS) {
+      if (now - vessel.at > MAX_AGE_MS || clock - vessel.heard > quietLimitMs(vessel.sog)) {
         this.vessels.delete(mmsi);
         this.dirty = true;
       }
     }
     for (const [mmsi, info] of this.statics) {
-      if (now - info.at > PRUNE_MS && !this.vessels.has(mmsi)) {
+      const orphanQuiet = !this.vessels.has(mmsi) && clock - info.heard > quietLimitMs(null);
+      if (now - info.at > MAX_AGE_MS || orphanQuiet) {
         this.statics.delete(mmsi);
         this.dirty = true;
       }
@@ -389,6 +461,7 @@ export class AisHub extends DurableObject<Env> {
   saveSnapshot(now = this.now()): void {
     const body: SavedSnapshot = {
       savedAt: now,
+      listenedMs: this.listenClock(now),
       vessels: [...this.vessels.values()],
       statics: [...this.statics.entries()],
     };
@@ -405,9 +478,20 @@ export class AisHub extends DurableObject<Env> {
     if (!row) return;
     try {
       const saved = JSON.parse(row.body) as SavedSnapshot;
-      for (const vessel of saved.vessels ?? []) this.vessels.set(vessel.mmsi, vessel);
-      for (const [mmsi, info] of saved.statics ?? []) this.statics.set(mmsi, info);
-      this.prune(Date.now());
+      // The upstream died with the old instance: resume the clock where the
+      // save left it, stopped until the next upstream opens.
+      const clock = Number.isFinite(saved.listenedMs) ? Number(saved.listenedMs) : 0;
+      const savedAt = Number.isFinite(saved.savedAt) ? saved.savedAt : this.now();
+      this.listenedMs = clock;
+      this.listenSince = null;
+      // Older rows have no listening stamp: count their real age as listening.
+      const heardOf = (record: { at: number; heard?: number }): number =>
+        Number.isFinite(record.heard) ? Number(record.heard) : clock - Math.max(0, savedAt - record.at);
+      for (const vessel of saved.vessels ?? []) {
+        this.vessels.set(vessel.mmsi, { ...vessel, heard: heardOf(vessel) });
+      }
+      for (const [mmsi, info] of saved.statics ?? []) this.statics.set(mmsi, { ...info, heard: heardOf(info) });
+      this.prune(this.now());
       this.dirty = false;
     } catch {
       // Corrupt row: start empty and overwrite it on the next save.

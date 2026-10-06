@@ -2,7 +2,8 @@
 // AIS vessels) owns one fleet; the fleet owns positions on the map and glides
 // markers between updates. Display strings live in feature props so the map's
 // popup code is source-agnostic: { id, color, bearing, hasBearing, stale,
-// group, title, dest, status, meta, updatedAt }.
+// group, title, dest, status, meta, updatedAt, ageLabel? }. `ageLabel` prefixes
+// the age shown in popups and trip cards (vessels: "Last heard").
 //
 // Items may also carry a `detail` object beside `props` (trip id, train
 // number, upcoming stations). It is kept out of the GeoJSON so it is not

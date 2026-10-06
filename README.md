@@ -615,12 +615,24 @@ How the vessel feed works:
   holds one AISStream socket for the whole New England box and fans frames out
   to every viewer by region. Any number of viewers use 1 of the 3 slots.
 - **Instant snapshot.** A new viewer first gets one `Snapshot` frame with every
-  vessel the hub already knows in that region, stamped with the server time it
-  was last heard, so the map fills in immediately and old positions dim.
+  vessel the hub already knows in that region, stamped with the real time it
+  was last heard (`at`) and the listening time since then (`quietMs`), so the
+  map fills in immediately, old positions dim after 3 minutes, and popups and
+  the trip card say "Last heard 12 min ago" (or "2 h 5 min ago").
+- **Retention by listening time.** Vessels age only while the hub's upstream
+  is open: silence while nobody was listening is not evidence a boat left. A
+  vessel is dropped after 15 minutes of listening without a report, or 60
+  minutes if it was moored (speed under 1 knot; moored boats report every
+  ~3 minutes but volunteer receivers pick them up only now and then), and
+  always once its last report is more than 6 hours old. Static ship data
+  follows the same rule. The browser applies the same thresholds to live
+  frames and snapshot vessels, so a boat kept through a quiet spell shows
+  dimmed instead of vanishing.
 - **Lifecycle.** The first viewer starts the upstream. A 60-second alarm
-  reconnects it with backoff, prunes vessels not heard for 15 minutes, saves
-  the snapshot as one storage row, and closes the upstream 5 minutes after the
-  last viewer leaves. Deploys drop the upstream; the saved snapshot covers the
+  reconnects it with backoff, prunes, saves the snapshot and the listening
+  clock as one storage row, and closes the upstream 20 minutes after the last
+  viewer leaves (the Durable Object stays active, and billed, while the
+  upstream is open). Deploys drop the upstream; the saved snapshot covers the
   gap while it reconnects. The Durable Object migration applies on the first
   `wrangler deploy` after this change.
 - **Coastal filter.** Vessels are filtered against `public/data/regions-marine.geojson`
@@ -748,6 +760,12 @@ documented `freshness_exempt`), and commit the refreshed `feed-freshness.json`.
 - Non-MBTA ferry operators generally publish schedules, not GTFS-realtime
   positions. AIS supplies actual vessel movement when a ship is broadcasting,
   and passenger-ship metadata is used to classify ferries when available.
+- AIS coverage comes from AISStream's volunteer receivers and is thin in
+  Rhode Island and Maine. In five minutes on 2026-10-05 the hub heard about 55
+  vessels in Boston Harbor and 56 around the Cape and Islands, but only 3 each
+  in eastern Long Island Sound/Rhode Island, around Portland, and in Midcoast
+  and Downeast Maine. The only remedy is more receivers: anyone can feed
+  AISStream from a shoreline AIS receiver.
 - Work-zone geometry is currently strongest in Massachusetts, Maine, New
   Hampshire, and Vermont. The USDOT WZDx feed registry lists no Connecticut
   or Rhode Island feed (checked 2026-10-04), so Connecticut road disruptions

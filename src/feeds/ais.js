@@ -3,8 +3,11 @@
 // not break the stream. Class A and Class B position reports are supported.
 // The gateway shares one upstream between all viewers and opens each socket
 // with a Snapshot frame of every vessel it already knows in the region.
+// Retention rules (moving 15 min, moored 60 min, 6 h cap) live in
+// ais-retention.js.
 
 import { CONFIG } from './config.js';
+import { isStaleVessel, shouldPruneVessel, snapshotQuietSince } from './ais-retention.js';
 import { createFleet } from './fleet.js';
 import { gatewayRegion } from './regions.js';
 import { operatorFerryNames } from './regional.js';
@@ -71,6 +74,7 @@ export function startAis(onCounts, initialRegion, enabled = true) {
             : report.Cog;
         const info = statics.get(mmsi);
         const metaType = numberOrNaN(meta.ShipType);
+        const heardAt = Date.now();
         vessels.set(mmsi, {
           lng,
           lat,
@@ -78,7 +82,8 @@ export function startAis(onCounts, initialRegion, enabled = true) {
           sog: numberOrNaN(report.Sog),
           heading: numberOrNaN(heading),
           shipType: firstFinite(info?.shipType, existing?.shipType, metaType),
-          at: Date.now(),
+          at: heardAt,
+          quietSince: heardAt,
         });
       } catch {
         // Malformed provider frame: skip it and keep the live connection.
@@ -93,23 +98,32 @@ export function startAis(onCounts, initialRegion, enabled = true) {
     socket.onerror = () => socket?.close();
   }
 
-  // Bulk-load the gateway's known vessels. Each carries the server time it was
-  // last heard; shift it onto this browser's clock so the stale (3 min) and
-  // prune (10 min) rules treat old positions as old.
+  // Bulk-load the gateway's known vessels. Each carries the real server time
+  // it was last heard; shift it onto this browser's clock so old positions dim
+  // (3 min) and show their true age. Pruning counts only the gateway's
+  // listening time (quietMs), so boats kept through a quiet spell (up to 6 h
+  // old) appear dimmed rather than being dropped.
   function loadSnapshot(msg) {
+    const receivedAt = Date.now();
     const serverNow = Number(msg.At);
-    const skew = Number.isFinite(serverNow) ? Date.now() - serverNow : 0;
+    const skew = Number.isFinite(serverNow) ? receivedAt - serverNow : 0;
     for (const vessel of msg.Vessels ?? []) {
       const mmsi = String(vessel.mmsi);
       const lng = numberOrNaN(vessel.lng);
       const lat = numberOrNaN(vessel.lat);
       const heardAt = numberOrNaN(vessel.at);
       if (!Number.isFinite(lng) || !Number.isFinite(lat) || !Number.isFinite(heardAt)) continue;
-      const at = Math.min(heardAt + skew, Date.now());
+      const at = Math.min(heardAt + skew, receivedAt);
+      const quietSince = snapshotQuietSince(at, numberOrNaN(vessel.quietMs), receivedAt);
       const existing = vessels.get(mmsi);
-      if (existing && existing.at >= at) continue; // a live frame already beat it
+      if (existing && existing.at >= at) {
+        // A live frame already beat it; the gateway may still know it was heard
+        // more recently in listening time.
+        existing.quietSince = Math.max(existing.quietSince ?? existing.at, quietSince);
+        continue;
+      }
       const info = statics.get(mmsi);
-      vessels.set(mmsi, {
+      const record = {
         lng,
         lat,
         name: cleanName(vessel.name) || info?.name || existing?.name || '',
@@ -117,7 +131,9 @@ export function startAis(onCounts, initialRegion, enabled = true) {
         heading: firstFinite(vessel.heading, vessel.cog),
         shipType: firstFinite(vessel.shipType, info?.shipType, existing?.shipType),
         at,
-      });
+        quietSince,
+      };
+      if (!shouldPruneVessel(record, receivedAt)) vessels.set(mmsi, record);
     }
   }
 
@@ -134,10 +150,11 @@ export function startAis(onCounts, initialRegion, enabled = true) {
   setInterval(() => {
     const now = Date.now();
     for (const [mmsi, vessel] of vessels) {
-      if (now - vessel.at > CONFIG.AIS_PRUNE_MS) vessels.delete(mmsi);
+      if (shouldPruneVessel(vessel, now)) vessels.delete(mmsi);
     }
+    // Statics carry no speed, so on their own they follow the moving rule.
     for (const [mmsi, info] of statics) {
-      if (now - info.at > CONFIG.AIS_PRUNE_MS && !vessels.has(mmsi)) statics.delete(mmsi);
+      if (!vessels.has(mmsi) && shouldPruneVessel(info, now)) statics.delete(mmsi);
     }
     const items = [...vessels.entries()]
       // An operator feed already shows this boat with route and trip detail.
@@ -156,14 +173,16 @@ export function startAis(onCounts, initialRegion, enabled = true) {
           color: looksLikeFerry ? CONFIG.FERRY_COLOR : CONFIG.VESSEL_COLOR,
           bearing: vessel.heading ?? 0,
           hasBearing: Number.isFinite(vessel.heading),
-          stale: now - vessel.at > CONFIG.AIS_STALE_MS,
+          stale: isStaleVessel(vessel, now),
           title: vessel.name || `MMSI ${mmsi}`,
           dest: Number.isFinite(vessel.heading) ? `Heading ${Math.round(vessel.heading)}°` : '',
           status: Number.isFinite(vessel.sog) ? `${vessel.sog.toFixed(1)} kn` : '',
           meta: `MMSI ${mmsi}${Number.isFinite(vessel.shipType) ? ` · AIS type ${vessel.shipType}` : ''}`,
           provider: 'AISStream public vessel telemetry',
           sourceUrl: 'https://aisstream.io/',
+          // Real time last heard; popups and trip cards read "Last heard 12 min ago".
           updatedAt: new Date(vessel.at).toISOString(),
+          ageLabel: 'Last heard',
         },
       };
     });
