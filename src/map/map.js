@@ -1,8 +1,8 @@
 // Map engine: MapLibre GL setup, route ribbons, one animated layer-pair per
 // vehicle fleet, source-agnostic popups, and alert-focus navigation.
 
+import { PLANE_ICON_BY_KIND } from '../feeds/aircraft.js';
 import { CONFIG } from '../feeds/config.js';
-import { lookupFlightRoute } from '../feeds/flight-routes.js';
 import { attachStopPredictions } from '../feeds/predictions.js';
 import {
   DEFAULT_REGION,
@@ -10,6 +10,7 @@ import {
   boundsForRegion,
   containsPoint,
   featureTouchesRegion,
+  fleetBoundaryOptions,
   filterFeatureCollection,
   filterSpatialFeatureCollection,
   maxZoomForRegion,
@@ -27,6 +28,8 @@ const FLEETS = ['bike', 'vessel', 'amtrak', 'regional', 'mnr', 'mbta', 'plane'];
 const RAIL_GROUPS = ['red', 'orange', 'green', 'blue', 'silver', 'mattapan', 'commuter', 'amtrak'];
 const ICON_GROUPS = ['bus', 'ferry', 'plane', 'vessel', 'bike'];
 const STOP_POINT_LAYERS = ['scheduled-stations', 'scheduled-ferry-stops', 'scheduled-bus-stops'];
+const AIRPORT_LAYERS = ['airport-public-points', 'airport-private-points', 'airport-public-marks', 'airport-private-marks', 'airport-labels'];
+const AIRPORT_CIRCLE_FILTER = ['!', ['in', ['get', 'facilityType'], ['literal', ['Heliport', 'Seaplane base']]]];
 
 export let map;
 let routeShapesFC = EMPTY_FC; // kept for alert-focus bounds math
@@ -198,6 +201,38 @@ const PLANE_HALF = [
   [32, 2], [35, 8], [36, 20], [62, 36], [62, 43], [36, 33],
   [35, 46], [45, 56], [45, 61], [32, 57],
 ];
+// Light aircraft from above: short fuselage, straight high wing, small tail.
+const LIGHT_PLANE_HALF = [
+  [32, 8], [35, 11], [35, 21], [61, 21], [61, 29], [35, 30],
+  [34, 47], [44, 48], [44, 54], [33, 55], [32, 58],
+];
+// Anything else that flies (glider, balloon, drone, unknown): a plain dart.
+const DART_HALF = [
+  [32, 6], [50, 56], [32, 46],
+];
+
+// Helicopter from above: crossed rotor blades over a cabin and tail boom.
+// Every sub-path winds the same way so the fill is one clean silhouette.
+function helicopter(ctx, size) {
+  const u = size / 64;
+  const blade = (angle) => {
+    const [cx, cy, half, width] = [32, 27, 27, 2.6];
+    const [dx, dy] = [Math.cos(angle), Math.sin(angle)];
+    const [nx, ny] = [dy * width, -dx * width]; // keeps the blade clockwise like rect()
+    ctx.moveTo((cx - dx * half + nx) * u, (cy - dy * half + ny) * u);
+    ctx.lineTo((cx + dx * half + nx) * u, (cy + dy * half + ny) * u);
+    ctx.lineTo((cx + dx * half - nx) * u, (cy + dy * half - ny) * u);
+    ctx.lineTo((cx - dx * half - nx) * u, (cy - dy * half - ny) * u);
+    ctx.closePath();
+  };
+  ctx.beginPath();
+  ctx.ellipse(32 * u, 28 * u, 9 * u, 13 * u, 0, 0, Math.PI * 2);
+  ctx.closePath();
+  ctx.rect(30 * u, 38 * u, 4 * u, 20 * u);
+  ctx.rect(25 * u, 55 * u, 14 * u, 4 * u);
+  blade(Math.PI / 4);
+  blade((3 * Math.PI) / 4);
+}
 // Boat hull from above, bow up.
 const BOAT_HALF = [
   [32, 2], [45, 14], [48, 34], [45, 58], [32, 61],
@@ -244,9 +279,75 @@ function makeIcon(fill, draw, size = 64) {
   return ctx.getImageData(0, 0, size, size);
 }
 
+// Landing-facility marks, sized like the airport circles: a heliport is a
+// filled disc with a dark "H"; a seaplane base is a hollow ring with a wave.
+function facilityIcon(glyph, size = 64) {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  glyph(ctx, size / 64);
+  return ctx.getImageData(0, 0, size, size);
+}
+
+function heliportGlyph(ctx, u) {
+  ctx.beginPath();
+  ctx.arc(32 * u, 32 * u, 24 * u, 0, Math.PI * 2);
+  ctx.fillStyle = CONFIG.AIRPORT_COLOR;
+  ctx.fill();
+  ctx.lineWidth = 4 * u;
+  ctx.strokeStyle = '#f4f6f8';
+  ctx.stroke();
+  ctx.fillStyle = '#10151b';
+  ctx.fillRect(21 * u, 18 * u, 7 * u, 28 * u);
+  ctx.fillRect(36 * u, 18 * u, 7 * u, 28 * u);
+  ctx.fillRect(21 * u, 29 * u, 22 * u, 6 * u);
+}
+
+function seaplaneGlyph(ctx, u) {
+  ctx.beginPath();
+  ctx.arc(32 * u, 32 * u, 23 * u, 0, Math.PI * 2);
+  ctx.fillStyle = '#10151b';
+  ctx.fill();
+  ctx.lineWidth = 7 * u;
+  ctx.strokeStyle = CONFIG.AIRPORT_COLOR;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(17 * u, 33 * u);
+  ctx.quadraticCurveTo(24.5 * u, 23 * u, 32 * u, 33 * u);
+  ctx.quadraticCurveTo(39.5 * u, 43 * u, 47 * u, 33 * u);
+  ctx.lineWidth = 5 * u;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+}
+
+const PLANE_SHAPES = {
+  airliner: (c, s) => mirroredPolygon(c, PLANE_HALF, s),
+  light: (c, s) => mirroredPolygon(c, LIGHT_PLANE_HALF, s),
+  heli: helicopter,
+  other: (c, s) => mirroredPolygon(c, DART_HALF, s),
+};
+// planes.js tags each aircraft with planeKind (see feeds/aircraft.js).
+const PLANE_ICON_EXPRESSION = [
+  'match', ['get', 'planeKind'],
+  ...Object.entries(PLANE_ICON_BY_KIND).filter(([kind]) => kind !== 'airliner').flat(),
+  PLANE_ICON_BY_KIND.airliner,
+];
+// Light aircraft, helicopters and the rest draw a little smaller than airliners.
+const planeIconSize = (airliner) => [
+  'match', ['get', 'planeKind'],
+  'light', airliner * 0.85,
+  'heli', airliner * 0.9,
+  'other', airliner * 0.75,
+  airliner,
+];
+
 function registerModeIcons() {
   const icons = {
-    'icon-plane': makeIcon(CONFIG.PLANE_COLOR, (c, s) => mirroredPolygon(c, PLANE_HALF, s)),
+    ...Object.fromEntries(Object.entries(PLANE_ICON_BY_KIND).map(
+      ([kind, name]) => [name, makeIcon(CONFIG.PLANE_COLOR, PLANE_SHAPES[kind])],
+    )),
+    'icon-heliport': facilityIcon(heliportGlyph),
+    'icon-seaplane-base': facilityIcon(seaplaneGlyph),
     'icon-boat-ferry': makeIcon(CONFIG.FERRY_COLOR, (c, s) => mirroredPolygon(c, BOAT_HALF, s)),
     'icon-boat-vessel': makeIcon(CONFIG.VESSEL_COLOR, (c, s) => mirroredPolygon(c, BOAT_HALF, s)),
     'icon-bus': makeIcon(CONFIG.BUS_COLOR, roundedRect(21, 8, 22, 48, 9)),
@@ -419,12 +520,14 @@ function setupLayers() {
     },
   });
 
+  // Airports (and the rare ultralight field or balloonport) are circles;
+  // heliports and seaplane bases get their own marks.
   map.addSource('airports', { type: 'geojson', data: EMPTY_FC });
   map.addLayer({
     id: 'airport-public-points',
     type: 'circle',
     source: 'airports',
-    filter: ['==', ['get', 'facilityUse'], 'public'],
+    filter: ['all', ['==', ['get', 'facilityUse'], 'public'], AIRPORT_CIRCLE_FILTER],
     layout: { visibility: 'none' },
     paint: {
       'circle-color': CONFIG.AIRPORT_COLOR,
@@ -439,7 +542,7 @@ function setupLayers() {
     type: 'circle',
     source: 'airports',
     minzoom: 9,
-    filter: ['==', ['get', 'facilityUse'], 'private'],
+    filter: ['all', ['==', ['get', 'facilityUse'], 'private'], AIRPORT_CIRCLE_FILTER],
     layout: { visibility: 'none' },
     paint: {
       'circle-color': CONFIG.AIRPORT_COLOR,
@@ -449,6 +552,26 @@ function setupLayers() {
       'circle-opacity': 0.58,
     },
   });
+  for (const [id, use, minzoom, sizes, opacity] of [
+    ['airport-public-marks', 'public', 0, [5, 0.24, 12, 0.56], 0.95],
+    ['airport-private-marks', 'private', 9, [9, 0.2, 14, 0.42], 0.7],
+  ]) {
+    map.addLayer({
+      id,
+      type: 'symbol',
+      source: 'airports',
+      minzoom,
+      filter: ['all', ['==', ['get', 'facilityUse'], use], ['!', AIRPORT_CIRCLE_FILTER]],
+      layout: {
+        visibility: 'none',
+        'icon-image': ['match', ['get', 'facilityType'], 'Heliport', 'icon-heliport', 'icon-seaplane-base'],
+        'icon-size': ['interpolate', ['linear'], ['zoom'], ...sizes],
+        'icon-allow-overlap': true,
+        'icon-ignore-placement': true,
+      },
+      paint: { 'icon-opacity': opacity },
+    });
+  }
   map.addLayer({
     id: 'airport-labels',
     type: 'symbol',
@@ -903,6 +1026,24 @@ function setupLayers() {
 
   for (const fleetId of FLEETS) {
     map.addSource(`veh-${fleetId}`, { type: 'geojson', data: EMPTY_FC, promoteId: 'id' });
+    if (fleetId === 'plane') {
+      // A red ring under any aircraft squawking 7500/7600/7700 or reporting
+      // an emergency status. It sits below the silhouette so the icon stays legible.
+      map.addLayer({
+        id: 'veh-plane-emergency',
+        type: 'circle',
+        source: 'veh-plane',
+        filter: ['==', ['get', 'emergency'], true],
+        paint: {
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 10, 15, 20],
+          'circle-color': CONFIG.AIRCRAFT_EMERGENCY_COLOR,
+          'circle-opacity': 0.18,
+          'circle-stroke-color': CONFIG.AIRCRAFT_EMERGENCY_COLOR,
+          'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 9, 2, 15, 3],
+          'circle-stroke-opacity': 0.95,
+        },
+      });
+    }
     map.addLayer({
       id: `veh-${fleetId}-dots`,
       type: 'circle',
@@ -946,7 +1087,7 @@ function setupLayers() {
       layout: {
         'icon-image': [
           'match', ['get', 'group'],
-          'plane', 'icon-plane',
+          'plane', PLANE_ICON_EXPRESSION,
           'bus', 'icon-bus',
           'ferry', 'icon-boat-ferry',
           'vessel', 'icon-boat-vessel',
@@ -961,8 +1102,8 @@ function setupLayers() {
         ],
         'icon-size': [
           'interpolate', ['linear'], ['zoom'],
-          9, ['match', ['get', 'group'], 'plane', 0.38, 'bike', 0.2, 0.3],
-          15, ['match', ['get', 'group'], 'plane', 0.8, 'bike', 0.5, 0.7],
+          9, ['match', ['get', 'group'], 'plane', planeIconSize(0.38), 'bike', 0.2, 0.3],
+          15, ['match', ['get', 'group'], 'plane', planeIconSize(0.8), 'bike', 0.5, 0.7],
         ],
         'icon-rotate': ['case', ['get', 'hasBearing'], ['get', 'bearing'], 0],
         'icon-rotation-alignment': 'map',
@@ -1156,6 +1297,8 @@ function wirePopups() {
   wireInformationPopup('bikeshare-points');
   wireInformationPopup('airport-public-points');
   wireInformationPopup('airport-private-points');
+  wireInformationPopup('airport-public-marks');
+  wireInformationPopup('airport-private-marks');
   wireInformationPopup('border-crossing-points');
   wireInformationPopup('major-roads-lines');
   wireInformationPopup('freight-rail-lines');
@@ -1201,14 +1344,13 @@ function wireConditionPopups() {
   wireInformationPopup('airport-status-rings');
 }
 
-function vehiclePopupHtml(properties, routeHtml = '') {
+function vehiclePopupHtml(properties) {
   const dataStatus = properties.dataStatus ?? 'live';
   const provider = properties.provider || '';
   const sourceUrl = /^https:\/\//.test(properties.sourceUrl ?? '') ? properties.sourceUrl : '';
   return `
     <div class="popup-title" style="color:${esc(properties.color)}">${esc(properties.title)}</div>
     ${properties.dest ? `<div class="popup-dest">${esc(properties.dest)}</div>` : ''}
-    ${routeHtml}
     ${properties.status ? `<div class="popup-status">${esc(properties.status)}</div>` : ''}
     ${properties.meta ? `<div class="popup-meta">${esc(properties.meta)}</div>` : ''}
     <div class="popup-meta"><span class="popup-data-status ${esc(dataStatus)}">${esc(dataStatus)}</span>${provider ? ` · ${esc(provider)}` : ''} · ${relativeAge(properties.updatedAt)}</div>
@@ -1240,6 +1382,15 @@ export function openStopPopup(feature) {
     if (popup.isOpen()) popup.setHTML(informationPopupHtml(properties, extra));
   });
   return popup;
+}
+
+// Reference-point popup without the stop-predictions block (search uses it
+// for airports).
+export function openInfoPopup(feature) {
+  return new maplibregl.Popup({ offset: 10, maxWidth: '330px' })
+    .setLngLat(feature.geometry.coordinates)
+    .setHTML(informationPopupHtml(feature.properties))
+    .addTo(map);
 }
 
 function wireInformationPopup(layerId) {
@@ -1303,37 +1454,17 @@ function wireCameraPopups() {
   map.on('mouseleave', 'camera-points', () => { map.getCanvas().style.cursor = ''; });
 }
 
-function scheduledRouteHtml(route) {
-  if (!route?.airports?.length) {
-    return '<div class="popup-status">Scheduled origin/destination unavailable for this callsign.</div>';
-  }
-  const codes = route.airports.map((airport) => airport.iata || airport.icao).filter(Boolean);
-  const endpoints = [route.airports[0], route.airports.at(-1)];
-  return `
-    <div class="popup-route">${codes.map(esc).join(' → ')}</div>
-    <div class="popup-status">${endpoints.map((airport) => esc(airport.name)).join(' → ')}</div>
-    <div class="popup-route-note">Best-effort scheduled route</div>`;
-}
-
+// Only bike-share docks still open this popup: every other vehicle click is
+// taken by follow mode, whose trip card shows a plane's scheduled route.
 function wirePopupLayer(layerId, fleetId) {
   map.on('click', layerId, (e) => {
       const feature = e.features[0];
       const p = feature.properties;
       if (p.id && vehicleClickHandler?.(fleetId, p.id, p)) return;
-      const popup = new maplibregl.Popup({ offset: 14, maxWidth: '310px' })
+      new maplibregl.Popup({ offset: 14, maxWidth: '310px' })
         .setLngLat(e.features[0].geometry.coordinates)
         .setHTML(vehiclePopupHtml(p))
         .addTo(map);
-      if (p.group === 'plane' && p.callsign) {
-        popup.setHTML(vehiclePopupHtml(p, '<div class="popup-route-note">Looking up scheduled route…</div>'));
-        lookupFlightRoute(p.callsign)
-          .then((route) => {
-            if (popup.isOpen()) popup.setHTML(vehiclePopupHtml(p, scheduledRouteHtml(route)));
-          })
-          .catch(() => {
-            if (popup.isOpen()) popup.setHTML(vehiclePopupHtml(p, scheduledRouteHtml(null)));
-          });
-      }
     });
     map.on('mouseenter', layerId, () => {
       map.getCanvas().style.cursor = 'pointer';
@@ -1719,6 +1850,9 @@ async function ensureReferenceData() {
   return referenceLoadPromise;
 }
 
+// The full FAA landing-facility catalog (every region), for sidebar search.
+export const airportFeatures = () => allAirportsFC.features ?? [];
+
 export async function loadReferenceData() {
   await ensureReferenceData();
   return referenceCountsForRegion();
@@ -1743,9 +1877,9 @@ export function setFleetData(fleetId, featureCollection) {
   renderFleetData(fleetId);
 }
 
-// Vessels sit on the water just past the land boundary, so they filter
-// against the coastal (marine) region geometry. Other fleets use land.
-const fleetFilterOptions = (fleetId) => ({ marine: fleetId === 'vessel' });
+// Vessels and aircraft filter against the coastal (marine) region geometry
+// so they are not clipped at the shoreline. Other fleets use land.
+const fleetFilterOptions = fleetBoundaryOptions;
 
 function renderFleetData(fleetId) {
   const collection = rawFleetData.get(fleetId) ?? EMPTY_FC;
@@ -1901,7 +2035,7 @@ function applyGroupFilter(groups, statuses) {
   for (const layerId of ['bikeshare-points', 'bikeshare-labels']) {
     map.setFilter(layerId, ['all', ['==', ['get', 'group'], 'bikeshare'], statusVisible]);
   }
-  for (const layerId of ['airport-public-points', 'airport-private-points', 'airport-labels']) {
+  for (const layerId of AIRPORT_LAYERS) {
     map.setLayoutProperty(
       layerId,
       'visibility',

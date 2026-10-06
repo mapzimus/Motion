@@ -599,7 +599,6 @@ h2 {
 .popup-dest { font-size: 15px; font-weight: 600; color: var(--text); margin: 2px 0 6px; }
 .popup-status { font-size: 12.5px; color: var(--text-2); }
 .popup-meta { font-size: 11.5px; color: var(--text-3); margin-top: 6px; }
-.popup-route { font-size: 16px; font-weight: 600; color: var(--text); margin: 4px 0 2px; }
 .popup-route-note { font-size: 11.5px; color: var(--text-3); margin: 2px 0 6px; }
 .popup-route-link { display: inline-block; margin-top: 6px; color: var(--focus); font-size: 12px; text-decoration: none; }
 .popup-route-link:hover { text-decoration: underline; }
@@ -772,6 +771,11 @@ h2 {
 .trip-badge.warn { background: rgba(240, 177, 79, 0.14); color: var(--amber); }
 
 .trip-status { font-size: 14px; color: var(--text); }
+.trip-alert {
+  font-size: 13.5px; font-weight: 600; color: var(--red);
+  background: rgba(242, 107, 107, 0.14); border-left: 3px solid var(--red);
+  border-radius: 4px; padding: 6px 9px;
+}
 
 .trip-stops { list-style: none; display: flex; flex-direction: column; border-left: 2px solid var(--trip-color); margin-left: 5px; }
 .trip-stop {

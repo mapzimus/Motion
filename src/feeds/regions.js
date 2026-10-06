@@ -2,7 +2,7 @@
 // generalized Census TIGERweb features built from scripts/regions-config.json
 // into data/regions.geojson. Every region's name, picker group, parent and
 // flags come from that file, so adding a region needs no code change here.
-// Vessels use data/regions-marine.geojson instead ({ marine: true }): the same
+// Vessels and aircraft use data/regions-marine.geojson instead ({ marine: true }): the same
 // regions grown by a coastal buffer so ships on the water are not clipped away.
 
 // Filled by loadRegions() in picker order. Other modules import these arrays
@@ -228,6 +228,11 @@ export function smallestRegionAt(point) {
   }
   return best;
 }
+
+// Fleets clipped to the coastal (marine) boundary instead of land: vessels sit
+// on the water, and aircraft fly over it (Logan approaches cross the harbor).
+const MARINE_FLEETS = new Set(['vessel', 'plane']);
+export const fleetBoundaryOptions = (fleetId) => ({ marine: MARINE_FLEETS.has(fleetId) });
 
 export function filterItems(items, key = activeRegion, options = {}) {
   return items.filter((item) => containsPoint(key, [item.lng, item.lat], options));
