@@ -15,12 +15,18 @@ import {
 import { sortedAlerts } from './stores/alerts.js';
 import * as ui from './ui.js';
 
+let started = false;
+
 /**
- * Initialize all bridge effects. Call once after boot() has run and the DOM
- * panel is ready. Each effect watches one store signal and forwards its value
- * to the corresponding ui.js function.
+ * Initialize all bridge effects. Call once the DOM panel is ready (boot does
+ * this right after ui.initPanel, so feed counts reach the panel as they
+ * arrive); later calls do nothing. Each effect watches one store signal and
+ * forwards its value to the corresponding ui.js function.
  */
 export function initLegacyBridge(): void {
+  if (started) return;
+  started = true;
+
   // Loading overlay
   effect(() => {
     const msg = loadingMessage.value;

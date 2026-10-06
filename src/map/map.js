@@ -1979,10 +1979,12 @@ function applyGroupFilter(groups, statuses) {
 // ---- alert focus -----------------------------------------------------------
 
 export function fitPadding() {
-  // Keep targets clear of the console on desktop; on mobile the panel closes.
-  return window.innerWidth > 760
-    ? { top: 70, right: 70, bottom: 70, left: 410 }
-    : { top: 60, right: 40, bottom: 60, left: 40 };
+  // On mobile the panel closes. On desktop keep targets clear of it, measured
+  // from the panel itself so the camera cannot drift from the stylesheet.
+  if (window.innerWidth <= 760) return { top: 60, right: 40, bottom: 60, left: 40 };
+  const panel = document.getElementById('panel');
+  const left = panel ? panel.offsetLeft + panel.offsetWidth + 24 : 40;
+  return { top: 70, right: 70, bottom: 70, left };
 }
 
 function dropPing(lngLat) {
