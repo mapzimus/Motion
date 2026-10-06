@@ -18,6 +18,8 @@ import {
 } from '../feeds/regions.js';
 import { buildRouteKeyIndex, stampRouteColors } from '../model/routeColors.js';
 import { setRouteKeyIndex, paletteAssignment } from '../stores/legend.js';
+import { PALETTE, VESSEL_BANDS } from '../model/palette.js';
+import { GLYPHS, iconName, parseIconName } from './glyphs.js';
 
 const EMPTY_FC = { type: 'FeatureCollection', features: [] };
 
@@ -53,6 +55,21 @@ const FLEETS = ['bike', 'vessel', 'amtrak', 'regional', 'mnr', 'mbta', 'plane'];
 // mode gets its own silhouette so it reads at first glance.
 const RAIL_GROUPS = ['red', 'orange', 'green', 'blue', 'silver', 'mattapan', 'commuter', 'amtrak'];
 const ICON_GROUPS = ['bus', 'ferry', 'plane', 'vessel', 'bike'];
+// Glyph shape per vehicle; shared mobility splits docks from free vehicles.
+const ICON_SHAPE_EXPR = [
+  'match', ['get', 'group'],
+  'plane', 'plane',
+  'bus', 'bus',
+  'ferry', 'boat',
+  'vessel', 'boat',
+  ['match', ['get', 'markerKind'], 'scooter', 'share-scooter', 'bicycle', 'share-bike', 'dock'],
+];
+// Live rail dots: operator color zoomed out, route shade zoomed in.
+const VEHICLE_COLOR_EXPR = [
+  'interpolate', ['linear'], ['zoom'],
+  12.5, ['get', 'color'],
+  13.5, ['coalesce', ['get', 'routeColor'], ['get', 'color']],
+];
 const STOP_POINT_LAYERS = ['scheduled-stations', 'scheduled-ferry-stops', 'scheduled-bus-stops'];
 
 export let map;
@@ -187,6 +204,7 @@ export function initMap() {
       // Layer click/hover listeners live on the map, not the style, so they
       // survive basemap swaps and are wired once.
       wirePopups();
+      map.on('styleimagemissing', drawMissingIcon);
       resolve(map);
     });
   });
@@ -212,52 +230,6 @@ function chevronImage(size = 48) {
 // Pre-rendered filled silhouettes wearing the same white outline as the rail
 // dots. Shapes point north; MapLibre rotates them by live bearing.
 
-function mirroredPolygon(ctx, rightHalf, size) {
-  const u = size / 64;
-  ctx.beginPath();
-  ctx.moveTo(rightHalf[0][0] * u, rightHalf[0][1] * u);
-  for (const [x, y] of rightHalf.slice(1)) ctx.lineTo(x * u, y * u);
-  for (const [x, y] of [...rightHalf].reverse()) ctx.lineTo((64 - x) * u, y * u);
-  ctx.closePath();
-}
-
-// Airliner from above, nose up: fuselage, swept wings, tailplane.
-const PLANE_HALF = [
-  [32, 2], [35, 8], [36, 20], [62, 36], [62, 43], [36, 33],
-  [35, 46], [45, 56], [45, 61], [32, 57],
-];
-// Boat hull from above, bow up.
-const BOAT_HALF = [
-  [32, 2], [45, 14], [48, 34], [45, 58], [32, 61],
-];
-
-const roundedRect = (x, y, w, h, r) => (ctx, size) => {
-  const u = size / 64;
-  ctx.beginPath();
-  ctx.roundRect(x * u, y * u, w * u, h * u, r * u);
-};
-
-const diamond = (ctx, size) => {
-  ctx.beginPath();
-  ctx.moveTo(size * 0.5, size * 0.08);
-  ctx.lineTo(size * 0.92, size * 0.5);
-  ctx.lineTo(size * 0.5, size * 0.92);
-  ctx.lineTo(size * 0.08, size * 0.5);
-  ctx.closePath();
-};
-
-const scooter = (ctx, size) => {
-  const u = size / 64;
-  ctx.beginPath();
-  ctx.roundRect(12 * u, 40 * u, 38 * u, 11 * u, 5 * u);
-  ctx.moveTo(43 * u, 42 * u);
-  ctx.lineTo(48 * u, 12 * u);
-  ctx.lineTo(57 * u, 12 * u);
-  ctx.lineTo(57 * u, 18 * u);
-  ctx.lineTo(51 * u, 18 * u);
-  ctx.lineTo(47 * u, 42 * u);
-};
-
 function makeIcon(fill, draw, size = 64) {
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = size;
@@ -272,21 +244,30 @@ function makeIcon(fill, draw, size = 64) {
   return ctx.getImageData(0, 0, size, size);
 }
 
+// Sprites are named icon-<shape>-<hex6> (glyphs.js). The common ones are
+// drawn up front; route shades and overflow colors are drawn on first use by
+// the styleimagemissing handler.
 function registerModeIcons() {
-  const icons = {
-    'icon-plane': makeIcon(CONFIG.PLANE_COLOR, (c, s) => mirroredPolygon(c, PLANE_HALF, s)),
-    'icon-boat-ferry': makeIcon(CONFIG.FERRY_COLOR, (c, s) => mirroredPolygon(c, BOAT_HALF, s)),
-    'icon-boat-vessel': makeIcon(CONFIG.VESSEL_COLOR, (c, s) => mirroredPolygon(c, BOAT_HALF, s)),
-    'icon-bus': makeIcon(CONFIG.BUS_COLOR, roundedRect(21, 8, 22, 48, 9)),
-    'icon-dock-ok': makeIcon(CONFIG.BIKE_COLOR, roundedRect(15, 15, 34, 34, 8)),
-    'icon-dock-low': makeIcon(CONFIG.BIKE_LOW_COLOR, roundedRect(15, 15, 34, 34, 8)),
-    'icon-dock-empty': makeIcon(CONFIG.BIKE_EMPTY_COLOR, roundedRect(15, 15, 34, 34, 8)),
-    'icon-share-bike': makeIcon(CONFIG.BIKE_FREE_COLOR, diamond),
-    'icon-share-scooter': makeIcon(CONFIG.BIKE_FREE_COLOR, scooter),
+  const bikeColors = CONFIG.SHARED_MOBILITY_SYSTEMS.map((system) => system.color).filter(Boolean);
+  const preset = {
+    plane: [CONFIG.PLANE_COLOR],
+    bus: [CONFIG.BUS_COLOR, ...PALETTE],
+    boat: [CONFIG.FERRY_COLOR, ...PALETTE, ...VESSEL_BANDS.map((band) => band.color)],
+    dock: [CONFIG.BIKE_COLOR, CONFIG.BIKE_LOW_COLOR, CONFIG.BIKE_EMPTY_COLOR, ...bikeColors],
+    'share-bike': [CONFIG.BIKE_FREE_COLOR, ...bikeColors],
+    'share-scooter': [CONFIG.BIKE_FREE_COLOR, ...bikeColors],
   };
-  for (const [name, image] of Object.entries(icons)) {
-    addImageOnce(name, image);
+  for (const [shape, colors] of Object.entries(preset)) {
+    for (const color of new Set(colors)) {
+      addImageOnce(iconName(shape, color), makeIcon(color, GLYPHS[shape]));
+    }
   }
+}
+
+function drawMissingIcon(event) {
+  const sprite = parseIconName(event.id);
+  if (!sprite || map.hasImage(event.id)) return;
+  map.addImage(event.id, makeIcon(sprite.color, GLYPHS[sprite.shape]), { pixelRatio: 2 });
 }
 
 // setStyle() can carry images over from the previous style; re-adding one
@@ -937,7 +918,7 @@ function setupLayers() {
       source: `veh-${fleetId}`,
       filter: ['in', ['get', 'group'], ['literal', RAIL_GROUPS]],
       paint: {
-        'circle-color': ['get', 'color'],
+        'circle-color': VEHICLE_COLOR_EXPR,
         'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 3.5, 12, 6, 15, 10],
         'circle-stroke-color': '#f4f6f8',
         'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 9, 1, 15, 2],
@@ -973,19 +954,9 @@ function setupLayers() {
       filter: ['in', ['get', 'group'], ['literal', ICON_GROUPS]],
       layout: {
         'icon-image': [
-          'match', ['get', 'group'],
-          'plane', 'icon-plane',
-          'bus', 'icon-bus',
-          'ferry', 'icon-boat-ferry',
-          'vessel', 'icon-boat-vessel',
-          // default arm = shared mobility; shape separates docks from vehicles
-          ['match', ['get', 'markerKind'],
-            'scooter', 'icon-share-scooter',
-            'bicycle', 'icon-share-bike',
-            ['match', ['get', 'color'],
-              CONFIG.BIKE_LOW_COLOR, 'icon-dock-low',
-              CONFIG.BIKE_EMPTY_COLOR, 'icon-dock-empty',
-              'icon-dock-ok']],
+          'step', ['zoom'],
+          ['concat', 'icon-', ICON_SHAPE_EXPR, '-', ['slice', ['get', 'color'], 1]],
+          13.5, ['concat', 'icon-', ICON_SHAPE_EXPR, '-', ['slice', ['coalesce', ['get', 'routeColor'], ['get', 'color']], 1]],
         ],
         'icon-size': [
           'interpolate', ['linear'], ['zoom'],
