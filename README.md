@@ -232,6 +232,18 @@ repair threshold also follow roads. The New York line reuses the map's
 reviewed Boston–New York coach corridor, so it is drawn through Boston; C&J's
 non-stop coaches may bypass downtown, and the popup says so.
 
+Massport's GTFS draws the free on-airport shuttles and the five Logan Express
+routes (Framingham, Braintree, Woburn, Danvers, Back Bay), each linked to its
+own Massport page. Sixteen of its "stops" are bus announcements and timing
+points that nobody can board or leave at ("Welcome to Logan", "Announcement
+#1"); the feed opts into `skip_non_boarding_stops`, so they are not drawn.
+"RF · Remote Framingham" is the Logan Airport Remote Terminal pilot, not a
+public route: only ticketed Delta and JetBlue passengers ride it, after TSA
+screening in Framingham, and it drops them inside security at Logan. Its popup
+says so, and the terminal itself (19 Flutie Pass) is a reference point in the
+Local & on-demand layer with hours, airlines, and the pilot's end date
+(February 2027).
+
 Vermont includes regional routes from every discoverable public GTFS source in
 the current audit, including Green Mountain Transit, Vermont Translines, and
 intercity Greyhound/FlixBus connections. Official Amtrak schedule data adds
@@ -470,6 +482,13 @@ the date and should be removed when the next season's feed appears). A feed
 can also carry `"expired_note"`, appended to every route popup, when its last
 published schedule is known to be stale (VTA's summer 2026 feed). Feeds whose
 server rejects scripted downloads can set a per-feed `"user_agent"`.
+Per-route options: `"route_url_map"` (route id → official page; stops served
+only by mapped routes link to that page, or to `"shared_stop_url"` when the
+routes there link to different pages), `"route_note_map"` (route id → caveat
+appended to the route popup), and `"skip_non_boarding_stops"` (drop stops
+where every drawn trip has `pickup_type` and `drop_off_type` 1). That last one
+is opt-in because Merrimack Valley, CTtransit, and RIPTA flag what look like
+real street stops the same way.
 
 Reviewed interstate controls keep New York-bound coaches off bus-restricted
 Connecticut and New York parkways. Use `--refresh-road-cache` when those
@@ -793,7 +812,9 @@ documented `freshness_exempt`), and commit the refreshed `feed-freshness.json`.
   Milford Transit, NECTD, NWCTD, CTrail's Hartford Line and Shore Line East,
   Plymouth & Brockton, and the smaller Maine and New Hampshire operators have
   no tracker. The only snowplow source found is VTrans's own app data file,
-  which is empty outside winter.
+  which is empty outside winter. Massport's bus-locator JSON (behind its
+  website's bus locator for the shuttles and Logan Express) is private and is
+  not used, so those buses stay scheduled ribbons.
 - Scheduled services found missing in the same audit and not yet drawn,
   because none publishes GTFS and each needs a hand-built corridor: Go Buses
   (Alewife and Newton to New York), Downeast Transportation's

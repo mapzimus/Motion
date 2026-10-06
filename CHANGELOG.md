@@ -147,6 +147,27 @@
   Lines), and approved feeds are cached for 30 seconds. Previously a configured
   key was sent to every Swiftly feed and rejected by nine of them every poll.
 
+### Logan Express & Massport
+- Massport's 16 announcement and timing points ("Welcome to Logan",
+  "Announcement #1–#5", "Overflow Parking Lot (FH)", "RCC Ez Pass" and the
+  like) are no longer drawn as bus stops: nobody can board or leave there.
+  New opt-in feed rule `skip_non_boarding_stops`.
+- Woburn is labelled "WO · Woburn" instead of "WO". A letter-code short name
+  now hides the long name only when it appears there as a whole word, which
+  also fixes RIPTA "R · Broad/North Main", Harvard "AL · Allston Loop", Brown
+  "X · Daytime Express" and "E · Evening CW/CCW Route", Nashua "N · North
+  Route" and "S · South Route", GATRA "LIB · Liberty Link", SRTA "WARE ·
+  Wareham/New Bedford", and Western Maine "BLU · Blue Line".
+- Each Logan Express route and its stops link to the route's Massport page
+  (terminal-curb stops to the Logan Express overview); the airport shuttles
+  link to Massport's On-Airport Shuttle page instead of the Mobility Database.
+- "RF · Remote Framingham" is marked as the Remote Terminal pilot: Delta and
+  JetBlue passengers only, reservation required, drops passengers inside
+  security at Logan, through February 2027.
+- The Logan Airport Remote Terminal (19 Flutie Pass, Framingham) is a new
+  reference point in Local & on-demand services, with hours, airlines, how
+  the TSA screening works, and the pilot's end date.
+
 ### Transit coverage
 - Eight more schedule feeds: EZRide, Longwood Collective, Mass General Brigham,
   Quinnipiac, University of Hartford, University of New Haven, Providence
