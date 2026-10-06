@@ -487,7 +487,9 @@ route ribbon, every geography, and municipalities that appear in stop
 names — with no external geocoder. Arrow keys, Enter, and Esc work as in any
 combobox. Picking a stop flies to it and opens its popup; picking a route
 highlights the ribbon and fits it in view; picking a geography switches the
-region. MBTA stop popups add a **live** "Next arrivals" block from the
+region. A result outside the selected geography switches to the smallest region
+that contains it, so its live vehicles are not clipped away. Towns that exist in
+more than one state are listed with their state (Salem, MA and Salem, NH). MBTA stop popups add a **live** "Next arrivals" block from the
 [MBTA V3 predictions](https://www.mbta.com/developers/v3-api) endpoint (up to
 three per route, refreshed every 15 seconds while the popup is open); other
 operators publish schedules only, and their popups say so instead of

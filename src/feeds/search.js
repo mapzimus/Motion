@@ -5,7 +5,14 @@
 // has loaded, so startup cost is zero.
 
 import { map, openStopPopup, takeCamera } from '../map/map.js';
-import { REGIONS } from './regions.js';
+import {
+  REGIONS,
+  containsPoint,
+  featureTouchesRegion,
+  getActiveRegion,
+  smallestRegionAt,
+  stateAt,
+} from './regions.js';
 import { recentVehicles, searchVehicles } from './vehicle-search.js';
 
 const MAX_RESULTS = 8;
@@ -26,44 +33,54 @@ const STREET_SUFFIX = new Set([
   'square', 'pkwy', 'rte', 'route', 'line', 'ferry', 'mall', 'hill',
 ]);
 
-// Cities and towns worth jumping to. A municipality is only indexed when at
-// least one stop name mentions it, so this list never invents a place.
-const MUNICIPALITIES = [
-  // Massachusetts
-  'Boston', 'Cambridge', 'Somerville', 'Brookline', 'Newton', 'Quincy', 'Braintree',
-  'Chelsea', 'Everett', 'Revere', 'Malden', 'Medford', 'Arlington', 'Belmont',
-  'Watertown', 'Milton', 'Winthrop', 'Lynn', 'Salem', 'Beverly', 'Gloucester',
-  'Peabody', 'Waltham', 'Lexington', 'Woburn', 'Burlington', 'Lowell', 'Lawrence',
-  'Haverhill', 'Newburyport', 'Framingham', 'Natick', 'Wellesley', 'Needham',
-  'Dedham', 'Norwood', 'Brockton', 'Plymouth', 'Hingham', 'Hull', 'Weymouth',
-  'Worcester', 'Fitchburg', 'Leominster', 'Springfield', 'Holyoke', 'Northampton',
-  'Amherst', 'Greenfield', 'Pittsfield', 'North Adams', 'Fall River', 'New Bedford',
-  'Taunton', 'Attleboro', 'Hyannis', 'Barnstable', 'Provincetown', 'Falmouth',
-  'Woods Hole', 'Nantucket', 'Oak Bluffs', 'Vineyard Haven', 'Edgartown',
-  'Marlborough', 'Concord', 'Andover', 'Salisbury', 'Rockport', 'Foxborough',
-  // Connecticut
-  'Hartford', 'New Haven', 'Bridgeport', 'Stamford', 'Norwalk', 'Danbury',
-  'Waterbury', 'New Britain', 'Meriden', 'Middletown', 'New London', 'Norwich',
-  'Groton', 'Mystic', 'Old Saybrook', 'Westport', 'Fairfield', 'Milford',
-  'Greenwich', 'Manchester', 'Bristol', 'Torrington', 'Storrs', 'Windsor',
-  'Wallingford', 'Berlin', 'Enfield',
-  // Rhode Island
-  'Providence', 'Warwick', 'Cranston', 'Pawtucket', 'Newport', 'Woonsocket',
-  'Westerly', 'Kingston', 'Bristol', 'Jamestown', 'Block Island', 'Narragansett',
-  // New Hampshire
-  'Manchester', 'Nashua', 'Concord', 'Portsmouth', 'Dover', 'Durham', 'Exeter',
-  'Keene', 'Laconia', 'Lebanon', 'Hanover', 'Littleton', 'Berlin', 'Plymouth',
-  'Rochester', 'Salem', 'Claremont', 'Conway',
-  // Vermont
-  'Burlington', 'Montpelier', 'Rutland', 'Brattleboro', 'Bennington',
-  'St. Albans', 'St. Johnsbury', 'Barre', 'Middlebury', 'Essex Junction',
-  'Waterbury', 'White River Junction', 'Stowe', 'Newport', 'Windsor',
-  // Maine
-  'Portland', 'Bangor', 'Lewiston', 'Auburn', 'Augusta', 'Brunswick', 'Saco',
-  'Biddeford', 'Bar Harbor', 'Rockland', 'Camden', 'Belfast', 'Ellsworth',
-  'Waterville', 'Presque Isle', 'Caribou', 'Orono', 'Freeport', 'Kennebunk',
-  'Wells', 'Sanford', 'Boothbay Harbor', 'Vinalhaven', 'Lincolnville',
-];
+// Cities and towns worth jumping to, grouped by state because several names
+// exist in more than one (Salem MA/NH, Concord, Plymouth, Manchester, ...). A
+// municipality is only indexed when at least one stop name mentions it, so this
+// list never invents a place.
+const MUNICIPALITIES = {
+  ma: [
+    'Boston', 'Cambridge', 'Somerville', 'Brookline', 'Newton', 'Quincy',
+    'Braintree', 'Chelsea', 'Everett', 'Revere', 'Malden', 'Medford', 'Arlington',
+    'Belmont', 'Watertown', 'Milton', 'Winthrop', 'Lynn', 'Salem', 'Beverly',
+    'Gloucester', 'Peabody', 'Waltham', 'Lexington', 'Woburn', 'Burlington',
+    'Lowell', 'Lawrence', 'Haverhill', 'Newburyport', 'Framingham', 'Natick',
+    'Wellesley', 'Needham', 'Dedham', 'Norwood', 'Brockton', 'Plymouth', 'Hingham',
+    'Hull', 'Weymouth', 'Worcester', 'Fitchburg', 'Leominster', 'Springfield',
+    'Holyoke', 'Northampton', 'Amherst', 'Greenfield', 'Pittsfield', 'North Adams',
+    'Fall River', 'New Bedford', 'Taunton', 'Attleboro', 'Hyannis', 'Barnstable',
+    'Provincetown', 'Falmouth', 'Woods Hole', 'Nantucket', 'Oak Bluffs',
+    'Vineyard Haven', 'Edgartown', 'Marlborough', 'Concord', 'Andover', 'Salisbury',
+    'Rockport', 'Foxborough',
+  ],
+  ct: [
+    'Hartford', 'New Haven', 'Bridgeport', 'Stamford', 'Norwalk', 'Danbury',
+    'Waterbury', 'New Britain', 'Meriden', 'Middletown', 'New London', 'Norwich',
+    'Groton', 'Mystic', 'Old Saybrook', 'Westport', 'Fairfield', 'Milford',
+    'Greenwich', 'Manchester', 'Bristol', 'Torrington', 'Storrs', 'Windsor',
+    'Wallingford', 'Berlin', 'Enfield',
+  ],
+  ri: [
+    'Providence', 'Warwick', 'Cranston', 'Pawtucket', 'Newport', 'Woonsocket',
+    'Westerly', 'Kingston', 'Bristol', 'Jamestown', 'Block Island', 'Narragansett',
+  ],
+  nh: [
+    'Manchester', 'Nashua', 'Concord', 'Portsmouth', 'Dover', 'Durham', 'Exeter',
+    'Keene', 'Laconia', 'Lebanon', 'Hanover', 'Littleton', 'Berlin', 'Plymouth',
+    'Rochester', 'Salem', 'Claremont', 'Conway',
+  ],
+  vt: [
+    'Burlington', 'Montpelier', 'Rutland', 'Brattleboro', 'Bennington',
+    'St. Albans', 'St. Johnsbury', 'Barre', 'Middlebury', 'Essex Junction',
+    'Waterbury', 'White River Junction', 'Stowe', 'Newport', 'Windsor',
+  ],
+  me: [
+    'Portland', 'Bangor', 'Lewiston', 'Auburn', 'Augusta', 'Brunswick', 'Saco',
+    'Biddeford', 'Bar Harbor', 'Rockland', 'Camden', 'Belfast', 'Ellsworth',
+    'Waterville', 'Presque Isle', 'Caribou', 'Orono', 'Freeport', 'Kennebunk',
+    'Wells', 'Sanford', 'Boothbay Harbor', 'Vinalhaven', 'Lincolnville',
+  ],
+};
+const STATE_ABBR = { ma: 'MA', ct: 'CT', ri: 'RI', nh: 'NH', vt: 'VT', me: 'ME' };
 
 const normalize = (value) =>
   String(value ?? '')
@@ -119,9 +136,15 @@ function buildIndex() {
     list.push({ type: 'region', name: region.name, norm: normalize(region.name), key: region.key, sub: 'Switch geography' });
   }
 
-  const muniByNorm = new Map();
-  for (const name of MUNICIPALITIES) muniByNorm.set(normalize(name), name);
-  const muniHits = new Map(); // name -> [[lng, lat], ...]
+  const muniByNorm = new Map(); // normalized name -> [{ name, state }]
+  for (const [state, names] of Object.entries(MUNICIPALITIES)) {
+    for (const name of names) {
+      const key = normalize(name);
+      if (!muniByNorm.has(key)) muniByNorm.set(key, []);
+      muniByNorm.get(key).push({ name, state });
+    }
+  }
+  const muniHits = new Map(); // "name|state" -> { name, state, ambiguous, points }
   const stopByKey = new Map(); // dedupe key -> entry (station wins over stop)
   const routeGeometry = new Map(); // route id -> { name, sub, color, features }
 
@@ -148,11 +171,19 @@ function buildIndex() {
       const words = norm.split(' ');
       for (let i = 0; i < words.length; i += 1) {
         for (let n = 1; n <= 3 && i + n <= words.length; n += 1) {
-          const candidate = muniByNorm.get(words.slice(i, i + n).join(' '));
-          if (!candidate) continue;
+          const candidates = muniByNorm.get(words.slice(i, i + n).join(' '));
+          if (!candidates) continue;
           if (STREET_SUFFIX.has(words[i + n] ?? '')) continue; // "Boston St"
-          if (!muniHits.has(candidate)) muniHits.set(candidate, []);
-          muniHits.get(candidate).push([lng, lat]);
+          // A name shared by several states belongs to whichever state the stop is in.
+          const candidate = candidates.length === 1
+            ? candidates[0]
+            : candidates.find((option) => option.state === stateAt([lng, lat]));
+          if (!candidate) continue;
+          const hitKey = `${candidate.name}|${candidate.state}`;
+          if (!muniHits.has(hitKey)) {
+            muniHits.set(hitKey, { ...candidate, ambiguous: candidates.length > 1, points: [] });
+          }
+          muniHits.get(hitKey).points.push([lng, lat]);
         }
       }
     } else if (p.kind === 'regional-static' && p.route) {
@@ -186,12 +217,12 @@ function buildIndex() {
     list.push({ type: 'route', name: route.name, norm: normalize(route.name), sub: route.sub, color: route.color, id, features: route.features });
   }
 
-  for (const [name, points] of muniHits) {
+  for (const { name, state, ambiguous, points } of muniHits.values()) {
     const center = [median(points.map((c) => c[0])), median(points.map((c) => c[1]))];
     const nearby = points.filter((c) => distanceKm(c, center) <= 12);
     list.push({
       type: 'municipality',
-      name,
+      name: ambiguous ? `${name}, ${STATE_ABBR[state]}` : name,
       norm: normalize(name),
       sub: `${nearby.length} stop${nearby.length === 1 ? '' : 's'} mention it`,
       bounds: boundsOf(nearby),
@@ -285,6 +316,30 @@ function closePanelOnMobile() {
 
 // ---- selection --------------------------------------------------------------
 
+function routeCoordinates(entry) {
+  return entry.features.flatMap((feature) =>
+    feature.geometry.type === 'MultiLineString'
+      ? feature.geometry.coordinates.flat()
+      : feature.geometry.coordinates);
+}
+
+// The region to switch to so a picked result shows live data, or null when the
+// active region already covers it (or the result switches region itself).
+export function regionForEntry(entry, activeRegion) {
+  let point = null;
+  if (entry.type === 'municipality') {
+    point = entry.center;
+  } else if (entry.type === 'stop' || entry.type === 'station' || entry.type === 'landing') {
+    point = [entry.lng, entry.lat];
+  } else if (entry.type === 'route') {
+    if (entry.features.some((feature) => featureTouchesRegion(feature, activeRegion))) return null;
+    const [[west, south], [east, north]] = boundsOf(routeCoordinates(entry));
+    point = [(west + east) / 2, (south + north) / 2];
+  }
+  if (!point || containsPoint(activeRegion, point)) return null;
+  return smallestRegionAt(point);
+}
+
 export function selectEntry(entry) {
   if (!entry) return;
   clearHighlight();
@@ -293,15 +348,16 @@ export function selectEntry(entry) {
     closePanelOnMobile();
     return;
   }
-  if (entry.type !== 'region') takeCamera('search');
+  if (entry.type !== 'region') {
+    takeCamera('search');
+    const target = regionForEntry(entry, getActiveRegion());
+    if (target) onRegionSelect(target);
+  }
   if (entry.type === 'region') {
     onRegionSelect(entry.key);
   } else if (entry.type === 'route') {
     highlightRoute(entry);
-    const coordinates = entry.features.flatMap((feature) =>
-      feature.geometry.type === 'MultiLineString'
-        ? feature.geometry.coordinates.flat()
-        : feature.geometry.coordinates);
+    const coordinates = routeCoordinates(entry);
     if (coordinates.length) {
       map.fitBounds(boundsOf(coordinates), { padding: fitPadding(), maxZoom: 13.5, duration: 1200 });
     }
@@ -316,8 +372,10 @@ export function selectEntry(entry) {
     if (alreadyThere) {
       openStopPopup(entry.feature);
     } else {
-      map.once('moveend', () => openStopPopup(entry.feature));
       map.flyTo({ center, zoom, padding: fitPadding(), duration: 1100, essential: true });
+      // After flyTo: starting it stops any move in progress (a region switch
+      // fits the camera first) and that move's `moveend` must not open the popup.
+      map.once('moveend', () => openStopPopup(entry.feature));
     }
   }
   closePanelOnMobile();

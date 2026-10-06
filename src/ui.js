@@ -59,9 +59,9 @@ function buildGroups(routeInfo, capabilities) {
     { key: 'vessel', name: 'Live vessels (AIS)', initial: '⚓', section: 'airwater', routes: [], color: CONFIG.VESSEL_COLOR, truth: 'live', needsKey: !capabilities?.ais, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'AIS key' },
     { key: 'bike', name: 'Public bike & scooter share', initial: 'b', section: 'shared', sectionName: 'Shared & active travel', routes: [], color: CONFIG.BIKE_COLOR, truth: 'live' },
     { key: 'bikeshare', name: 'Other bike-share systems (no live feed)', initial: 'BS', section: 'shared', routes: [], color: CONFIG.BIKESHARE_REF_COLOR, darkText: true, truth: 'operator reference', countAsVehicle: false },
-    { key: 'walking', name: 'Marked walking & hiking routes', initial: 'W', section: 'shared', routes: [], color: CONFIG.WALK_COLOR, truth: 'OSM routes', countAsVehicle: false, zoomable: false },
-    { key: 'cycling', name: 'Marked cycling routes', initial: 'C', section: 'shared', routes: [], color: CONFIG.CYCLE_COLOR, truth: 'OSM routes', countAsVehicle: false, zoomable: false },
-    { key: 'traffic', name: 'Live congestion speeds', initial: '≋', section: 'conditions', sectionName: 'Roads & conditions', routes: [], color: CONFIG.INCIDENT_COLOR, truth: 'live 511', needsKey: !capabilities?.traffic, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false, zoomable: false },
+    { key: 'walking', name: 'Marked walking & hiking routes', initial: 'W', section: 'shared', routes: [], color: CONFIG.WALK_COLOR, truth: 'OSM routes', countAsVehicle: false, zoomable: false, overlay: true },
+    { key: 'cycling', name: 'Marked cycling routes', initial: 'C', section: 'shared', routes: [], color: CONFIG.CYCLE_COLOR, truth: 'OSM routes', countAsVehicle: false, zoomable: false, overlay: true },
+    { key: 'traffic', name: 'Live congestion speeds', initial: '≋', section: 'conditions', sectionName: 'Roads & conditions', routes: [], color: CONFIG.INCIDENT_COLOR, truth: 'live 511', needsKey: !capabilities?.traffic, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false, zoomable: false, overlay: true },
     { key: 'roadwork', name: 'Work zones & closures', initial: '!', section: 'conditions', routes: [], color: CONFIG.ROADWORK_COLOR, truth: 'live WZDx', needsKey: !capabilities?.roadwork, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false },
     { key: 'incident', name: 'Traffic incidents', initial: '!', section: 'conditions', routes: [], color: CONFIG.INCIDENT_COLOR, truth: 'live 511', needsKey: !capabilities?.roadEvents, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false },
     { key: 'camera', name: 'Public traffic cameras', initial: '◉', section: 'conditions', routes: [], color: CONFIG.CAMERA_COLOR, truth: 'live / viewer', needsKey: !capabilities?.cameras, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false },
@@ -500,6 +500,9 @@ function renderCounts() {
     } else if (references) {
       cell.innerHTML = `<strong>${references}</strong><small>mapped</small>`;
       cell.title = `${references} mapped reference feature${references === 1 ? '' : 's'}`;
+    } else if (group.overlay) {
+      cell.textContent = 'overlay';
+      cell.title = 'Map overlay; it has no feature count';
     } else {
       cell.textContent = live ?? '–';
       cell.removeAttribute('title');
