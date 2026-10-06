@@ -796,10 +796,25 @@ def public_route_id(feed, route_id):
     return f"{feed['id']}:{feed.get('route_id_map', {}).get(route_id, route_id)}"
 
 
+LETTER_CODE_SHORT_NAME = re.compile(r"[A-Z]{1,4}")
+
+
+def long_name_repeats_short(short: str, long: str) -> bool:
+    """Whether the long name already spells out the short name.
+
+    A letter code ("WO", "R", "BLU") only counts as a whole word, so Woburn's
+    "WO" is not hidden just because "wo" starts "Woburn". Other short names
+    keep the plain substring test ("Red" in "Red Line", "1" in "Route 1").
+    """
+    if LETTER_CODE_SHORT_NAME.fullmatch(short):
+        return re.search(rf"(?<![A-Za-z0-9]){re.escape(short)}(?![A-Za-z0-9])", long, re.I) is not None
+    return short.lower() in long.lower()
+
+
 def route_label(route: dict[str, str]) -> str:
     short = (route.get("route_short_name") or "").strip()
     long = (route.get("route_long_name") or "").strip()
-    if short and long and short.lower() not in long.lower():
+    if short and long and not long_name_repeats_short(short, long):
         return f"{short} · {long}"
     return short or long or route.get("route_id", "Route")
 
@@ -822,6 +837,36 @@ def source_url(value, fallback):
     if url.startswith("http://www.amtrak.com/"):
         return "https://www.amtrak.com/" + url.removeprefix("http://www.amtrak.com/")
     return url
+
+
+def route_source_url(feed, route_id, route):
+    """Official link for a route: a reviewed ``route_url_map`` entry, else the
+    feed's own route_url (``use_route_urls``), else the feed-level page."""
+    mapped = feed.get("route_url_map", {}).get(route_id)
+    route_url = route.get("route_url") if feed.get("use_route_urls") else None
+    return source_url(mapped or route_url, feed.get("source_url") or "https://mobilitydatabase.org/")
+
+
+def station_source_url(feed, stop, route_ids):
+    """Official link for a stop: its own stop_url, else the ``route_url_map``
+    page every route there shares. A stop whose mapped routes link to different
+    pages uses ``shared_stop_url`` (e.g. the Logan Express overview at the
+    terminal curbs); anything else falls back to the feed-level page."""
+    if (stop.get("stop_url") or "").strip():
+        return source_url(stop.get("stop_url"), None)
+    url_map = feed.get("route_url_map", {})
+    mapped = {url_map.get(route_id) for route_id in route_ids}
+    if url_map and route_ids and None not in mapped:
+        if len(mapped) == 1:
+            return source_url(mapped.pop(), None)
+        return source_url(feed.get("shared_stop_url"), feed.get("source_url"))
+    return source_url(None, feed.get("source_url"))
+
+
+def no_boarding_or_alighting(row) -> bool:
+    """A stop_times row where nobody may board or alight (pickup_type and
+    drop_off_type both 1): an announcement or timing point, not a stop."""
+    return (row.get("pickup_type") or "").strip() == "1" and (row.get("drop_off_type") or "").strip() == "1"
 
 
 def effective_route_type(feed, route):
@@ -877,12 +922,23 @@ def station_features(
         for trip in trip_rows
         if trip.get("trip_id") and trip.get("route_id") in included_route_ids
     }
+    # skip_non_boarding_stops (opt-in per feed): drop stops where no drawn
+    # trip lets anyone on or off. Massport lists bus announcements ("Welcome to
+    # Logan", "Announcement #1") as stops. It is not a global rule because
+    # Merrimack Valley (77 stops), CTtransit, and RIPTA flag what look like
+    # real street stops this way too (audited 2026-10-05).
+    skip_non_boarding = bool(feed.get("skip_non_boarding_stops"))
+    boarding_stops = set()
     routes_by_stop = defaultdict(set)
     for row in read_rows(archive, "stop_times.txt"):
         route_id = route_by_trip.get(row.get("trip_id"))
         stop_id = row.get("stop_id")
         if route_id and stop_id:
             routes_by_stop[stop_id].add(route_id)
+            if skip_non_boarding and not no_boarding_or_alighting(row):
+                boarding_stops.add(stop_id)
+    if skip_non_boarding:
+        routes_by_stop = {stop_id: ids for stop_id, ids in routes_by_stop.items() if stop_id in boarding_stops}
 
     stops = {row.get("stop_id"): row for row in read_rows(archive, "stops.txt") if row.get("stop_id")}
     routes_by_station = defaultdict(set)
@@ -957,7 +1013,7 @@ def station_features(
                     "platformCount": platform_count,
                     "routeIds": [public_route_id(feed, route_id) for route_id in sorted(grouped_route_ids)],
                     "provider": feed.get("provider") or "Agency schedule · GTFS",
-                    "sourceUrl": source_url(stop.get("stop_url"), feed.get("source_url")),
+                    "sourceUrl": station_source_url(feed, stop, grouped_route_ids),
                     "regions": regions,
                 },
             })
@@ -1555,11 +1611,11 @@ def process_feed(
             properties["geometryNote"] = STOP_SEQUENCE_NOTE
         if feed.get("expired_note"):
             properties["scheduleNote"] += f" · {feed['expired_note']}"
-        route_url = route.get("route_url") if feed.get("use_route_urls") else None
-        properties["sourceUrl"] = source_url(
-            route_url,
-            feed.get("source_url") or "https://mobilitydatabase.org/",
-        )
+        if feed.get("route_note_map", {}).get(route_id):
+            # Per-route caveat (e.g. Massport's Remote Terminal pilot is for
+            # ticketed Delta and JetBlue passengers only).
+            properties["scheduleNote"] += f" · {feed['route_note_map'][route_id]}"
+        properties["sourceUrl"] = route_source_url(feed, route_id, route)
         if not feed.get("stations_only"):
             features.append({
                 "type": "Feature",

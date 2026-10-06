@@ -226,7 +226,7 @@
       "url": "https://www-steamship-assets.s3.amazonaws.com/versioned_downloadable_forms/path/2025_gtfs_copy1.zip"
     },
     "block-island-ferry": {
-      "serviceEnd": "2026-10-12",
+      "serviceEnd": "2027-01-04",
       "source": "calendar.txt",
       "url": "https://files.mobilitydatabase.org/mdb-554/latest.zip",
       "exempt": "Seasonal feed: the published schedule ends 2026-10-12; remove this exemption once the next season's feed is published."
