@@ -21,6 +21,7 @@ import urllib.parse
 import urllib.request
 import zipfile
 from collections import defaultdict
+from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -796,10 +797,25 @@ def public_route_id(feed, route_id):
     return f"{feed['id']}:{feed.get('route_id_map', {}).get(route_id, route_id)}"
 
 
+LETTER_CODE_SHORT_NAME = re.compile(r"[A-Z]{1,4}")
+
+
+def long_name_repeats_short(short: str, long: str) -> bool:
+    """Whether the long name already spells out the short name.
+
+    A letter code ("WO", "R", "BLU") only counts as a whole word, so Woburn's
+    "WO" is not hidden just because "wo" starts "Woburn". Other short names
+    keep the plain substring test ("Red" in "Red Line", "1" in "Route 1").
+    """
+    if LETTER_CODE_SHORT_NAME.fullmatch(short):
+        return re.search(rf"(?<![A-Za-z0-9]){re.escape(short)}(?![A-Za-z0-9])", long, re.I) is not None
+    return short.lower() in long.lower()
+
+
 def route_label(route: dict[str, str]) -> str:
     short = (route.get("route_short_name") or "").strip()
     long = (route.get("route_long_name") or "").strip()
-    if short and long and short.lower() not in long.lower():
+    if short and long and not long_name_repeats_short(short, long):
         return f"{short} · {long}"
     return short or long or route.get("route_id", "Route")
 
@@ -822,6 +838,36 @@ def source_url(value, fallback):
     if url.startswith("http://www.amtrak.com/"):
         return "https://www.amtrak.com/" + url.removeprefix("http://www.amtrak.com/")
     return url
+
+
+def route_source_url(feed, route_id, route):
+    """Official link for a route: a reviewed ``route_url_map`` entry, else the
+    feed's own route_url (``use_route_urls``), else the feed-level page."""
+    mapped = feed.get("route_url_map", {}).get(route_id)
+    route_url = route.get("route_url") if feed.get("use_route_urls") else None
+    return source_url(mapped or route_url, feed.get("source_url") or "https://mobilitydatabase.org/")
+
+
+def station_source_url(feed, stop, route_ids):
+    """Official link for a stop: its own stop_url, else the ``route_url_map``
+    page every route there shares. A stop whose mapped routes link to different
+    pages uses ``shared_stop_url`` (e.g. the Logan Express overview at the
+    terminal curbs); anything else falls back to the feed-level page."""
+    if (stop.get("stop_url") or "").strip():
+        return source_url(stop.get("stop_url"), None)
+    url_map = feed.get("route_url_map", {})
+    mapped = {url_map.get(route_id) for route_id in route_ids}
+    if url_map and route_ids and None not in mapped:
+        if len(mapped) == 1:
+            return source_url(mapped.pop(), None)
+        return source_url(feed.get("shared_stop_url"), feed.get("source_url"))
+    return source_url(None, feed.get("source_url"))
+
+
+def no_boarding_or_alighting(row) -> bool:
+    """A stop_times row where nobody may board or alight (pickup_type and
+    drop_off_type both 1): an announcement or timing point, not a stop."""
+    return (row.get("pickup_type") or "").strip() == "1" and (row.get("drop_off_type") or "").strip() == "1"
 
 
 def effective_route_type(feed, route):
@@ -877,12 +923,23 @@ def station_features(
         for trip in trip_rows
         if trip.get("trip_id") and trip.get("route_id") in included_route_ids
     }
+    # skip_non_boarding_stops (opt-in per feed): drop stops where no drawn
+    # trip lets anyone on or off. Massport lists bus announcements ("Welcome to
+    # Logan", "Announcement #1") as stops. It is not a global rule because
+    # Merrimack Valley (77 stops), CTtransit, and RIPTA flag what look like
+    # real street stops this way too (audited 2026-10-05).
+    skip_non_boarding = bool(feed.get("skip_non_boarding_stops"))
+    boarding_stops = set()
     routes_by_stop = defaultdict(set)
     for row in read_rows(archive, "stop_times.txt"):
         route_id = route_by_trip.get(row.get("trip_id"))
         stop_id = row.get("stop_id")
         if route_id and stop_id:
             routes_by_stop[stop_id].add(route_id)
+            if skip_non_boarding and not no_boarding_or_alighting(row):
+                boarding_stops.add(stop_id)
+    if skip_non_boarding:
+        routes_by_stop = {stop_id: ids for stop_id, ids in routes_by_stop.items() if stop_id in boarding_stops}
 
     stops = {row.get("stop_id"): row for row in read_rows(archive, "stops.txt") if row.get("stop_id")}
     routes_by_station = defaultdict(set)
@@ -957,11 +1014,72 @@ def station_features(
                     "platformCount": platform_count,
                     "routeIds": [public_route_id(feed, route_id) for route_id in sorted(grouped_route_ids)],
                     "provider": feed.get("provider") or "Agency schedule · GTFS",
-                    "sourceUrl": source_url(stop.get("stop_url"), feed.get("source_url")),
+                    "sourceUrl": station_source_url(feed, stop, grouped_route_ids),
                     "regions": regions,
                 },
             })
     return features
+
+
+def long_date(value: date) -> str:
+    """Spell a date the way the panel does.
+
+    >>> long_date(date(2026, 9, 8))
+    'September 8, 2026'
+    """
+    return f"{value:%B} {value.day}, {value.year}"
+
+
+def apply_season(properties: dict, today: date) -> dict:
+    """Demote a seasonal corridor to reference outside its published season.
+
+    `seasonStart` / `seasonEnd` are optional ISO dates copied from the
+    operator's page. A corridor with neither keeps its status. Inside the
+    season it keeps its status too; before or after it becomes "reference"
+    with a note saying when service runs. `seasonCheckedOn` records the build
+    date so scripts/check-route-geometry.mjs can verify the result.
+
+    >>> ended = apply_season({"seasonStart": "2026-06-18", "seasonEnd": "2026-09-08",
+    ...     "scheduleNote": "Official seasonal schedule · not live"}, date(2026, 10, 5))
+    >>> ended["dataStatus"], ended["seasonStatus"]
+    ('reference', 'ended')
+    >>> ended["scheduleNote"]
+    'Seasonal · season ended September 8, 2026; 2027 dates not yet published'
+    >>> early = apply_season({"seasonStart": "2027-05-21", "seasonEnd": "2027-10-13"}, date(2026, 12, 1))
+    >>> early["dataStatus"], early["scheduleNote"]
+    ('reference', 'Seasonal · next season starts May 21, 2027')
+    >>> running = apply_season({"seasonStart": "2026-05-21", "seasonEnd": "2026-10-13",
+    ...     "scheduleNote": "Official seasonal route · not live"}, date(2026, 10, 13))
+    >>> running["seasonStatus"], running["scheduleNote"], "dataStatus" in running
+    ('in-season', 'Official seasonal route · not live · season through October 13, 2026', False)
+    >>> apply_season({"season": "Year-round"}, date(2026, 10, 5))
+    {'season': 'Year-round'}
+    """
+    start_text = properties.get("seasonStart")
+    end_text = properties.get("seasonEnd")
+    if not start_text and not end_text:
+        return properties
+    start = date.fromisoformat(start_text) if start_text else None
+    end = date.fromisoformat(end_text) if end_text else None
+    if start and end and start > end:
+        raise ValueError(f"{properties.get('route', 'route')}: seasonStart is after seasonEnd")
+    properties["seasonCheckedOn"] = today.isoformat()
+    if start and today < start:
+        properties["seasonStatus"] = "upcoming"
+        properties["dataStatus"] = "reference"
+        properties["scheduleNote"] = f"Seasonal · next season starts {long_date(start)}"
+    elif end and today > end:
+        properties["seasonStatus"] = "ended"
+        properties["dataStatus"] = "reference"
+        properties["scheduleNote"] = (
+            f"Seasonal · season ended {long_date(end)}; {end.year + 1} dates not yet published"
+        )
+    else:
+        properties["seasonStatus"] = "in-season"
+        if end:
+            note = properties.get("scheduleNote", "Official seasonal schedule")
+            properties["scheduleNote"] = f"{note} · season through {long_date(end)}"
+    return properties
 
 
 def supplemental_ferry_stop_features(features):
@@ -1555,11 +1673,11 @@ def process_feed(
             properties["geometryNote"] = STOP_SEQUENCE_NOTE
         if feed.get("expired_note"):
             properties["scheduleNote"] += f" · {feed['expired_note']}"
-        route_url = route.get("route_url") if feed.get("use_route_urls") else None
-        properties["sourceUrl"] = source_url(
-            route_url,
-            feed.get("source_url") or "https://mobilitydatabase.org/",
-        )
+        if feed.get("route_note_map", {}).get(route_id):
+            # Per-route caveat (e.g. Massport's Remote Terminal pilot is for
+            # ticketed Delta and JetBlue passengers only).
+            properties["scheduleNote"] += f" · {feed['route_note_map'][route_id]}"
+        properties["sourceUrl"] = route_source_url(feed, route_id, route)
         if not feed.get("stations_only"):
             features.append({
                 "type": "Feature",
@@ -1588,7 +1706,9 @@ def process_feed(
     return features, len(selected_routes), source_metadata, freshness
 
 
-def main(update_road_cache=False, refresh_road_cache=False, update_ferry_cache=False, refresh_ferry_cache=False):
+def main(update_road_cache=False, refresh_road_cache=False, update_ferry_cache=False, refresh_ferry_cache=False,
+         season_date=None):
+    season_date = season_date or date.today()
     feeds = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
     boundaries = json.loads(BOUNDARIES_PATH.read_text(encoding="utf-8"))
     road_controls, controls_sha256 = load_road_route_controls()
@@ -1702,6 +1822,8 @@ def main(update_road_cache=False, refresh_road_cache=False, update_ferry_cache=F
         ordered = [key for key in REGION_ORDER if key in combined]
         ordered.extend(key for key in declared if key not in ordered)
         feature["properties"]["regions"] = ordered
+        # Out-of-season corridors stay on the map as reference lines.
+        apply_season(feature["properties"], season_date)
         feature["properties"].setdefault("dataStatus", "scheduled")
         if feature["properties"].get("group") == "ferry":
             feature["properties"].setdefault("geometryAccuracy", "approximate")
@@ -1826,10 +1948,17 @@ if __name__ == "__main__":
         action="store_true",
         help="recompute every ferry water geometry from its sources",
     )
+    parser.add_argument(
+        "--season-date",
+        type=date.fromisoformat,
+        default=None,
+        help="judge seasonal corridors as of this YYYY-MM-DD date instead of today",
+    )
     arguments = parser.parse_args()
     main(
         arguments.update_road_cache or arguments.refresh_road_cache,
         arguments.refresh_road_cache,
         arguments.update_ferry_cache or arguments.refresh_ferry_cache,
         arguments.refresh_ferry_cache,
+        arguments.season_date,
     )

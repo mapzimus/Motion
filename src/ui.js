@@ -75,6 +75,10 @@ function buildGroups(routeInfo, capabilities) {
     // Conditions: official weather and airport operating status.
     { key: 'weather', name: 'Weather alerts (NWS)', initial: '⚠', section: 'weather-conditions', sectionName: 'Conditions', routes: [], color: CONFIG.WEATHER_COLORS.moderate, darkText: true, truth: 'live', needsKey: !capabilities?.weatherAlerts, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false },
     { key: 'airport-status', name: 'Airport delays (FAA)', initial: '✈', section: 'weather-conditions', routes: [], color: CONFIG.AIRPORT_STATUS_COLORS['ground-delay'], truth: 'live', needsKey: !capabilities?.airportStatus, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false },
+    // Aviation conditions: METAR flight categories, TFRs, and charted airspace.
+    { key: 'airport-weather', name: 'Airport weather (METAR)', initial: 'WX', section: 'weather-conditions', routes: [], color: CONFIG.FLIGHT_CATEGORY_COLORS.VFR, darkText: true, truth: 'live', needsKey: !capabilities?.airportWeather, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false },
+    { key: 'tfr', name: 'Temporary flight restrictions (FAA)', initial: 'TFR', section: 'weather-conditions', routes: [], color: CONFIG.TFR_COLORS.SECURITY, truth: 'live', needsKey: !capabilities?.tfrs, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false },
+    { key: 'airspace', name: 'Airspace (Class B/C/D & special use)', initial: '◇', section: 'weather-conditions', routes: [], color: CONFIG.AIRSPACE_COLORS.B, truth: 'FAA reference', countAsVehicle: false },
   ];
 }
 

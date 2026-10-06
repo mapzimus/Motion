@@ -3,8 +3,8 @@
 // (next stops + delay) and a plane's scheduled route. DOM-free.
 //
 // Card shape:
-//   { color, title, badge, headsign, status, stops: [{ name, eta, delay, late }] | null,
-//     stopsNote, meta, dataStatus, provider, sourceUrl, updatedAt }
+//   { color, title, badge, headsign, status, alert?, stops: [{ name, eta, delay, late }] | null,
+//     stopsNote, meta, dataStatus, provider, sourceUrl, updatedAt, ageLabel }
 
 import { CONFIG } from './config.js';
 import { fetchTripPredictions, parseTripPredictions } from './predictions.js';
@@ -193,7 +193,8 @@ function planeCard(item, extras) {
   const p = item.props;
   let headsign = p.dest;
   let stopsNote = '';
-  if (!p.callsign) stopsNote = 'No callsign broadcast, so no scheduled route.';
+  if (p.planeKind === 'heli') stopsNote = 'Helicopters are shown by type only, without callsign or registration.';
+  else if (!p.callsign) stopsNote = 'No callsign broadcast, so no scheduled route.';
   else if (!extras) stopsNote = 'Looking up scheduled route…';
   else if (extras.kind === 'route' && extras.route?.airports?.length) {
     const airports = extras.route.airports;
@@ -205,6 +206,7 @@ function planeCard(item, extras) {
     badge: p.dest && p.dest !== p.title ? p.dest : '',
     headsign,
     status: p.status,
+    alert: p.alert || '', // "Squawking 7700 · general emergency"
     stops: null,
     stopsNote,
     meta: p.meta,
@@ -237,6 +239,7 @@ export function tripCardData(fleetId, item, extras) {
     provider: p.provider ?? '',
     sourceUrl: /^https:\/\//.test(p.sourceUrl ?? '') ? p.sourceUrl : '',
     updatedAt: p.updatedAt,
+    ageLabel: p.ageLabel ?? '',
   };
 }
 

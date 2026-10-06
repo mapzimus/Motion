@@ -38,6 +38,9 @@ Every feature is labeled **live**, **estimated**, **scheduled**, or
 | Live congestion speeds | Public 511 traffic-flow tiles through the gateway; TomTom remains an optional configured fallback | live tiles |
 | Weather alerts | [NWS active alerts](https://api.weather.gov/) for the six states, drawn as severity-colored forecast-zone polygons; Extreme/Severe alerts also join the service-alert panel | 120 s (60 s edge cache) |
 | Airport delays | [FAA NAS airport status](https://nasstatus.faa.gov/) ground stops, ground-delay programs, arrival/departure delays, and closures, drawn as rings on the FAA airport markers | 120 s (60 s edge cache) |
+| Airport weather (METAR) | [AviationWeather.gov](https://aviationweather.gov/) observations for about 64 New England weather stations, colored by flight category (VFR green, MVFR blue, IFR red, LIFR magenta); a station's TAF forecast loads when you click it | 5 min (5 min edge cache; TAF 30 min) |
+| Temporary flight restrictions | [FAA TFR](https://tfr.faa.gov/) polygons inside New England, joined to the FAA TFR list for type and facility; altitudes and effective times load from the FAA notice when you click one | 5 min (5 min edge cache) |
+| Airspace | FAA ADDS Class B, C, and D airspace and special-use airspace (MOAs, restricted, warning, prohibited areas): 69 shapes, reference only | 28-day built snapshot |
 | Major roads and freight rail | U.S. Census TIGERweb primary roads and the FRA North American Rail Network | built snapshot |
 | Canada border crossings | 38 road, rail, ferry, and remote-traveller facilities from the [CBSA Directory of Offices](https://www.cbsa-asfc.gc.ca/do-rb/menu-eng.html) | built snapshot |
 | Marked walking and cycling routes | OpenStreetMap route relations via Waymarked Trails | live map tiles |
@@ -56,6 +59,32 @@ interruption.
 Aircraft origin and destination are resolved only after a plane is clicked.
 The lookup is a best-effort callsign match against ADSB.lol's route catalog;
 private, repositioning, and irregular flights may not have an itinerary.
+
+The three aviation-conditions rows sit under Conditions next to airport delays
+and start switched off; the Air preset turns them on. METARs come from one
+AviationWeather.gov bounding-box query (the gateway sends the custom
+User-Agent that service asks for, and its 5-minute edge cache keeps the map
+far below the 100-requests-per-minute limit). TFR shapes come from the FAA's
+TFR map service, which is undocumented and sends no cache headers, so the
+gateway holds each answer for 5 minutes. Airspace is a static file rebuilt
+from the FAA's ADDS feature services by `scripts/build-airspace.py` each
+28-day cycle and downloaded only when its row is switched on. It is for
+orientation: special-use areas are often active "by NOTAM", so always check
+current charts and NOTAMs before flying.
+
+Each aircraft's silhouette comes from the ADS-B emitter category it
+broadcasts: airliner (A3–A6), light aircraft (A1–A2), helicopter (A7), or a
+plain dart for gliders, balloons, drones and unknowns. Without a category the
+ICAO type code decides, and an unrecognized type keeps the airliner shape. An
+aircraft squawking 7500, 7600 or 7700, or reporting an emergency status, gets
+a red ring and a line in its card ("Squawking 7700 · general emergency").
+Aircraft are clipped with the coastal (marine) boundary like vessels, so Logan
+approaches over the harbor stay on the map.
+
+Privacy rules, applied in the relay and the page: owner/operator names are
+never relayed; registrations are withheld for aircraft in the FAA's PIA and
+LADD privacy programs; helicopters are shown by type only, without callsign,
+registration or hex. Nothing on the map singles out military or LADD aircraft.
 
 ## Regional transit coverage
 
@@ -201,7 +230,23 @@ addresses. Hand-built bus corridors can now list named stops in a `stops`
 property and set `roadRouteEveryLeg` so that legs shorter than the usual 20 km
 repair threshold also follow roads. The New York line reuses the map's
 reviewed Boston–New York coach corridor, so it is drawn through Boston; C&J's
-non-stop coaches may bypass downtown, and the popup says so.
+non-stop coaches may bypass downtown, and the popup says so. Go Buses' daily
+Alewife–Riverside–New York coach (operated by Academy Bus) is drawn the same way
+from the stops on the operator's site, with its own reviewed bus-safe controls
+for the Riverside–Port Authority leg; it ends at Port Authority Gate 1, where it
+moved on September 1, 2026.
+
+Massport's GTFS draws the free on-airport shuttles and the five Logan Express
+routes (Framingham, Braintree, Woburn, Danvers, Back Bay), each linked to its
+own Massport page. Sixteen of its "stops" are bus announcements and timing
+points that nobody can board or leave at ("Welcome to Logan", "Announcement
+#1"); the feed opts into `skip_non_boarding_stops`, so they are not drawn.
+"RF · Remote Framingham" is the Logan Airport Remote Terminal pilot, not a
+public route: only ticketed Delta and JetBlue passengers ride it, after TSA
+screening in Framingham, and it drops them inside security at Logan. Its popup
+says so, and the terminal itself (19 Flutie Pass) is a reference point in the
+Local & on-demand layer with hours, airlines, and the pilot's end date
+(February 2027).
 
 Vermont includes regional routes from every discoverable public GTFS source in
 the current audit, including Green Mountain Transit, Vermont Translines, and
@@ -377,6 +422,7 @@ Rebuild the static route snapshot after agencies update their schedules:
 py -3 -X utf8 scripts\build-regions.py
 py -3 -X utf8 scripts\build-regional-routes.py
 py -3 -X utf8 scripts\build-airports.py
+py -3 -X utf8 scripts\build-airspace.py
 py -3 -X utf8 scripts\build-border-crossings.py
 py -3 -X utf8 scripts\build-reference-places.py
 ```
@@ -440,6 +486,13 @@ the date and should be removed when the next season's feed appears). A feed
 can also carry `"expired_note"`, appended to every route popup, when its last
 published schedule is known to be stale (VTA's summer 2026 feed). Feeds whose
 server rejects scripted downloads can set a per-feed `"user_agent"`.
+Per-route options: `"route_url_map"` (route id → official page; stops served
+only by mapped routes link to that page, or to `"shared_stop_url"` when the
+routes there link to different pages), `"route_note_map"` (route id → caveat
+appended to the route popup), and `"skip_non_boarding_stops"` (drop stops
+where every drawn trip has `pickup_type` and `drop_off_type` 1). That last one
+is opt-in because Merrimack Valley, CTtransit, and RIPTA flag what look like
+real street stops the same way.
 
 Reviewed interstate controls keep New York-bound coaches off bus-restricted
 Connecticut and New York parkways. Use `--refresh-road-cache` when those
@@ -453,12 +506,24 @@ Approximate repaired geometry is derived from
 operator's actual roadway may vary.
 
 The **Airports & landing facilities** layer includes public and private FAA
-facilities, with private sites held back until a closer zoom. The air-service
+facilities, with private sites held back until a closer zoom. Heliports draw as
+a disc with an "H", seaplane bases as a ring with a wave, everything else as a
+circle. Public-use facilities are in **Find** by name or FAA/ICAO identifier
+(`BOS`, `KBOS`, `logan`). The air-service
 ribbons distinguish scheduled Cape Air/Tradewind routes from Penobscot Island
 Air's on-demand links between Knox County Regional Airport and Matinicus,
 Vinalhaven, North Haven, and Islesboro. Those lines show service relationships,
 not actual or live flight tracks, and start switched off so they do not obscure
 surface and water routes or live aircraft.
+
+Seasonal air corridors carry `seasonStart`/`seasonEnd` dates in
+`scripts/supplemental-air-routes.json`, copied from the operator's own pages.
+The route builder judges them on its run date (`--season-date YYYY-MM-DD`
+overrides it): outside the season a corridor becomes a reference line with a
+note such as "Seasonal · season ended September 8, 2026; 2027 dates not yet
+published". The status is frozen into the snapshot, so rebuild it after a
+season starts or ends, and replace the dates when the operator publishes the
+next season.
 
 The **Canada border crossings** layer uses the current CBSA office directory
 for New England's Maine, New Hampshire, and Vermont frontier. It includes
@@ -527,7 +592,7 @@ The card shows what each feed actually publishes:
 | MBTA | Next six stops with ETA, clock time, track (commuter rail), and delay against the schedule, from `/predictions?filter[trip]=…`, polled every 15 s only while following |
 | Amtrak | Upcoming stations with ETA and early/late, from the Amtraker train record |
 | Metro-North | Next stop and minutes only; position is the train's GPS fix, or an estimate between stations when the feed has none |
-| Aircraft | Best-effort scheduled route for the callsign |
+| Aircraft | Best-effort scheduled route for the callsign, registration (when not withheld), climbing/descending, and a red emergency line for 7500/7600/7700 squawks; helicopters by type only |
 | Regional buses, vessels | Route, vehicle number, speed |
 
 A followed vehicle adds `f=<fleet>:<id>` to the URL hash, so **Copy link**
@@ -615,12 +680,24 @@ How the vessel feed works:
   holds one AISStream socket for the whole New England box and fans frames out
   to every viewer by region. Any number of viewers use 1 of the 3 slots.
 - **Instant snapshot.** A new viewer first gets one `Snapshot` frame with every
-  vessel the hub already knows in that region, stamped with the server time it
-  was last heard, so the map fills in immediately and old positions dim.
+  vessel the hub already knows in that region, stamped with the real time it
+  was last heard (`at`) and the listening time since then (`quietMs`), so the
+  map fills in immediately, old positions dim after 3 minutes, and popups and
+  the trip card say "Last heard 12 min ago" (or "2 h 5 min ago").
+- **Retention by listening time.** Vessels age only while the hub's upstream
+  is open: silence while nobody was listening is not evidence a boat left. A
+  vessel is dropped after 15 minutes of listening without a report, or 60
+  minutes if it was moored (speed under 1 knot; moored boats report every
+  ~3 minutes but volunteer receivers pick them up only now and then), and
+  always once its last report is more than 6 hours old. Static ship data
+  follows the same rule. The browser applies the same thresholds to live
+  frames and snapshot vessels, so a boat kept through a quiet spell shows
+  dimmed instead of vanishing.
 - **Lifecycle.** The first viewer starts the upstream. A 60-second alarm
-  reconnects it with backoff, prunes vessels not heard for 15 minutes, saves
-  the snapshot as one storage row, and closes the upstream 5 minutes after the
-  last viewer leaves. Deploys drop the upstream; the saved snapshot covers the
+  reconnects it with backoff, prunes, saves the snapshot and the listening
+  clock as one storage row, and closes the upstream 20 minutes after the last
+  viewer leaves (the Durable Object stays active, and billed, while the
+  upstream is open). Deploys drop the upstream; the saved snapshot covers the
   gap while it reconnects. The Durable Object migration applies on the first
   `wrangler deploy` after this change.
 - **Coastal filter.** Vessels are filtered against `public/data/regions-marine.geojson`
@@ -632,7 +709,9 @@ How the vessel feed works:
   coverage inland. The New York half of Lake Champlain only counts where it is
   within the coastal buffer of Vermont.
 
-Deploy the separate aircraft relay from its own project directory:
+Deploy the separate aircraft relay from its own project directory. It is its
+own Vercel project, so merging to `main` does not update it: redeploy it by
+hand whenever `aircraft-gateway/` changes.
 
 ```powershell
 Set-Location aircraft-gateway
@@ -645,8 +724,8 @@ npx vercel --prod --yes
 | Endpoint | Purpose |
 |---|---|
 | `GET /health` | Provider status without exposing secrets; a provider reads `true` when its last upstream fetch succeeded within 10 minutes (or has not been attempted yet) |
-| `GET /api/planes?region=ma` | Deduplicated, normalized ADS-B aircraft (Vercel relay only; the Worker no longer serves this path) |
-| `GET /api/route?callsign=AAL108` | Best-effort aircraft origin and destination (Vercel relay) |
+| `GET /api/planes?region=ma` | Deduplicated, normalized ADS-B aircraft: position, callsign, type, track, altitude, speed, plus `category`, `squawk`, `emergency`, `registration` (null for PIA/LADD aircraft and rotorcraft), `verticalRateFpm` and `dbFlags` (Vercel relay only; the Worker no longer serves this path) |
+| `GET /api/route?callsign=AAL108` | Best-effort aircraft origin and destination; 404 when unknown, 502 JSON when the route catalog is unreachable (Vercel relay) |
 | `GET /api/transit?region=ct` | Normalized GTFS-realtime bus positions and per-feed health |
 | `GET /api/mnr` | Metro-North active trip segments and service alerts from official MTA GTFS-Realtime |
 | `GET /api/roadwork` | Active/upcoming MassDOT and northern New England WZDx geometry |
@@ -656,6 +735,10 @@ npx vercel --prod --yes
 | `GET /api/traffic/{z}/{x}/{y}.png` | Cached public 511 congestion tile, with optional TomTom source |
 | `GET /api/airport-status` | FAA NAS status (ground stops, ground-delay programs, arrival/departure delays, closures) for New England airports |
 | `GET /api/weather-alerts?region=ma` | NWS active alerts for the region's states as GeoJSON; forecast-zone polygons are resolved, simplified, and capped per request |
+| `GET /api/airport-weather` | New England METARs from AviationWeather.gov as GeoJSON points: flight category, observation time, raw METAR, wind, visibility, ceiling (5 min edge cache) |
+| `GET /api/airport-taf?id=KBOS` | The station's latest TAF, or `available: false` when it issues none; `id` must be a four-character ICAO id (30 min edge cache) |
+| `GET /api/tfrs` | FAA TFR polygons in the New England box joined to the TFR list (type, state, facility), plus listed New England TFRs without a shape (5 min edge cache) |
+| `GET /api/tfr-detail?id=6/7153` | Altitudes, effective times, and reason parsed from one FAA TFR notice (30 min edge cache) |
 | `GET /api/ais?region=new-england` with WebSocket upgrade | Shared AISStream feed: a `Snapshot` frame of known vessels in the region, then live AISStream frames for that region |
 
 Supported region IDs are `boston`, `ma`, `ct`, `ri`, `nh`, `vt`, `me`, and
@@ -686,8 +769,14 @@ inside the Workers runtime with Cloudflare's Vitest integration.
 ```powershell
 npm run check
 npm test
+npm run test:ui
 npm run deploy:dry-run
+py -3 -X utf8 -m doctest scripts\build-regional-routes.py
 ```
+
+`npm test` also runs the aircraft relay's handlers (`aircraft-gateway/api/`)
+in the Workers runtime, including the registration privacy rule. The doctest
+covers the builder's seasonal-corridor logic.
 
 CI (`.github/workflows/ci.yml`) first runs `scripts/check-feed-freshness.py`,
 which downloads every schedule feed and fails when a non-exempt feed stops
@@ -727,10 +816,12 @@ documented `freshness_exempt`), and commit the refreshed `feed-freshness.json`.
   Milford Transit, NECTD, NWCTD, CTrail's Hartford Line and Shore Line East,
   Plymouth & Brockton, and the smaller Maine and New Hampshire operators have
   no tracker. The only snowplow source found is VTrans's own app data file,
-  which is empty outside winter.
+  which is empty outside winter. Massport's bus-locator JSON (behind its
+  website's bus locator for the shuttles and Logan Express) is private and is
+  not used, so those buses stay scheduled ribbons.
 - Scheduled services found missing in the same audit and not yet drawn,
-  because none publishes GTFS and each needs a hand-built corridor: Go Buses
-  (Alewife and Newton to New York), Downeast Transportation's
+  because none publishes GTFS and each needs a hand-built corridor: Downeast
+  Transportation's
   year-round Hancock County routes, York County Community Action's Sanford
   routes, the 128 Business Council shuttles, Seastreak's New York–Martha's
   Vineyard–Nantucket ferry, the Bustins Island ferry, the AMC and Franconia
@@ -748,6 +839,12 @@ documented `freshness_exempt`), and commit the refreshed `feed-freshness.json`.
 - Non-MBTA ferry operators generally publish schedules, not GTFS-realtime
   positions. AIS supplies actual vessel movement when a ship is broadcasting,
   and passenger-ship metadata is used to classify ferries when available.
+- AIS coverage comes from AISStream's volunteer receivers and is thin in
+  Rhode Island and Maine. In five minutes on 2026-10-05 the hub heard about 55
+  vessels in Boston Harbor and 56 around the Cape and Islands, but only 3 each
+  in eastern Long Island Sound/Rhode Island, around Portland, and in Midcoast
+  and Downeast Maine. The only remedy is more receivers: anyone can feed
+  AISStream from a shoreline AIS receiver.
 - Work-zone geometry is currently strongest in Massachusetts, Maine, New
   Hampshire, and Vermont. The USDOT WZDx feed registry lists no Connecticut
   or Rhode Island feed (checked 2026-10-04), so Connecticut road disruptions

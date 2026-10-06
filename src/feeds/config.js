@@ -104,14 +104,22 @@ export const CONFIG = {
   AMTRAK_STALE_MS: 5 * 60_000,
 
   // Aircraft are fetched server-side from ADSB.lol. The selected geography
-  // controls overlapping probes, then exact Census polygons clip the results.
+  // controls overlapping probes, then the coastal (marine) region polygons
+  // clip the results so planes over the harbor and sounds stay visible.
   PLANE_COLOR: '#9be1ff',
+  AIRCRAFT_EMERGENCY_COLOR: '#ff5c5c', // ring under a 7500/7600/7700 squawk
 
   // AIS passes through the gateway so a provider key never enters the public
   // bundle. Traffic is relayed from the public 511 tile service and needs no
   // commercial API key.
   AIS_STALE_MS: 3 * 60_000, // dim vessels silent for 3 min
-  AIS_PRUNE_MS: 10 * 60_000, // drop vessels silent for 10 min
+  // Drop a vessel after this much listening time without a report (the live
+  // socket, plus the gateway's listening time for snapshot vessels). Moored
+  // boats (SOG under AIS_MOORED_SOG_KN) are received only now and then.
+  AIS_PRUNE_MOVING_MS: 15 * 60_000,
+  AIS_PRUNE_MOORED_MS: 60 * 60_000,
+  AIS_MOORED_SOG_KN: 1,
+  AIS_MAX_AGE_MS: 6 * 60 * 60_000, // never show a position older than 6 h
   VESSEL_COLOR: '#63d8c8',
 
   // Keyless GBFS systems currently cataloged in New England. Discovery feeds
@@ -195,6 +203,17 @@ export const CONFIG = {
   // Only NWS alerts at these severities join the service-alert panel.
   WEATHER_PANEL_SEVERITIES: ['Extreme', 'Severe'],
 
+  // Aviation conditions: AviationWeather.gov METAR flight categories and FAA
+  // TFR polygons (both relayed by the Worker, edge-cached 5 min), plus FAA
+  // airspace as a static reference file loaded only when switched on.
+  AIRPORT_WEATHER_POLL_MS: 5 * 60_000,
+  TFR_POLL_MS: 5 * 60_000,
+  // The aviation-standard category colors: VFR green, MVFR blue, IFR red, LIFR magenta.
+  FLIGHT_CATEGORY_COLORS: { VFR: '#3ccf6a', MVFR: '#4f8dff', IFR: '#ff4d4d', LIFR: '#e04fe0', unknown: '#8a949f' },
+  TFR_COLORS: { VIP: '#ff4d4d', SECURITY: '#ff4d4d', SPECIAL: '#ff4d4d', HAZARDS: '#ff8a4c', default: '#ffc94d' },
+  AIRSPACE_COLORS: { B: '#4f8dff', C: '#d65cd6', D: '#4f8dff', sua: '#ff9a3c' },
+  AIRSPACE_URL: `${dataBase}airspace.geojson`,
+
   TRAFFIC_TILE_TEMPLATE: gatewayBase
     ? `${gatewayBase}/api/traffic/{z}/{x}/{y}.png`
     : '',
@@ -208,6 +227,7 @@ export const CONFIG = {
     'roads', 'freight', 'walking', 'cycling', 'local', 'airport', 'border', 'air-service',
     'bikeshare', 'heritage-rail', 'park-ride', 'ev-charging', 'drawbridge', 'taxi',
     'weather', 'airport-status',
+    'airport-weather', 'tfr', 'airspace',
   ],
 
   // First entry is the default. Every basemap must work with the dark panel

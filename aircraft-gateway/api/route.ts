@@ -47,14 +47,23 @@ export default {
     if (!/^[A-Z0-9]{3,8}$/.test(callsign)) return json(request, { error: 'Invalid callsign' }, 400, 0);
 
     const prefix = callsign.slice(0, 2);
-    const upstream = await fetch(
-      `https://vrs-standing-data.adsb.lol/routes/${prefix}/${callsign}.json`,
-      { signal: AbortSignal.timeout(6_000) },
-    );
-    if (upstream.status === 404) return json(request, { error: 'Route unavailable' }, 404, 14_400);
-    if (!upstream.ok) return json(request, { error: `Route provider ${upstream.status}` }, 502, 60);
-    const route = await upstream.json() as { _airports?: RouteAirport[] };
-    const airports = (route._airports ?? []).map((airport) => ({
+    // A timeout, DNS failure or malformed body must come back as clean JSON
+    // the client can cache briefly, not as an unhandled function crash.
+    let route: { _airports?: unknown };
+    try {
+      const upstream = await fetch(
+        `https://vrs-standing-data.adsb.lol/routes/${prefix}/${callsign}.json`,
+        { signal: AbortSignal.timeout(6_000) },
+      );
+      if (upstream.status === 404) return json(request, { error: 'Route unavailable' }, 404, 14_400);
+      if (!upstream.ok) return json(request, { error: `Route provider ${upstream.status}` }, 502, 60);
+      route = await upstream.json() as { _airports?: unknown };
+    } catch (error) {
+      console.warn('Route provider failed', { callsign, error: error instanceof Error ? error.message : String(error) });
+      return json(request, { error: 'Route provider unavailable' }, 502, 60);
+    }
+    const listed = Array.isArray(route?._airports) ? route._airports as RouteAirport[] : [];
+    const airports = listed.map((airport) => ({
       name: airport.name ?? '',
       icao: airport.icao ?? '',
       iata: airport.iata ?? '',

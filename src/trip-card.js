@@ -5,6 +5,7 @@
 import { getSelection, setMode, subscribe, unfollow } from './follow/follow.js';
 import { buildPermalinkHash } from './feeds/permalink.js';
 import { createTripWatcher, fleetLabel, tripCardData } from './feeds/trip-data.js';
+import { ageText } from './feeds/age.js';
 
 let el = {};
 let extras = null;
@@ -17,11 +18,11 @@ const text = (node, value) => {
   node.hidden = !value;
 };
 
-function relativeAge(iso) {
-  const seconds = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 1000));
-  if (!Number.isFinite(seconds)) return '';
-  if (seconds < 60) return `updated ${seconds}s ago`;
-  return `updated ${Math.round(seconds / 60)} min ago`;
+// "updated 45s ago"; vessels pass label "Last heard" for "Last heard 2 h 5 min ago".
+function relativeAge(iso, label = 'updated') {
+  const timestamp = Date.parse(iso);
+  if (!Number.isFinite(timestamp)) return '';
+  return `${label} ${ageText(Date.now() - timestamp)} ago`;
 }
 
 export function showToast(message, ms = 5000) {
@@ -41,7 +42,7 @@ function badge(label, className = '') {
 
 function renderFoot(card) {
   el.foot.replaceChildren();
-  const parts = [card.provider, relativeAge(card.updatedAt)].filter(Boolean).join(' · ');
+  const parts = [card.provider, relativeAge(card.updatedAt, card.ageLabel || undefined)].filter(Boolean).join(' · ');
   el.foot.append(parts);
   if (card.sourceUrl) {
     const link = document.createElement('a');
@@ -68,6 +69,7 @@ function render(selection) {
     text(el.title, `Looking for ${fleetLabel(selection.fleetId)} ${selection.id}…`);
     text(el.headsign, 'Waiting for its live feed to report in.');
     el.badges.replaceChildren();
+    text(el.alert, '');
     text(el.status, '');
     el.stops.replaceChildren();
     el.stops.hidden = true;
@@ -93,6 +95,7 @@ function render(selection) {
   else if (card.stale) el.badges.append(badge('Position is old', 'warn'));
   el.badges.hidden = false;
 
+  text(el.alert, card.alert);
   text(el.status, card.status);
 
   el.stops.replaceChildren();
@@ -161,6 +164,7 @@ export function initTripCard() {
     title: card.querySelector('.trip-title'),
     headsign: card.querySelector('.trip-headsign'),
     badges: card.querySelector('.trip-badges'),
+    alert: card.querySelector('.trip-alert'),
     status: card.querySelector('.trip-status'),
     stops: card.querySelector('.trip-stops'),
     note: card.querySelector('.trip-note'),

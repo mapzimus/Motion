@@ -138,6 +138,27 @@
       "type": "Feature",
       "geometry": {
         "type": "LineString",
+        "coordinates": [[-71.14198,42.39638],[-71.25347,42.33623],[-73.99285,40.75717]]
+      },
+      "properties": {
+        "route": "go-buses:boston-nyc",
+        "group": "bus",
+        "agency": "Go Buses",
+        "name": "Cambridge (Alewife) · Newton (Riverside) ↔ New York City",
+        "kind": "regional-static",
+        "dataStatus": "scheduled",
+        "regions": ["ma"],
+        "provider": "Go Buses official site",
+        "sourceUrl": "https://www.gobuses.com/locations/",
+        "scheduleNote": "Daily intercity coach operated by Academy Bus · Alewife and Riverside MBTA stations to the Port Authority Bus Terminal, Gate 1 on the lower level of the south wing (from September 1, 2026) · reservations required · no public live vehicle feed",
+        "roadRouteEveryLeg": true,
+        "stops": [{"name":"Go Buses · Alewife Bus Station (Bay A1)","coordinates":[-71.14198,42.39638],"details":"351 Rindge Avenue, Cambridge · MBTA Red Line"},{"name":"Go Buses · Riverside Bus Station","coordinates":[-71.25347,42.33623],"details":"335 Grove Street, Newton · MBTA Green Line D branch"}]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
         "coordinates": [[-71.458979,43.60753],[-71.458411,43.607628],[-71.457812,43.607838],[-71.454508,43.609365],[-71.436832,43.618163],[-71.416234,43.614084],[-71.404105,43.610882],[-71.401299,43.609559],[-71.381499,43.594709],[-71.370372,43.589794],[-71.362865,43.587548],[-71.343961,43.583482],[-71.332565,43.581662],[-71.319873,43.579983],[-71.265025,43.573885],[-71.252934,43.572456],[-71.243395,43.571192],[-71.239371,43.570712],[-71.232756,43.57036],[-71.229857,43.570475],[-71.223232,43.570963],[-71.21057,43.582469],[-71.209,43.583]]
       },
       "properties": {

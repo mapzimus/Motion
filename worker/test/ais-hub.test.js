@@ -37,11 +37,13 @@ class FakeUpstream {
 
 const BOSTON = [42.35, -71.0];
 const PORTLAND_ME = [43.65, -70.25];
+const MIN = 60_000;
+const HOUR = 60 * MIN;
 
-const position = (mmsi, [lat, lng], name = '') => ({
+const position = (mmsi, [lat, lng], name = '', sog = 7.5) => ({
   MessageType: 'PositionReport',
   MetaData: { MMSI: mmsi, ShipName: name, latitude: lat, longitude: lng },
-  Message: { PositionReport: { Sog: 7.5, Cog: 91, TrueHeading: 511, Latitude: lat, Longitude: lng } },
+  Message: { PositionReport: { Sog: sog, Cog: 91, TrueHeading: 511, Latitude: lat, Longitude: lng } },
 });
 const shipStatic = (mmsi, name, type) => ({
   MessageType: 'ShipStaticData',
@@ -89,6 +91,27 @@ const feed = (stub, ...frames) =>
     for (const frame of frames) hub.handleFrame(JSON.stringify(frame));
   });
 
+// Pin the hub's clock to a fixed real time.
+const setNow = (stub, at) =>
+  runInDurableObject(stub, (hub) => {
+    hub.now = () => at;
+  });
+
+// Open the fake upstream at `at`, which starts the listening clock.
+const listen = (stub, at) =>
+  runInDurableObject(stub, (hub) => {
+    hub.now = () => at;
+    hub.ensureUpstream();
+    hub.upstream.open();
+  });
+
+const pruneAt = (stub, at) =>
+  runInDurableObject(stub, (hub) => {
+    hub.now = () => at;
+    hub.prune();
+    return { vessels: [...hub.vessels.keys()], statics: [...hub.statics.keys()], clock: hub.listenClock() };
+  });
+
 describe('AisHub', () => {
   it('requires a WebSocket upgrade', async () => {
     const stub = await freshHub();
@@ -104,8 +127,9 @@ describe('AisHub', () => {
     const [snapshot] = boston.messages;
     expect(snapshot.MessageType).toBe('Snapshot');
     expect(snapshot.Vessels.map((vessel) => vessel.mmsi)).toEqual(['111']);
-    expect(snapshot.Vessels[0]).toMatchObject({ name: 'HARBOR TUG', heading: null, cog: 91, sog: 7.5 });
+    expect(snapshot.Vessels[0]).toMatchObject({ name: 'HARBOR TUG', heading: null, cog: 91, sog: 7.5, quietMs: 0 });
     expect(Number.isFinite(snapshot.Vessels[0].at)).toBe(true);
+    expect(snapshot.Vessels[0]).not.toHaveProperty('heard');
 
     const maine = await connect(stub, 'me');
     expect(maine.messages[0].Vessels.map((vessel) => vessel.mmsi)).toEqual(['222']);
@@ -177,16 +201,74 @@ describe('AisHub', () => {
     boston.ws.close(1000, 'done');
   });
 
-  it('prunes vessels older than 15 minutes on the alarm', async () => {
+  it('does not age vessels while the upstream is closed', async () => {
     const stub = await freshHub();
-    await feed(stub, position(666, BOSTON), shipStatic(777, 'NO POSITION', 70));
+    const t0 = Date.now();
+    await setNow(stub, t0);
+    await feed(stub, position(666, BOSTON, 'QUIET HOURS'), shipStatic(777, 'NO POSITION', 70));
+
+    // Five hours with nobody listening: silence is not evidence they left.
     await runInDurableObject(stub, async (hub, state) => {
-      hub.now = () => Date.now() + 16 * 60_000;
+      hub.now = () => t0 + 5 * HOUR;
       await state.storage.setAlarm(Date.now() + 60_000);
     });
     expect(await runDurableObjectAlarm(stub)).toBe(true);
-    const left = await runInDurableObject(stub, (hub) => [hub.vessels.size, hub.statics.size]);
-    expect(left).toEqual([0, 0]);
+    const left = await runInDurableObject(stub, (hub) => [hub.vessels.size, hub.statics.size, hub.listenClock()]);
+    expect(left).toEqual([1, 1, 0]);
+
+    // The next visitor sees the boat with its true age and no listening silence.
+    const viewer = await connect(stub, 'boston');
+    expect(viewer.messages[0].Vessels).toEqual([
+      expect.objectContaining({ mmsi: '666', at: t0, quietMs: 0 }),
+    ]);
+    viewer.ws.close(1000, 'done');
+  });
+
+  it('prunes moving vessels after 15 and moored vessels after 60 minutes of listening', async () => {
+    const stub = await freshHub();
+    const t0 = Date.now();
+    await listen(stub, t0);
+    await feed(
+      stub,
+      position(611, BOSTON, 'UNDER WAY', 7.5),
+      position(612, BOSTON, 'AT THE PIER', 0.2),
+      position(613, BOSTON, 'NO SPEED', null),
+      shipStatic(614, 'STATIC ONLY', 70),
+    );
+
+    expect(await pruneAt(stub, t0 + 14 * MIN)).toMatchObject({
+      vessels: ['611', '612', '613'],
+      statics: ['614'],
+      clock: 14 * MIN,
+    });
+
+    // The alarm prunes at 16 minutes: moving, unknown speed and the orphan
+    // static go; the moored boat stays.
+    await runInDurableObject(stub, async (hub, state) => {
+      hub.now = () => t0 + 16 * MIN;
+      await state.storage.setAlarm(Date.now() + 60_000);
+    });
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+    expect(await pruneAt(stub, t0 + 16 * MIN)).toMatchObject({ vessels: ['612'], statics: [] });
+
+    expect((await pruneAt(stub, t0 + 59 * MIN)).vessels).toEqual(['612']);
+    expect((await pruneAt(stub, t0 + 61 * MIN)).vessels).toEqual([]);
+  });
+
+  it('always prunes positions older than 6 hours of real time', async () => {
+    const stub = await freshHub();
+    const t0 = Date.now();
+    await setNow(stub, t0);
+    await feed(stub, position(621, BOSTON, 'LONG MOORED', 0), shipStatic(622, 'OLD STATIC', 70));
+
+    expect(await pruneAt(stub, t0 + 6 * HOUR - MIN)).toMatchObject({ vessels: ['621'], statics: ['622'] });
+
+    // A visitor past the cap gets an empty snapshot without waiting for an alarm.
+    await setNow(stub, t0 + 6 * HOUR + MIN);
+    const viewer = await connect(stub, 'boston');
+    expect(viewer.messages[0].Vessels).toEqual([]);
+    expect(await pruneAt(stub, t0 + 6 * HOUR + MIN)).toMatchObject({ vessels: [], statics: [] });
+    viewer.ws.close(1000, 'done');
   });
 
   it('persists the snapshot as one row and reloads it after eviction', async () => {
@@ -206,6 +288,54 @@ describe('AisHub', () => {
     const viewer = await connect(stub, 'ma');
     expect(viewer.messages[0].Vessels.map((vessel) => vessel.mmsi)).toEqual(['888']);
     viewer.ws.close(1000, 'done');
+  });
+
+  it('keeps the listening clock across saveSnapshot and a cold start', async () => {
+    const stub = await freshHub();
+    const t0 = Date.now();
+    await listen(stub, t0);
+    await feed(stub, position(631, BOSTON, 'HARBOR PILOT'));
+    const savedClock = await runInDurableObject(stub, (hub) => {
+      hub.now = () => t0 + 10 * MIN;
+      hub.saveSnapshot();
+      return hub.listenClock();
+    });
+    expect(savedClock).toBe(10 * MIN);
+
+    await evictDurableObject(stub);
+    await armHub(stub);
+
+    // Two hours later with nobody listening, the boat has still only gone
+    // unheard for 10 minutes of listening time.
+    expect(await pruneAt(stub, t0 + 2 * HOUR)).toEqual({ vessels: ['631'], statics: [], clock: 10 * MIN });
+    const viewer = await connect(stub, 'boston');
+    expect(viewer.messages[0].Vessels).toEqual([
+      expect.objectContaining({ mmsi: '631', at: t0, quietMs: 10 * MIN }),
+    ]);
+
+    // Six more minutes of listening make 16: pruned. A clock that restarted at
+    // zero after the eviction would still keep it.
+    await runInDurableObject(stub, (hub) => hub.upstream.open());
+    expect(await pruneAt(stub, t0 + 2 * HOUR + 6 * MIN)).toMatchObject({ vessels: [], clock: 16 * MIN });
+    viewer.ws.close(1000, 'done');
+  });
+
+  it('reads snapshot rows saved before the listening clock existed', async () => {
+    const stub = await freshHub();
+    const savedAt = Date.now();
+    await runInDurableObject(stub, (hub, state) => {
+      const body = {
+        savedAt,
+        vessels: [{ mmsi: '641', lat: BOSTON[0], lng: BOSTON[1], sog: 5, cog: 0, heading: null, name: 'OLD ROW', shipType: null, at: savedAt - 5 * MIN }],
+        statics: [],
+      };
+      state.storage.sql.exec('INSERT OR REPLACE INTO snapshot (id, saved_at, body) VALUES (1, ?, ?)', savedAt, JSON.stringify(body));
+    });
+    await evictDurableObject(stub);
+    await armHub(stub);
+    const vessel = await runInDurableObject(stub, (hub) => ({ ...hub.vessels.get('641'), clock: hub.listenClock() }));
+    // Real age at save counts as listening silence.
+    expect(vessel).toMatchObject({ name: 'OLD ROW', heard: -5 * MIN, clock: 0 });
   });
 
   it('reconnects a dropped upstream with backoff while viewers remain', async () => {
@@ -231,8 +361,10 @@ describe('AisHub', () => {
     viewer.ws.close(1000, 'done');
   });
 
-  it('closes the upstream after 5 minutes with no viewers', async () => {
+  it('closes the upstream after 20 minutes with no viewers and stops the listening clock', async () => {
     const stub = await freshHub();
+    const t0 = Date.now();
+    await setNow(stub, t0);
     const viewer = await connect(stub, 'boston');
     await runInDurableObject(stub, (hub) => hub.upstream.open());
     viewer.ws.close(1000, 'bye');
@@ -240,21 +372,27 @@ describe('AisHub', () => {
       expect(await runInDurableObject(stub, (hub) => hub.viewerCount())).toBe(0);
     });
 
-    // Not idle long enough yet: the upstream stays warm.
-    expect(await runDurableObjectAlarm(stub)).toBe(true);
-    expect(await runInDurableObject(stub, (hub) => hub.upstream !== null)).toBe(true);
+    // Not idle long enough yet: the upstream stays warm at 6 and 19 minutes.
+    for (const minutes of [6, 19]) {
+      await setNow(stub, t0 + minutes * MIN);
+      expect(await runDurableObjectAlarm(stub)).toBe(true);
+      expect(await runInDurableObject(stub, (hub) => hub.upstream !== null)).toBe(true);
+    }
 
     const fake = await runInDurableObject(stub, (hub) => {
       const upstream = hub.upstream;
-      hub.now = () => Date.now() + 6 * 60_000;
+      hub.now = () => t0 + 21 * MIN;
       return upstream;
     });
     expect(await runDurableObjectAlarm(stub)).toBe(true);
     const state = await runInDurableObject(stub, async (hub, doState) => ({
       upstream: hub.upstream,
       alarm: await doState.storage.getAlarm(),
+      clock: hub.listenClock(),
+      later: hub.listenClock(t0 + 3 * HOUR),
+      saved: JSON.parse(doState.storage.sql.exec('SELECT body FROM snapshot WHERE id = 1').one().body).listenedMs,
     }));
-    expect(state).toEqual({ upstream: null, alarm: null });
+    expect(state).toEqual({ upstream: null, alarm: null, clock: 21 * MIN, later: 21 * MIN, saved: 21 * MIN });
     expect(fake.closedWith).toBe(1000);
   });
 });

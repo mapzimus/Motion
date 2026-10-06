@@ -1,10 +1,18 @@
-// Sidebar search: stops, stations, landings, route ribbons, the eight
-// geographies, and municipalities that appear in stop names. Everything is
+// Sidebar search: stops, stations, landings, route ribbons, public-use
+// airports, the geographies, and municipalities that appear in stop names. Everything is
 // indexed client-side from data already on the page — no geocoder, no
 // network. The index is built lazily on first use, after the route snapshot
 // has loaded, so startup cost is zero.
 
-import { fitPadding, map, openStopPopup, takeCamera } from '../map/map.js';
+import {
+  airportFeatures,
+  fitPadding,
+  map,
+  onReferenceDataChange,
+  openInfoPopup,
+  openStopPopup,
+  takeCamera,
+} from '../map/map.js';
 import {
   REGIONS,
   containsPoint,
@@ -18,7 +26,7 @@ import { recentVehicles, searchVehicles } from './vehicle-search.js';
 
 const MAX_RESULTS = 8;
 const DEBOUNCE_MS = 70;
-const TYPE_PRIORITY = { vehicle: 7, region: 6, municipality: 5, station: 4, landing: 3, route: 2, stop: 1 };
+const TYPE_PRIORITY = { vehicle: 7, region: 6, municipality: 5, airport: 4.5, station: 4, landing: 3, route: 2, stop: 1 };
 const TYPE_LABEL = {
   vehicle: '',
   region: 'Geography',
@@ -27,6 +35,7 @@ const TYPE_LABEL = {
   landing: 'Ferry landing',
   route: 'Route',
   stop: 'Stop',
+  airport: '',
 };
 const STREET_SUFFIX = new Set([
   'st', 'street', 'ave', 'avenue', 'rd', 'road', 'pike', 'tpke', 'turnpike',
@@ -93,6 +102,7 @@ const normalize = (value) =>
 
 let pendingFeatures = null;
 let pendingRouteInfo = new Map();
+let pendingAirports = [];
 let entries = null; // built lazily
 let el = {};
 let activeIndex = -1;
@@ -107,6 +117,39 @@ export function setSearchFeatures(features, routeInfo = new Map()) {
   pendingRouteInfo = routeInfo;
   entries = null; // rebuild on next keystroke
 }
+
+// Called when the FAA landing-facility catalog loads. Public-use facilities
+// are indexed by name and by FAA / ICAO identifier ("BOS", "KBOS").
+export function setSearchAirports(features) {
+  if (features === pendingAirports) return;
+  pendingAirports = features ?? [];
+  entries = null;
+}
+
+function airportEntries() {
+  const list = [];
+  for (const feature of pendingAirports) {
+    const p = feature.properties ?? {};
+    if (p.facilityUse !== 'public' || feature.geometry?.type !== 'Point' || !p.title) continue;
+    const [lng, lat] = feature.geometry.coordinates;
+    const ids = [...new Set([p.faaId, p.icao].filter(Boolean))];
+    list.push({
+      type: 'airport',
+      name: p.title,
+      norm: normalize(p.title),
+      codes: ids.map(normalize),
+      sub: [ids.join(' / '), p.status].filter(Boolean).join(' · '),
+      color: p.color,
+      lng,
+      lat,
+      feature,
+    });
+  }
+  return list;
+}
+
+const openPopup = (feature) =>
+  (feature.properties?.group === 'airport' ? openInfoPopup : openStopPopup)(feature);
 
 function distanceKm([lng1, lat1], [lng2, lat2]) {
   const toRad = (deg) => (deg * Math.PI) / 180;
@@ -230,12 +273,13 @@ function buildIndex() {
       center,
     });
   }
+  list.push(...airportEntries());
   entries = list;
 }
 
 function score(entry, q, tokens) {
   const { norm } = entry;
-  if (norm === q) return 100;
+  if (norm === q || entry.codes?.includes(q)) return 100;
   if (norm.startsWith(q)) return 80;
   if (norm.includes(` ${q}`)) return 60;
   if (tokens.length > 1 && tokens.every((t) => norm.startsWith(t) || norm.includes(` ${t}`))) return 50;
@@ -317,7 +361,7 @@ export function regionForEntry(entry, activeRegion) {
   let point = null;
   if (entry.type === 'municipality') {
     point = entry.center;
-  } else if (entry.type === 'stop' || entry.type === 'station' || entry.type === 'landing') {
+  } else if (['stop', 'station', 'landing', 'airport'].includes(entry.type)) {
     point = [entry.lng, entry.lat];
   } else if (entry.type === 'route') {
     if (entry.features.some((feature) => featureTouchesRegion(feature, activeRegion))) return null;
@@ -358,12 +402,12 @@ export function selectEntry(entry) {
     const alreadyThere = distanceKm([current.lng, current.lat], center) < 0.05
       && Math.abs(map.getZoom() - zoom) < 0.01;
     if (alreadyThere) {
-      openStopPopup(entry.feature);
+      openPopup(entry.feature);
     } else {
       map.flyTo({ center, zoom, padding: fitPadding(), duration: 1100, essential: true });
       // After flyTo: starting it stops any move in progress (a region switch
       // fits the camera first) and that move's `moveend` must not open the popup.
-      map.once('moveend', () => openStopPopup(entry.feature));
+      map.once('moveend', () => openPopup(entry.feature));
     }
   }
   closePanelOnMobile();
@@ -440,6 +484,8 @@ function runSearch() {
 export function initSearch({ onRegion, onVehicle } = {}) {
   onRegionSelect = onRegion ?? onRegionSelect;
   onVehicleSelect = onVehicle ?? onVehicleSelect;
+  onReferenceDataChange(() => setSearchAirports(airportFeatures()));
+  setSearchAirports(airportFeatures());
   el = {
     input: document.getElementById('search-input'),
     list: document.getElementById('search-results'),
