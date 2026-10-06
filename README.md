@@ -318,8 +318,8 @@ The gateway currently knows these live vehicle-position feeds:
 - Massachusetts: MBTA, Pioneer Valley Transit Authority, Brockton Area
   Transit, Montachusett RTA, and Franklin RTA (the last three through Passio's
   public GTFS-realtime endpoints); WRTA and GATRA (public Cadavl
-  GTFS-realtime producers); Lowell RTA (Cadavl); Lexpress; MIT, Tufts, and
-  Harvard campus shuttles, EZRide, the Longwood Collective, and Mass General
+  GTFS-realtime producers); Lowell RTA (Cadavl); Lexpress; MIT and Tufts
+  campus shuttles, EZRide, the Longwood Collective, and Mass General
   Brigham shuttles (all Passio); Nantucket WAVE and the Boston University,
   Boston College, and UMass Boston shuttles (TransLoc); Merrimack Valley
   Transit is a Swiftly feed that is not approved (see below)
@@ -345,7 +345,7 @@ TransLoc tenants publish keyless GTFS-realtime at
 ids that match the tenant's own GTFS export.
 
 The legacy `boston` gateway region (the MBTA core) serves the shuttles that
-run inside it: MIT, Tufts, Harvard, Boston University, Boston College, UMass
+run inside it: MIT, Tufts, Boston University, Boston College, UMass
 Boston, EZRide, Longwood, and Mass General Brigham.
 
 The Swiftly-hosted providers (Merrimack Valley, Casco Bay Lines, Nashua,
@@ -715,13 +715,36 @@ documented `freshness_exempt`), and commit the refreshed `feed-freshness.json`.
   Concord Coach have no public tracker at all. Those operators remain
   scheduled ribbons only. WRTA and GATRA turned out to publish public Cadavl
   GTFS-realtime (now live). LRTA, Bangor Community Connector, Lewiston-Auburn
-  citylink, Lexpress, Harvard, Longwood, the University of New Haven,
+  citylink, Lexpress, Longwood, the University of New Haven,
   Providence College, Boston University, URI, and Eastern Connecticut State
-  were added on Sunday 2026-10-04 with valid, fresh feeds
+  were added on Sunday 2026-10-04 (Harvard was in that batch; see the campus
+  shuttle note below) with valid, fresh feeds
   that carried no vehicles because none of them was running. Passio's
   GTFS-realtime matched its rider app exactly for every system that did have
   buses out that day, so these are expected to populate on weekdays; confirm
   with `/api/transit?region=ma` and `?region=me` on a weekday.
+- Campus shuttles, checked 2026-10-05, with the vendor found for each.
+  Harvard moved its shuttle tracking from Passio GO to Citymapper on
+  2026-07-01 and Citymapper publishes no open feed, so the live entry was
+  removed (the Passio endpoint still answers but is permanently empty);
+  Harvard's static routes stay. Roger Williams is Passio GO with a static
+  GTFS only: Passio serves it under the slug `rogerwu`, but its
+  `realtime/vehiclePositions` and `realtime/tripUpdates` both return 404.
+  Endicott College (Beverly) is the one ready-to-add candidate: its live
+  Passio GTFS-realtime at
+  `https://passio3.com/endicott/passioTransit/gtfs/realtime/vehiclePositions`
+  answers but was empty on a Monday night, and its static zip
+  (`https://passio3.com/endicott/passioTransit/gtfs/google_transit.zip`) is a
+  one-route stub with no stops or shapes. Add it only after a weekday check
+  shows vehicles; the static entry would be id `endicott`, agency "Endicott
+  College shuttles", states ma, service_class campus, source
+  https://endicott.edu/student-life/student-services/campus-transportation---shuttle-services.
+  The rest have no usable open feed: Bentley (TrackMyShuttle, a public JSON
+  rider API at api.trackmyshuttle.com, not GTFS-realtime, so it would need its
+  own adapter); Yale (moved off TransLoc to a custom "Downtowner" web app);
+  Brandeis and WPI (TripShot); Northeastern (Via on-demand, no fixed routes);
+  UMass Lowell (custom LiveTransit map); Salem State and Bridgewater State
+  (private vendor apps); UVM (its TransLoc host no longer resolves).
 - Swiftly-hosted agencies other than Casco Bay Lines (Merrimack Valley,
   Nashua, Advance Transit, Green Mountain Transit, GMCN, Marble Valley,
   MOOver!, RCT, Tri-Valley, Vermont Translines, South Portland) need each
