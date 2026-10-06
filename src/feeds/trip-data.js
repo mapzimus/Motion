@@ -4,7 +4,7 @@
 //
 // Card shape:
 //   { color, title, badge, headsign, status, stops: [{ name, eta, delay, late }] | null,
-//     stopsNote, meta, dataStatus, provider, sourceUrl, updatedAt }
+//     stopsNote, meta, dataStatus, provider, sourceUrl, updatedAt, ageLabel }
 
 import { CONFIG } from './config.js';
 import { fetchTripPredictions, parseTripPredictions } from './predictions.js';
@@ -237,6 +237,7 @@ export function tripCardData(fleetId, item, extras) {
     provider: p.provider ?? '',
     sourceUrl: /^https:\/\//.test(p.sourceUrl ?? '') ? p.sourceUrl : '',
     updatedAt: p.updatedAt,
+    ageLabel: p.ageLabel ?? '',
   };
 }
 

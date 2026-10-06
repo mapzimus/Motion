@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### Boats
+- Far more boats on the map. The AIS hub now ages vessels by listening time:
+  a boat is only dropped after 15 minutes of the upstream being open without
+  hearing it (60 minutes if it was moored, under 1 knot), plus a 6-hour
+  real-time cap. Quiet spells with no viewers no longer empty the snapshot, so
+  a new visitor sees every boat the hub still knows instead of a blank harbor.
+  The listening clock is saved with the snapshot and survives restarts.
+- The hub keeps its AISStream connection 20 minutes after the last viewer
+  leaves (was 5), so the next visitor usually gets a warm snapshot.
+- The map uses the same rules: moving boats drop after 15 minutes unheard,
+  moored boats after 60, and snapshot boats up to 6 hours old show dimmed
+  instead of being discarded. Vessel popups and the trip card say "Last heard
+  12 min ago" (hours when older) from the boat's real last report.
+- Popup ages read "5 min ago" and "2 h 5 min ago" instead of "5m ago" and
+  "125m ago".
+
 ### Coaches
 - C&J Bus Lines' full network replaces its two-trip GTFS stub: Dover,
   Portsmouth, and Seabrook to Boston South Station, Logan Airport, and New

@@ -111,7 +111,13 @@ export const CONFIG = {
   // bundle. Traffic is relayed from the public 511 tile service and needs no
   // commercial API key.
   AIS_STALE_MS: 3 * 60_000, // dim vessels silent for 3 min
-  AIS_PRUNE_MS: 10 * 60_000, // drop vessels silent for 10 min
+  // Drop a vessel after this much listening time without a report (the live
+  // socket, plus the gateway's listening time for snapshot vessels). Moored
+  // boats (SOG under AIS_MOORED_SOG_KN) are received only now and then.
+  AIS_PRUNE_MOVING_MS: 15 * 60_000,
+  AIS_PRUNE_MOORED_MS: 60 * 60_000,
+  AIS_MOORED_SOG_KN: 1,
+  AIS_MAX_AGE_MS: 6 * 60 * 60_000, // never show a position older than 6 h
   VESSEL_COLOR: '#63d8c8',
 
   // Keyless GBFS systems currently cataloged in New England. Discovery feeds

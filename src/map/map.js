@@ -2,6 +2,7 @@
 // vehicle fleet, source-agnostic popups, and alert-focus navigation.
 
 import { CONFIG } from '../feeds/config.js';
+import { ageText } from '../feeds/age.js';
 import { lookupFlightRoute } from '../feeds/flight-routes.js';
 import { attachStopPredictions } from '../feeds/predictions.js';
 import {
@@ -1127,11 +1128,12 @@ function setupConditionLayers() {
   }, 'veh-bike-dots');
 }
 
-function relativeAge(iso) {
+// `label` prefixes the age, e.g. vessels read "Last heard 2 h 5 min ago".
+function relativeAge(iso, label = '') {
   const timestamp = Date.parse(iso);
   if (!Number.isFinite(timestamp)) return 'update time unavailable';
-  const seconds = Math.max(0, Math.round((Date.now() - timestamp) / 1000));
-  return seconds < 60 ? `${seconds}s ago` : `${Math.round(seconds / 60)}m ago`;
+  const age = `${ageText(Date.now() - timestamp)} ago`;
+  return label ? `${label} ${age}` : age;
 }
 
 // API strings (stop names, vessel names, alert text) are third-party content —
@@ -1211,7 +1213,7 @@ function vehiclePopupHtml(properties, routeHtml = '') {
     ${routeHtml}
     ${properties.status ? `<div class="popup-status">${esc(properties.status)}</div>` : ''}
     ${properties.meta ? `<div class="popup-meta">${esc(properties.meta)}</div>` : ''}
-    <div class="popup-meta"><span class="popup-data-status ${esc(dataStatus)}">${esc(dataStatus)}</span>${provider ? ` · ${esc(provider)}` : ''} · ${relativeAge(properties.updatedAt)}</div>
+    <div class="popup-meta"><span class="popup-data-status ${esc(dataStatus)}">${esc(dataStatus)}</span>${provider ? ` · ${esc(provider)}` : ''} · ${esc(relativeAge(properties.updatedAt, properties.ageLabel))}</div>
     ${sourceUrl ? `<a class="popup-route-link" href="${esc(sourceUrl)}" target="_blank" rel="noopener">Open source ↗</a>` : ''}`;
 }
 
