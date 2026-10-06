@@ -4,6 +4,7 @@ import { CONFIG } from '../feeds/config.js';
 import { fetchShapes } from '../feeds/api.js';
 import { decodePolyline } from '../feeds/polyline.js';
 import { groupFor } from '../feeds/mbta.js';
+import { legendKeyForRouteFeature } from '../model/legendKeys.js';
 
 interface RouteEntry {
   id: string;
@@ -16,6 +17,15 @@ interface ShapeSet {
   group: string;
   color: string;
   polylines: string[];
+}
+
+/** Tag each feature with the legend operator key it is colored by. Mutates and returns the array. */
+export function annotateLegendKeys(features: GeoJSON.Feature[]): GeoJSON.Feature[] {
+  for (const feature of features) {
+    const props = (feature.properties ??= {});
+    props.legendKey = legendKeyForRouteFeature(props);
+  }
+  return features;
 }
 
 /**
@@ -34,7 +44,7 @@ export async function loadRegionalRouteFeatures(): Promise<GeoJSON.Feature[]> {
       if (!Array.isArray(collection.features) || !collection.features.length) {
         throw new Error('regional routes contained no features');
       }
-      return collection.features;
+      return annotateLegendKeys(collection.features);
     } catch (error: any) {
       if (attempt === attempts) {
         console.warn('Scheduled regional route ribbons unavailable after retries:', error.message);
@@ -67,6 +77,7 @@ export async function loadShapeFeatures(
           group: set.group,
           color: set.color,
           kind: 'mbta',
+          legendKey: 'mbta',
           dataStatus: 'scheduled',
           provider: 'MBTA static route geometry',
         },

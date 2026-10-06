@@ -16,8 +16,34 @@ import {
   maxZoomForRegion,
   setActiveRegion,
 } from '../feeds/regions.js';
+import { PALETTE_GROUPS, routeShade } from '../model/palette.js';
+import { setRouteKeyIndex, paletteAssignment } from '../stores/legend.js';
 
 const EMPTY_FC = { type: 'FeatureCollection', features: [] };
+
+// Static routes and stops: operator color when zoomed out, per-route shade when
+// zoomed in. Subway and Amtrak carry no opColor and keep their baked color.
+const ROUTE_COLOR_EXPR = [
+  'interpolate', ['linear'], ['zoom'],
+  12.5, ['coalesce', ['get', 'opColor'], ['get', 'color']],
+  13.5, ['coalesce', ['get', 'routeColor'], ['get', 'color']],
+];
+const ROUTE_COLOR_LAYERS = {
+  'route-halo': 'line-color',
+  'route-lines': 'line-color',
+  'scheduled-station-halo': 'circle-color',
+  'scheduled-stations': 'circle-color',
+  'scheduled-ferry-stops': 'circle-color',
+  'scheduled-bus-stops': 'circle-color',
+};
+
+/** Re-assert the route color expression (a basemap swap rebuilds the layers). */
+export function applyRoutePalette() {
+  if (!map || !layersReady) return;
+  for (const [layerId, prop] of Object.entries(ROUTE_COLOR_LAYERS)) {
+    if (map.getLayer(layerId)) map.setPaintProperty(layerId, prop, ROUTE_COLOR_EXPR);
+  }
+}
 
 // Draw order, bottom to top: bike docks under boats under trains under planes.
 const FLEETS = ['bike', 'vessel', 'amtrak', 'regional', 'mnr', 'mbta', 'plane'];
@@ -125,6 +151,7 @@ export function setBasemap(key) {
 function onStyleReady() {
   setupLayers();
   layersReady = true;
+  applyRoutePalette();
   if (pendingFilters) applyGroupFilter(pendingFilters.groups, pendingFilters.statuses);
   applyRegion(false);
 }
@@ -709,7 +736,7 @@ function setupLayers() {
     source: 'route-shapes',
     layout: { 'line-cap': 'round', 'line-join': 'round' },
     paint: {
-      'line-color': ['get', 'color'],
+      'line-color': ROUTE_COLOR_EXPR,
       'line-width': ['interpolate', ['linear'], ['zoom'], 10, 6, 15, 14],
       'line-opacity': 0.18,
       'line-blur': 4,
@@ -721,7 +748,7 @@ function setupLayers() {
     source: 'route-shapes',
     layout: { 'line-cap': 'round', 'line-join': 'round' },
     paint: {
-      'line-color': ['get', 'color'],
+      'line-color': ROUTE_COLOR_EXPR,
       // Dense bus ribbons and straight-line air-service references stay subtle
       // so they inform without burying rail and water routes.
       'line-width': [
@@ -742,7 +769,7 @@ function setupLayers() {
       ['in', ['get', 'group'], ['literal', RAIL_GROUPS]],
     ],
     paint: {
-      'circle-color': ['get', 'color'],
+      'circle-color': ROUTE_COLOR_EXPR,
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 5.5, 10, 9, 14, 14],
       'circle-opacity': 0.16,
       'circle-blur': 0.55,
@@ -758,7 +785,7 @@ function setupLayers() {
       ['in', ['get', 'group'], ['literal', RAIL_GROUPS]],
     ],
     paint: {
-      'circle-color': ['get', 'color'],
+      'circle-color': ROUTE_COLOR_EXPR,
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 3.2, 10, 5.4, 14, 8],
       'circle-stroke-color': '#f4f6f8',
       'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 5, 0.7, 14, 1.8],
@@ -826,7 +853,7 @@ function setupLayers() {
       ['==', ['get', 'group'], 'ferry'],
     ],
     paint: {
-      'circle-color': ['get', 'color'],
+      'circle-color': ROUTE_COLOR_EXPR,
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 8.5, 2.5, 14, 5],
       'circle-stroke-color': '#f4f6f8',
       'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 8.5, 0.7, 14, 1.3],
@@ -869,7 +896,7 @@ function setupLayers() {
       ['==', ['get', 'group'], 'bus'],
     ],
     paint: {
-      'circle-color': ['get', 'color'],
+      'circle-color': ROUTE_COLOR_EXPR,
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 12.5, 1.2, 16, 2.6],
       'circle-stroke-color': '#10151c',
       'circle-stroke-width': 0.55,
@@ -1449,7 +1476,60 @@ function renderRouteShapes() {
       return featureTouchesRegion(feature, activeRegion);
     }),
   };
+  colorRouteFeatures(routeShapesFC.features);
   map?.getSource('route-shapes')?.setData(routeShapesFC);
+  applyRoutePalette();
+}
+
+/**
+ * Index the region's operators (group -> key -> label, route and stop counts),
+ * publish it so the palette assignment recomputes, then stamp each palette-group
+ * feature with its operator color (opColor) and per-route shade (routeColor).
+ */
+function colorRouteFeatures(features) {
+  const index = new Map(); // group -> key -> { agencies: Map, routeIds: Set, stops }
+  const entryFor = (group, key) => {
+    if (!index.has(group)) index.set(group, new Map());
+    const keys = index.get(group);
+    if (!keys.has(key)) keys.set(key, { agencies: new Map(), routeIds: new Set(), stops: 0 });
+    return keys.get(key);
+  };
+  const eligible = [];
+  for (const feature of features) {
+    const props = feature.properties;
+    if (!PALETTE_GROUPS.includes(props.group) || !props.legendKey) continue;
+    eligible.push(feature);
+    const entry = entryFor(props.group, props.legendKey);
+    if (props.kind === 'regional-station') {
+      entry.stops += 1;
+    } else {
+      entry.routeIds.add(props.route);
+      if (props.agency) entry.agencies.set(props.agency, (entry.agencies.get(props.agency) ?? 0) + 1);
+    }
+  }
+  const published = new Map();
+  for (const [group, keys] of index) {
+    const out = new Map();
+    for (const [key, e] of keys) {
+      const top = [...e.agencies].sort((a, b) => b[1] - a[1])[0];
+      out.set(key, {
+        label: key === 'mbta' ? 'MBTA' : (top?.[0] ?? key),
+        routes: e.routeIds.size,
+        stops: e.stops,
+      });
+    }
+    published.set(group, out);
+  }
+  setRouteKeyIndex(published);
+  const assignment = paletteAssignment.peek();
+  for (const feature of eligible) {
+    const props = feature.properties;
+    const opColor = assignment.get(props.group)?.get(props.legendKey);
+    if (!opColor) continue;
+    const routeId = props.kind === 'regional-station' ? props.routeIds?.[0] : props.route;
+    props.opColor = opColor;
+    props.routeColor = routeShade(opColor, String(routeId ?? ''), published.get(props.group).get(props.legendKey).routes);
+  }
 }
 
 export function setRoadworkData(featureCollection) {

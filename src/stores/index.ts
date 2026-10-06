@@ -5,3 +5,4 @@ export * from './counts.js';
 export * from './status.js';
 export * from './alerts.js';
 export * from './layers.js';
+export * from './legend.js';

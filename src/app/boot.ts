@@ -47,6 +47,7 @@ import {
   setAlerts,
   updateStats,
   updateStatus,
+  setRegion as setRegionStore,
 } from '../stores/index.js';
 import { loadShapeFeatures, loadRegionalRouteFeatures } from './shapes.js';
 
@@ -113,6 +114,7 @@ export async function boot(): Promise<void> {
   };
 
   const changeRegion = (region: string) => {
+    setRegionStore(region);
     setRegion(region);
     setScheduledCounts(scheduledRouteCountsForRegion());
     setStationCounts(scheduledStationCountsForRegion());
@@ -144,6 +146,7 @@ export async function boot(): Promise<void> {
   setLoading('Drawing the map…');
   await initMap();
   // A permalink already positioned the camera; only fit the region otherwise.
+  setRegionStore(selectedRegion);
   setRegion(selectedRegion, { fit: !permalink.center });
   setVisibleGroups(ui.getVisibleGroups(), ui.getVisibleStatuses());
   initPermalink({
