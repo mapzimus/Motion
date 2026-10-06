@@ -1,7 +1,7 @@
 import { createExecutionContext, env } from 'cloudflare:test';
 import { exports } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
-import worker from '../src/index';
+import worker, { cameraImageUrl, constructionProjectFeatures } from '../src/index';
 
 const call = (path, init) =>
   exports.default.fetch(new Request(`http://motion.test${path}`, init));
@@ -105,15 +105,15 @@ describe('AIS relay', () => {
     );
   const upgrade = { headers: { upgrade: 'websocket' } };
 
-  it('reports 503 when no AIS key is configured', async () => {
-    const response = await callWith('/api/ais?region=ma', { AISSTREAM_API_KEY: undefined }, upgrade);
-    expect(response.status).toBe(503);
-    await expect(response.json()).resolves.toEqual({ error: 'AIS key is not configured' });
+  it('still offers the vessel relay when no AISStream key is configured', async () => {
+    const response = await callWith('/api/ais?region=ma', { AISSTREAM_API_KEY: undefined });
+    expect(response.status).toBe(426);
+    expect(response.headers.get('upgrade')).toBe('websocket');
   });
 
-  it('treats a placeholder key as unconfigured', async () => {
-    const response = await callWith('/api/ais?region=ma', { AISSTREAM_API_KEY: 'replace-me' }, upgrade);
-    expect(response.status).toBe(503);
+  it('treats a placeholder key as unset and still offers the relay', async () => {
+    const response = await callWith('/api/ais?region=ma', { AISSTREAM_API_KEY: 'replace-me' });
+    expect(response.status).toBe(426);
   });
 
   it('requires a WebSocket upgrade once a key is set', async () => {
@@ -130,9 +130,51 @@ describe('AIS relay', () => {
 
   it('reflects AIS key presence in /health without leaking it', async () => {
     const without = await (await callWith('/health', { AISSTREAM_API_KEY: undefined })).json();
-    expect(without.providers.ais).toBe(false);
+    expect(without.providers.ais).toBe(true);
     const withKey = await (await callWith('/health', { AISSTREAM_API_KEY: 'test-key-123' })).json();
     expect(withKey.providers.ais).toBe(true);
     expect(JSON.stringify(withKey)).not.toContain('test-key-123');
+  });
+});
+
+describe('keyless road and camera feeds', () => {
+  it('encodes spaces in a RIDOT camera still URL', () => {
+    expect(cameraImageUrl(
+      'https://www.dot.ri.gov/img/travel/camimages/95_42.4_N_CAM - Broadway (Pawt).jpg',
+    )).toBe(
+      'https://www.dot.ri.gov/img/travel/camimages/95_42.4_N_CAM%20-%20Broadway%20(Pawt).jpg',
+    );
+    expect(cameraImageUrl('not a url')).toBe('');
+  });
+
+  it('keeps only CTDOT construction-phase polygons and does not call them work zones', () => {
+    const features = constructionProjectFeatures([
+      {
+        geometry: { type: 'Polygon', coordinates: [[[-72.6, 41.7], [-72.5, 41.7], [-72.5, 41.8], [-72.6, 41.7]]] },
+        properties: {
+          ProjectNumber: '0172-0001',
+          Title: 'Bridge replacement',
+          ProjectDescription: 'Replace the span',
+          CurrentSchedulePhase: '05_Construction',
+        },
+      },
+      {
+        geometry: { type: 'Polygon', coordinates: [[[-72.6, 41.7], [-72.5, 41.7], [-72.5, 41.8], [-72.6, 41.7]]] },
+        properties: { ProjectNumber: '0001', Title: 'Still planning', CurrentSchedulePhase: '01_Planning' },
+      },
+      {
+        geometry: { type: 'LineString', coordinates: [[-72.6, 41.7], [-72.5, 41.8]] },
+        properties: { CurrentSchedulePhase: '05_Construction', Title: 'Not a polygon' },
+      },
+    ]);
+    expect(features).toHaveLength(1);
+    expect(features[0].properties).toMatchObject({
+      kind: 'construction-project',
+      status: 'Construction project',
+      title: 'Bridge replacement',
+      dataStatus: 'reference',
+      provider: 'CTDOT active capital projects · construction phase',
+    });
+    expect(JSON.stringify(features)).not.toMatch(/work zone/i);
   });
 });

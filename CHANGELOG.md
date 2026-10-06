@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Roads and vessels
+- RIDOT traffic cameras, with the still image URL on each point, and `ri` on the camera coverage list.
+- RIDOT park-and-ride lots in the reference-places layer.
+- CTroads closures join the existing Connecticut incident feed.
+- CTDOT capital-project areas in phase `05_Construction` draw as construction projects beside the WZDx work-zone lines.
+- When `AISSTREAM_API_KEY` is unset, the vessel relay uses keyless Open Waters AIS and keeps each source's required credit. AISStream is unchanged when the key is set. The browser stays on the gateway.
+
 ### Boats
 - Far more boats on the map. The AIS hub now ages vessels by listening time:
   a boat is only dropped after 15 minutes of the upstream being open without

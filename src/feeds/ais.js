@@ -1,6 +1,7 @@
-// Harbor and coastal traffic from AISStream, relayed through the Motion
-// gateway so the API key stays server-side and browser cross-origin limits do
-// not break the stream. Class A and Class B position reports are supported.
+// Harbor and coastal traffic relayed through the Motion gateway. AISStream is
+// the upstream when the Worker has AISSTREAM_API_KEY; otherwise the gateway
+// uses keyless Open Waters and the browser still opens only /api/ais. Class A
+// and Class B position reports are supported.
 // The gateway shares one upstream between all viewers and opens each socket
 // with a Snapshot frame of every vessel it already knows in the region.
 // Retention rules (moving 15 min, moored 60 min, 6 h cap) live in
@@ -12,7 +13,7 @@ import { createFleet } from './fleet.js';
 import { gatewayRegion } from './regions.js';
 import { operatorFerryNames } from './regional.js';
 import { vesselBand } from '../model/palette.js';
-import { paintVehicle } from '../stores/legend.js';
+import { paintVehicle, setLegendNotes } from '../stores/legend.js';
 
 export function startAis(onCounts, initialRegion, enabled = true) {
   if (!CONFIG.GATEWAY_BASE || !enabled) {
@@ -23,11 +24,21 @@ export function startAis(onCounts, initialRegion, enabled = true) {
   const fleet = createFleet('vessel');
   const vessels = new Map();
   const statics = new Map(); // mmsi -> { name, shipType, at }, kept before a first position
+  const credits = new Set();
   let region = initialRegion;
   let socket = null;
   let reconnectTimer = null;
   let reconnectMs = 5000;
   let generation = 0;
+
+  function rememberCredit(line) {
+    const credit = String(line ?? '').trim();
+    if (credit) credits.add(credit);
+  }
+
+  function publishCredits() {
+    if (credits.size) setLegendNotes('vessel', [...credits]);
+  }
 
   function connect() {
     clearTimeout(reconnectTimer);
@@ -46,6 +57,8 @@ export function startAis(onCounts, initialRegion, enabled = true) {
         const msg = JSON.parse(event.data);
         if (msg.MessageType === 'Snapshot') {
           loadSnapshot(msg);
+          for (const line of msg.Attribution ?? []) rememberCredit(line);
+          publishCredits();
           return;
         }
         const meta = msg.MetaData ?? {};
@@ -77,6 +90,8 @@ export function startAis(onCounts, initialRegion, enabled = true) {
         const info = statics.get(mmsi);
         const metaType = numberOrNaN(meta.ShipType);
         const heardAt = Date.now();
+        const credit = cleanName(meta.Credit) || existing?.credit || '';
+        rememberCredit(credit);
         vessels.set(mmsi, {
           lng,
           lat,
@@ -84,6 +99,7 @@ export function startAis(onCounts, initialRegion, enabled = true) {
           sog: numberOrNaN(report.Sog),
           heading: numberOrNaN(heading),
           shipType: firstFinite(info?.shipType, existing?.shipType, metaType),
+          credit,
           at: heardAt,
           quietSince: heardAt,
         });
@@ -125,6 +141,8 @@ export function startAis(onCounts, initialRegion, enabled = true) {
         continue;
       }
       const info = statics.get(mmsi);
+      const credit = cleanName(vessel.credit) || existing?.credit || '';
+      rememberCredit(credit);
       const record = {
         lng,
         lat,
@@ -132,6 +150,7 @@ export function startAis(onCounts, initialRegion, enabled = true) {
         sog: numberOrNaN(vessel.sog),
         heading: firstFinite(vessel.heading, vessel.cog),
         shipType: firstFinite(vessel.shipType, info?.shipType, existing?.shipType),
+        credit,
         at,
         quietSince,
       };
@@ -186,14 +205,15 @@ export function startAis(onCounts, initialRegion, enabled = true) {
           dest: Number.isFinite(vessel.heading) ? `Heading ${Math.round(vessel.heading)}°` : '',
           status: Number.isFinite(vessel.sog) ? `${vessel.sog.toFixed(1)} kn` : '',
           meta: `MMSI ${mmsi}${Number.isFinite(vessel.shipType) ? ` · AIS type ${vessel.shipType}` : ''}`,
-          provider: 'AISStream public vessel telemetry',
-          sourceUrl: 'https://aisstream.io/',
+          provider: vessel.credit || 'AISStream public vessel telemetry',
+          sourceUrl: vessel.credit ? 'https://openwaters.io/ais/' : 'https://aisstream.io/',
           // Real time last heard; popups and trip cards read "Last heard 12 min ago".
           updatedAt: new Date(vessel.at).toISOString(),
           ageLabel: 'Last heard',
         },
       });
     });
+    publishCredits();
     const visible = fleet.update(items);
     onCounts({
       vessel: visible.filter((item) => item.props.group === 'vessel').length,
@@ -206,6 +226,8 @@ export function startAis(onCounts, initialRegion, enabled = true) {
     setRegion(nextRegion) {
       region = nextRegion;
       vessels.clear();
+      credits.clear();
+      setLegendNotes('vessel', []);
       generation += 1;
       clearTimeout(reconnectTimer);
       socket?.close();

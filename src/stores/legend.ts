@@ -92,6 +92,15 @@ export function setSubwayColors(colors: Map<string, string>) {
   subwayColors.value = colors;
 }
 
+/** Extra legend notes supplied by a live feed, keyed by group. */
+export const legendNotes = signal<Readonly<Record<string, readonly string[]>>>({});
+
+export function setLegendNotes(group: string, notes: readonly string[]) {
+  const current = legendNotes.peek()[group] ?? [];
+  if (current.length === notes.length && current.every((line, index) => line === notes[index])) return;
+  legendNotes.value = { ...legendNotes.peek(), [group]: notes };
+}
+
 const COLLAPSED_KEY = 'motion-legend';
 
 function readCollapsed(): boolean {
@@ -138,4 +147,5 @@ export const legendSections = computed(() => buildLegendSections({
   assignment: paletteAssignment.value,
   viewport: viewportRoutes.value,
   subwayColors: subwayColors.value,
+  notesByGroup: legendNotes.value,
 }, { hasSubway: hasSubway(region.value) }));

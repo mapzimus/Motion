@@ -29,12 +29,12 @@ Every feature is labeled **live**, **estimated**, **scheduled**, or
 | Amtrak | [Amtrak official static GTFS](https://content.amtrak.com/content/gtfs/GTFS.zip) for scheduled routes/stations; [Amtraker](https://amtraker.com) community API for live trains | built snapshot + 90 s |
 | Aircraft and air services | [ADSB.lol](https://api.adsb.lol/) with [adsb.fi](https://adsb.fi/) failover; 18 optional official Cape Air/Tradewind schedules and Penobscot Island Air on-demand corridors | 45 s + built snapshot |
 | Airports and landing facilities | 778 open airports, heliports, seaplane bases, and other facilities from the [FAA NASR subscription](https://www.faa.gov/air_traffic/flight_info/aeronav/aero_data/NASR_Subscription/) | 28-day built snapshot |
-| Harbor/coastal vessels and identifiable passenger ferries | [AISStream](https://aisstream.io) through a protected WebSocket relay | streaming |
+| Harbor/coastal vessels and identifiable passenger ferries | [AISStream](https://aisstream.io) when `AISSTREAM_API_KEY` is set; otherwise keyless [Open Waters AIS](https://openwaters.io/ais/) on the same gateway relay. Each Open Waters vessel carries its source credit (AISHub, aisstream, Open Waters AIS, and the Norwegian and Finnish lines when those sources appear) | streaming |
 | Bike and scooter share | GBFS feeds for Bluebikes across 13 Greater Boston municipalities, Veo Hartford, Veo New Haven, and Spin Providence | 60 s |
 | Other bike-share systems | 50 reference markers for ValleyBike Share, Rideable Nashua, Portland Bike Share, Port Bikeshare, Minuteman Bikeshare, CATMA's Bird e-bikes, CargoB, Metro Mobility, the Community Pedal Power library, Coast Provincetown, and Sandy Pedals — systems with no usable public GBFS feed | built snapshot |
-| Work zones and closures | MassDOT WZDx plus the multi-state New England 511 WZDx feed for Maine, New Hampshire, and Vermont | 5 min |
-| Traffic incidents | New England 511 (Maine, New Hampshire, Vermont), CTroads, and MassDOT Highway Division roadway events (crashes, disabled vehicles, weather closures) | 60 s |
-| Public traffic cameras | New England 511, CTroads, and the MassDOT CCTV asset inventory | 5 min |
+| Work zones and construction projects | MassDOT WZDx plus the multi-state New England 511 WZDx feed for Maine, New Hampshire, and Vermont (work-zone lines). Connecticut adds CTDOT capital-project areas in the construction phase, labeled construction projects | 5 min |
+| Traffic incidents | New England 511 (Maine, New Hampshire, Vermont), CTroads incidents and closures, and MassDOT Highway Division roadway events (crashes, disabled vehicles, weather closures) | 60 s |
+| Public traffic cameras | New England 511, CTroads, the MassDOT CCTV asset inventory, and RIDOT highway cameras | 5 min |
 | Live congestion speeds | Public 511 traffic-flow tiles through the gateway; TomTom remains an optional configured fallback | live tiles |
 | Weather alerts | [NWS active alerts](https://api.weather.gov/) for the six states, drawn as severity-colored forecast-zone polygons; Extreme/Severe alerts also join the service-alert panel | 120 s (60 s edge cache) |
 | Airport delays | [FAA NAS airport status](https://nasstatus.faa.gov/) ground stops, ground-delay programs, arrival/departure delays, and closures, drawn as rings on the FAA airport markers | 120 s (60 s edge cache) |
@@ -546,8 +546,9 @@ Vermont Rail System's Champlain Valley Dinner Train, Maine Narrow Gauge,
 Belfast & Moosehead Lake, Downeast Scenic, WW&F, Seashore Trolley, Shelburne
 Falls Trolley, and the Lowell NHP trolley); ten follow the FRA rail network and
 the two-foot, cog, and streetcar lines are drawn as labeled approximate paths.
-Park-and-ride lots come from each state DOT's ArcGIS service (Rhode Island
-publishes none; New Hampshire's is a 2013 inventory and its popup says so).
+Park-and-ride lots come from each state DOT's ArcGIS service, including
+RIDOT's facilities layer (New Hampshire's is a 2013 inventory and its popup
+says so).
 Public EV charging keeps only stations with DC fast or Level 2 ports and is
 hidden below zoom 10 because it is dense. Drawbridges are the major movable
 bridges whose opening rules are published in 33 CFR 117, each popup linking the
@@ -671,20 +672,28 @@ Swiftly `Authorization` header. Add any custom production frontend origin to
 
 #### Enable live vessels (AIS)
 
-The vessel layer stays empty until the gateway has an AISStream key.
+The vessel layer works without a key. When `AISSTREAM_API_KEY` is unset, the
+same gateway relay uses [Open Waters AIS](https://openwaters.io/ais/) (anonymous
+tier, one socket, no token). Set the AISStream key when you want that upstream
+instead. Open Waters stays in place for the no-key case; it does not replace
+AISStream.
 
 1. Create a free API key at [aisstream.io](https://aisstream.io) (sign in, then "API Keys").
 2. Store it on the production Worker: `npx wrangler secret put AISSTREAM_API_KEY --env production`
 3. Redeploy: `npx wrangler deploy --env production`
-4. Open the gateway's `/health` and confirm it shows `"ais":true`.
+4. Open the gateway's `/health`. `"ais":true` means the relay is available,
+   with or without the key.
 
 How the vessel feed works:
 
 - **One shared upstream.** AISStream allows only 3 connections per account,
-  so the gateway does not open one per browser. A single `AisHub` Durable
-  Object (`worker/src/ais-hub.ts`, SQLite-backed so it runs on the Free plan)
-  holds one AISStream socket for the whole New England box and fans frames out
-  to every viewer by region. Any number of viewers use 1 of the 3 slots.
+  and Open Waters' anonymous tier allows 2 connections per address, so the
+  gateway does not open one per browser. A single `AisHub` Durable Object
+  (`worker/src/ais-hub.ts`, SQLite-backed so it runs on the Free plan) holds
+  one socket for the whole New England box and fans frames out to every viewer
+  by region. The browser talks only to `/api/ais`. With a key the socket is
+  AISStream; without one it is Open Waters (`wss://ais.openwaters.io/v1/stream`,
+  `snapshot: true`). Any number of viewers use that one slot.
 - **Instant snapshot.** A new viewer first gets one `Snapshot` frame with every
   vessel the hub already knows in that region, stamped with the real time it
   was last heard (`at`) and the listening time since then (`quietMs`), so the
@@ -711,9 +720,17 @@ How the vessel feed works:
   clipped to the AIS box) so ships just offshore are not cut off. Rebuild it
   with `py -3 scripts/build-regions.py --marine-only`.
 - **Lakes gap.** Inland lakes such as Champlain and Winnipesaukee rarely show
-  vessels: few boats there broadcast AIS and AISStream has little receiver
-  coverage inland. The New York half of Lake Champlain only counts where it is
+  vessels: few boats there broadcast AIS and the volunteer receivers behind
+  both upstreams are thin inland. Open Waters returned no vessels for a Lake
+  Champlain box. The New York half of Lake Champlain only counts where it is
   within the coastal buffer of Vermont.
+- **Open Waters attribution.** Display keeps the credit for the source named
+  on each vessel: “AISHub”; “aisstream”; “Open Waters AIS (https://openwaters.io/ais/)”
+  for volunteer and station receptions; “Contains data under the Norwegian
+  licence for Open Government data (NLOD) distributed by the Norwegian Coastal
+  Administration.”; “Data delivered by BarentsWatch”; and “Source: Fintraffic /
+  digitraffic.fi, license CC 4.0 BY.” The legend lists the credits for sources
+  currently on the map. Terms: https://openwaters.io/ais/ .
 
 Deploy the separate aircraft relay from its own project directory. It is its
 own Vercel project, so merging to `main` does not update it: redeploy it by
@@ -734,9 +751,9 @@ npx vercel --prod --yes
 | `GET /api/route?callsign=AAL108` | Best-effort aircraft origin and destination; 404 when unknown, 502 JSON when the route catalog is unreachable (Vercel relay) |
 | `GET /api/transit?region=ct` | Normalized GTFS-realtime bus positions and per-feed health |
 | `GET /api/mnr` | Metro-North active trip segments and service alerts from official MTA GTFS-Realtime |
-| `GET /api/roadwork` | Active/upcoming MassDOT and northern New England WZDx geometry |
-| `GET /api/road-events` | Official New England 511, CTroads, and MassDOT roadway-event incidents (planned MassDOT closures are left to `/api/roadwork`) |
-| `GET /api/cameras` | Public camera locations from 511, CTroads, and MassDOT |
+| `GET /api/roadwork` | Active/upcoming MassDOT and northern New England WZDx lines, plus CTDOT construction-project polygons (phase `05_Construction` only) |
+| `GET /api/road-events` | Official New England 511 incidents, CTroads incidents and closures, and MassDOT roadway events (planned MassDOT closures are left to `/api/roadwork`) |
+| `GET /api/cameras` | Public camera locations from 511, CTroads, MassDOT, and RIDOT. RIDOT stills are on the feature (`imageUrl`); 511 images still use `/api/camera-detail` |
 | `GET /api/camera-detail?provider=north&id=…` | Latest public 511 camera image and official viewer details |
 | `GET /api/traffic/{z}/{x}/{y}.png` | Cached public 511 congestion tile, with optional TomTom source |
 | `GET /api/airport-status` | FAA NAS status (ground stops, ground-delay programs, arrival/departure delays, closures) for New England airports |
@@ -745,7 +762,7 @@ npx vercel --prod --yes
 | `GET /api/airport-taf?id=KBOS` | The station's latest TAF, or `available: false` when it issues none; `id` must be a four-character ICAO id (30 min edge cache) |
 | `GET /api/tfrs` | FAA TFR polygons in the New England box joined to the TFR list (type, state, facility), plus listed New England TFRs without a shape (5 min edge cache) |
 | `GET /api/tfr-detail?id=6/7153` | Altitudes, effective times, and reason parsed from one FAA TFR notice (30 min edge cache) |
-| `GET /api/ais?region=new-england` with WebSocket upgrade | Shared AISStream feed: a `Snapshot` frame of known vessels in the region, then live AISStream frames for that region |
+| `GET /api/ais?region=new-england` with WebSocket upgrade | Shared vessel relay: a `Snapshot` frame of known vessels in the region, then live frames for that region. AISStream when `AISSTREAM_API_KEY` is set; otherwise Open Waters AIS. The browser stays on this gateway |
 
 Supported region IDs are `boston`, `ma`, `ct`, `ri`, `nh`, `vt`, `me`, and
 `new-england`; the browser maps each named sub-region to its parent before
@@ -868,25 +885,23 @@ documented `freshness_exempt`), and commit the refreshed `feed-freshness.json`.
 - Non-MBTA ferry operators generally publish schedules, not GTFS-realtime
   positions. AIS supplies actual vessel movement when a ship is broadcasting,
   and passenger-ship metadata is used to classify ferries when available.
-- AIS coverage comes from AISStream's volunteer receivers and is thin in
-  Rhode Island and Maine. In five minutes on 2026-10-05 the hub heard about 55
-  vessels in Boston Harbor and 56 around the Cape and Islands, but only 3 each
-  in eastern Long Island Sound/Rhode Island, around Portland, and in Midcoast
-  and Downeast Maine. The only remedy is more receivers: anyone can feed
-  AISStream from a shoreline AIS receiver.
-- Work-zone geometry is currently strongest in Massachusetts, Maine, New
-  Hampshire, and Vermont. The USDOT WZDx feed registry lists no Connecticut
-  or Rhode Island feed (checked 2026-10-04), so Connecticut road disruptions
-  still appear through the CTroads incident feed rather than a uniform WZDx
-  layer.
-- Rhode Island has no road-condition coverage at all: RIDOT shares incident
-  and closure data only with Waze, publishes no public camera or incident
-  API, and its ArcGIS hosts were unreachable when checked. RIDOT also
-  publishes no park-and-ride dataset, so the park-and-ride layer is empty
-  there.
-- Rhode Island publishes no coordinate-bearing incident or road-event feed:
-  RIDOT's traveler page (dot.ri.gov/travel) is text only, so Rhode Island has
-  no incident markers.
+- AIS coverage from either upstream is thin inland and was thin in Rhode
+  Island and Maine on the AISStream sample from 2026-10-05 (about 55 vessels
+  in Boston Harbor and 56 around the Cape and Islands, but only 3 each in
+  eastern Long Island Sound/Rhode Island, around Portland, and in Midcoast
+  and Downeast Maine). Open Waters is a keyless coastal snapshot and stream
+  for the same gateway; it does not fill Lake Champlain. The remedy for thin
+  coverage is still more shoreline receivers.
+- Work-zone lines are Massachusetts, Maine, New Hampshire, and Vermont. The
+  USDOT WZDx registry still lists no Connecticut or Rhode Island feed.
+  Connecticut construction projects come from CTDOT's capital-project
+  polygons in phase `05_Construction` (project footprints, not live lane
+  closures). CTroads closures are included with CTroads incidents. Rhode
+  Island still has no structured incident or work-zone feed.
+- Rhode Island cameras are the RIDOT traffic-camera feature service, and
+  Rhode Island park-and-ride lots are the RIDOT facilities layer. Rhode
+  Island still publishes no coordinate-bearing incident feed: RIDOT's
+  traveler page is text, so the state has no incident markers.
 - Current GBFS coverage is Bluebikes' 13 Greater Boston municipalities plus
   Hartford, New Haven, and Providence. Other systems can be added as soon as
   they publish discoverable public feeds; until then they appear as reference

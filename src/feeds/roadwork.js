@@ -1,4 +1,4 @@
-// Current and upcoming official WZDx work zones across MA, ME, NH, and VT.
+// WZDx work-zone lines for MA, ME, NH, and VT, plus CTDOT construction-project areas.
 
 import { CONFIG } from './config.js';
 import { roadworkCountForRegion, setRoadworkData } from '../map/map.js';

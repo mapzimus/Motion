@@ -73,6 +73,8 @@ export interface LegendInputs {
   assignment: Map<string, Map<string, string>>;
   viewport: ViewportRoutes;
   subwayColors: Map<string, string>;
+  /** Extra note lines for a group, such as live vessel source credits. */
+  notesByGroup?: Readonly<Record<string, readonly string[]>>;
 }
 
 type Props = Record<string, any>;
@@ -305,7 +307,7 @@ export function buildLegendSections(inputs: LegendInputs, { hasSubway = true }: 
       rows: [],
       more: 0,
       extra: [],
-      notes: config.notes,
+      notes: [...config.notes, ...(inputs.notesByGroup?.[group] ?? [])],
     };
     if (group === 'bike') {
       section.rows = bikeRows(inputs.live.get(group));

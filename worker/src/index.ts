@@ -34,6 +34,10 @@ const MASSDOT_WORK_ZONE_URL = 'https://feed.massdot-swzm.com/massdot_wzdx_v4.1_w
 const NORTHERN_WORK_ZONE_URL = 'https://api.dx.ne-compass.com/wzdx-latest/';
 const IBI_TRAFFIC_TILE_URL = 'https://tiles.ibi511.com/Geoservice/GetTrafficTile';
 const MASSDOT_CAMERA_URL = 'https://gis.massdot.state.ma.us/arcgis/rest/services/Assets/CCTV/FeatureServer/0/query?where=1%3D1&outFields=OBJECTID%2CHOC_Display%2CRoadway%2CDirection%2CMM%2CMunicipality%2CDescription%2CStatus&returnGeometry=true&outSR=4326&f=geojson';
+const RIDOT_CAMERA_URL = 'https://gisprod.dot.ri.gov/scp/rest/services/TMC_ITS_Assets/FeatureServer/2/query?where=1%3D1&outFields=Description,CCVEWebURL&returnGeometry=true&outSR=4326&f=geojson';
+// Phase filter is in the query. These are project footprints, not WZDx work zones.
+const CTDOT_CONSTRUCTION_URL = 'https://services1.arcgis.com/FCaUeJ5SOVtImake/arcgis/rest/services/CTDOT_Active_Capital_Projects_with_Funding_Type/FeatureServer/0/query?where=CurrentSchedulePhase%3D%2705_Construction%27&outFields=ProjectNumber,Title,ProjectDescription,CurrentSchedulePhase&returnGeometry=true&outSR=4326&f=geojson';
+const CTDOT_CONSTRUCTION_PAGE = 'https://geodata.ct.gov/datasets/CTDOT::ctdot-active-capital-projects-with-funding-type';
 const IBI_511_SOURCES = [
   {
     key: 'north',
@@ -481,17 +485,95 @@ async function roadwork(request: Request, ctx: ExecutionContext): Promise<Respon
         sourceUrl: index === 0 ? MASSDOT_WORK_ZONE_URL : NORTHERN_WORK_ZONE_URL,
       });
     }
-    markProvider('roadwork', inputs.length > 0);
-    if (!inputs.length) return json({ error: 'Official work-zone feeds unavailable' }, 502);
-    const features = inputs.flatMap((input) =>
-      normalizeWorkZones(input.source, input.provider, input.sourceUrl),
-    );
+    let construction: Array<Record<string, unknown>> = [];
+    try {
+      const projectFeatures = await fetchArcGisFeatures(CTDOT_CONSTRUCTION_URL, 5 * 60);
+      construction = constructionProjectFeatures(projectFeatures);
+    } catch (error) {
+      console.warn('CTDOT construction projects unavailable', error);
+    }
+    markProvider('roadwork', inputs.length > 0 || construction.length > 0);
+    if (!inputs.length && !construction.length) return json({ error: 'Official work-zone feeds unavailable' }, 502);
+    const features = [
+      ...inputs.flatMap((input) => normalizeWorkZones(input.source, input.provider, input.sourceUrl)),
+      ...construction,
+    ];
     return json({
       type: 'FeatureCollection',
-      provider: 'MassDOT + MaineDOT + NHDOT + VTrans WZDx',
-      coverage: ['ma', 'me', 'nh', 'vt'],
+      provider: 'MassDOT, MaineDOT, NHDOT, and VTrans work zones, plus CTDOT construction projects',
+      coverage: ['ct', 'ma', 'me', 'nh', 'vt'],
       features,
     });
+  });
+}
+
+type ArcGisFeature = {
+  id?: string | number;
+  geometry?: { type?: string; coordinates?: unknown };
+  properties?: Record<string, unknown>;
+};
+
+async function fetchArcGisFeatures(queryUrl: string, cacheTtl: number): Promise<ArcGisFeature[]> {
+  const features: ArcGisFeature[] = [];
+  let offset = 0;
+  for (let page = 0; page < 20; page += 1) {
+    const url = new URL(queryUrl);
+    url.searchParams.set('resultOffset', String(offset));
+    url.searchParams.set('resultRecordCount', '1000');
+    const response = await fetch(url, {
+      headers: { accept: 'application/geo+json, application/json' },
+      cf: { cacheEverything: true, cacheTtl },
+    });
+    if (!response.ok) throw new Error(`ArcGIS ${response.status}`);
+    const collection = await response.json() as {
+      features?: ArcGisFeature[];
+      properties?: { exceededTransferLimit?: boolean };
+      exceededTransferLimit?: boolean;
+      error?: unknown;
+    };
+    if (collection.error) throw new Error('ArcGIS query failed');
+    const batch = collection.features ?? [];
+    features.push(...batch);
+    const exceeded = Boolean(collection.exceededTransferLimit || collection.properties?.exceededTransferLimit);
+    if (!exceeded || batch.length === 0) break;
+    offset += batch.length;
+  }
+  return features;
+}
+
+function clipText(value: unknown, max = 500): string {
+  const text = String(value ?? '').replace(/\s+/g, ' ').trim();
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
+// CTDOT capital-project footprints in phase 05_Construction. Not WZDx: no lane
+// closure start or end, so they stay out of normalizeWorkZones.
+export function constructionProjectFeatures(features: ArcGisFeature[]): Array<Record<string, unknown>> {
+  return features.flatMap((feature, index) => {
+    const geometry = feature.geometry;
+    if (!geometry?.coordinates || !['Polygon', 'MultiPolygon'].includes(geometry.type ?? '')) return [];
+    const properties = feature.properties ?? {};
+    if (String(properties.CurrentSchedulePhase ?? '') !== '05_Construction') return [];
+    const number = clipText(properties.ProjectNumber, 40);
+    const title = clipText(properties.Title, 180) || (number ? `Project ${number}` : 'Construction project');
+    const description = clipText(properties.ProjectDescription);
+    return [{
+      type: 'Feature',
+      id: number ? `ct-project-${number}` : `ct-project-${index}`,
+      geometry,
+      properties: {
+        group: 'roadwork',
+        kind: 'construction-project',
+        dataStatus: 'reference',
+        color: '#c47b3a',
+        title,
+        status: 'Construction project',
+        details: description,
+        provider: 'CTDOT active capital projects · construction phase',
+        sourceUrl: CTDOT_CONSTRUCTION_PAGE,
+        updatedAt: new Date().toISOString(),
+      },
+    }];
   });
 }
 
@@ -518,17 +600,21 @@ function htmlCell(html: string, label: string): string {
   return match ? decodeHtml(match[1]) : '';
 }
 
-async function incidentFeature(source: typeof IBI_511_SOURCES[number], icon: IbiIcon) {
+async function incidentFeature(
+  source: typeof IBI_511_SOURCES[number],
+  icon: IbiIcon,
+  catalog: 'Incidents' | 'Closures' = 'Incidents',
+) {
   const id = String(icon.itemId ?? '');
   const location = icon.location;
   if (!/^\d+$/.test(id) || !location || location.length !== 2) return null;
-  const detailUrl = `${source.base}/Event/Incidents/${id}?lang=en`;
+  const detailUrl = `${source.base}/Event/${catalog}/${id}?lang=en`;
   let description = '';
   let startAt = '';
   let endAt = '';
   let updatedAt = new Date().toISOString();
   try {
-    const response = await fetch(`${source.base}/tooltip/Incidents/${id}?lang=en`, {
+    const response = await fetch(`${source.base}/tooltip/${catalog}/${id}?lang=en`, {
       cf: { cacheEverything: true, cacheTtl: 60 },
     });
     if (response.ok) {
@@ -546,13 +632,13 @@ async function incidentFeature(source: typeof IBI_511_SOURCES[number], icon: Ibi
   }
   return {
     type: 'Feature',
-    id: `${source.key}-${id}`,
+    id: catalog === 'Closures' ? `${source.key}-closure-${id}` : `${source.key}-${id}`,
     geometry: { type: 'Point', coordinates: [Number(location[1]), Number(location[0])] },
     properties: {
       group: 'incident',
       dataStatus: 'live',
       color: '#ff5c5c',
-      title: description || 'Official 511 road incident',
+      title: description || (catalog === 'Closures' ? 'Official 511 closure' : 'Official 511 road incident'),
       status: [startAt && `Started ${startAt}`, endAt && `Expected through ${endAt}`].filter(Boolean).join(' · '),
       details: description,
       provider: source.provider,
@@ -566,13 +652,27 @@ async function roadEvents(request: Request, ctx: ExecutionContext): Promise<Resp
   return cachedJson(request, ctx, 60, async () => {
     const feeds = await Promise.allSettled([
       ...IBI_511_SOURCES.map(async (source) => {
-        const response = await fetch(`${source.base}/map/mapIcons/Incidents`, {
-          headers: { accept: 'application/json' },
-          cf: { cacheEverything: true, cacheTtl: 60 },
-        });
-        if (!response.ok) throw new Error(`${source.key} incidents ${response.status}`);
-        const icons = await response.json() as IbiIcons;
-        return Promise.all((icons.item2 ?? []).map((icon) => incidentFeature(source, icon)));
+        const catalogs: Array<'Incidents' | 'Closures'> = source.key === 'ct'
+          ? ['Incidents', 'Closures']
+          : ['Incidents'];
+        const loaded = (await Promise.allSettled(catalogs.map(async (catalog) => {
+          const response = await fetch(`${source.base}/map/mapIcons/${catalog}`, {
+            headers: { accept: 'application/json' },
+            cf: { cacheEverything: true, cacheTtl: 60 },
+          });
+          if (!response.ok) throw new Error(`${source.key} ${catalog} ${response.status}`);
+          const icons = await response.json() as IbiIcons;
+          return { catalog, icons: icons.item2 ?? [] };
+        }))).flatMap((result) => (result.status === 'fulfilled' ? [result.value] : []));
+        if (!loaded.length) throw new Error(`${source.key} incident icons unavailable`);
+        const seen = new Set(
+          (loaded.find((entry) => entry.catalog === 'Incidents')?.icons ?? [])
+            .map((icon) => String(icon.itemId ?? '')),
+        );
+        const features = await Promise.all(loaded.flatMap((entry) => entry.icons
+          .filter((icon) => entry.catalog === 'Incidents' || !seen.has(String(icon.itemId ?? '')))
+          .map((icon) => incidentFeature(source, icon, entry.catalog))));
+        return features;
       }),
       (async () => {
         const response = await fetch(MASSDOT_EVENTS_URL, {
@@ -592,7 +692,7 @@ async function roadEvents(request: Request, ctx: ExecutionContext): Promise<Resp
     }
     return json({
       type: 'FeatureCollection',
-      provider: 'Official 511 and MassDOT incident feeds',
+      provider: 'Official 511 incidents, CTroads closures, and MassDOT roadway events',
       coverage: ['ct', 'ma', 'me', 'nh', 'vt'],
       features,
     });
@@ -601,7 +701,7 @@ async function roadEvents(request: Request, ctx: ExecutionContext): Promise<Resp
 
 async function cameras(request: Request, ctx: ExecutionContext): Promise<Response> {
   return cachedJson(request, ctx, 5 * 60, async () => {
-    const [ibiResult, massResult] = await Promise.allSettled([
+    const [ibiResult, massResult, ridotResult] = await Promise.allSettled([
       Promise.all(IBI_511_SOURCES.map(async (source) => {
         const response = await fetch(`${source.base}/map/mapIcons/Cameras`, {
           headers: { accept: 'application/json' },
@@ -643,6 +743,7 @@ async function cameras(request: Request, ctx: ExecutionContext): Promise<Respons
           properties?: Record<string, unknown>;
         }> }>;
       }),
+      fetchArcGisFeatures(RIDOT_CAMERA_URL, 5 * 60),
     ]);
 
     const ibiFeatures = ibiResult.status === 'fulfilled' ? ibiResult.value.flat() : [];
@@ -671,16 +772,57 @@ async function cameras(request: Request, ctx: ExecutionContext): Promise<Respons
         }];
       })
       : [];
-    const features = [...ibiFeatures, ...massFeatures];
+    const ridotFeatures = ridotResult.status === 'fulfilled'
+      ? ridotResult.value.flatMap((feature, index) => {
+        if (feature.geometry?.type !== 'Point' || !Array.isArray(feature.geometry.coordinates)) return [];
+        const properties = feature.properties ?? {};
+        const title = clipText(properties.Description, 180) || 'RIDOT traffic camera';
+        const imageUrl = cameraImageUrl(properties.CCVEWebURL);
+        const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'camera';
+        return [{
+          type: 'Feature',
+          id: `ri-${slug}-${index}`,
+          geometry: feature.geometry,
+          properties: {
+            group: 'camera',
+            dataStatus: 'live',
+            color: '#d2d7dd',
+            title,
+            status: 'Public still image',
+            provider: 'RIDOT traffic cameras',
+            ...(imageUrl ? { imageUrl } : {}),
+            sourceUrl: 'https://www.dot.ri.gov/travel/',
+            updatedAt: new Date().toISOString(),
+          },
+        }];
+      })
+      : [];
+    const features = [...ibiFeatures, ...massFeatures, ...ridotFeatures];
     markProvider('cameras', features.length > 0);
     if (!features.length) return json({ error: 'Official camera sources unavailable' }, 502);
     return json({
       type: 'FeatureCollection',
       provider: 'Official New England traffic camera sources',
-      coverage: ['ct', 'ma', 'me', 'nh', 'vt'],
+      coverage: ['ct', 'ma', 'me', 'nh', 'ri', 'vt'],
       features,
     });
   });
+}
+
+// RIDOT stills put spaces in the filename. Re-encode the path so the browser
+// can request the JPEG already stored on the feature.
+export function cameraImageUrl(value: unknown): string {
+  if (typeof value !== 'string' || !/^https:\/\//i.test(value.trim())) return '';
+  try {
+    const url = new URL(value.trim());
+    url.pathname = url.pathname
+      .split('/')
+      .map((part) => encodeURIComponent(decodeURIComponent(part)))
+      .join('/');
+    return url.toString();
+  } catch {
+    return '';
+  }
 }
 
 async function cameraDetail(url: URL): Promise<Response> {
@@ -952,12 +1094,10 @@ async function tfrDetail(request: Request, url: URL, ctx: ExecutionContext): Pro
   });
 }
 
-// Every browser shares one AISStream upstream held by the AisHub Durable
-// Object (worker/src/ais-hub.ts). AISStream allows only 3 connections per
-// account, so a per-browser relay would reject the 4th viewer.
+// Every browser shares one upstream held by the AisHub Durable Object
+// (worker/src/ais-hub.ts). AISStream is used when AISSTREAM_API_KEY is set.
+// Otherwise the hub uses keyless Open Waters and the browser stays here.
 function ais(request: Request, url: URL, env: Env): Response | Promise<Response> {
-  const aisKey = secret(env, 'AISSTREAM_API_KEY');
-  if (!configured(aisKey)) return json({ error: 'AIS key is not configured' }, 503);
   if (request.headers.get('upgrade')?.toLowerCase() !== 'websocket') {
     return json({ error: 'Expected a WebSocket upgrade' }, 426, { upgrade: 'websocket' });
   }
@@ -993,7 +1133,8 @@ export default {
           weatherAlerts: providerHealthy('weatherAlerts'),
           airportWeather: providerHealthy('airportWeather'),
           tfrs: providerHealthy('tfrs'),
-          ais: configured(secret(env, 'AISSTREAM_API_KEY')),
+          // Open Waters covers the relay when AISSTREAM_API_KEY is unset.
+          ais: true,
           traffic: providerHealthy('traffic'),
           swiftly: configured(secret(env, 'SWIFTLY_API_KEY')),
         },

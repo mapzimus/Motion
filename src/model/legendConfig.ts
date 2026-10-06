@@ -123,7 +123,11 @@ export const LEGEND_GROUPS: Record<string, LegendGroup> = {
     glyph: 'line',
     notes: ['Road color shows current speed: green flowing, red slow (511 traffic)'],
   },
-  roadwork: { name: 'Roadwork', glyph: 'dot', notes: [] },
+  roadwork: {
+    name: 'Work zones & construction projects',
+    glyph: 'dot',
+    notes: ['Dashed lines are work zones. Shaded areas are Connecticut construction projects.'],
+  },
   incident: { name: 'Incidents', glyph: 'dot', notes: [] },
   camera: { name: 'Traffic cameras', glyph: 'dot', notes: [] },
   roads: { name: 'Roads', glyph: 'line', notes: [] },

@@ -795,9 +795,33 @@ function setupLayers() {
 
   map.addSource('roadwork', { type: 'geojson', data: EMPTY_FC });
   map.addLayer({
+    id: 'roadwork-areas',
+    type: 'fill',
+    source: 'roadwork',
+    filter: ['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]],
+    layout: { visibility: 'none' },
+    paint: {
+      'fill-color': ['get', 'color'],
+      'fill-opacity': 0.28,
+    },
+  });
+  map.addLayer({
+    id: 'roadwork-area-outline',
+    type: 'line',
+    source: 'roadwork',
+    filter: ['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]],
+    layout: { visibility: 'none' },
+    paint: {
+      'line-color': ['get', 'color'],
+      'line-width': ['interpolate', ['linear'], ['zoom'], 7, 1, 14, 2.5],
+      'line-opacity': 0.9,
+    },
+  });
+  map.addLayer({
     id: 'roadwork-halo',
     type: 'line',
     source: 'roadwork',
+    filter: ['in', ['geometry-type'], ['literal', ['LineString', 'MultiLineString']]],
     layout: { visibility: 'none', 'line-cap': 'round', 'line-join': 'round' },
     paint: {
       'line-color': ['get', 'color'],
@@ -810,6 +834,7 @@ function setupLayers() {
     id: 'roadwork-lines',
     type: 'line',
     source: 'roadwork',
+    filter: ['in', ['geometry-type'], ['literal', ['LineString', 'MultiLineString']]],
     layout: {
       visibility: 'none',
       'line-cap': 'round',
@@ -1752,11 +1777,14 @@ function wireCameraPopups() {
   map.on('click', 'camera-points', (event) => {
     const feature = event.features[0];
     const p = feature.properties;
+    const directImage = /^https:\/\//.test(p.imageUrl ?? '')
+      ? `<img class="popup-camera-image" src="${esc(p.imageUrl)}" alt="Latest view from ${esc(p.title || 'this camera')}">`
+      : '';
     const popup = new maplibregl.Popup({ offset: 12, maxWidth: '360px' })
       .setLngLat(feature.geometry.coordinates)
-      .setHTML(informationPopupHtml(p, p.providerKey ? '<div class="popup-route-note">Loading current image…</div>' : ''))
+      .setHTML(informationPopupHtml(p, directImage || (p.providerKey ? '<div class="popup-route-note">Loading current image…</div>' : '')))
       .addTo(map);
-    if (!p.providerKey || !p.cameraId || !CONFIG.GATEWAY_BASE) return;
+    if (directImage || !p.providerKey || !p.cameraId || !CONFIG.GATEWAY_BASE) return;
     const query = new URLSearchParams({ provider: p.providerKey, id: p.cameraId });
     fetch(`${CONFIG.GATEWAY_BASE}/api/camera-detail?${query}`, {
       signal: AbortSignal.timeout(10_000),
@@ -1880,26 +1908,42 @@ function readableTime(value) {
     : date.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 
-function wireRoadworkPopups() {
-  map.on('click', 'roadwork-lines', (event) => {
-    const p = event.features[0].properties;
-    const timing = [readableTime(p.startAt), readableTime(p.endAt)].filter(Boolean).join(' – ');
-    const html = `
+function roadworkPopupHtml(p) {
+  const sourceLink = /^https:\/\//.test(p.sourceUrl ?? '')
+    ? `<a class="popup-route-link" href="${esc(p.sourceUrl)}" target="_blank" rel="noopener">Open official source ↗</a>`
+    : '';
+  if (p.kind === 'construction-project') {
+    return `
       <div class="popup-title" style="color:${esc(p.color)}">${esc(p.title)}</div>
-      <div class="popup-dest">${p.active ? 'Active work zone' : 'Upcoming work zone'}</div>
-      ${p.status ? `<div class="popup-status">${esc(p.status)}</div>` : ''}
+      <div class="popup-dest">Construction project</div>
       ${p.details ? `<div class="popup-status popup-details">${esc(p.details)}</div>` : ''}
-      ${p.workTypes ? `<div class="popup-meta">Work: ${esc(p.workTypes)}</div>` : ''}
-      ${timing ? `<div class="popup-meta">${esc(timing)}</div>` : ''}
-      <div class="popup-meta"><span class="popup-data-status live">live</span> · ${esc(p.provider ?? 'Official WZDx')} · ${relativeAge(p.updatedAt)}</div>
-      ${/^https:\/\//.test(p.sourceUrl ?? '') ? `<a class="popup-route-link" href="${esc(p.sourceUrl)}" target="_blank" rel="noopener">Open official feed ↗</a>` : ''}`;
-    new maplibregl.Popup({ offset: 10, maxWidth: '310px' })
-      .setLngLat(event.lngLat)
-      .setHTML(html)
-      .addTo(map);
-  });
-  map.on('mouseenter', 'roadwork-lines', () => { map.getCanvas().style.cursor = 'pointer'; });
-  map.on('mouseleave', 'roadwork-lines', () => { map.getCanvas().style.cursor = ''; });
+      <div class="popup-meta"><span class="popup-data-status reference">reference</span> · ${esc(p.provider ?? 'CTDOT construction projects')}</div>
+      ${sourceLink}`;
+  }
+  const timing = [readableTime(p.startAt), readableTime(p.endAt)].filter(Boolean).join(' – ');
+  return `
+    <div class="popup-title" style="color:${esc(p.color)}">${esc(p.title)}</div>
+    <div class="popup-dest">${p.active ? 'Active work zone' : 'Upcoming work zone'}</div>
+    ${p.status ? `<div class="popup-status">${esc(p.status)}</div>` : ''}
+    ${p.details ? `<div class="popup-status popup-details">${esc(p.details)}</div>` : ''}
+    ${p.workTypes ? `<div class="popup-meta">Work: ${esc(p.workTypes)}</div>` : ''}
+    ${timing ? `<div class="popup-meta">${esc(timing)}</div>` : ''}
+    <div class="popup-meta"><span class="popup-data-status live">live</span> · ${esc(p.provider ?? 'Official WZDx')} · ${relativeAge(p.updatedAt)}</div>
+    ${sourceLink}`;
+}
+
+function wireRoadworkPopups() {
+  for (const layerId of ['roadwork-lines', 'roadwork-areas']) {
+    map.on('click', layerId, (event) => {
+      const p = event.features[0].properties;
+      new maplibregl.Popup({ offset: 10, maxWidth: '310px' })
+        .setLngLat(event.lngLat)
+        .setHTML(roadworkPopupHtml(p))
+        .addTo(map);
+    });
+    map.on('mouseenter', layerId, () => { map.getCanvas().style.cursor = 'pointer'; });
+    map.on('mouseleave', layerId, () => { map.getCanvas().style.cursor = ''; });
+  }
 }
 
 function renderRouteShapes() {
@@ -2521,15 +2565,19 @@ function applyGroupFilter(groups, statuses) {
       groups.includes('traffic') && statuses.includes('live') ? 'visible' : 'none',
     );
   }
-  for (const layerId of ['roadwork-halo', 'roadwork-lines']) {
+  for (const layerId of ['roadwork-halo', 'roadwork-lines', 'roadwork-areas', 'roadwork-area-outline']) {
     map.setLayoutProperty(
       layerId,
       'visibility',
       groups.includes('roadwork') ? 'visible' : 'none',
     );
   }
-  map.setFilter('roadwork-lines', statusVisible);
-  map.setFilter('roadwork-halo', statusVisible);
+  const lineWork = ['all', statusVisible, ['in', ['geometry-type'], ['literal', ['LineString', 'MultiLineString']]]];
+  const areaWork = ['all', statusVisible, ['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]]];
+  map.setFilter('roadwork-lines', lineWork);
+  map.setFilter('roadwork-halo', lineWork);
+  map.setFilter('roadwork-areas', areaWork);
+  map.setFilter('roadwork-area-outline', areaWork);
   map.setFilter('incident-points', ['all', ['==', ['get', 'group'], 'incident'], statusVisible]);
   map.setFilter('camera-points', ['all', ['==', ['get', 'group'], 'camera'], statusVisible]);
   map.setFilter('local-service-points', ['all', ['==', ['get', 'group'], 'local'], statusVisible]);

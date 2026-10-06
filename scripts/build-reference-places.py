@@ -68,8 +68,8 @@ COLORS = {
     "taxi": "#ffe14d",
 }
 
-# State park-and-ride services. Rhode Island publishes no official RIDOT
-# park-and-ride feature service, so it is intentionally absent.
+# State park-and-ride services. RIDOT publishes its lots on the Facilities
+# feature service; an older note that Rhode Island had none is out of date.
 PARK_RIDE_SOURCES = [
     {
         "state": "ma",
@@ -111,6 +111,14 @@ PARK_RIDE_SOURCES = [
         "layer": "https://gis.maine.gov/mapservices/rest/services/dot/MaineDOT_OpenData/MapServer/8",
         "where": "1=1",
         "fields": {"name": "asset_descr", "town": "begin_town", "spaces": "total_num_spaces", "location": "location", "transit": "transit_other_services"},
+    },
+    {
+        "state": "ri",
+        "provider": "RIDOT · Park and Ride",
+        "sourceUrl": "https://gisprod.dot.ri.gov/scp/rest/services/Facilities/FeatureServer/0",
+        "layer": "https://gisprod.dot.ri.gov/scp/rest/services/Facilities/FeatureServer/0",
+        "where": "1=1",
+        "fields": {"name": "NAME", "town": "TOWN", "spaces": "CAPACITY", "location": "LOCATION"},
     },
 ]
 
@@ -808,6 +816,11 @@ def main():
         action="store_true",
         help="Rebuild only the taxi group and keep every other group from the existing output",
     )
+    parser.add_argument(
+        "--park-ride-only",
+        action="store_true",
+        help="Rebuild only the park-and-ride group and keep every other group from the existing output",
+    )
     parser.add_argument("--api-key", default=os.environ.get("NREL_API_KEY", "DEMO_KEY"))
     parser.add_argument(
         "--retag-only",
@@ -827,6 +840,33 @@ def main():
         features = [f for f in collection["features"] if f["properties"]["group"] != "taxi"] + taxis
         built_from = [e for e in collection.get("metadata", {}).get("builtFrom", []) if e.get("group") != "taxi"]
         built_from.append({"group": "taxi", "status": "ok", "count": len(taxis), "sources": taxi_sources})
+        write_collection(args.output, features, built_from)
+        return
+    if args.park_ride_only:
+        collection = json.loads(args.output.read_text(encoding="utf-8"))
+        print("Park-and-ride lots")
+        lots, lot_sources = park_ride_features(region_geometries)
+        inserted = False
+        features = []
+        for feature in collection["features"]:
+            if feature["properties"]["group"] == "park-ride":
+                if not inserted:
+                    features.extend(lots)
+                    inserted = True
+                continue
+            features.append(feature)
+        if not inserted:
+            features.extend(lots)
+        built_from = []
+        replaced = False
+        for entry in collection.get("metadata", {}).get("builtFrom", []):
+            if entry.get("group") == "park-ride":
+                built_from.append({"group": "park-ride", "status": "ok", "count": len(lots), "sources": lot_sources})
+                replaced = True
+            else:
+                built_from.append(entry)
+        if not replaced:
+            built_from.append({"group": "park-ride", "status": "ok", "count": len(lots), "sources": lot_sources})
         write_collection(args.output, features, built_from)
         return
     graph = None
