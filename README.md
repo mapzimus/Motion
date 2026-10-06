@@ -96,13 +96,13 @@ there. The picker groups regions by state:
   County communities: Bellingham, Plainville, Lakeville, Marion,
   Mattapoisett, Rochester and Wareham), Cape Cod & Islands. Every
   Massachusetts municipality is now in at least one named region.
-- **Rhode Island:** Providence metro (Providence, Kent, Bristol), Newport &
+- **Rhode Island:** Providence Metro (Providence, Kent, Bristol), Newport &
   South County (Newport, Washington, including Block Island).
 - **Connecticut** (2022 Census planning regions): Hartford (Capitol), New
   Haven & Shoreline, Fairfield County (Western CT and Greater Bridgeport),
   Eastern Connecticut, Waterbury & Northwest Hills (Naugatuck Valley and
   Northwest Hills). All nine planning regions are covered.
-- **New Hampshire:** NH Seacoast, Manchester, Nashua & Concord, Lakes & White
+- **New Hampshire:** New Hampshire Seacoast, Manchester, Nashua & Concord, Lakes & White
   Mountains, Monadnock Region (Cheshire County, Keene). With the Upper Valley
   below, all ten counties are covered.
 - **Vermont:** Burlington & Champlain Valley, Southern Vermont, Montpelier &

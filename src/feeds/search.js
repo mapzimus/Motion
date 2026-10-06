@@ -4,7 +4,7 @@
 // network. The index is built lazily on first use, after the route snapshot
 // has loaded, so startup cost is zero.
 
-import { map, openStopPopup, takeCamera } from '../map/map.js';
+import { fitPadding, map, openStopPopup, takeCamera } from '../map/map.js';
 import {
   REGIONS,
   containsPoint,
@@ -13,6 +13,7 @@ import {
   smallestRegionAt,
   stateAt,
 } from './regions.js';
+import { closePanelOnMobile } from '../ui.js';
 import { recentVehicles, searchVehicles } from './vehicle-search.js';
 
 const MAX_RESULTS = 8;
@@ -299,19 +300,6 @@ function highlightRoute(entry) {
       properties: { color: entry.color },
     })),
   });
-}
-
-function fitPadding() {
-  return window.innerWidth > 760
-    ? { top: 70, right: 70, bottom: 70, left: 410 }
-    : { top: 60, right: 40, bottom: 60, left: 40 };
-}
-
-function closePanelOnMobile() {
-  if (window.matchMedia('(max-width: 760px)').matches) {
-    document.body.classList.remove('panel-open');
-    document.getElementById('panel-toggle')?.setAttribute('aria-expanded', 'false');
-  }
 }
 
 // ---- selection --------------------------------------------------------------

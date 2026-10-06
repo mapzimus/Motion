@@ -314,7 +314,12 @@ export function initPanel(routeInfo, visibleChangeHandler, regionChangeHandler, 
   renderPresetButtons('vehicle-presets', VEHICLE_PRESETS);
   renderPresetButtons('scene-presets', SCENES);
   for (const button of document.querySelectorAll('[data-layer-preset]')) {
-    button.addEventListener('click', () => applyLayerPreset(button.dataset.layerPreset));
+    button.addEventListener('click', () => {
+      applyLayerPreset(button.dataset.layerPreset);
+      // A scene sets the whole view, like picking a region, so get the panel out
+      // of the way; layer presets stay open for further tuning.
+      if (SCENES.some((scene) => scene.key === button.dataset.layerPreset)) closePanelOnMobile();
+    });
   }
 
   el('subway-master').addEventListener('change', (e) => {
