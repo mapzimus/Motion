@@ -11,7 +11,7 @@
 
 import { CONFIG } from './config.js';
 import { setFleetData } from '../map/map.js';
-import { filterItems } from './regions.js';
+import { filterItems, fleetBoundaryOptions } from './regions.js';
 
 const registry = new Map(); // fleetId -> fleet API
 export const getFleet = (fleetId) => registry.get(fleetId);
@@ -65,9 +65,9 @@ export function createFleet(fleetId) {
     if (active.size) startLoop();
     else render();
     updateListeners.forEach((fn) => fn());
-    // Vessels are counted against the coastal (marine) boundary, matching
-    // what map.js draws for them.
-    return filterItems(items, undefined, { marine: fleetId === 'vessel' });
+    // Vessels and aircraft are counted against the coastal (marine)
+    // boundary, matching what map.js draws for them.
+    return filterItems(items, undefined, fleetBoundaryOptions(fleetId));
   }
 
   function startLoop() {

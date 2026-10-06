@@ -689,8 +689,33 @@ const invalidAirRoutes = supplementalAir.features.filter((feature) => {
     || !properties.serviceType
     || !properties.season
     || !properties.geometryNote
-    || !/^https:\/\//.test(properties.sourceUrl ?? '');
+    || !/^https:\/\//.test(properties.sourceUrl ?? '')
+    || (properties.seasonStart && !/^\d{4}-\d{2}-\d{2}$/.test(properties.seasonStart))
+    || (properties.seasonEnd && !/^\d{4}-\d{2}-\d{2}$/.test(properties.seasonEnd))
+    || (properties.seasonStart && properties.seasonEnd && properties.seasonStart > properties.seasonEnd);
 });
+// Seasonal corridors: the builder judges each season on its build date
+// (seasonCheckedOn) and demotes out-of-season routes to reference.
+const seasonalAirIds = new Set(
+  supplementalAir.features
+    .filter((feature) => feature.properties?.seasonStart || feature.properties?.seasonEnd)
+    .map((feature) => feature.properties.route),
+);
+for (const feature of collection.features) {
+  const properties = feature.properties ?? {};
+  if (!seasonalAirIds.has(properties.route) || properties.kind !== 'regional-static') continue;
+  const checkedOn = properties.seasonCheckedOn ?? '';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(checkedOn)) {
+    throw new Error(`Seasonal air route ${properties.route} was built without a season check; rebuild the snapshot`);
+  }
+  const outOfSeason = (properties.seasonStart && checkedOn < properties.seasonStart)
+    || (properties.seasonEnd && checkedOn > properties.seasonEnd);
+  if (outOfSeason
+    ? properties.dataStatus !== 'reference' || !/^Seasonal · /.test(properties.scheduleNote ?? '')
+    : properties.dataStatus !== 'scheduled' || properties.seasonStatus !== 'in-season') {
+    throw new Error(`Seasonal air route ${properties.route} has the wrong status for ${checkedOn}`);
+  }
+}
 if (supplementalAir.features.length !== 18
     || airRouteIds.size !== supplementalAir.features.length
     || invalidAirRoutes.length

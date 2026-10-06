@@ -69,6 +69,7 @@ function render(selection) {
     text(el.title, `Looking for ${fleetLabel(selection.fleetId)} ${selection.id}…`);
     text(el.headsign, 'Waiting for its live feed to report in.');
     el.badges.replaceChildren();
+    text(el.alert, '');
     text(el.status, '');
     el.stops.replaceChildren();
     el.stops.hidden = true;
@@ -94,6 +95,7 @@ function render(selection) {
   else if (card.stale) el.badges.append(badge('Position is old', 'warn'));
   el.badges.hidden = false;
 
+  text(el.alert, card.alert);
   text(el.status, card.status);
 
   el.stops.replaceChildren();
@@ -162,6 +164,7 @@ export function initTripCard() {
     title: card.querySelector('.trip-title'),
     headsign: card.querySelector('.trip-headsign'),
     badges: card.querySelector('.trip-badges'),
+    alert: card.querySelector('.trip-alert'),
     status: card.querySelector('.trip-status'),
     stops: card.querySelector('.trip-stops'),
     note: card.querySelector('.trip-note'),

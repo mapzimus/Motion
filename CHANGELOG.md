@@ -41,6 +41,35 @@
 - All three rows sit under Conditions, start switched off, and join the Air
   preset. `/health` reports `airportWeather` and `tfrs`.
 
+### Aircraft and airports
+- Live aircraft draw by type: airliner, light aircraft, helicopter, or a
+  plain dart for gliders, balloons, drones and unknowns, from the ADS-B
+  emitter category (or the ICAO type code when none is sent).
+- An aircraft squawking 7500, 7600 or 7700, or reporting an emergency
+  status, gets a red ring on the map and a line in its card, e.g.
+  "Squawking 7700 · general emergency".
+- Aircraft are clipped with the coastal boundary like vessels, so planes over
+  Boston Harbor, Long Island Sound and the Cape waters no longer vanish.
+- Cards show the registration and whether the aircraft is climbing or
+  descending. Privacy: owner/operator names are never relayed, registrations
+  are withheld for PIA and LADD aircraft, and helicopters show only their
+  type. Nothing singles out military or LADD aircraft.
+- Heliports and seaplane bases get their own marks; public-use airports are
+  in Find by name or FAA/ICAO code (`BOS`, `KBOS`, `logan`).
+- Seasonal air corridors now carry their season dates and turn into
+  reference lines out of season. Tradewind's Bedford–Nantucket and
+  Bedford–Martha's Vineyard flights (season ended September 8, 2026) now
+  read that way; Cape Air Boston–Provincetown is year-round (reduced winter
+  schedule); Norwood–Nantucket runs through October 13, 2026.
+- The aircraft relay returns `category`, `squawk`, `emergency`,
+  `registration`, `verticalRateFpm` and `dbFlags` (fields only added), and
+  `/api/route` answers a clean 502 when the route catalog is down. **The
+  relay is a separate Vercel project: redeploy it (`cd aircraft-gateway;
+  npx vercel --prod`) for emergency rings, registrations and
+  category-based icons to appear.** Until then icons come from the type code
+  alone.
+- Removed the unused plane popup route lookup; the trip card keeps it.
+
 ### Coaches
 - C&J Bus Lines' full network replaces its two-trip GTFS stub: Dover,
   Portsmouth, and Seabrook to Boston South Station, Logan Airport, and New

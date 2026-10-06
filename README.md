@@ -72,6 +72,20 @@ from the FAA's ADDS feature services by `scripts/build-airspace.py` each
 orientation: special-use areas are often active "by NOTAM", so always check
 current charts and NOTAMs before flying.
 
+Each aircraft's silhouette comes from the ADS-B emitter category it
+broadcasts: airliner (A3–A6), light aircraft (A1–A2), helicopter (A7), or a
+plain dart for gliders, balloons, drones and unknowns. Without a category the
+ICAO type code decides, and an unrecognized type keeps the airliner shape. An
+aircraft squawking 7500, 7600 or 7700, or reporting an emergency status, gets
+a red ring and a line in its card ("Squawking 7700 · general emergency").
+Aircraft are clipped with the coastal (marine) boundary like vessels, so Logan
+approaches over the harbor stay on the map.
+
+Privacy rules, applied in the relay and the page: owner/operator names are
+never relayed; registrations are withheld for aircraft in the FAA's PIA and
+LADD privacy programs; helicopters are shown by type only, without callsign,
+registration or hex. Nothing on the map singles out military or LADD aircraft.
+
 ## Regional transit coverage
 
 The checked-in route snapshot contains more than 1,200 bus, commuter-rail,
@@ -469,12 +483,24 @@ Approximate repaired geometry is derived from
 operator's actual roadway may vary.
 
 The **Airports & landing facilities** layer includes public and private FAA
-facilities, with private sites held back until a closer zoom. The air-service
+facilities, with private sites held back until a closer zoom. Heliports draw as
+a disc with an "H", seaplane bases as a ring with a wave, everything else as a
+circle. Public-use facilities are in **Find** by name or FAA/ICAO identifier
+(`BOS`, `KBOS`, `logan`). The air-service
 ribbons distinguish scheduled Cape Air/Tradewind routes from Penobscot Island
 Air's on-demand links between Knox County Regional Airport and Matinicus,
 Vinalhaven, North Haven, and Islesboro. Those lines show service relationships,
 not actual or live flight tracks, and start switched off so they do not obscure
 surface and water routes or live aircraft.
+
+Seasonal air corridors carry `seasonStart`/`seasonEnd` dates in
+`scripts/supplemental-air-routes.json`, copied from the operator's own pages.
+The route builder judges them on its run date (`--season-date YYYY-MM-DD`
+overrides it): outside the season a corridor becomes a reference line with a
+note such as "Seasonal · season ended September 8, 2026; 2027 dates not yet
+published". The status is frozen into the snapshot, so rebuild it after a
+season starts or ends, and replace the dates when the operator publishes the
+next season.
 
 The **Canada border crossings** layer uses the current CBSA office directory
 for New England's Maine, New Hampshire, and Vermont frontier. It includes
@@ -543,7 +569,7 @@ The card shows what each feed actually publishes:
 | MBTA | Next six stops with ETA, clock time, track (commuter rail), and delay against the schedule, from `/predictions?filter[trip]=…`, polled every 15 s only while following |
 | Amtrak | Upcoming stations with ETA and early/late, from the Amtraker train record |
 | Metro-North | Next stop and minutes only; position is the train's GPS fix, or an estimate between stations when the feed has none |
-| Aircraft | Best-effort scheduled route for the callsign |
+| Aircraft | Best-effort scheduled route for the callsign, registration (when not withheld), climbing/descending, and a red emergency line for 7500/7600/7700 squawks; helicopters by type only |
 | Regional buses, vessels | Route, vehicle number, speed |
 
 A followed vehicle adds `f=<fleet>:<id>` to the URL hash, so **Copy link**
@@ -660,7 +686,9 @@ How the vessel feed works:
   coverage inland. The New York half of Lake Champlain only counts where it is
   within the coastal buffer of Vermont.
 
-Deploy the separate aircraft relay from its own project directory:
+Deploy the separate aircraft relay from its own project directory. It is its
+own Vercel project, so merging to `main` does not update it: redeploy it by
+hand whenever `aircraft-gateway/` changes.
 
 ```powershell
 Set-Location aircraft-gateway
@@ -673,8 +701,8 @@ npx vercel --prod --yes
 | Endpoint | Purpose |
 |---|---|
 | `GET /health` | Provider status without exposing secrets; a provider reads `true` when its last upstream fetch succeeded within 10 minutes (or has not been attempted yet) |
-| `GET /api/planes?region=ma` | Deduplicated, normalized ADS-B aircraft (Vercel relay only; the Worker no longer serves this path) |
-| `GET /api/route?callsign=AAL108` | Best-effort aircraft origin and destination (Vercel relay) |
+| `GET /api/planes?region=ma` | Deduplicated, normalized ADS-B aircraft: position, callsign, type, track, altitude, speed, plus `category`, `squawk`, `emergency`, `registration` (null for PIA/LADD aircraft and rotorcraft), `verticalRateFpm` and `dbFlags` (Vercel relay only; the Worker no longer serves this path) |
+| `GET /api/route?callsign=AAL108` | Best-effort aircraft origin and destination; 404 when unknown, 502 JSON when the route catalog is unreachable (Vercel relay) |
 | `GET /api/transit?region=ct` | Normalized GTFS-realtime bus positions and per-feed health |
 | `GET /api/mnr` | Metro-North active trip segments and service alerts from official MTA GTFS-Realtime |
 | `GET /api/roadwork` | Active/upcoming MassDOT and northern New England WZDx geometry |
@@ -718,8 +746,14 @@ inside the Workers runtime with Cloudflare's Vitest integration.
 ```powershell
 npm run check
 npm test
+npm run test:ui
 npm run deploy:dry-run
+py -3 -X utf8 -m doctest scripts\build-regional-routes.py
 ```
+
+`npm test` also runs the aircraft relay's handlers (`aircraft-gateway/api/`)
+in the Workers runtime, including the registration privacy rule. The doctest
+covers the builder's seasonal-corridor logic.
 
 CI (`.github/workflows/ci.yml`) first runs `scripts/check-feed-freshness.py`,
 which downloads every schedule feed and fails when a non-exempt feed stops

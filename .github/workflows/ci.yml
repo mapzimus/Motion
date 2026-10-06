@@ -25,6 +25,8 @@ jobs:
       # Downloads every schedule feed and fails when a non-exempt feed stops
       # publishing service within seven days (see README "Verify changes").
       - run: python3 scripts/check-feed-freshness.py
+      # Seasonal air-corridor logic in the route builder (no downloads).
+      - run: python3 -m doctest scripts/build-regional-routes.py
       - run: npm run check
       - run: npm test
       - run: npm run build

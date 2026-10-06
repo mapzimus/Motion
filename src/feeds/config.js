@@ -104,8 +104,10 @@ export const CONFIG = {
   AMTRAK_STALE_MS: 5 * 60_000,
 
   // Aircraft are fetched server-side from ADSB.lol. The selected geography
-  // controls overlapping probes, then exact Census polygons clip the results.
+  // controls overlapping probes, then the coastal (marine) region polygons
+  // clip the results so planes over the harbor and sounds stay visible.
   PLANE_COLOR: '#9be1ff',
+  AIRCRAFT_EMERGENCY_COLOR: '#ff5c5c', // ring under a 7500/7600/7700 squawk
 
   // AIS passes through the gateway so a provider key never enters the public
   // bundle. Traffic is relayed from the public 511 tile service and needs no
