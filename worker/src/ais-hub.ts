@@ -1,10 +1,12 @@
-// One shared AISStream connection for every Motion viewer.
+// One shared vessel upstream for every Motion viewer.
 //
-// AISStream allows only 3 subscribed connections per account (and per IP), so
-// a relay that opens one upstream per browser rejects the 4th viewer. AisHub
-// is a single Durable Object ("new-england") that holds ONE upstream socket
-// subscribed to the whole New England box, keeps the latest position of every
-// vessel in memory, and fans frames out to browser sockets by region.
+// AISStream allows only 3 subscribed connections per account (and per IP), and
+// Open Waters' anonymous tier allows 2 per address, so a relay that opens one
+// upstream per browser rejects later viewers. AisHub is a single Durable
+// Object ("new-england") that holds ONE upstream socket subscribed to the
+// whole New England box, keeps the latest position of every vessel in memory,
+// and fans frames out to browser sockets by region. The socket is AISStream
+// when AISSTREAM_API_KEY is set, and keyless Open Waters otherwise.
 //
 // - Browser sockets use the Hibernation API (ctx.acceptWebSocket) with the
 //   region kept in the socket attachment.
@@ -31,6 +33,61 @@ import { aisFrameToText } from './ais-frames';
 import { AIS_BOUNDS, REGION_IDS, isRegionId, type RegionId } from './regions';
 
 export const AISSTREAM_URL = 'wss://stream.aisstream.io/v0/stream';
+export const OPEN_WATERS_URL = 'wss://ais.openwaters.io/v1/stream';
+export const OPEN_WATERS_PAGE = 'https://openwaters.io/ais/';
+// Credit lines required when that source is shown. From https://openwaters.io/ais/
+// ("If you display or redistribute the data, carry the source's attribution through.")
+// Volunteer and station receptions use the credit line their vessel snapshot publishes.
+export const OPEN_WATERS_CREDITS: Record<string, string> = {
+  kystverket: 'Contains data under the Norwegian licence for Open Government data (NLOD) distributed by the Norwegian Coastal Administration.',
+  barentswatch: 'Data delivered by BarentsWatch',
+  digitraffic: 'Source: Fintraffic / digitraffic.fi, license CC 4.0 BY.',
+  aishub: 'AISHub',
+  aisstream: 'aisstream',
+  udp: `Open Waters AIS (${OPEN_WATERS_PAGE})`,
+  station: `Open Waters AIS (${OPEN_WATERS_PAGE})`,
+  mmsi: `Open Waters AIS (${OPEN_WATERS_PAGE})`,
+};
+
+export function openWatersCredit(source: string): string {
+  const key = source.split(':')[0] || source;
+  return OPEN_WATERS_CREDITS[key] ?? OPEN_WATERS_CREDITS[source] ?? `Open Waters AIS (${OPEN_WATERS_PAGE})`;
+}
+
+// Wrap one Open Waters v1 event in the AISStream frame the browser already reads.
+export function openWatersEventToAisstream(event: {
+  type?: string;
+  source?: string;
+  mmsi?: unknown;
+  msg_type?: string;
+  lat?: unknown;
+  lon?: unknown;
+  time?: unknown;
+  message?: Record<string, unknown>;
+} | null): string | null {
+  if (event?.type !== 'event') return null;
+  const msgType = event.msg_type;
+  const message = event.message;
+  if (!msgType || !message || typeof message !== 'object') return null;
+  const mmsi = event.mmsi ?? message.UserID;
+  if (mmsi === undefined || mmsi === null || mmsi === '') return null;
+  const source = typeof event.source === 'string' ? event.source : '';
+  return JSON.stringify({
+    MessageType: msgType,
+    MetaData: {
+      MMSI: mmsi,
+      MMSI_String: String(mmsi),
+      ShipName: typeof message.Name === 'string' ? message.Name : '',
+      latitude: event.lat,
+      longitude: event.lon,
+      time_utc: event.time,
+      ...(message.Type !== undefined ? { ShipType: message.Type } : {}),
+      ...(source ? { Source: source, Credit: openWatersCredit(source) } : {}),
+    },
+    Message: { [msgType]: message },
+  });
+}
+
 export const HUB_NAME = 'new-england';
 export const AIS_MESSAGE_TYPES = [
   'PositionReport',
@@ -80,6 +137,8 @@ export interface HubVessel {
   heading: number | null;
   name: string;
   shipType: number | null;
+  // Open Waters source id (aishub, aisstream, udp:…), absent for AISStream.
+  source?: string;
   // Real time (epoch ms) it was last heard.
   at: number;
   // Listening-clock value (ms) when it was last heard.
@@ -134,6 +193,9 @@ export class AisHub extends DurableObject<Env> {
   upstreamFactory: UpstreamFactory = (url) => new WebSocket(url) as unknown as UpstreamSocket;
   apiKeyOverride: string | undefined;
   now: () => number = () => Date.now();
+  // Replaced in tests so opening the fake socket never calls Open Waters.
+  refreshCredits: () => Promise<void> = () => this.loadOpenWatersCredits();
+  private serverCredits = new Map<string, string>();
 
   vessels = new Map<string, HubVessel>();
   statics = new Map<string, StaticInfo>();
@@ -188,8 +250,29 @@ export class AisHub extends DurableObject<Env> {
     const clock = this.listenClock(now);
     const vessels = [...this.vessels.values()]
       .filter((vessel) => boxContains(box, vessel.lat, vessel.lng))
-      .map(({ heard, ...vessel }) => ({ ...vessel, quietMs: Math.max(0, clock - heard) }));
-    return { MessageType: 'Snapshot', Region: region, At: now, Vessels: vessels };
+      .map(({ heard, source, ...vessel }) => {
+        const credit = source ? this.creditFor(source) : '';
+        return {
+          ...vessel,
+          quietMs: Math.max(0, clock - heard),
+          ...(source ? { source, credit } : {}),
+        };
+      });
+    const attribution = [...new Set(vessels.flatMap((vessel) => (
+      'credit' in vessel && vessel.credit ? [vessel.credit] : []
+    )))];
+    return {
+      MessageType: 'Snapshot',
+      Region: region,
+      At: now,
+      Vessels: vessels,
+      ...(attribution.length ? { Attribution: attribution } : {}),
+    };
+  }
+
+  creditFor(source: string): string {
+    const key = source.split(':')[0] || source;
+    return this.serverCredits.get(key) ?? this.serverCredits.get(source) ?? openWatersCredit(source);
   }
 
   // ---- Listening clock ------------------------------------------------------
@@ -258,12 +341,13 @@ export class AisHub extends DurableObject<Env> {
 
   ensureUpstream(): void {
     if (this.upstream) return;
+    if (this.now() < this.nextReconnectAt) return;
     const key = this.apiKey();
-    if (!key || this.now() < this.nextReconnectAt) return;
+    const openWaters = !key;
 
     let socket: UpstreamSocket;
     try {
-      socket = this.upstreamFactory(AISSTREAM_URL);
+      socket = this.upstreamFactory(openWaters ? OPEN_WATERS_URL : AISSTREAM_URL);
     } catch (error) {
       console.error('AIS upstream could not be created', error);
       this.upstreamDropped();
@@ -276,6 +360,19 @@ export class AisHub extends DurableObject<Env> {
       if (this.upstream !== socket) return;
       this.upstreamOpen = true;
       this.startListening();
+      if (openWaters) {
+        // One anonymous socket for the New England box (about 55 square degrees,
+        // inside the anonymous 100 square degree cap). snapshot fills the map
+        // before the next live report. The browser never connects here itself.
+        const [[south, west], [north, east]] = AIS_BOUNDS[HUB_NAME];
+        socket.send(JSON.stringify({
+          type: 'subscribe',
+          bbox: [[south, west, north, east]],
+          snapshot: true,
+        }));
+        void this.refreshCredits();
+        return;
+      }
       // AISStream closes a connection that has not subscribed within 3 s.
       socket.send(JSON.stringify({
         APIKey: key,
@@ -288,7 +385,9 @@ export class AisHub extends DurableObject<Env> {
       // Decode sequentially so relayed messages keep their upstream order.
       this.relayQueue = this.relayQueue.then(async () => {
         const text = await aisFrameToText(event.data);
-        if (text !== null) this.handleFrame(text);
+        if (text === null) return;
+        if (openWaters) this.handleOpenWatersFrame(text);
+        else this.handleFrame(text);
       }).catch(() => {
         // Skip an undecodable frame; keep the relay open.
       });
@@ -334,6 +433,41 @@ export class AisHub extends DurableObject<Env> {
       socket.close(1000, reason);
     } catch {
       // Already closed.
+    }
+  }
+
+  // Open Waters v1 frames are not what the browser parses. Translate events
+  // into AISStream-shaped JSON and drop welcome, ack, and error frames.
+  handleOpenWatersFrame(text: string): void {
+    let event: any;
+    try {
+      event = JSON.parse(text);
+    } catch {
+      return;
+    }
+    if (event?.type === 'error') {
+      console.error('Open Waters error', String(event.error).slice(0, 200));
+      return;
+    }
+    const translated = openWatersEventToAisstream(event);
+    if (translated) this.handleFrame(translated);
+  }
+
+  private async loadOpenWatersCredits(): Promise<void> {
+    try {
+      // A small harbor box is enough to read the credit lines the snapshot
+      // publishes. Positions still arrive on the New England socket.
+      const response = await fetch(
+        'https://ais.openwaters.io/v1/vessels?bbox=42.3,-71.05,42.4,-70.85&max_age_moving=30m&kind=vessel',
+        { headers: { accept: 'application/geo+json, application/json' } },
+      );
+      if (!response.ok) return;
+      const body = await response.json() as { attribution?: Record<string, unknown> };
+      for (const [key, line] of Object.entries(body.attribution ?? {})) {
+        if (typeof line === 'string' && line.trim()) this.serverCredits.set(key, line.trim());
+      }
+    } catch {
+      // The static credit table still names each source.
     }
   }
 
@@ -385,6 +519,7 @@ export class AisHub extends DurableObject<Env> {
     if (lat === null || lng === null) return;
     const info = this.statics.get(mmsi);
     const trueHeading = finite(report.TrueHeading);
+    const source = typeof meta.Source === 'string' && meta.Source ? meta.Source : existing?.source;
     const vessel: HubVessel = {
       mmsi,
       lat,
@@ -394,6 +529,7 @@ export class AisHub extends DurableObject<Env> {
       heading: trueHeading !== null && trueHeading !== HEADING_UNAVAILABLE ? trueHeading : null,
       name: cleanName(meta.ShipName) || info?.name || existing?.name || '',
       shipType: info?.shipType ?? existing?.shipType ?? finite(meta.ShipType),
+      ...(source ? { source } : {}),
       at: now,
       heard,
     };
@@ -401,10 +537,17 @@ export class AisHub extends DurableObject<Env> {
     this.dirty = true;
 
     // Fill in what the hub already knows so the browser can classify vessels
-    // (ferry vs other) from the first position frame.
+    // (ferry vs other) from the first position frame, and carry Open Waters'
+    // source credit on the same frame.
     let relay = text;
-    if (vessel.shipType !== null && finite(meta.ShipType) === null) {
-      msg.MetaData = { ...meta, ShipType: vessel.shipType, ShipName: meta.ShipName || vessel.name };
+    const credit = source ? this.creditFor(source) : '';
+    const needsType = vessel.shipType !== null && finite(meta.ShipType) === null;
+    if (needsType || (credit && meta.Credit !== credit)) {
+      msg.MetaData = {
+        ...meta,
+        ...(needsType ? { ShipType: vessel.shipType, ShipName: meta.ShipName || vessel.name } : {}),
+        ...(credit ? { Credit: credit } : {}),
+      };
       relay = JSON.stringify(msg);
     }
     this.broadcast(relay, lat, lng);

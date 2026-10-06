@@ -5,6 +5,7 @@ import {
   runInDurableObject,
 } from 'cloudflare:test';
 import { describe, expect, it, vi } from 'vitest';
+import { OPEN_WATERS_URL, openWatersCredit, openWatersEventToAisstream } from '../src/ais-hub';
 import { AIS_BOUNDS } from '../src/regions';
 
 // A fake AISStream socket: the hub never touches the network in tests.
@@ -52,22 +53,23 @@ const shipStatic = (mmsi, name, type) => ({
 });
 
 let hubCount = 0;
-async function freshHub() {
+async function freshHub(apiKey = 'test-key') {
   hubCount += 1;
   const stub = env.AIS_HUB.getByName(`test-hub-${hubCount}`);
-  await armHub(stub);
+  await armHub(stub, apiKey);
   return stub;
 }
 
 // Install the fake upstream on the (possibly new) instance behind the stub.
-async function armHub(stub) {
+async function armHub(stub, apiKey = 'test-key') {
   await runInDurableObject(stub, (hub) => {
     hub.upstreamCreated = 0;
     hub.upstreamFactory = (url) => {
       hub.upstreamCreated += 1;
       return new FakeUpstream(url);
     };
-    hub.apiKeyOverride = 'test-key';
+    hub.apiKeyOverride = apiKey;
+    hub.refreshCredits = async () => {};
   });
 }
 
@@ -154,6 +156,69 @@ describe('AisHub', () => {
     expect(subscription.BoundingBoxes).toEqual([AIS_BOUNDS['new-england']]);
     expect(subscription.FilterMessageTypes).toContain('ShipStaticData');
     for (const socket of sockets) socket.ws.close(1000, 'done');
+  });
+
+  it('uses Open Waters when the AISStream key is unset', async () => {
+    const stub = await freshHub('');
+    const viewer = await connect(stub, 'ma');
+    const upstream = await runInDurableObject(stub, (hub) => {
+      hub.upstream.open();
+      return { created: hub.upstreamCreated, url: hub.upstream.url, sent: hub.upstream.sent };
+    });
+    const [[south, west], [north, east]] = AIS_BOUNDS['new-england'];
+    expect(upstream.created).toBe(1);
+    expect(upstream.url).toBe(OPEN_WATERS_URL);
+    expect(JSON.parse(upstream.sent[0])).toEqual({
+      type: 'subscribe',
+      bbox: [[south, west, north, east]],
+      snapshot: true,
+    });
+    expect(JSON.parse(upstream.sent[0]).APIKey).toBeUndefined();
+    viewer.ws.close(1000, 'done');
+  });
+
+  it('credits an Open Waters vessel and relays an AISStream-shaped frame', async () => {
+    const stub = await freshHub('');
+    await runInDurableObject(stub, (hub) => {
+      hub.handleOpenWatersFrame(JSON.stringify({
+        type: 'welcome',
+        role: 'anonymous',
+      }));
+      hub.handleOpenWatersFrame(JSON.stringify({
+        type: 'event',
+        source: 'aishub',
+        mmsi: 111,
+        msg_type: 'PositionReport',
+        lat: BOSTON[0],
+        lon: BOSTON[1],
+        time: '2026-10-06T20:00:00.000Z',
+        message: {
+          UserID: 111,
+          Sog: 4.2,
+          Cog: 10,
+          TrueHeading: 511,
+          Latitude: BOSTON[0],
+          Longitude: BOSTON[1],
+        },
+      }));
+      hub.handleOpenWatersFrame(JSON.stringify({ type: 'error', error: 'ignored' }));
+    });
+    const viewer = await connect(stub, 'boston');
+    expect(viewer.messages[0].Vessels).toHaveLength(1);
+    expect(viewer.messages[0].Vessels[0]).toMatchObject({
+      mmsi: '111',
+      source: 'aishub',
+      credit: 'AISHub',
+      sog: 4.2,
+    });
+    expect(viewer.messages[0].Attribution).toEqual(['AISHub']);
+    expect(openWatersCredit('kystverket')).toBe(
+      'Contains data under the Norwegian licence for Open Government data (NLOD) distributed by the Norwegian Coastal Administration.',
+    );
+    expect(openWatersCredit('barentswatch')).toBe('Data delivered by BarentsWatch');
+    expect(openWatersCredit('digitraffic')).toBe('Source: Fintraffic / digitraffic.fi, license CC 4.0 BY.');
+    expect(openWatersEventToAisstream({ type: 'welcome' })).toBeNull();
+    viewer.ws.close(1000, 'done');
   });
 
   it('forwards live binary frames only to sockets whose region contains them', async () => {
