@@ -70,6 +70,15 @@ let weatherFC = EMPTY_FC;
 let airportStatusPayload = { airports: [] };
 let allAirportStatusFC = EMPTY_FC;
 let airportStatusFC = EMPTY_FC;
+// Aviation conditions (METAR dots, TFR polygons) and the lazily loaded FAA
+// airspace reference file.
+let allAirportWeatherFC = EMPTY_FC;
+let airportWeatherFC = EMPTY_FC;
+let allTfrFC = EMPTY_FC;
+let tfrFC = EMPTY_FC;
+let allAirspaceFC = EMPTY_FC;
+let airspaceFC = EMPTY_FC;
+let airspacePromise = null;
 
 export function configureGateway(capabilities) {
   trafficAvailable = Boolean(capabilities?.traffic);
@@ -1126,6 +1135,145 @@ function setupConditionLayers() {
       'text-halo-width': 1.6,
     },
   }, 'veh-bike-dots');
+  setupAviationLayers();
+}
+
+// Charted airspace and TFRs sit with the weather polygons under every road
+// and route line (TFRs above airspace); METAR dots sit with the airport-status
+// rings just below moving vehicles.
+const flightCategoryColor = () => [
+  'match', ['get', 'flightCategory'],
+  'VFR', CONFIG.FLIGHT_CATEGORY_COLORS.VFR,
+  'MVFR', CONFIG.FLIGHT_CATEGORY_COLORS.MVFR,
+  'IFR', CONFIG.FLIGHT_CATEGORY_COLORS.IFR,
+  'LIFR', CONFIG.FLIGHT_CATEGORY_COLORS.LIFR,
+  CONFIG.FLIGHT_CATEGORY_COLORS.unknown,
+];
+const tfrColor = () => [
+  'match', ['get', 'tfrType'],
+  'VIP', CONFIG.TFR_COLORS.VIP,
+  'SECURITY', CONFIG.TFR_COLORS.SECURITY,
+  'SPECIAL', CONFIG.TFR_COLORS.SPECIAL,
+  'HAZARDS', CONFIG.TFR_COLORS.HAZARDS,
+  CONFIG.TFR_COLORS.default,
+];
+const airspaceColor = () => [
+  'match', ['get', 'styleKey'],
+  'B', CONFIG.AIRSPACE_COLORS.B,
+  'C', CONFIG.AIRSPACE_COLORS.C,
+  'D', CONFIG.AIRSPACE_COLORS.D,
+  CONFIG.AIRSPACE_COLORS.sua,
+];
+
+function setupAviationLayers() {
+  map.addSource('airspace', { type: 'geojson', data: airspaceFC });
+  map.addLayer({
+    id: 'airspace-fill',
+    type: 'fill',
+    source: 'airspace',
+    layout: { visibility: 'none' },
+    paint: {
+      'fill-color': airspaceColor(),
+      'fill-opacity': ['match', ['get', 'styleKey'], 'sua', 0.08, 'B', 0.05, 0.035],
+    },
+  }, 'major-roads-halo');
+  // Class D outlines are dashed, like the sectional chart; MapLibre cannot
+  // vary line-dasharray per feature, so they get their own layer.
+  for (const [id, filter, dash] of [
+    ['airspace-outline', ['!=', ['get', 'styleKey'], 'D'], null],
+    ['airspace-outline-dashed', ['==', ['get', 'styleKey'], 'D'], [3, 2]],
+  ]) {
+    map.addLayer({
+      id,
+      type: 'line',
+      source: 'airspace',
+      filter,
+      layout: { visibility: 'none', 'line-join': 'round' },
+      paint: {
+        'line-color': airspaceColor(),
+        'line-width': [
+          'interpolate', ['linear'], ['zoom'],
+          5, ['match', ['get', 'styleKey'], 'B', 1.4, 'C', 1.2, 0.9],
+          11, ['match', ['get', 'styleKey'], 'B', 3, 'C', 2.5, 1.8],
+        ],
+        'line-opacity': 0.85,
+        ...(dash ? { 'line-dasharray': dash } : {}),
+      },
+    }, 'major-roads-halo');
+  }
+  map.addLayer({
+    id: 'airspace-labels',
+    type: 'symbol',
+    source: 'airspace',
+    minzoom: 8,
+    layout: {
+      visibility: 'none',
+      'symbol-placement': 'line',
+      'symbol-spacing': 350,
+      'text-field': ['get', 'label'],
+      'text-size': 10,
+      'text-max-angle': 30,
+    },
+    paint: {
+      'text-color': airspaceColor(),
+      'text-halo-color': '#10151b',
+      'text-halo-width': 1.5,
+    },
+  }, 'major-roads-halo');
+
+  map.addSource('tfrs', { type: 'geojson', data: tfrFC });
+  map.addLayer({
+    id: 'tfr-fill',
+    type: 'fill',
+    source: 'tfrs',
+    layout: { visibility: 'none' },
+    paint: { 'fill-color': tfrColor(), 'fill-opacity': 0.22 },
+  }, 'major-roads-halo');
+  map.addLayer({
+    id: 'tfr-outline',
+    type: 'line',
+    source: 'tfrs',
+    layout: { visibility: 'none', 'line-join': 'round' },
+    paint: {
+      'line-color': tfrColor(),
+      'line-width': ['interpolate', ['linear'], ['zoom'], 5, 1.5, 12, 3],
+      'line-opacity': 0.95,
+    },
+  }, 'major-roads-halo');
+
+  map.addSource('airport-weather', { type: 'geojson', data: airportWeatherFC });
+  map.addLayer({
+    id: 'airport-weather-dots',
+    type: 'circle',
+    source: 'airport-weather',
+    layout: { visibility: 'none' },
+    paint: {
+      'circle-color': flightCategoryColor(),
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 3.5, 9, 5.5, 13, 8],
+      'circle-stroke-color': '#10151b',
+      'circle-stroke-width': 1.5,
+      'circle-opacity': 0.95,
+    },
+  }, 'veh-bike-dots');
+  map.addLayer({
+    id: 'airport-weather-labels',
+    type: 'symbol',
+    source: 'airport-weather',
+    minzoom: 8,
+    layout: {
+      visibility: 'none',
+      'text-field': ['get', 'station'],
+      'text-size': 10,
+      'text-anchor': 'bottom',
+      'text-offset': [0, -0.8],
+      'text-allow-overlap': false,
+    },
+    paint: {
+      'text-color': flightCategoryColor(),
+      'text-halo-color': '#10151b',
+      'text-halo-width': 1.5,
+    },
+  }, 'veh-bike-dots');
 }
 
 // `label` prefixes the age, e.g. vessels read "Last heard 2 h 5 min ago".
@@ -1201,6 +1349,212 @@ function wireConditionPopups() {
   map.on('mouseenter', 'weather-alert-fill', () => { map.getCanvas().style.cursor = 'pointer'; });
   map.on('mouseleave', 'weather-alert-fill', () => { map.getCanvas().style.cursor = ''; });
   wireInformationPopup('airport-status-rings');
+  wireAviationPopups();
+}
+
+// ---- aviation popups -------------------------------------------------------
+// METAR dots fetch the station's TAF and TFR polygons their FAA detail text on
+// click, through the gateway, with a short in-page cache per station/NOTAM.
+
+const gatewayDetailCache = new Map();
+function gatewayDetail(path, ttlMs) {
+  const hit = gatewayDetailCache.get(path);
+  if (hit && Date.now() - hit.at < ttlMs) return hit.promise;
+  const promise = fetch(`${CONFIG.GATEWAY_BASE}${path}`, { signal: AbortSignal.timeout(10_000) })
+    .then((response) => {
+      if (!response.ok) throw new Error(`${path} ${response.status}`);
+      return response.json();
+    });
+  gatewayDetailCache.set(path, { at: Date.now(), promise });
+  promise.catch(() => gatewayDetailCache.delete(path));
+  return promise;
+}
+
+const FLIGHT_CATEGORY_TEXT = {
+  VFR: 'VFR · visual flight rules',
+  MVFR: 'MVFR · marginal VFR',
+  IFR: 'IFR · instrument flight rules',
+  LIFR: 'LIFR · low IFR',
+};
+const TFR_TYPE_TEXT = {
+  VIP: 'VIP movement',
+  SECURITY: 'Security',
+  SPECIAL: 'Special security instructions',
+  HAZARDS: 'Hazards',
+  'UAS PUBLIC GATHERING': 'Drone (UAS) public gathering',
+  'AIR SHOWS/SPORTS': 'Air show / sporting event',
+  'SPACE OPERATIONS': 'Space operations',
+};
+const httpsLink = (url, text) => (/^https:\/\//.test(url ?? '')
+  ? `<a class="popup-route-link" href="${esc(url)}" target="_blank" rel="noopener">${esc(text)} ↗</a>`
+  : '');
+const finite = (value) => typeof value === 'number' && Number.isFinite(value);
+// Same wording as every other popup ("12 min ago", "2 h 17 min ago"), then a
+// date for anything older than a day.
+function aviationAge(iso) {
+  const timestamp = Date.parse(iso);
+  if (!Number.isFinite(timestamp)) return 'time unavailable';
+  const ms = Math.max(0, Date.now() - timestamp);
+  if (ms < 24 * 60 * 60_000) return `${ageText(ms)} ago`;
+  return readableTime(iso);
+}
+
+// A point marker (vehicle, stop, airport, METAR) under the click wins over the
+// big polygons around it.
+function pointFeatureAt(point, ownLayers) {
+  return map.queryRenderedFeatures(point).some((feature) =>
+    feature.geometry?.type === 'Point' && feature.properties?.group && !ownLayers.includes(feature.layer.id));
+}
+
+function metarPopupHtml(p, tafHtml) {
+  const color = CONFIG.FLIGHT_CATEGORY_COLORS[p.flightCategory] ?? CONFIG.FLIGHT_CATEGORY_COLORS.unknown;
+  const ceiling = finite(p.ceilingFt)
+    ? `Ceiling ${p.ceilingFt.toLocaleString()} ft`
+    : ['CLR', 'SKC', 'FEW', 'SCT'].includes(p.cover) ? 'No ceiling' : '';
+  const temperature = finite(p.tempC)
+    ? `${Math.round(p.tempC)} °C${finite(p.dewpointC) ? ` / dew point ${Math.round(p.dewpointC)} °C` : ''}`
+    : '';
+  const facts = [
+    p.wind && `Wind ${p.wind}`,
+    p.visibility && `Visibility ${p.visibility}`,
+    ceiling,
+    p.weather,
+    temperature,
+  ].filter(Boolean).join(' · ');
+  return `
+    <div class="popup-title" style="color:${esc(color)}">${esc(p.title)}</div>
+    <div class="popup-dest">${esc(FLIGHT_CATEGORY_TEXT[p.flightCategory] ?? 'Flight category not reported')}</div>
+    ${facts ? `<div class="popup-status">${esc(facts)}</div>` : ''}
+    ${p.raw ? `<div class="popup-subhead">METAR · observed ${aviationAge(p.observedAt)}</div><div class="popup-raw">${esc(p.raw)}</div>` : ''}
+    ${tafHtml}
+    <div class="popup-meta"><span class="popup-data-status live">live</span> · ${esc(p.provider || 'NOAA Aviation Weather Center')} · ${aviationAge(p.observedAt)}</div>
+    ${httpsLink(p.sourceUrl, 'Open AviationWeather.gov')}`;
+}
+
+function tafHtml(taf) {
+  if (!taf) return '<div class="popup-route-note">TAF unavailable right now.</div>';
+  if (!taf.available) return '<div class="popup-route-note">No TAF is issued for this station.</div>';
+  // One forecast period per line, as pilots read it.
+  const raw = String(taf.raw).replace(/\s+(?=(?:FM\d{6}|TEMPO|BECMG|PROB\d{2})\b)/g, '\n');
+  return `<div class="popup-subhead">TAF · issued ${aviationAge(taf.issuedAt)}</div><div class="popup-raw">${esc(raw)}</div>`;
+}
+
+function tfrPopupHtml(p, detail) {
+  const color = CONFIG.TFR_COLORS[p.tfrType] ?? CONFIG.TFR_COLORS.default;
+  let detailHtml = '';
+  if (detail === undefined) {
+    detailHtml = '<div class="popup-route-note">Loading altitudes and times…</div>';
+  } else if (!detail?.available) {
+    detailHtml = '<div class="popup-route-note">Altitudes and times unavailable; open the FAA notice.</div>';
+  } else {
+    const times = detail.effective?.length
+      ? detail.effective
+      : [detail.begins && `Begins ${detail.begins}`, detail.ends && `Ends ${detail.ends}`].filter(Boolean);
+    detailHtml = [
+      ...(detail.altitudes ?? []).map((altitude) => `<div class="popup-status">${esc(altitude)}</div>`),
+      times.length ? `<div class="popup-meta">${times.map(esc).join('<br>')}</div>` : '',
+      detail.reason ? `<div class="popup-meta">${esc(detail.reason)}</div>` : '',
+      detail.notamText ? `<div class="popup-status popup-details">${esc(detail.notamText)}</div>` : '',
+    ].join('');
+  }
+  return `
+    <div class="popup-title" style="color:${esc(color)}">TFR ${esc(p.notamId)}${p.facility ? ` · ${esc(p.facility)}` : ''}</div>
+    <div class="popup-dest">${esc(TFR_TYPE_TEXT[p.tfrType] ?? p.tfrType ?? 'Temporary flight restriction')}</div>
+    <div class="popup-status">${esc(p.title)}</div>
+    ${detailHtml}
+    <div class="popup-meta"><span class="popup-data-status live">live</span> · ${esc(p.provider || 'FAA Temporary Flight Restrictions')}${p.updatedAt ? ` · NOTAM updated ${aviationAge(p.updatedAt)}` : ''}</div>
+    ${httpsLink(p.sourceUrl, 'Open FAA TFR notice')}`;
+}
+
+function airspacePopupHtml(features) {
+  const items = features.slice(0, 6).map((feature) => {
+    const p = feature.properties;
+    const color = CONFIG.AIRSPACE_COLORS[p.styleKey] ?? CONFIG.AIRSPACE_COLORS.sua;
+    const ceiling = `${p.ceiling}${p.ceilingInclusive === false ? ' (not included)' : ''}`;
+    const extra = [p.timesOfUse && `Hours: ${p.timesOfUse}`, p.controllingAgency].filter(Boolean).join(' · ');
+    return `
+      <div class="popup-title" style="color:${esc(color)}">${esc(p.title)}</div>
+      <div class="popup-dest">${esc(p.status)}</div>
+      <div class="popup-status">Floor ${esc(p.floor)} · Ceiling ${esc(ceiling)}</div>
+      ${extra ? `<div class="popup-meta">${esc(extra)}</div>` : ''}`;
+  }).join('<hr class="popup-divider">');
+  const more = features.length > 6 ? `<div class="popup-meta">+${features.length - 6} more layers here</div>` : '';
+  return `${items}${more}
+    <div class="popup-route-note">reference · check current charts and NOTAMs before flying</div>
+    <div class="popup-meta"><span class="popup-data-status reference">reference</span> · FAA ADDS airspace, 28-day cycle</div>
+    ${httpsLink(features[0]?.properties.sourceUrl, 'Open FAA airspace data')}`;
+}
+
+function wireAviationPopups() {
+  map.on('click', 'airport-weather-dots', (event) => {
+    const feature = event.features[0];
+    const p = feature.properties;
+    const canFetch = Boolean(CONFIG.GATEWAY_BASE && p.station);
+    const popup = new maplibregl.Popup({ offset: 10, maxWidth: '360px' })
+      .setLngLat(feature.geometry.coordinates)
+      .setHTML(metarPopupHtml(p, canFetch ? '<div class="popup-route-note">Loading TAF…</div>' : ''))
+      .addTo(map);
+    if (!canFetch) return;
+    gatewayDetail(`/api/airport-taf?id=${encodeURIComponent(p.station)}`, 10 * 60_000)
+      .then((taf) => { if (popup.isOpen()) popup.setHTML(metarPopupHtml(p, tafHtml(taf))); })
+      .catch(() => { if (popup.isOpen()) popup.setHTML(metarPopupHtml(p, tafHtml(null))); });
+  });
+
+  map.on('click', 'tfr-fill', (event) => {
+    if (pointFeatureAt(event.point, ['tfr-fill', 'tfr-outline'])) return;
+    const seen = new Set();
+    const tfrs = event.features.filter((feature) => {
+      const id = feature.properties.notamId;
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    }).slice(0, 3);
+    const details = new Map();
+    const render = () => tfrs
+      .map((feature) => tfrPopupHtml(feature.properties, details.get(feature.properties.notamId)))
+      .join('<hr class="popup-divider">');
+    const popup = new maplibregl.Popup({ offset: 10, maxWidth: '340px' })
+      .setLngLat(event.lngLat)
+      .setHTML(render())
+      .addTo(map);
+    for (const feature of tfrs) {
+      const id = feature.properties.notamId;
+      if (!CONFIG.GATEWAY_BASE) {
+        details.set(id, null);
+        continue;
+      }
+      gatewayDetail(`/api/tfr-detail?id=${encodeURIComponent(id)}`, 30 * 60_000)
+        .then((detail) => details.set(id, detail))
+        .catch(() => details.set(id, null))
+        .finally(() => { if (popup.isOpen()) popup.setHTML(render()); });
+    }
+    if (!CONFIG.GATEWAY_BASE) popup.setHTML(render());
+  });
+
+  map.on('click', 'airspace-fill', (event) => {
+    if (pointFeatureAt(event.point, ['airspace-fill', 'airspace-labels'])) return;
+    if (map.queryRenderedFeatures(event.point, { layers: ['tfr-fill'] }).length) return;
+    // MapLibre drops string feature ids, so dedupe on the id property; a
+    // polygon that spans tiles comes back once per tile.
+    const seen = new Set();
+    const features = event.features
+      .filter((feature) => {
+        const key = feature.properties.airspaceId ?? feature.properties.title;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .sort((a, b) => (a.properties.floorFt ?? 0) - (b.properties.floorFt ?? 0));
+    new maplibregl.Popup({ offset: 10, maxWidth: '330px' })
+      .setLngLat(event.lngLat)
+      .setHTML(airspacePopupHtml(features))
+      .addTo(map);
+  });
+
+  for (const layerId of ['airport-weather-dots', 'tfr-fill', 'airspace-fill']) {
+    map.on('mouseenter', layerId, () => { map.getCanvas().style.cursor = 'pointer'; });
+    map.on('mouseleave', layerId, () => { map.getCanvas().style.cursor = ''; });
+  }
 }
 
 function vehiclePopupHtml(properties, routeHtml = '') {
@@ -1626,6 +1980,119 @@ function renderAirportStatus() {
   map?.getSource('airport-status')?.setData(airportStatusFC);
 }
 
+// ---- aviation conditions data ----------------------------------------------
+// METARs and TFRs arrive New England-wide from the gateway; airspace is a
+// static FAA reference file fetched the first time its layer is switched on.
+
+export function setAirportWeatherData(featureCollection) {
+  allAirportWeatherFC = featureCollection?.features ? featureCollection : EMPTY_FC;
+  renderAirportWeather();
+}
+
+export function airportWeatherCountForRegion() {
+  return filterFeatureCollection(allAirportWeatherFC, activeRegion).features.length;
+}
+
+function renderAirportWeather() {
+  airportWeatherFC = filterFeatureCollection(allAirportWeatherFC, activeRegion);
+  map?.getSource('airport-weather')?.setData(airportWeatherFC);
+}
+
+export function setTfrData(featureCollection) {
+  allTfrFC = featureCollection?.features ? featureCollection : EMPTY_FC;
+  renderTfrs();
+}
+
+// One count per NOTAM, however many areas it draws.
+export function tfrCountForRegion() {
+  const features = filterSpatialFeatureCollection(allTfrFC, activeRegion).features;
+  return new Set(features.map((feature) => feature.properties?.notamId)).size;
+}
+
+function renderTfrs() {
+  tfrFC = filterSpatialFeatureCollection(allTfrFC, activeRegion);
+  map?.getSource('tfrs')?.setData(tfrFC);
+}
+
+// The file is already New England-scoped; offshore warning areas have no
+// vertex on land, so the whole-region view keeps everything.
+function renderAirspace() {
+  airspaceFC = activeRegion === 'new-england'
+    ? allAirspaceFC
+    : filterSpatialFeatureCollection(allAirspaceFC, activeRegion);
+  map?.getSource('airspace')?.setData(airspaceFC);
+}
+
+// Chart-style outline label: class and ceiling/floor in hundreds of feet
+// ("B 70/20", "D 26/SFC"), or the special-use area's own name ("R-4101A").
+function airspaceLabel(properties) {
+  if (properties.kind !== 'class') return properties.title;
+  const hundreds = (feet) => (Number.isFinite(feet) ? String(Math.round(feet / 100)) : '');
+  const floor = properties.floorFt === 0 ? 'SFC' : hundreds(properties.floorFt);
+  return `${properties.airspaceClass} ${hundreds(properties.ceilingFt)}/${floor}`;
+}
+
+async function ensureAirspace() {
+  if (airspacePromise) return airspacePromise;
+  airspacePromise = fetch(CONFIG.AIRSPACE_URL)
+    .then((response) => {
+      if (!response.ok) throw new Error(`airspace ${response.status}`);
+      return response.json();
+    })
+    .then((collection) => {
+      allAirspaceFC = {
+        ...collection,
+        features: (collection.features ?? []).map((feature) => ({
+          ...feature,
+          properties: { ...feature.properties, label: airspaceLabel(feature.properties ?? {}) },
+        })),
+      };
+      renderAirspace();
+      notifyReferenceData();
+    })
+    .catch((error) => {
+      airspacePromise = null; // let the next switch-on retry
+      console.warn('FAA airspace reference unavailable:', error);
+    });
+  return airspacePromise;
+}
+
+function renderAviationConditions() {
+  renderAirportWeather();
+  renderTfrs();
+  renderAirspace();
+}
+
+function aviationFocusCoordinates(groupKey) {
+  return [airportWeatherFC, tfrFC, airspaceFC]
+    .flatMap((collection) => collection.features)
+    .filter((feature) => feature.properties?.group === groupKey)
+    .flatMap((feature) => (feature.geometry.type === 'Point'
+      ? [feature.geometry.coordinates]
+      : polygonCoordinates(feature)));
+}
+
+// METAR dots and TFRs are live; charted airspace is reference.
+function applyAviationVisibility(groups, statuses) {
+  for (const [layerId, group, status] of [
+    ['airport-weather-dots', 'airport-weather', 'live'],
+    ['airport-weather-labels', 'airport-weather', 'live'],
+    ['tfr-fill', 'tfr', 'live'],
+    ['tfr-outline', 'tfr', 'live'],
+    ['airspace-fill', 'airspace', 'reference'],
+    ['airspace-outline', 'airspace', 'reference'],
+    ['airspace-outline-dashed', 'airspace', 'reference'],
+    ['airspace-labels', 'airspace', 'reference'],
+  ]) {
+    if (!map.getLayer(layerId)) continue;
+    map.setLayoutProperty(
+      layerId,
+      'visibility',
+      groups.includes(group) && statuses.includes(status) ? 'visible' : 'none',
+    );
+  }
+}
+
 function renderReferenceData() {
   infrastructureFC = filterSpatialFeatureCollection(allInfrastructureFC, activeRegion);
   localServicesFC = filterSpatialFeatureCollection(allLocalServicesFC, activeRegion);
@@ -1734,6 +2201,7 @@ export function referenceCountsForRegion() {
       if (group) counts[group] = (counts[group] ?? 0) + 1;
     }
   }
+  if (airspaceFC.features.length) counts.airspace = airspaceFC.features.length;
   return counts;
 }
 
@@ -1770,6 +2238,7 @@ export function setVisibleGroups(groups, statuses = ['live', 'estimated', 'sched
   if (groups.some((group) => REFERENCE_PLACE_GROUPS.includes(group))) {
     ensureReferencePlaces();
   }
+  if (groups.includes('airspace')) ensureAirspace();
   if (layersReady) applyGroupFilter(groups, statuses);
 }
 
@@ -1810,6 +2279,7 @@ function applyRegion(fit) {
   renderCameras();
   renderReferenceData();
   renderWeatherAlerts();
+  renderAviationConditions();
   for (const fleetId of rawFleetData.keys()) renderFleetData(fleetId);
   if (!fit) return;
   takeCamera('region');
@@ -1976,6 +2446,7 @@ function applyGroupFilter(groups, statuses) {
       groups.includes(group) && statuses.includes('live') ? 'visible' : 'none',
     );
   }
+  applyAviationVisibility(groups, statuses);
 }
 
 // ---- alert focus -----------------------------------------------------------
@@ -2040,6 +2511,7 @@ export async function focusGroup(groupKey, routeIds = []) {
   if (REFERENCE_PLACE_GROUPS.includes(groupKey)) {
     await ensureReferencePlaces();
   }
+  if (groupKey === 'airspace') await ensureAirspace();
   let coords = [...fleetData.values()]
     .flatMap((fc) => fc.features)
     .filter((f) => f.properties.group === groupKey)
@@ -2064,6 +2536,7 @@ export async function focusGroup(groupKey, routeIds = []) {
           ? polygonCoordinates(feature)
           : lineCoordinates(feature));
   }
+  if (!coords.length) coords = aviationFocusCoordinates(groupKey);
   if (!coords.length) return false;
 
   takeCamera('group');

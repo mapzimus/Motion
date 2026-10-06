@@ -18,6 +18,7 @@ export const GROUP_KEYS = [
   'traffic', 'roadwork', 'incident', 'camera',
   'roads', 'freight', 'border', 'heritage-rail', 'park-ride', 'ev-charging', 'drawbridge',
   'weather', 'airport-status',
+  'airport-weather', 'tfr', 'airspace',
 ];
 
 // The Routes preset: scheduled ribbons for every mode, subway lines only where
@@ -30,7 +31,7 @@ export const VEHICLE_PRESETS = [
   { key: 'rail', label: 'Rail', groups: [...SUBWAY_GROUPS, 'commuter', 'amtrak'] },
   { key: 'buses', label: 'Buses', groups: ['bus', 'local'] },
   { key: 'water', label: 'Water', groups: ['ferry', 'vessel'] },
-  { key: 'air', label: 'Air', groups: ['plane', 'air-service', 'airport', 'airport-status'] },
+  { key: 'air', label: 'Air', groups: ['plane', 'air-service', 'airport', 'airport-status', 'airport-weather', 'tfr', 'airspace'] },
   { key: 'roads', label: 'Roads', groups: ['traffic', 'incident', 'roadwork', 'camera'] },
   { key: 'bikes', label: 'Bikes', groups: ['bike', 'bikeshare', 'cycling'] },
   { key: 'all-live', label: 'All live', groups: 'live' },
