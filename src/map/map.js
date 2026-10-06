@@ -16,7 +16,7 @@ import {
   maxZoomForRegion,
   setActiveRegion,
 } from '../feeds/regions.js';
-import { PALETTE_GROUPS, routeShade } from '../model/palette.js';
+import { buildRouteKeyIndex, stampRouteColors } from '../model/routeColors.js';
 import { setRouteKeyIndex, paletteAssignment } from '../stores/legend.js';
 
 const EMPTY_FC = { type: 'FeatureCollection', features: [] };
@@ -1481,55 +1481,11 @@ function renderRouteShapes() {
   applyRoutePalette();
 }
 
-/**
- * Index the region's operators (group -> key -> label, route and stop counts),
- * publish it so the palette assignment recomputes, then stamp each palette-group
- * feature with its operator color (opColor) and per-route shade (routeColor).
- */
+/** Publish the region's operator index, then stamp opColor/routeColor from the resulting palette. */
 function colorRouteFeatures(features) {
-  const index = new Map(); // group -> key -> { agencies: Map, routeIds: Set, stops }
-  const entryFor = (group, key) => {
-    if (!index.has(group)) index.set(group, new Map());
-    const keys = index.get(group);
-    if (!keys.has(key)) keys.set(key, { agencies: new Map(), routeIds: new Set(), stops: 0 });
-    return keys.get(key);
-  };
-  const eligible = [];
-  for (const feature of features) {
-    const props = feature.properties;
-    if (!PALETTE_GROUPS.includes(props.group) || !props.legendKey) continue;
-    eligible.push(feature);
-    const entry = entryFor(props.group, props.legendKey);
-    if (props.kind === 'regional-station') {
-      entry.stops += 1;
-    } else {
-      entry.routeIds.add(props.route);
-      if (props.agency) entry.agencies.set(props.agency, (entry.agencies.get(props.agency) ?? 0) + 1);
-    }
-  }
-  const published = new Map();
-  for (const [group, keys] of index) {
-    const out = new Map();
-    for (const [key, e] of keys) {
-      const top = [...e.agencies].sort((a, b) => b[1] - a[1])[0];
-      out.set(key, {
-        label: key === 'mbta' ? 'MBTA' : (top?.[0] ?? key),
-        routes: e.routeIds.size,
-        stops: e.stops,
-      });
-    }
-    published.set(group, out);
-  }
-  setRouteKeyIndex(published);
-  const assignment = paletteAssignment.peek();
-  for (const feature of eligible) {
-    const props = feature.properties;
-    const opColor = assignment.get(props.group)?.get(props.legendKey);
-    if (!opColor) continue;
-    const routeId = props.kind === 'regional-station' ? props.routeIds?.[0] : props.route;
-    props.opColor = opColor;
-    props.routeColor = routeShade(opColor, String(routeId ?? ''), published.get(props.group).get(props.legendKey).routes);
-  }
+  const index = buildRouteKeyIndex(features);
+  setRouteKeyIndex(index);
+  stampRouteColors(features, paletteAssignment.peek(), index);
 }
 
 export function setRoadworkData(featureCollection) {
