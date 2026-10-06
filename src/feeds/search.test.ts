@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { registerRegions } from './regions.js';
-import { regionForEntry, search, setSearchFeatures } from './search.js';
+import { regionForEntry, search, setSearchAirports, setSearchFeatures } from './search.js';
 import { regionFixture } from './test-fixtures.js';
 
 const stop = (title: string, lng: number, lat: number) => ({
@@ -65,5 +65,44 @@ describe('regionForEntry', () => {
   it('leaves region and vehicle picks to their own handlers', () => {
     expect(regionForEntry({ type: 'region', key: 'nh' }, 'ma')).toBeNull();
     expect(regionForEntry({ type: 'vehicle' }, 'ma')).toBeNull();
+  });
+});
+
+describe('airport search', () => {
+  const airport = (title: string, faaId: string, icao: string, facilityUse: string, lng: number, lat: number) => ({
+    type: 'Feature',
+    geometry: { type: 'Point', coordinates: [lng, lat] },
+    properties: {
+      group: 'airport', title, faaId, icao, facilityUse, facilityType: 'Airport',
+      status: `${facilityUse === 'public' ? 'Public' : 'Private'} use airport`,
+    },
+  });
+
+  beforeAll(() => {
+    setSearchAirports([
+      airport('General Edward Lawrence Logan Intl', 'BOS', 'KBOS', 'public', -71.006, 42.363),
+      airport('Laurence G Hanscom Fld', 'BED', 'KBED', 'public', -71.289, 42.47),
+      airport('Hidden Acres', '1MA9', '', 'private', -71.5, 42.3),
+    ]);
+  });
+
+  it('finds public-use airports by FAA id, ICAO id and name', () => {
+    for (const query of ['BOS', 'kbos', 'logan']) {
+      const hit = find(query).find((entry) => entry.type === 'airport');
+      expect(hit?.name).toBe('General Edward Lawrence Logan Intl');
+    }
+    expect(find('BOS')[0].sub).toBe('BOS / KBOS · Public use airport');
+    expect(find('bed').find((entry) => entry.type === 'airport')?.name).toBe('Laurence G Hanscom Fld');
+  });
+
+  it('leaves private-use facilities out of search', () => {
+    expect(find('hidden acres').some((entry) => entry.type === 'airport')).toBe(false);
+    expect(find('1ma9').some((entry) => entry.type === 'airport')).toBe(false);
+  });
+
+  it('switches region like any other point result', () => {
+    const logan = find('bos').find((entry) => entry.type === 'airport');
+    expect(regionForEntry(logan, 'nh')).not.toBeNull();
+    expect(regionForEntry(logan, 'ma')).toBeNull();
   });
 });
