@@ -31,6 +31,15 @@
   "places" total) now update when their data finishes loading rather than at
   the next region change; the traffic, walking and cycling rows say "overlay"
   instead of a permanent dash.
+- Region names and descriptions tidied: "Providence Metro", "New Hampshire
+  Seacoast" and "Berkshires" now match the others' style, and descriptions
+  that only repeated the name ("State of Maine", "Worcester County") say what
+  the region covers.
+- On phones, tapping a scene closes the panel like picking a region does,
+  even when you are already in that scene's region; layer presets and basemap
+  buttons leave it open for further tuning. Find and the map now share one
+  camera-padding helper, measured from the panel itself, instead of two copies
+  with a hard-coded width.
 - Panel restyle: solid surface, IBM Plex Sans, sentence-case copy, a labeled
   Layers/Close button on phones.
 - `scripts/build-regions.py` writes to `public/data/` again, and
