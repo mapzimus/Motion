@@ -29,6 +29,13 @@ import {
   type TfrListEntry,
   type TfrWfsFeature,
 } from './aviation';
+import {
+  iconPointFeatures,
+  parseVtransPlows,
+  roadDetailFromTooltip,
+  validRoadDetail,
+  type RoadCatalog,
+} from './road-extras';
 
 const MASSDOT_WORK_ZONE_URL = 'https://feed.massdot-swzm.com/massdot_wzdx_v4.1_work_zone_feed.geojson';
 const NORTHERN_WORK_ZONE_URL = 'https://api.dx.ne-compass.com/wzdx-latest/';
@@ -77,6 +84,8 @@ const TFR_WFS_URL = 'https://tfr.faa.gov/geoserver/TFR/ows?service=WFS&version=1
 const TFR_DETAIL_URL = 'https://tfr.faa.gov/tfrapi/getWebText';
 const TFR_CACHE_SECONDS = 5 * 60;
 const TFR_DETAIL_CACHE_SECONDS = 30 * 60;
+const VTRANS_PLOW_URL = 'https://plowtrucks.vtrans.vermont.gov/assets/vehicleJSON.json';
+const ROAD_ICON_CACHE_SECONDS = 5 * 60;
 
 // ---- provider health -------------------------------------------------------
 // /health reports each provider as `true` only when the most recent upstream
@@ -1081,6 +1090,108 @@ async function tfrs(request: Request, ctx: ExecutionContext): Promise<Response> 
   });
 }
 
+async function roadIconFeed(
+  request: Request,
+  ctx: ExecutionContext,
+  catalog: RoadCatalog,
+  group: string,
+  color: string,
+  title: string,
+  status: string,
+  providerName: string,
+): Promise<Response> {
+  return cachedJson(request, ctx, ROAD_ICON_CACHE_SECONDS, async () => {
+    const updatedAt = new Date().toISOString();
+    const feeds = await Promise.allSettled(IBI_511_SOURCES.map(async (source) => {
+      const response = await fetch(`${source.base}/map/mapIcons/${catalog}`, {
+        headers: { accept: 'application/json' },
+        cf: { cacheEverything: true, cacheTtl: ROAD_ICON_CACHE_SECONDS },
+      });
+      if (!response.ok) throw new Error(`${source.key} ${catalog} ${response.status}`);
+      const icons = await response.json() as IbiIcons;
+      return iconPointFeatures(icons.item2 ?? [], {
+        providerKey: source.key,
+        provider: source.provider,
+        catalog,
+        group,
+        color,
+        title,
+        status,
+        sourceUrl: `${source.base}/`,
+        updatedAt,
+      });
+    }));
+    const features = feeds.flatMap((result) => (result.status === 'fulfilled' ? result.value : []));
+    markProvider(providerName, feeds.some((result) => result.status === 'fulfilled'));
+    if (!features.length && feeds.every((result) => result.status === 'rejected')) {
+      return json({ error: `${title} feed unavailable` }, 502);
+    }
+    return json({
+      type: 'FeatureCollection',
+      provider: catalog === 'WeatherStations'
+        ? 'New England 511 road weather stations'
+        : 'New England 511 and CTroads highway message signs',
+      coverage: catalog === 'WeatherStations' ? ['me', 'nh', 'vt'] : ['ct', 'me', 'nh', 'vt'],
+      features,
+    });
+  });
+}
+
+async function roadDetail(url: URL): Promise<Response> {
+  const catalog = url.searchParams.get('catalog');
+  const providerKey = url.searchParams.get('provider');
+  const id = url.searchParams.get('id') ?? '';
+  if (!validRoadDetail(catalog, providerKey, id)) return json({ error: 'Invalid road detail request' }, 400);
+  const source = IBI_511_SOURCES.find((item) => item.key === providerKey);
+  if (!source || (catalog !== 'WeatherStations' && catalog !== 'MessageSigns')) {
+    return json({ error: 'Invalid road detail request' }, 400);
+  }
+  const upstream = await fetch(`${source.base}/tooltip/${catalog}/${id}?lang=en`, {
+    cf: { cacheEverything: true, cacheTtl: 60 },
+  });
+  if (!upstream.ok) return json({ error: `Road detail ${upstream.status}` }, 502);
+  const detail = roadDetailFromTooltip(await upstream.text(), catalog);
+  return json({
+    ...detail,
+    updatedAt: detail.updatedAt || new Date().toISOString(),
+    sourceUrl: `${source.base}/`,
+    provider: source.provider,
+  });
+}
+
+// An empty file is a successful winter-off reading, not a dead feed.
+async function plows(request: Request, ctx: ExecutionContext): Promise<Response> {
+  return cachedJson(request, ctx, 60, async () => {
+    const upstream = await fetch(VTRANS_PLOW_URL, {
+      headers: { accept: 'application/json' },
+      cf: { cacheEverything: true, cacheTtl: 60 },
+    }).catch(() => null);
+    if (!upstream?.ok) {
+      markProvider('plows', false);
+      return json({ error: `VTrans plows ${upstream?.status ?? 'unavailable'}` }, 502);
+    }
+    const text = (await upstream.text()).replace(/^\uFEFF/, '');
+    let payload: unknown;
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      markProvider('plows', false);
+      return json({ error: 'VTrans plow file was not JSON' }, 502);
+    }
+    markProvider('plows', true);
+    const features = parseVtransPlows(payload);
+    return json({
+      type: 'FeatureCollection',
+      provider: 'VTrans live plow trucks',
+      coverage: ['vt'],
+      note: features.length
+        ? 'Live Vermont plow trucks.'
+        : 'No plow trucks are reporting. The Vermont file is empty outside winter.',
+      features,
+    });
+  });
+}
+
 async function tfrDetail(request: Request, url: URL, ctx: ExecutionContext): Promise<Response> {
   const notamId = url.searchParams.get('id');
   if (!validNotamId(notamId)) return json({ error: 'Invalid NOTAM id' }, 400);
@@ -1129,6 +1240,9 @@ export default {
           roadwork: providerHealthy('roadwork'),
           roadEvents: providerHealthy('roadEvents'),
           cameras: providerHealthy('cameras'),
+          roadWeather: providerHealthy('roadWeather'),
+          messageSigns: providerHealthy('messageSigns'),
+          plows: providerHealthy('plows'),
           airportStatus: providerHealthy('airportStatus'),
           weatherAlerts: providerHealthy('weatherAlerts'),
           airportWeather: providerHealthy('airportWeather'),
@@ -1152,6 +1266,20 @@ export default {
       response = await cameras(request, ctx);
     } else if (url.pathname === '/api/camera-detail') {
       response = await cameraDetail(url);
+    } else if (url.pathname === '/api/road-weather') {
+      response = await roadIconFeed(
+        request, ctx, 'WeatherStations', 'road-weather', '#7ec8e3',
+        'Road weather station', 'Click for the latest reading', 'roadWeather',
+      );
+    } else if (url.pathname === '/api/message-signs') {
+      response = await roadIconFeed(
+        request, ctx, 'MessageSigns', 'message-sign', '#f0c14a',
+        'Highway message sign', 'Click for the message it is posting', 'messageSigns',
+      );
+    } else if (url.pathname === '/api/road-detail') {
+      response = await roadDetail(url);
+    } else if (url.pathname === '/api/plows') {
+      response = await plows(request, ctx);
     } else if (url.pathname === '/api/airport-status') {
       response = await airportStatus(request, ctx);
     } else if (url.pathname === '/api/weather-alerts') {

@@ -16,7 +16,7 @@ import uiSource from '../../src/ui.js?raw';
 // every gateway provider is available.
 const LIVE_GROUPS = new Set([
   'commuter', 'bus', 'amtrak', 'ferry', 'plane', 'vessel', 'bike',
-  'traffic', 'roadwork', 'incident', 'camera', 'weather', 'airport-status',
+  'traffic', 'roadwork', 'incident', 'camera', 'road-weather', 'message-sign', 'plow', 'weather', 'airport-status',
   'airport-weather', 'tfr',
 ]);
 const groups = GROUP_KEYS.map((key) => ({
@@ -30,9 +30,9 @@ const subwayRegions = new Set(
 const hasSubway = (key) => subwayRegions.has(key);
 
 describe('layer presets and scenes', () => {
-  it('lists 36 unique layer groups', () => {
-    expect(GROUP_KEYS).toHaveLength(36);
-    expect(new Set(GROUP_KEYS).size).toBe(36);
+  it('lists 40 unique layer groups', () => {
+    expect(GROUP_KEYS).toHaveLength(40);
+    expect(new Set(GROUP_KEYS).size).toBe(40);
   });
 
   it('puts the aviation conditions in the Air preset', () => {

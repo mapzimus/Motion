@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### More of what moves
+- Road weather stations from New England 511 (Maine, New Hampshire, Vermont). The map loads locations only; click a station for air temperature, wind, and pavement temperature.
+- Highway message signs from New England 511 and CTroads. Click a sign for the message it is posting.
+- Vermont plow trucks from the VTrans public file. The file is empty outside winter, and an empty file stays a healthy feed. New Hampshire winter plow routes are a reference layer under the same switch.
+- Ski lifts, gondolas, and aerial tramways from OpenStreetMap. These are the lift lines, not live cabins.
+- New England Airlines Westerly–Block Island, OurBus and Lucky Star Boston–New York, and the AMC hiker shuttles (Pinkham Notch–Highland Center and Highland Center–Lincoln via Franconia Notch) as scheduled ribbons.
+- Catalog points for the Bustins Island ferry, Dolphin Fleet and Cape Ann whale watches, and MBTA The RIDE. The RIDE has no public vehicle positions.
+
 ### Roads and vessels
 - RIDOT traffic cameras, with the still image URL on each point, and `ri` on the camera coverage list.
 - RIDOT park-and-ride lots in the reference-places layer.

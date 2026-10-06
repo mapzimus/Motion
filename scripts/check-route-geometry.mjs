@@ -717,7 +717,7 @@ for (const feature of collection.features) {
     throw new Error(`Seasonal air route ${properties.route} has the wrong status for ${checkedOn}`);
   }
 }
-if (supplementalAir.features.length !== 18
+if (supplementalAir.features.length !== 19
     || airRouteIds.size !== supplementalAir.features.length
     || invalidAirRoutes.length
     || [...airRouteIds].filter((route) => route.startsWith('penobscot-island-air:')).length !== 4
@@ -938,6 +938,34 @@ for (const [group, minimum] of Object.entries(REFERENCE_PLACE_MINIMUMS)) {
     `Region registry check passed: ${builtRegions.size} regions + ${virtualRegions.size} virtual, `
     + `${regionsRaw.length} bytes; fewest scheduled routes: ${emptiest[0]} (${emptiest[1]}).`,
   );
+}
+
+{
+  const plowRoutes = JSON.parse(readFileSync(new URL('../public/data/plow-routes.geojson', import.meta.url), 'utf8'));
+  const aerialways = JSON.parse(readFileSync(new URL('../public/data/aerialways.geojson', import.meta.url), 'utf8'));
+  const lineProblems = [];
+  const checkLines = (collection, group, minimum) => {
+    if ((collection.features ?? []).length < minimum) {
+      lineProblems.push(`${group}: ${collection.features?.length ?? 0} < ${minimum}`);
+    }
+    for (const feature of collection.features ?? []) {
+      const geometry = feature.geometry ?? {};
+      const properties = feature.properties ?? {};
+      const parts = geometry.type === 'LineString' ? [geometry.coordinates]
+        : geometry.type === 'MultiLineString' ? geometry.coordinates : [];
+      const valid = parts.length > 0 && parts.every((part) => part.length >= 2
+        && part.every((point) => Number.isFinite(point?.[0]) && Number.isFinite(point?.[1])));
+      if (!valid || properties.group !== group || properties.dataStatus !== 'reference' || !properties.title
+          || !/^https:\/\//.test(properties.sourceUrl ?? '')) {
+        lineProblems.push(`${group}: invalid feature ${feature.id ?? properties.title}`);
+        break;
+      }
+    }
+  };
+  checkLines(plowRoutes, 'plow', 400);
+  checkLines(aerialways, 'aerialway', 150);
+  if (lineProblems.length) throw new Error(`Reference line check failed:\n${lineProblems.join('\n')}`);
+  console.log(`Reference lines passed: ${plowRoutes.features.length} plow routes, ${aerialways.features.length} aerialways.`);
 }
 
 console.log(
