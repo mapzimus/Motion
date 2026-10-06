@@ -2,6 +2,7 @@
 // vehicle fleet, source-agnostic popups, and alert-focus navigation.
 
 import { CONFIG } from '../feeds/config.js';
+import { AIRPORT_STATUS_LABELS } from '../model/legendConfig.js';
 import { lookupFlightRoute } from '../feeds/flight-routes.js';
 import { attachStopPredictions } from '../feeds/predictions.js';
 import {
@@ -1561,13 +1562,6 @@ export function airportStatusCountForRegion() {
   return filterFeatureCollection(allAirportStatusFC, activeRegion).features.length;
 }
 
-const AIRPORT_STATUS_LABELS = {
-  'ground-stop': 'Ground stop',
-  'ground-delay': 'Ground delay program',
-  'arrival-delay': 'Arrival delays',
-  'departure-delay': 'Departure delays',
-  closure: 'Airport closure / NOTAM',
-};
 const AIRPORT_STATUS_BADGES = {
   'ground-stop': 'STOP',
   'ground-delay': 'GDP',
