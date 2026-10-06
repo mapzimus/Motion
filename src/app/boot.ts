@@ -35,6 +35,7 @@ import {
 import { follow, getSelection, initFollow } from '../follow/follow.js';
 import { initTripCard, showToast } from '../trip-card.js';
 import * as ui from '../ui.js';
+import { initLegacyBridge } from '../legacyBridge.js';
 import {
   setLoading,
   setFatal,
@@ -135,6 +136,9 @@ export async function boot(): Promise<void> {
     capabilities,
   );
   if (permalink.on || permalink.off || permalink.statuses) ui.applyVisibleState(permalink);
+  // The panel's rows exist now, so store changes (counts, status, alerts) can
+  // reach it from here on instead of waiting for the route shapes below.
+  initLegacyBridge();
   configureGateway(capabilities);
 
   setLoading('Drawing the map…');
@@ -221,6 +225,8 @@ export async function boot(): Promise<void> {
   );
   startSharedMobility((counts: Record<string, number>) => updateCounts(counts, 'shared-mobility'));
   regionalControllers.push(startAlertPolling(routeInfo, updateAlertSource('mbta')));
+  // The map and live feeds are up; route ribbons fill in behind the lifted overlay.
+  setLoading(null);
 
   // Route ribbons load after polling kicks off; vehicles shouldn't wait on
   // them. Every route gets a ribbon.

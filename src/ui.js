@@ -513,7 +513,6 @@ function renderCounts() {
       cell.removeAttribute('title');
     }
   }
-  hideOverlay();
   renderStatus();
   renderOverviewStats();
 }
@@ -660,7 +659,13 @@ export function renderAlerts(alerts) {
 
 // ---- overlay --------------------------------------------------------------
 
+// A message shows in the loading overlay; null lifts it. Counts arriving never
+// lift it on their own, so the panel can fill in behind the overlay.
 export function setLoading(message) {
+  if (message === null) {
+    hideOverlay();
+    return;
+  }
   el('overlay-text').textContent = message;
 }
 
