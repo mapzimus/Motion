@@ -2,16 +2,48 @@
 // functions: no map, DOM, or store access. Layer groups in PALETTE_GROUPS get a
 // color per operator; every other group keeps its CONFIG color.
 
-/** 16 hues legible (>= 3:1) on the #0b0f14 map background. Slot 0 is the bus yellow. */
+/**
+ * 16 hand-tuned categorical hues, legible (>= 3:1) on the #0b0f14 map background,
+ * at least 70 RGB apart from each other, the subway line colors and the official
+ * operator colors. Slot 0 is the bus yellow.
+ */
 export const PALETTE: readonly string[] = [
-  '#f2b84b', '#2b79ee', '#ee2bee', '#2bee2b', '#7bf4b8', '#ee2b65', '#b090df', '#8ccb4d',
-  '#2bdaee', '#f47b9f', '#2bee8c', '#c7df90', '#cb734d', '#7bc4f4', '#c7ee2b', '#f47bf4',
+  '#f2b84b', // amber
+  '#d3713e', // rust
+  '#fe8178', // coral
+  '#ee88bf', // pink
+  '#efabff', // orchid
+  '#a378d4', // violet
+  '#99b1ff', // periwinkle
+  '#5c88df', // blue
+  '#48c9ff', // sky
+  '#00cdef', // cyan
+  '#00b3a3', // teal
+  '#3ddab5', // aqua
+  '#71ce83', // green
+  '#acc659', // lime
+  '#a99f15', // olive
+  '#ffc890', // peach
 ];
 
 /** The same hues at ~75-85% brightness, still 3:1 on the background, for operators ranked 16-31. */
 export const PALETTE_DIM: readonly string[] = [
-  '#b38838', '#2260bc', '#b020b0', '#20b020', '#5bb588', '#ba224f', '#826ba5', '#689639',
-  '#20a1b0', '#b55b76', '#20b068', '#93a56b', '#965539', '#5b91b5', '#93b020', '#b55bb5',
+  '#b38838', // amber
+  '#9c542e', // rust
+  '#bc5f59', // coral
+  '#b0658d', // pink
+  '#b17fbd', // orchid
+  '#79599d', // violet
+  '#7183bd', // periwinkle
+  '#4465a5', // blue
+  '#3595bd', // sky
+  '#0098b1', // cyan
+  '#008479', // teal
+  '#2da186', // aqua
+  '#549861', // green
+  '#7f9342', // lime
+  '#7d7610', // olive
+  '#bd946b', // peach
 ];
 
 /** Brand colors that beat the palette, keyed `group:operatorKey`. */
@@ -69,8 +101,22 @@ export function paletteColorFor(
   return assignment.get(group)?.get(key) ?? PALETTE_DIM[hashIndex(`${group}:${key}`, 16)];
 }
 
+const MAP_BG = '#0b0f14';
+
+function relativeLuminance(hex: string): number {
+  const [r, g, b] = [1, 3, 5].map((i) => {
+    const c = parseInt(hex.slice(i, i + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function contrastOnMap(hex: string): number {
+  return (relativeLuminance(hex) + 0.05) / (relativeLuminance(MAP_BG) + 0.05);
+}
+
 function hexToHsl(hex: string): [number, number, number] {
-  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255); // parseInt reads either case
   const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
   const l = (max + min) / 2;
   if (!d) return [0, 0, l];
@@ -99,7 +145,11 @@ export function routeShade(operatorHex: string, routeId: string, routeCount = 2)
   const [h, s, l] = hexToHsl(operatorHex);
   const dh = (hashIndex(`${routeId}#h`, 1001) / 1000) * 28 - 14;
   const dl = (hashIndex(`${routeId}#l`, 1001) / 1000) * 0.2 - 0.1;
-  return hslToHex((h + dh + 360) % 360, s, Math.min(0.9, Math.max(0.15, l + dl)));
+  const hue = (h + dh + 360) % 360;
+  let light = Math.min(0.9, Math.max(0.15, l + dl));
+  // Keep the shade readable on the map: nudge lightness up until it clears 3:1.
+  for (let i = 0; i < 40 && contrastOnMap(hslToHex(hue, s, light)) < 3.05 && light < 0.95; i++) light += 0.01;
+  return hslToHex(hue, s, light);
 }
 
 export interface VesselBand { key: string; label: string; color: string; types?: [number, number][] }

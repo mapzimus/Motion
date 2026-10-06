@@ -54,6 +54,10 @@ describe('PALETTE', () => {
       }
     }
   });
+  it('stays 70+ RGB away from subway and official operator colors', () => {
+    const fixed = ['#da291c', '#ed8b00', '#00843d', '#003da5', ...Object.values(OFFICIAL_COLORS)];
+    for (const c of PALETTE) for (const f of fixed) expect(distance(c, f), `${c} vs ${f}`).toBeGreaterThanOrEqual(70);
+  });
   it('dim colors are darker than their bright twins', () => {
     PALETTE.forEach((c, i) => expect(luminance(PALETTE_DIM[i])).toBeLessThan(luminance(c)));
   });
@@ -124,6 +128,16 @@ describe('routeShade', () => {
       const dh = Math.abs(((hue(s) - hue('#4d9fec') + 540) % 360) - 180);
       expect(dh).toBeLessThanOrEqual(15);
       expect(Math.abs(lightness(s) - lightness('#4d9fec'))).toBeLessThanOrEqual(0.11);
+    }
+  });
+  it('accepts uppercase hex', () => {
+    expect(routeShade('#4D9FEC', '66', 5)).toBe(routeShade('#4d9fec', '66', 5));
+  });
+  it('keeps shades of dim colors readable (3:1)', () => {
+    for (const base of PALETTE_DIM) {
+      for (const id of ['1', '2', '3', '66', 'CT1', 'x', 'Red-Line', '9']) {
+        expect(contrast(routeShade(base, id, 5), BG), `${base} ${id}`).toBeGreaterThanOrEqual(3);
+      }
     }
   });
   it('gives different routes different shades', () => {

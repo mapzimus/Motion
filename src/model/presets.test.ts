@@ -63,4 +63,9 @@ describe('legend descriptors', () => {
       expect(Array.isArray(LEGEND_GROUPS[key].notes), key).toBe(true);
     }
   });
+  it('every fixedRows entry has a 6-digit hex color', () => {
+    for (const [key, g] of Object.entries(LEGEND_GROUPS)) {
+      for (const row of g.fixedRows ?? []) expect(row.color, `${key}/${row.key}`).toMatch(/^#[0-9a-fA-F]{6}$/);
+    }
+  });
 });
