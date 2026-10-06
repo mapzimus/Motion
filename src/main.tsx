@@ -1,3 +1,5 @@
+/// <reference types="vite/client" />
+import 'maplibre-gl/dist/maplibre-gl.css';
 import { render } from 'preact';
 import { boot } from './app/boot.js';
 import { Legend } from './components/Legend.js';
