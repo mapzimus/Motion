@@ -57,6 +57,13 @@ export async function loadRegionalRouteFeatures(): Promise<GeoJSON.Feature[]> {
   return [];
 }
 
+/** Legend label for an MBTA route: the bus number, else the long name. */
+function routeName(set: ShapeSet, info: RouteEntry | undefined): string {
+  const short = info?.shortName as string | undefined;
+  const long = info?.longName as string | undefined;
+  return (set.group === 'bus' ? short || long : long || short) || set.id;
+}
+
 /**
  * Fetch MBTA shape polylines for all routes, with localStorage caching.
  */
@@ -74,6 +81,7 @@ export async function loadShapeFeatures(
         geometry: { type: 'LineString' as const, coordinates: decodePolyline(polyline) },
         properties: {
           route: set.id,
+          name: routeName(set, routeInfo.get(set.id)),
           group: set.group,
           color: set.color,
           kind: 'mbta',

@@ -8,9 +8,11 @@ import {
   type OperatorStat,
 } from '../model/palette.js';
 import { vehicleColors, type VehicleColorProps, type VehicleColors } from '../model/vehicleColors.js';
+import { buildLegendSections, type ViewportRoutes } from '../model/legendRows.js';
+import { visibleGroups } from './layers.js';
 
 export interface RouteKeyEntry { label: string; routes: number; stops: number }
-export interface LiveKeyEntry { n: number; label?: string }
+export interface LiveKeyEntry { n: number; label?: string; color?: string }
 export type RouteKeyIndex = Map<string, Map<string, RouteKeyEntry>>;
 export type LiveKeyCounts = Map<string, Map<string, LiveKeyEntry>>;
 
@@ -60,3 +62,33 @@ export function paintVehicle<T extends { props: VehicleColorProps & { routeColor
   if (colors) Object.assign(item.props, colors);
   return item;
 }
+
+/** Map zoom as of the last zoomend; picks operator rows or viewport routes. */
+export const legendZoom = signal(0);
+/** group -> route key -> route currently rendered in the viewport. */
+export const viewportRoutes = signal<ViewportRoutes>(new Map());
+/** Subway group -> line color, for the section header swatch. */
+export const subwayColors = signal<Map<string, string>>(new Map());
+
+export function setLegendZoom(zoom: number) {
+  legendZoom.value = zoom;
+}
+
+export function setViewportRoutes(routes: ViewportRoutes) {
+  viewportRoutes.value = routes;
+}
+
+export function setSubwayColors(colors: Map<string, string>) {
+  subwayColors.value = colors;
+}
+
+/** One legend section per visible group, in panel order. */
+export const legendSections = computed(() => buildLegendSections({
+  groups: visibleGroups.value,
+  zoom: legendZoom.value,
+  index: routeKeyIndex.value,
+  live: liveKeyCounts.value,
+  assignment: paletteAssignment.value,
+  viewport: viewportRoutes.value,
+  subwayColors: subwayColors.value,
+}));

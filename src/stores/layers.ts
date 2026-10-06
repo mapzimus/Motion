@@ -1,4 +1,5 @@
 import { signal, computed } from '@preact/signals';
+import { ALL_STATUSES, GROUP_KEYS } from '../model/presets.js';
 
 export const groupOn = signal<Map<string, boolean>>(new Map());
 export const manualOverrides = signal<Set<string>>(new Set());
@@ -29,6 +30,18 @@ export function setStatus(key: string, on: boolean) {
   const next = new Map(statuses.value);
   next.set(key, on);
   statuses.value = next;
+}
+
+/** Replace every group's on/off state from the list of visible groups (panel order). */
+export function setVisibleGroupList(groups: readonly string[]) {
+  const on = new Set(groups);
+  groupOn.value = new Map(GROUP_KEYS.map((key: string) => [key, on.has(key)]));
+}
+
+/** Replace the data-status filters from the list of visible statuses. */
+export function setVisibleStatusList(list: readonly string[]) {
+  const on = new Set(list);
+  statuses.value = new Map(ALL_STATUSES.map((key: string) => [key, on.has(key)]));
 }
 
 export function initGroupState(groups: Array<{ key: string; needsKey?: boolean }>, defaults: Map<string, boolean>) {

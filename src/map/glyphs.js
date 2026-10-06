@@ -28,6 +28,10 @@ function polygon(points) {
   };
 }
 
+// Rounded boxes on the 64-unit grid: [x, y, w, h, radius].
+const BUS_BOX = [21, 8, 22, 48, 9];
+const DOCK_BOX = [15, 15, 34, 34, 8];
+
 const roundedRect = (x, y, w, h, r) => (ctx, size) => {
   const u = size / 64;
   ctx.beginPath();
@@ -59,11 +63,29 @@ const scooter = (ctx, size) => {
 export const GLYPHS = {
   plane: polygon(mirrorHalf(PLANE_HALF)),
   boat: polygon(mirrorHalf(BOAT_HALF)),
-  bus: roundedRect(21, 8, 22, 48, 9),
-  dock: roundedRect(15, 15, 34, 34, 8),
+  bus: roundedRect(...BUS_BOX),
+  dock: roundedRect(...DOCK_BOX),
   'share-bike': diamond,
   'share-scooter': scooter,
 };
+
+const svgPolygon = (points) => `M${points.map(([x, y]) => `${x} ${y}`).join('L')}Z`;
+const svgRoundedRect = (x, y, w, h, r) =>
+  `M${x + r} ${y}H${x + w - r}A${r} ${r} 0 0 1 ${x + w} ${y + r}V${y + h - r}` +
+  `A${r} ${r} 0 0 1 ${x + w - r} ${y + h}H${x + r}A${r} ${r} 0 0 1 ${x} ${y + h - r}` +
+  `V${y + r}A${r} ${r} 0 0 1 ${x + r} ${y}Z`;
+
+const SVG_PATHS = {
+  plane: svgPolygon(mirrorHalf(PLANE_HALF)),
+  boat: svgPolygon(mirrorHalf(BOAT_HALF)),
+  bus: svgRoundedRect(...BUS_BOX),
+  dock: svgRoundedRect(...DOCK_BOX),
+};
+
+/** SVG path `d` (64x64 viewBox) for the plane, boat, bus or dock shape, '' for others. */
+export function glyphSvgPath(shape) {
+  return SVG_PATHS[shape] ?? '';
+}
 
 /** Sprite name for a shape in a color: iconName('bus', '#F2B84B') -> 'icon-bus-f2b84b'. */
 export function iconName(shape, hex) {

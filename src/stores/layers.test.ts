@@ -9,6 +9,8 @@ import {
   visibleStatuses,
   setGroupOn,
   setStatus,
+  setVisibleGroupList,
+  setVisibleStatusList,
   initGroupState,
   clearManualOverrides,
 } from './layers.js';
@@ -59,6 +61,21 @@ describe('layers store', () => {
     setGroupOn('bus', true, true);
     expect(manualOverrides.value.has('bus')).toBe(true);
     expect(groupOn.value.get('bus')).toBe(true);
+  });
+
+  it('replaces group state from a visible list, over every group key', () => {
+    setVisibleGroupList(['bus', 'red']);
+    expect(visibleGroups.value).toEqual(['red', 'bus']);
+    expect(groupOn.value.get('ferry')).toBe(false);
+    expect(groupOn.value.size).toBe(GROUP_KEYS.length);
+    setVisibleGroupList(['ferry']);
+    expect(visibleGroups.value).toEqual(['ferry']);
+  });
+
+  it('replaces statuses from a visible list', () => {
+    setVisibleStatusList(['live']);
+    expect(visibleStatuses.value).toEqual(['live']);
+    expect(statuses.value.get('reference')).toBe(false);
   });
 
   it('clears manual overrides', () => {

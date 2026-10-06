@@ -17,7 +17,8 @@ import {
   setActiveRegion,
 } from '../feeds/regions.js';
 import { buildRouteKeyIndex, stampRouteColors } from '../model/routeColors.js';
-import { setRouteKeyIndex, paletteAssignment } from '../stores/legend.js';
+import { setRouteKeyIndex, paletteAssignment, setLiveKeyCounts, setLegendZoom, setViewportRoutes } from '../stores/legend.js';
+import { countLiveKeys, viewportRoutesFromFeatures, VIEWPORT_ZOOM } from '../model/legendRows.js';
 import { PALETTE, VESSEL_BANDS } from '../model/palette.js';
 import { GLYPHS, iconName, parseIconName } from './glyphs.js';
 
@@ -205,6 +206,7 @@ export function initMap() {
       // survive basemap swaps and are wired once.
       wirePopups();
       map.on('styleimagemissing', drawMissingIcon);
+      wireLegend();
       resolve(map);
     });
   });
@@ -1753,6 +1755,42 @@ function renderFleetData(fleetId) {
   const filtered = filterFeatureCollection(collection, activeRegion, fleetFilterOptions(fleetId));
   fleetData.set(fleetId, filtered);
   map?.getSource(`veh-${fleetId}`)?.setData(filtered);
+  scheduleLiveKeyCounts();
+  scheduleViewportRoutes();
+}
+
+// ---- legend feeds ------------------------------------------------------------
+// renderFleetData runs every animation frame during glides, so the legend's
+// live counts and viewport routes are coalesced into one update per 300 ms.
+
+const LEGEND_THROTTLE_MS = 300;
+let liveKeyTimer = null;
+let viewportTimer = null;
+
+function scheduleLiveKeyCounts() {
+  if (liveKeyTimer) return;
+  liveKeyTimer = setTimeout(() => {
+    liveKeyTimer = null;
+    setLiveKeyCounts(countLiveKeys(fleetData.values()));
+  }, LEGEND_THROTTLE_MS);
+}
+
+function scheduleViewportRoutes() {
+  if (viewportTimer || !map) return;
+  viewportTimer = setTimeout(() => {
+    viewportTimer = null;
+    // Zoomed out the legend lists operators, so skip the query.
+    if (!layersReady || map.getZoom() < VIEWPORT_ZOOM) return;
+    const layers = ['route-lines', ...FLEETS.flatMap((id) => [`veh-${id}-icons`, `veh-${id}-dots`])]
+      .filter((id) => map.getLayer(id));
+    setViewportRoutes(viewportRoutesFromFeatures(map.queryRenderedFeatures({ layers })));
+  }, LEGEND_THROTTLE_MS);
+}
+
+function wireLegend() {
+  setLegendZoom(map.getZoom());
+  map.on('zoomend', () => setLegendZoom(map.getZoom()));
+  map.on('moveend', scheduleViewportRoutes);
 }
 
 // The UI can emit visibility before the map finishes loading — queue the
@@ -1810,6 +1848,7 @@ function applyRegion(fit) {
   renderReferenceData();
   renderWeatherAlerts();
   for (const fleetId of rawFleetData.keys()) renderFleetData(fleetId);
+  scheduleLiveKeyCounts();
   if (!fit) return;
   takeCamera('region');
   const bounds = boundsForRegion(activeRegion);
@@ -1823,6 +1862,7 @@ function applyRegion(fit) {
 }
 
 function applyGroupFilter(groups, statuses) {
+  scheduleViewportRoutes();
   const visible = ['in', ['get', 'group'], ['literal', groups]];
   const statusVisible = [
     'in',

@@ -6,7 +6,11 @@ import {
   colorFor,
   routeCountFor,
   setLiveKeyCounts,
+  legendSections,
+  setLegendZoom,
+  setViewportRoutes,
 } from './legend.js';
+import { setVisibleGroupList } from './layers.js';
 import { PALETTE, PALETTE_START } from '../model/palette.js';
 
 const entry = (routes: number) => ({ label: 'x', routes, stops: 0 });
@@ -62,5 +66,20 @@ describe('legend store', () => {
     expect(routeCountFor('bus', 'a')).toBe(7);
     expect(routeCountFor('bus', 'zzz')).toBe(0);
     expect(routeKeyIndex.value.size).toBe(1);
+  });
+
+  it('builds sections for the groups switched on and follows the zoom mode', () => {
+    setRouteKeyIndex(new Map([['bus', new Map([['mbta', { label: 'MBTA', routes: 150, stops: 0 }]])]]));
+    setViewportRoutes(new Map([['bus', new Map([
+      ['1', { label: '1', color: '#aaaaaa', operatorKey: 'mbta', operatorLabel: 'MBTA', live: false }],
+    ])]]));
+    setVisibleGroupList(['ferry', 'bus']);
+    setLegendZoom(12);
+    expect(legendSections.value.map((s) => s.group)).toEqual(['bus', 'ferry']);
+    expect(legendSections.value[0].rows[0].label).toBe('MBTA');
+    setLegendZoom(14);
+    expect(legendSections.value[0].operators![0].rows[0].label).toBe('1');
+    setVisibleGroupList(['ferry']);
+    expect(legendSections.value.map((s) => s.group)).toEqual(['ferry']);
   });
 });

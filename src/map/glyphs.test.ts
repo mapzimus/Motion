@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GLYPHS, iconName, parseIconName } from './glyphs.js';
+import { GLYPHS, glyphSvgPath, iconName, parseIconName } from './glyphs.js';
 
 describe('glyphs', () => {
   it('has a path builder for every vehicle shape', () => {
@@ -12,6 +12,14 @@ describe('glyphs', () => {
     const ctx = new Proxy({}, { get: (_t, k) => () => { calls.push(String(k)); } });
     for (const draw of Object.values(GLYPHS)) draw(ctx as unknown as CanvasRenderingContext2D, 64);
     expect(calls.filter((c) => c === 'beginPath')).toHaveLength(6);
+  });
+
+  it('gives an SVG path for the polygon and box shapes', () => {
+    expect(glyphSvgPath('plane')).toMatch(/^M32 2L35 8.*Z$/);
+    expect(glyphSvgPath('boat')).toMatch(/^M32 2L45 14.*Z$/);
+    expect(glyphSvgPath('bus')).toMatch(/^M30 8H34A9 9 0 0 1 43 17V47.*Z$/);
+    expect(glyphSvgPath('dock')).toMatch(/^M23 15H41/);
+    expect(glyphSvgPath('nope')).toBe('');
   });
 
   it('round-trips sprite names', () => {

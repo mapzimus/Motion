@@ -2,7 +2,7 @@
 
 import { CONFIG } from '../feeds/config.js';
 import { fetchRoutes } from '../feeds/api.js';
-import { startMbta, onStats, onStatus } from '../feeds/mbta.js';
+import { startMbta, onStats, onStatus, groupFor } from '../feeds/mbta.js';
 import { startAmtrak } from '../feeds/amtrak.js';
 import { startPlanes } from '../feeds/planes.js';
 import { startAis } from '../feeds/ais.js';
@@ -49,6 +49,9 @@ import {
   updateStatus,
   setRegion as setRegionStore,
 } from '../stores/index.js';
+import { setVisibleGroupList, setVisibleStatusList } from '../stores/layers.js';
+import { setSubwayColors } from '../stores/legend.js';
+import { SUBWAY_GROUPS } from '../model/presets.js';
 import { loadShapeFeatures, loadRegionalRouteFeatures } from './shapes.js';
 
 // ---------------------------------------------------------------------------
@@ -84,6 +87,16 @@ async function loadGatewayCapabilities(): Promise<Record<string, unknown>> {
   return capabilities;
 }
 
+/** Each subway group's line color, from the first MBTA route in it. */
+function subwayColorsFrom(routeInfo: Map<string, any>): Map<string, string> {
+  const colors = new Map<string, string>();
+  for (const [id, info] of routeInfo) {
+    const group = groupFor(id, info);
+    if (SUBWAY_GROUPS.includes(group) && !colors.has(group) && info?.color) colors.set(group, info.color);
+  }
+  return colors;
+}
+
 // ---------------------------------------------------------------------------
 // Boot
 // ---------------------------------------------------------------------------
@@ -96,6 +109,7 @@ export async function boot(): Promise<void> {
     loadGatewayCapabilities(),
   ]);
   const routeInfo: Map<string, any> = new Map(routes.map((r: any) => [r.id, r]));
+  setSubwayColors(subwayColorsFrom(routeInfo));
 
   // A shared link (#r=...&c=...&z=...) wins over ?region= and the remembered region.
   const permalink: any = readPermalink();
@@ -131,6 +145,8 @@ export async function boot(): Promise<void> {
     routeInfo,
     (groups: string[], statuses: string[]) => {
       setVisibleGroups(groups, statuses);
+      setVisibleGroupList(groups);
+      setVisibleStatusList(statuses);
       schedulePermalinkUpdate();
     },
     changeRegion,
@@ -138,6 +154,8 @@ export async function boot(): Promise<void> {
     capabilities,
   );
   if (permalink.on || permalink.off || permalink.statuses) ui.applyVisibleState(permalink);
+  setVisibleGroupList(ui.getVisibleGroups());
+  setVisibleStatusList(ui.getVisibleStatuses());
   // The panel's rows exist now, so store changes (counts, status, alerts) can
   // reach it from here on instead of waiting for the route shapes below.
   initLegacyBridge();
