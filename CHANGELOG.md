@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Coaches
+- C&J Bus Lines' full network replaces its two-trip GTFS stub: Dover,
+  Portsmouth, and Seabrook to Boston South Station, Logan Airport, and New
+  York's Port Authority, road-routed from the official timetables, with the
+  six C&J stops and their addresses.
+- Hand-built bus corridors can list named stops and road-route every leg.
+
 ### Regions, presets & basemaps
 - New **North Shore** region: 26 communities from Revere to Newburyport,
   Cape Ann included, with its own vessel boundary so the Salem ferry and boats

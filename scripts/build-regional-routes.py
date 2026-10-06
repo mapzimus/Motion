@@ -725,6 +725,7 @@ def repair_long_road_gaps(
     update_cache,
     refresh_cache,
     routing_state,
+    max_chord_km=MAX_BUS_CHORD_KM,
 ):
     if len(points) < 2:
         return [], 0
@@ -733,7 +734,7 @@ def repair_long_road_gaps(
     repair_count = 0
     for start, end in zip(points, points[1:]):
         start, end = tuple(start), tuple(end)
-        if haversine_km(start, end) <= MAX_BUS_CHORD_KM:
+        if haversine_km(start, end) <= max_chord_km:
             current.append(end)
             continue
         routed = cached_road_segment(
@@ -1016,6 +1017,69 @@ def supplemental_ferry_stop_features(features):
                     },
                 }
     return list(stops_by_coordinate.values())
+
+
+def supplemental_bus_stop_features(features, region_geometries):
+    """Named stops for hand-built bus corridors that list them in a `stops` property.
+
+    Each entry is {"name", "coordinates", optional "details"}. A stop shared by
+    several corridors (matched on rounded coordinates) becomes one point that
+    lists every route. The `stops` list is removed from the route feature.
+    """
+    stops_by_coordinate = {}
+    for feature in features:
+        properties = feature.get("properties", {})
+        declared = properties.pop("stops", None)
+        if properties.get("group") != "bus" or not declared:
+            continue
+        route_id = properties.get("route", "bus")
+        route_name = properties.get("name", route_id)
+        for index, stop in enumerate(declared):
+            lng, lat = (round(float(value), 6) for value in stop["coordinates"])
+            dedupe_key = (round(lng, 4), round(lat, 4))
+            existing = stops_by_coordinate.get(dedupe_key)
+            if existing:
+                existing_properties = existing["properties"]
+                if route_id not in existing_properties["routeIds"]:
+                    existing_properties["routeIds"].append(route_id)
+                    existing_properties["routeNames"].append(route_name)
+                continue
+            point = (lng, lat)
+            stops_by_coordinate[dedupe_key] = {
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": [lng, lat]},
+                "properties": {
+                    "group": "bus",
+                    "color": "#8a949f",
+                    "kind": "regional-station",
+                    "stopKind": "stop",
+                    "dataStatus": properties.get("dataStatus", "scheduled"),
+                    "title": stop["name"],
+                    "status": f"{properties.get('agency', 'Coach')} stop",
+                    "stopDetails": stop.get("details", ""),
+                    "stationCode": f"{route_id}:{index}",
+                    "platformCount": 1,
+                    "routeIds": [route_id],
+                    "routeNames": [route_name],
+                    "provider": properties.get("provider", "Official carrier schedule"),
+                    "sourceUrl": properties.get("sourceUrl", ""),
+                    "regions": [
+                        key for key in REGION_ORDER
+                        if point_in_geometry(point, region_geometries[key])
+                    ],
+                },
+            }
+    stops = []
+    for stop in stops_by_coordinate.values():
+        properties = stop["properties"]
+        route_names = properties.pop("routeNames")
+        stop_details = properties.pop("stopDetails")
+        properties["details"] = " · ".join(
+            part for part in (f"Routes: {', '.join(route_names)}", stop_details) if part
+        )
+        if properties["regions"]:
+            stops.append(stop)
+    return stops
 
 
 def ferry_feature_paths(geometry):
@@ -1600,6 +1664,9 @@ def main(update_road_cache=False, refresh_road_cache=False, update_ferry_cache=F
         if geometry.get("type") == "LineString":
             paths = [paths]
         if feature.get("properties", {}).get("group") == "bus":
+            # A hand-built coach corridor lists only its stops, so short legs
+            # would otherwise be straight chords; roadRouteEveryLeg routes them all.
+            max_chord_km = 0 if feature["properties"].pop("roadRouteEveryLeg", False) else MAX_BUS_CHORD_KM
             routed_paths = []
             repair_count = 0
             for path in paths:
@@ -1612,6 +1679,7 @@ def main(update_road_cache=False, refresh_road_cache=False, update_ferry_cache=F
                     update_road_cache,
                     refresh_road_cache,
                     routing_state,
+                    max_chord_km,
                 )
                 routed_paths.extend(pieces)
                 repair_count += repaired
@@ -1664,6 +1732,7 @@ def main(update_road_cache=False, refresh_road_cache=False, update_ferry_cache=F
         prune=not failures,
     )
     supplemental_stops = supplemental_ferry_stop_features(supplemental_features)
+    supplemental_stops.extend(supplemental_bus_stop_features(supplemental_features, region_geometries))
     all_features.extend(supplemental_features)
     all_features.extend(supplemental_stops)
     successes.append({

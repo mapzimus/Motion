@@ -75,6 +75,69 @@
       "type": "Feature",
       "geometry": {
         "type": "LineString",
+        "coordinates": [[-70.90178,43.21352],[-70.80386,43.05962],[-70.88256,42.89102],[-71.05618,42.35047]]
+      },
+      "properties": {
+        "route": "cj:boston-south-station",
+        "group": "bus",
+        "agency": "C&J Bus Lines",
+        "name": "Dover · Portsmouth · Seabrook ↔ Boston South Station",
+        "kind": "regional-static",
+        "dataStatus": "scheduled",
+        "regions": ["nh","ma"],
+        "provider": "C&J official schedule",
+        "sourceUrl": "https://www.ridecj.com/boston-south-station",
+        "scheduleNote": "Daily · about every two hours from Portsmouth and Seabrook, with selected trips from Dover · a few early and late trips run via Logan Airport · reservations required · official schedule effective March 16, 2026 · no public live vehicle feed",
+        "roadRouteEveryLeg": true,
+        "stops": [{"name":"C&J Dover terminal","coordinates":[-70.90178,43.21352],"details":"23 Indian Brook Drive, Dover, NH · park and ride"},{"name":"C&J Portsmouth Transportation Center","coordinates":[-70.80386,43.05962],"details":"185 Grafton Drive, Portsmouth, NH · off I-95 exit 3 · paid parking"},{"name":"C&J Seabrook terminal","coordinates":[-70.88256,42.89102],"details":"13 Batchelder Road, Seabrook, NH · park and ride"},{"name":"South Station Bus Terminal · C&J Gate 38","coordinates":[-71.05618,42.35047],"details":"700 Atlantic Avenue, Boston"}]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [[-70.90178,43.21352],[-70.80386,43.05962],[-70.88256,42.89102],[-71.02139,42.36481]]
+      },
+      "properties": {
+        "route": "cj:logan",
+        "group": "bus",
+        "agency": "C&J Bus Lines",
+        "name": "Dover · Portsmouth · Seabrook ↔ Logan Airport",
+        "kind": "regional-static",
+        "dataStatus": "scheduled",
+        "regions": ["nh","ma"],
+        "provider": "C&J official schedule",
+        "sourceUrl": "https://www.ridecj.com/logan",
+        "scheduleNote": "Daily · every 30 minutes from Portsmouth and Seabrook for most of the day, about hourly from Dover · stops at Logan Terminals A, B1, B2, C and E · reservations required · official schedule effective July 14, 2025 · no public live vehicle feed",
+        "roadRouteEveryLeg": true,
+        "stops": [{"name":"C&J Dover terminal","coordinates":[-70.90178,43.21352],"details":"23 Indian Brook Drive, Dover, NH · park and ride"},{"name":"C&J Portsmouth Transportation Center","coordinates":[-70.80386,43.05962],"details":"185 Grafton Drive, Portsmouth, NH · off I-95 exit 3 · paid parking"},{"name":"C&J Seabrook terminal","coordinates":[-70.88256,42.89102],"details":"13 Batchelder Road, Seabrook, NH · park and ride"},{"name":"Logan Airport · C&J (Terminals A, B1, B2, C, E)","coordinates":[-71.02139,42.36481],"details":"Downstairs outside baggage claim at the orange Scheduled Bus sign; buses board at Terminal A first"}]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [[-70.90178,43.21352],[-70.80386,43.05962],[-70.88256,42.89102],[-71.05618,42.35047],[-73.9905,40.75695]]
+      },
+      "properties": {
+        "route": "cj:nyc",
+        "group": "bus",
+        "agency": "C&J Bus Lines",
+        "name": "Dover · Portsmouth · Seabrook ↔ New York City (Port Authority)",
+        "kind": "regional-static",
+        "dataStatus": "scheduled",
+        "regions": ["nh","ma"],
+        "provider": "C&J official schedule",
+        "sourceUrl": "https://www.ridecj.com/new-york-city",
+        "scheduleNote": "Daily non-stop service to the Port Authority Bus Terminal (Gate 36), two or three trips each way · reservations required · official schedule effective October 14, 2025 · the line follows the map's reviewed Boston–New York coach corridor, so it is drawn through Boston; C&J's non-stop coaches may bypass downtown · no public live vehicle feed",
+        "roadRouteEveryLeg": true,
+        "stops": [{"name":"C&J Dover terminal","coordinates":[-70.90178,43.21352],"details":"23 Indian Brook Drive, Dover, NH · park and ride"},{"name":"C&J Portsmouth Transportation Center","coordinates":[-70.80386,43.05962],"details":"185 Grafton Drive, Portsmouth, NH · off I-95 exit 3 · paid parking"},{"name":"C&J Seabrook terminal","coordinates":[-70.88256,42.89102],"details":"13 Batchelder Road, Seabrook, NH · park and ride"}]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
         "coordinates": [[-71.458979,43.60753],[-71.458411,43.607628],[-71.457812,43.607838],[-71.454508,43.609365],[-71.436832,43.618163],[-71.416234,43.614084],[-71.404105,43.610882],[-71.401299,43.609559],[-71.381499,43.594709],[-71.370372,43.589794],[-71.362865,43.587548],[-71.343961,43.583482],[-71.332565,43.581662],[-71.319873,43.579983],[-71.265025,43.573885],[-71.252934,43.572456],[-71.243395,43.571192],[-71.239371,43.570712],[-71.232756,43.57036],[-71.229857,43.570475],[-71.223232,43.570963],[-71.21057,43.582469],[-71.209,43.583]]
       },
       "properties": {
