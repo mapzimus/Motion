@@ -22,6 +22,7 @@ import {
   fleetCountsForRegion,
   initMap,
   loadReferenceData,
+  onReferenceDataChange,
   map,
   referenceCountsForRegion,
   scheduledRouteCountsForRegion,
@@ -167,7 +168,8 @@ export async function boot(): Promise<void> {
     onVehicle: (fleetId: string, id: string) => follow(fleetId, id, { mode: 'following' }),
     onRegion: (key: string) => ui.selectRegion(key),
   });
-  loadReferenceData().then((counts: Record<string, number>) => setReferenceCounts(counts));
+  onReferenceDataChange(() => setReferenceCounts(referenceCountsForRegion()));
+  void loadReferenceData();
 
   // MBTA stats and status -> store setters.
   onStats((stats: any) => {

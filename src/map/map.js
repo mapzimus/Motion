@@ -51,6 +51,12 @@ let airportsFC = EMPTY_FC;
 let allBorderCrossingsFC = EMPTY_FC;
 let borderCrossingsFC = EMPTY_FC;
 let referenceLoadPromise = null;
+// Reference catalogs load lazily; listeners refresh row counts when one lands.
+const referenceDataHandlers = [];
+export function onReferenceDataChange(handler) {
+  referenceDataHandlers.push(handler);
+}
+const notifyReferenceData = () => referenceDataHandlers.forEach((handler) => handler());
 // Reference places (heritage rail, park & ride, EV charging, drawbridges, taxis) are
 // one ~5 MB file, so they load only when one of their groups is switched on.
 const REFERENCE_PLACE_GROUPS = ['heritage-rail', 'park-ride', 'ev-charging', 'drawbridge', 'taxi'];
@@ -1665,6 +1671,7 @@ async function ensureReferencePlaces() {
     .then((collection) => {
       allReferencePlacesFC = collection;
       renderReferencePlaces();
+      notifyReferenceData();
     })
     .catch((error) => {
       console.warn('Reference-places catalog unavailable:', error);
@@ -1707,6 +1714,7 @@ async function ensureReferenceData() {
     if (borders.status === 'fulfilled') allBorderCrossingsFC = borders.value;
     else console.warn('CBSA border-crossing catalog unavailable:', borders.reason);
     renderReferenceData();
+    notifyReferenceData();
   });
   return referenceLoadPromise;
 }

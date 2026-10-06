@@ -13,6 +13,17 @@
   lines and stops; presets whose layers all need the gateway are disabled
   instead of clearing the map; the active preset is highlighted; applying a
   preset no longer stops the next region's bus default from applying.
+- **Find** now follows its result: picking a town, stop, station, ferry landing
+  or route outside the selected geography switches to the smallest region that
+  contains it, instead of flying to an empty map. Same-named towns are listed
+  by state (Salem, MA / Salem, NH; likewise Concord, Plymouth, Manchester,
+  Berlin, Bristol, Newport, Windsor, Waterbury), where one used to hide the
+  other. A stop pick no longer opens its popup early while the camera is still
+  moving from the region switch.
+- Park & ride, EV charging, heritage rail and drawbridge counts (and the
+  "places" total) now update when their data finishes loading rather than at
+  the next region change; the traffic, walking and cycling rows say "overlay"
+  instead of a permanent dash.
 - Panel restyle: solid surface, IBM Plex Sans, sentence-case copy, a labeled
   Layers/Close button on phones.
 - `scripts/build-regions.py` writes to `public/data/` again, and
