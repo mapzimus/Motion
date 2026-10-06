@@ -195,6 +195,17 @@ export const CONFIG = {
   // Only NWS alerts at these severities join the service-alert panel.
   WEATHER_PANEL_SEVERITIES: ['Extreme', 'Severe'],
 
+  // Aviation conditions: AviationWeather.gov METAR flight categories and FAA
+  // TFR polygons (both relayed by the Worker, edge-cached 5 min), plus FAA
+  // airspace as a static reference file loaded only when switched on.
+  AIRPORT_WEATHER_POLL_MS: 5 * 60_000,
+  TFR_POLL_MS: 5 * 60_000,
+  // The aviation-standard category colors: VFR green, MVFR blue, IFR red, LIFR magenta.
+  FLIGHT_CATEGORY_COLORS: { VFR: '#3ccf6a', MVFR: '#4f8dff', IFR: '#ff4d4d', LIFR: '#e04fe0', unknown: '#8a949f' },
+  TFR_COLORS: { VIP: '#ff4d4d', SECURITY: '#ff4d4d', SPECIAL: '#ff4d4d', HAZARDS: '#ff8a4c', default: '#ffc94d' },
+  AIRSPACE_COLORS: { B: '#4f8dff', C: '#d65cd6', D: '#4f8dff', sua: '#ff9a3c' },
+  AIRSPACE_URL: `${dataBase}airspace.geojson`,
+
   TRAFFIC_TILE_TEMPLATE: gatewayBase
     ? `${gatewayBase}/api/traffic/{z}/{x}/{y}.png`
     : '',
@@ -208,6 +219,7 @@ export const CONFIG = {
     'roads', 'freight', 'walking', 'cycling', 'local', 'airport', 'border', 'air-service',
     'bikeshare', 'heritage-rail', 'park-ride', 'ev-charging', 'drawbridge', 'taxi',
     'weather', 'airport-status',
+    'airport-weather', 'tfr', 'airspace',
   ],
 
   // First entry is the default. Every basemap must work with the dark panel

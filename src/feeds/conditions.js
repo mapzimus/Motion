@@ -1,14 +1,19 @@
 // Conditions: NWS active weather alerts (severity-colored zone polygons) and
-// FAA airport ground stops / delays drawn as rings on the FAA airport markers.
-// Both feeds come through the Motion gateway, pause while the tab is hidden,
-// and hand Extreme/Severe weather alerts to the service-alert panel.
+// FAA airport ground stops / delays drawn as rings on the FAA airport markers,
+// METAR flight-category dots, and FAA TFR polygons. Every feed comes through
+// the Motion gateway and pauses while the tab is hidden; Extreme/Severe
+// weather alerts also go to the service-alert panel.
 
 import { CONFIG } from './config.js';
 import { gatewayRegion } from './regions.js';
 import {
   airportStatusCountForRegion,
+  airportWeatherCountForRegion,
   setAirportStatusData,
+  setAirportWeatherData,
+  setTfrData,
   setWeatherAlertsData,
+  tfrCountForRegion,
   weatherAlertCountForRegion,
   weatherPanelAlertsForRegion,
 } from '../map/map.js';
@@ -88,10 +93,36 @@ export function startConditions(onCounts, onAlerts, initialRegion, capabilities 
     },
   }, onCounts);
 
+  // Aviation conditions: one New England-wide answer each, clipped per region
+  // in the browser, so region changes only recount them.
+  const airportWeather = startPoller({
+    key: 'airport-weather',
+    interval: CONFIG.AIRPORT_WEATHER_POLL_MS,
+    enabled: capabilities.airportWeather,
+    url: () => '/api/airport-weather',
+    apply(collection) {
+      if (collection) setAirportWeatherData(collection);
+      onCounts({ 'airport-weather': airportWeatherCountForRegion() });
+    },
+  }, onCounts);
+
+  const tfrs = startPoller({
+    key: 'tfr',
+    interval: CONFIG.TFR_POLL_MS,
+    enabled: capabilities.tfrs,
+    url: () => '/api/tfrs',
+    apply(collection) {
+      if (collection) setTfrData(collection);
+      onCounts({ tfr: tfrCountForRegion() });
+    },
+  }, onCounts);
+
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) return;
     weather.refresh();
     airports.refresh();
+    airportWeather.refresh();
+    tfrs.refresh();
   });
 
   return {
@@ -101,6 +132,8 @@ export function startConditions(onCounts, onAlerts, initialRegion, capabilities 
       // airport status is region-independent and only needs a recount.
       weather.refresh();
       airports.refreshCount();
+      airportWeather.refreshCount();
+      tfrs.refreshCount();
     },
   };
 }

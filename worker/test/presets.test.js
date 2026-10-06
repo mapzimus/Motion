@@ -17,6 +17,7 @@ import uiSource from '../../src/ui.js?raw';
 const LIVE_GROUPS = new Set([
   'commuter', 'bus', 'amtrak', 'ferry', 'plane', 'vessel', 'bike',
   'traffic', 'roadwork', 'incident', 'camera', 'weather', 'airport-status',
+  'airport-weather', 'tfr',
 ]);
 const groups = GROUP_KEYS.map((key) => ({
   key,
@@ -29,9 +30,14 @@ const subwayRegions = new Set(
 const hasSubway = (key) => subwayRegions.has(key);
 
 describe('layer presets and scenes', () => {
-  it('lists 33 unique layer groups', () => {
-    expect(GROUP_KEYS).toHaveLength(33);
-    expect(new Set(GROUP_KEYS).size).toBe(33);
+  it('lists 36 unique layer groups', () => {
+    expect(GROUP_KEYS).toHaveLength(36);
+    expect(new Set(GROUP_KEYS).size).toBe(36);
+  });
+
+  it('puts the aviation conditions in the Air preset', () => {
+    const plan = resolvePreset('air', { region: 'ma', groups, hasSubway });
+    for (const key of ['airport-status', 'airport-weather', 'tfr', 'airspace']) expect(plan.groups).toContain(key);
   });
 
   it('matches the groups js/ui.js builds, in panel order', () => {

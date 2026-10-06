@@ -38,6 +38,9 @@ Every feature is labeled **live**, **estimated**, **scheduled**, or
 | Live congestion speeds | Public 511 traffic-flow tiles through the gateway; TomTom remains an optional configured fallback | live tiles |
 | Weather alerts | [NWS active alerts](https://api.weather.gov/) for the six states, drawn as severity-colored forecast-zone polygons; Extreme/Severe alerts also join the service-alert panel | 120 s (60 s edge cache) |
 | Airport delays | [FAA NAS airport status](https://nasstatus.faa.gov/) ground stops, ground-delay programs, arrival/departure delays, and closures, drawn as rings on the FAA airport markers | 120 s (60 s edge cache) |
+| Airport weather (METAR) | [AviationWeather.gov](https://aviationweather.gov/) observations for about 64 New England weather stations, colored by flight category (VFR green, MVFR blue, IFR red, LIFR magenta); a station's TAF forecast loads when you click it | 5 min (5 min edge cache; TAF 30 min) |
+| Temporary flight restrictions | [FAA TFR](https://tfr.faa.gov/) polygons inside New England, joined to the FAA TFR list for type and facility; altitudes and effective times load from the FAA notice when you click one | 5 min (5 min edge cache) |
+| Airspace | FAA ADDS Class B, C, and D airspace and special-use airspace (MOAs, restricted, warning, prohibited areas): 69 shapes, reference only | 28-day built snapshot |
 | Major roads and freight rail | U.S. Census TIGERweb primary roads and the FRA North American Rail Network | built snapshot |
 | Canada border crossings | 38 road, rail, ferry, and remote-traveller facilities from the [CBSA Directory of Offices](https://www.cbsa-asfc.gc.ca/do-rb/menu-eng.html) | built snapshot |
 | Marked walking and cycling routes | OpenStreetMap route relations via Waymarked Trails | live map tiles |
@@ -56,6 +59,18 @@ interruption.
 Aircraft origin and destination are resolved only after a plane is clicked.
 The lookup is a best-effort callsign match against ADSB.lol's route catalog;
 private, repositioning, and irregular flights may not have an itinerary.
+
+The three aviation-conditions rows sit under Conditions next to airport delays
+and start switched off; the Air preset turns them on. METARs come from one
+AviationWeather.gov bounding-box query (the gateway sends the custom
+User-Agent that service asks for, and its 5-minute edge cache keeps the map
+far below the 100-requests-per-minute limit). TFR shapes come from the FAA's
+TFR map service, which is undocumented and sends no cache headers, so the
+gateway holds each answer for 5 minutes. Airspace is a static file rebuilt
+from the FAA's ADDS feature services by `scripts/build-airspace.py` each
+28-day cycle and downloaded only when its row is switched on. It is for
+orientation: special-use areas are often active "by NOTAM", so always check
+current charts and NOTAMs before flying.
 
 ## Regional transit coverage
 
@@ -377,6 +392,7 @@ Rebuild the static route snapshot after agencies update their schedules:
 py -3 -X utf8 scripts\build-regions.py
 py -3 -X utf8 scripts\build-regional-routes.py
 py -3 -X utf8 scripts\build-airports.py
+py -3 -X utf8 scripts\build-airspace.py
 py -3 -X utf8 scripts\build-border-crossings.py
 py -3 -X utf8 scripts\build-reference-places.py
 ```
@@ -656,6 +672,10 @@ npx vercel --prod --yes
 | `GET /api/traffic/{z}/{x}/{y}.png` | Cached public 511 congestion tile, with optional TomTom source |
 | `GET /api/airport-status` | FAA NAS status (ground stops, ground-delay programs, arrival/departure delays, closures) for New England airports |
 | `GET /api/weather-alerts?region=ma` | NWS active alerts for the region's states as GeoJSON; forecast-zone polygons are resolved, simplified, and capped per request |
+| `GET /api/airport-weather` | New England METARs from AviationWeather.gov as GeoJSON points: flight category, observation time, raw METAR, wind, visibility, ceiling (5 min edge cache) |
+| `GET /api/airport-taf?id=KBOS` | The station's latest TAF, or `available: false` when it issues none; `id` must be a four-character ICAO id (30 min edge cache) |
+| `GET /api/tfrs` | FAA TFR polygons in the New England box joined to the TFR list (type, state, facility), plus listed New England TFRs without a shape (5 min edge cache) |
+| `GET /api/tfr-detail?id=6/7153` | Altitudes, effective times, and reason parsed from one FAA TFR notice (30 min edge cache) |
 | `GET /api/ais?region=new-england` with WebSocket upgrade | Shared AISStream feed: a `Snapshot` frame of known vessels in the region, then live AISStream frames for that region |
 
 Supported region IDs are `boston`, `ma`, `ct`, `ri`, `nh`, `vt`, `me`, and

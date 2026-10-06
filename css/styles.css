@@ -615,6 +615,23 @@ h2 {
   object-fit: cover;
 }
 .popup-divider { border: 0; border-top: 1px solid var(--hairline); margin: 8px 0; }
+/* Raw METAR/TAF text: monospace, wrapped, one TAF period per line. */
+.popup-subhead { font-size: 11.5px; font-weight: 600; color: var(--text-3); margin-top: 8px; }
+.popup-raw {
+  margin-top: 3px;
+  padding: 6px 8px;
+  max-height: 140px;
+  overflow-y: auto;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-s);
+  background: var(--bg);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-2);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
 
 .popup-predictions { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--hairline); }
 .popup-predictions-head {

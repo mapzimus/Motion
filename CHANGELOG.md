@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+### Aviation conditions
+- **Airport weather (METAR)**: about 64 New England weather stations as dots
+  colored by flight category (VFR green, MVFR blue, IFR red, LIFR magenta).
+  The popup shows the category, wind, visibility, ceiling, how old the
+  observation is, and the raw METAR, then loads the station's TAF. Served by
+  the new gateway endpoints `/api/airport-weather` (5 min edge cache) and
+  `/api/airport-taf?id=` (strict ICAO id check, 30 min cache) with the
+  User-Agent AviationWeather.gov asks for.
+- **Temporary flight restrictions (FAA)**: TFR polygons inside New England
+  from the FAA TFR map service, joined to the FAA TFR list for type and
+  facility (`/api/tfrs`, 5 min cache). Clicking one loads its altitudes,
+  effective times, and reason from the FAA notice (`/api/tfr-detail?id=`,
+  30 min cache) and links to it.
+- **Airspace (Class B/C/D & special use)**: a static FAA reference layer,
+  `public/data/airspace.geojson` (69 shapes, ~100 KB), built by the new
+  `scripts/build-airspace.py` from the FAA ADDS services. It downloads only
+  when switched on. Outlines follow the sectional chart (B blue, C magenta,
+  D dashed blue, special use orange) with "ceiling/floor" labels; popups list
+  every layer at the click, floor first, with a reminder to check current
+  charts and NOTAMs. `npm run check` validates the file.
+- All three rows sit under Conditions, start switched off, and join the Air
+  preset. `/health` reports `airportWeather` and `tfrs`.
+
 ### Coaches
 - C&J Bus Lines' full network replaces its two-trip GTFS stub: Dover,
   Portsmouth, and Seabrook to Boston South Station, Logan Airport, and New
