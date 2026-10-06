@@ -17,6 +17,18 @@ import {
   type NwsAlertFeature,
   type NwsGeometry,
 } from './conditions';
+import {
+  normalizeMetars,
+  normalizeTaf,
+  normalizeTfrs,
+  parseTfrDetail,
+  validNotamId,
+  validStationId,
+  type MetarFeature,
+  type TafRecord,
+  type TfrListEntry,
+  type TfrWfsFeature,
+} from './aviation';
 
 const MASSDOT_WORK_ZONE_URL = 'https://feed.massdot-swzm.com/massdot_wzdx_v4.1_work_zone_feed.geojson';
 const NORTHERN_WORK_ZONE_URL = 'https://api.dx.ne-compass.com/wzdx-latest/';
@@ -46,6 +58,21 @@ const NWS_USER_AGENT = 'motion-map (github.com/mapzimus/Motion)';
 const NWS_MAX_ZONE_FETCHES = 40;
 const NWS_ZONE_SIMPLIFY_TOLERANCE = 0.003; // degrees, ≈300 m
 const NWS_ZONE_CACHE_TTL_SECONDS = 7 * 24 * 60 * 60;
+// AviationWeather.gov data API: 100 requests/min, 400 entries per query, and a
+// custom User-Agent requested. One bbox query covers every New England METAR.
+// (bbox order is lat0,lon0,lat1,lon1.)
+const AWC_METAR_URL = 'https://aviationweather.gov/api/data/metar?bbox=40.9,-73.8,47.5,-66.9&format=geojson';
+const AWC_TAF_URL = 'https://aviationweather.gov/api/data/taf';
+const AWC_USER_AGENT = 'motion-map (github.com/mapzimus/Motion)';
+const AIRPORT_WEATHER_CACHE_SECONDS = 5 * 60;
+const AIRPORT_TAF_CACHE_SECONDS = 30 * 60;
+// FAA TFR site: undocumented JSON + GeoServer WFS, served no-cache, so the
+// gateway holds each answer for 5 minutes. WFS bbox is lon,lat order.
+const TFR_LIST_URL = 'https://tfr.faa.gov/tfrapi/exportTfrList';
+const TFR_WFS_URL = 'https://tfr.faa.gov/geoserver/TFR/ows?service=WFS&version=1.1.0&request=GetFeature&typeName=TFR:V_TFR_LOC&outputFormat=application/json&srsname=EPSG:4326&bbox=-73.8,40.9,-66.9,47.5,EPSG:4326';
+const TFR_DETAIL_URL = 'https://tfr.faa.gov/tfrapi/getWebText';
+const TFR_CACHE_SECONDS = 5 * 60;
+const TFR_DETAIL_CACHE_SECONDS = 30 * 60;
 
 // ---- provider health -------------------------------------------------------
 // /health reports each provider as `true` only when the most recent upstream
@@ -826,6 +853,105 @@ async function weatherAlerts(request: Request, url: URL, ctx: ExecutionContext):
   });
 }
 
+// ---- conditions: airport weather (METAR/TAF) and TFRs ----------------------
+
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function airportWeather(request: Request, ctx: ExecutionContext): Promise<Response> {
+  return cachedJson(request, ctx, AIRPORT_WEATHER_CACHE_SECONDS, async () => {
+    let upstream: Response;
+    try {
+      upstream = await fetch(AWC_METAR_URL, {
+        headers: { accept: 'application/geo+json, application/json', 'user-agent': AWC_USER_AGENT },
+        cf: { cacheEverything: true, cacheTtl: AIRPORT_WEATHER_CACHE_SECONDS },
+      });
+    } catch (error) {
+      markProvider('airportWeather', false);
+      return json({ error: `AviationWeather.gov METARs unavailable: ${errorText(error)}` }, 502);
+    }
+    markProvider('airportWeather', upstream.ok);
+    if (!upstream.ok) return json({ error: `AviationWeather.gov METARs ${upstream.status}` }, 502);
+    // A valid query with no data answers 204 (GeoJSON normally returns an empty collection).
+    const collection = upstream.status === 204
+      ? { features: [] }
+      : await upstream.json() as { features?: MetarFeature[] };
+    const parsed = normalizeMetars(collection.features ?? []);
+    return json({
+      type: 'FeatureCollection',
+      provider: 'NOAA Aviation Weather Center',
+      sourceUrl: 'https://aviationweather.gov/',
+      updatedAt: parsed.updatedAt,
+      features: parsed.features,
+    });
+  });
+}
+
+async function airportTaf(request: Request, url: URL, ctx: ExecutionContext): Promise<Response> {
+  const station = url.searchParams.get('id');
+  if (!validStationId(station)) return json({ error: 'Invalid station id' }, 400);
+  return cachedJson(request, ctx, AIRPORT_TAF_CACHE_SECONDS, async () => {
+    const upstream = await fetch(`${AWC_TAF_URL}?ids=${station}&format=json`, {
+      headers: { accept: 'application/json', 'user-agent': AWC_USER_AGENT },
+      cf: { cacheEverything: true, cacheTtl: AIRPORT_TAF_CACHE_SECONDS },
+    }).catch(() => null);
+    if (!upstream?.ok) return json({ error: `AviationWeather.gov TAF ${upstream?.status ?? 'unavailable'}` }, 502);
+    const records = upstream.status === 204 ? [] : await upstream.json() as TafRecord[];
+    return json(normalizeTaf(records, station));
+  });
+}
+
+async function tfrs(request: Request, ctx: ExecutionContext): Promise<Response> {
+  return cachedJson(request, ctx, TFR_CACHE_SECONDS, async () => {
+    const [shapes, list] = await Promise.allSettled([
+      fetch(TFR_WFS_URL, {
+        headers: { accept: 'application/json' },
+        cf: { cacheEverything: true, cacheTtl: TFR_CACHE_SECONDS },
+      }).then(async (response) => {
+        if (!response.ok) throw new Error(`TFR shapes ${response.status}`);
+        return response.json() as Promise<{ features?: TfrWfsFeature[] }>;
+      }),
+      fetch(TFR_LIST_URL, {
+        headers: { accept: 'application/json' },
+        cf: { cacheEverything: true, cacheTtl: TFR_CACHE_SECONDS },
+      }).then(async (response) => {
+        if (!response.ok) throw new Error(`TFR list ${response.status}`);
+        return response.json() as Promise<TfrListEntry[]>;
+      }),
+    ]);
+    // The polygons are the layer; the list only enriches them.
+    markProvider('tfrs', shapes.status === 'fulfilled');
+    if (shapes.status !== 'fulfilled') {
+      return json({ error: `FAA TFR shapes unavailable: ${errorText(shapes.reason)}` }, 502);
+    }
+    const listed = list.status === 'fulfilled' && Array.isArray(list.value) ? list.value : null;
+    const { features, unmapped } = normalizeTfrs(shapes.value.features ?? [], listed);
+    return json({
+      type: 'FeatureCollection',
+      provider: 'FAA Temporary Flight Restrictions',
+      sourceUrl: 'https://tfr.faa.gov/',
+      updatedAt: new Date().toISOString(),
+      listAvailable: listed !== null,
+      features,
+      unmapped,
+    });
+  });
+}
+
+async function tfrDetail(request: Request, url: URL, ctx: ExecutionContext): Promise<Response> {
+  const notamId = url.searchParams.get('id');
+  if (!validNotamId(notamId)) return json({ error: 'Invalid NOTAM id' }, 400);
+  return cachedJson(request, ctx, TFR_DETAIL_CACHE_SECONDS, async () => {
+    const upstream = await fetch(`${TFR_DETAIL_URL}?notamId=${encodeURIComponent(notamId)}`, {
+      headers: { accept: 'application/json' },
+      cf: { cacheEverything: true, cacheTtl: TFR_DETAIL_CACHE_SECONDS },
+    }).catch(() => null);
+    if (!upstream?.ok) return json({ error: `FAA TFR detail ${upstream?.status ?? 'unavailable'}` }, 502);
+    return json(parseTfrDetail(await upstream.json(), notamId));
+  });
+}
+
 // Every browser shares one AISStream upstream held by the AisHub Durable
 // Object (worker/src/ais-hub.ts). AISStream allows only 3 connections per
 // account, so a per-browser relay would reject the 4th viewer.
@@ -865,6 +991,8 @@ export default {
           cameras: providerHealthy('cameras'),
           airportStatus: providerHealthy('airportStatus'),
           weatherAlerts: providerHealthy('weatherAlerts'),
+          airportWeather: providerHealthy('airportWeather'),
+          tfrs: providerHealthy('tfrs'),
           ais: configured(secret(env, 'AISSTREAM_API_KEY')),
           traffic: providerHealthy('traffic'),
           swiftly: configured(secret(env, 'SWIFTLY_API_KEY')),
@@ -887,6 +1015,14 @@ export default {
       response = await airportStatus(request, ctx);
     } else if (url.pathname === '/api/weather-alerts') {
       response = await weatherAlerts(request, url, ctx);
+    } else if (url.pathname === '/api/airport-weather') {
+      response = await airportWeather(request, ctx);
+    } else if (url.pathname === '/api/airport-taf') {
+      response = await airportTaf(request, url, ctx);
+    } else if (url.pathname === '/api/tfrs') {
+      response = await tfrs(request, ctx);
+    } else if (url.pathname === '/api/tfr-detail') {
+      response = await tfrDetail(request, url, ctx);
     } else if (url.pathname.startsWith('/api/traffic/')) {
       response = await trafficTile(request, url.pathname, env, ctx);
     } else if (url.pathname === '/api/ais') {

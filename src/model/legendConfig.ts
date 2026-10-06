@@ -44,6 +44,25 @@ const weatherRows: LegendRow[] = Object.entries(CONFIG.WEATHER_COLORS as Record<
 const airportStatusRows: LegendRow[] = Object.entries(CONFIG.AIRPORT_STATUS_COLORS as Record<string, string>)
   .map(([key, color]) => ({ key, label: AIRPORT_STATUS_LABELS[key] ?? key, color }));
 
+const flightCategoryRows: LegendRow[] = [
+  { key: 'VFR', label: 'VFR', color: CONFIG.FLIGHT_CATEGORY_COLORS.VFR },
+  { key: 'MVFR', label: 'MVFR', color: CONFIG.FLIGHT_CATEGORY_COLORS.MVFR },
+  { key: 'IFR', label: 'IFR', color: CONFIG.FLIGHT_CATEGORY_COLORS.IFR },
+  { key: 'LIFR', label: 'LIFR', color: CONFIG.FLIGHT_CATEGORY_COLORS.LIFR },
+];
+
+const tfrRows: LegendRow[] = [
+  { key: 'security', label: 'Security / VIP / special', color: CONFIG.TFR_COLORS.SECURITY },
+  { key: 'hazards', label: 'Hazards', color: CONFIG.TFR_COLORS.HAZARDS },
+  { key: 'other', label: 'Other', color: CONFIG.TFR_COLORS.default },
+];
+
+const airspaceRows: LegendRow[] = [
+  { key: 'B', label: 'Class B / D', color: CONFIG.AIRSPACE_COLORS.B },
+  { key: 'C', label: 'Class C', color: CONFIG.AIRSPACE_COLORS.C },
+  { key: 'sua', label: 'Special use', color: CONFIG.AIRSPACE_COLORS.sua },
+];
+
 const localRows: LegendRow[] = [
   { key: 'on-demand', label: 'On-demand / community', color: '#9fc36a' },
   { key: 'flex', label: 'Flex / fixed local', color: '#f2b84b' },
@@ -125,5 +144,23 @@ export const LEGEND_GROUPS: Record<string, LegendGroup> = {
     glyph: 'dot',
     notes: ['Worst current FAA condition per airport'],
     fixedRows: airportStatusRows,
+  },
+  'airport-weather': {
+    name: 'Airport weather',
+    glyph: 'dot',
+    notes: ['Dot color shows METAR flight category'],
+    fixedRows: flightCategoryRows,
+  },
+  tfr: {
+    name: 'Flight restrictions',
+    glyph: 'area',
+    notes: ['Area color shows restriction type'],
+    fixedRows: tfrRows,
+  },
+  airspace: {
+    name: 'Airspace',
+    glyph: 'line',
+    notes: ['Charted Class B, C, D and special use; check current charts'],
+    fixedRows: airspaceRows,
   },
 };

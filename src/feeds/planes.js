@@ -1,5 +1,6 @@
 // Live New England aircraft via the Motion gateway and ADSB.lol.
 
+import { aircraftKind, emergencyLine, verticalTrend } from './aircraft.js';
 import { CONFIG } from './config.js';
 import { createFleet } from './fleet.js';
 import { gatewayRegion } from './regions.js';
@@ -33,12 +34,20 @@ export function startPlanes(onCounts, initialRegion, enabled = true) {
       );
 
       const items = aircraft.map((a) => {
+        const kind = aircraftKind(a.category, a.aircraftType);
+        // Helicopters are shown generically: type and altitude, no callsign
+        // (often the tail number), registration or hex.
+        const generic = kind === 'heli';
+        const alert = emergencyLine(a.squawk, a.emergency);
         return {
           id: `plane-${a.id}`,
           lng: a.lng,
           lat: a.lat,
           props: {
             group: 'plane',
+            planeKind: kind,
+            emergency: Boolean(alert),
+            alert,
             dataStatus: 'live',
             legendKey: 'all',
             legendLabel: 'Aircraft',
@@ -46,18 +55,19 @@ export function startPlanes(onCounts, initialRegion, enabled = true) {
             bearing: a.bearing ?? 0,
             hasBearing: Number.isFinite(a.bearing),
             stale: a.onGround, // taxiing aircraft render dimmed
-            title: a.callsign || a.id.toUpperCase(),
-            callsign: a.callsign || '',
+            title: generic ? 'Helicopter' : a.callsign || a.id.toUpperCase(),
+            callsign: generic ? '' : a.callsign || '',
             dest: a.aircraftType ?? '',
             status: a.onGround
               ? 'On the ground'
               : [
                   Number.isFinite(a.altitudeFeet) ? `${a.altitudeFeet.toLocaleString()} ft` : '',
+                  verticalTrend(a.verticalRateFpm),
                   Number.isFinite(a.groundSpeedKnots) ? `${Math.round(a.groundSpeedKnots * KNOTS_TO_MPH)} mph` : '',
                 ]
                   .filter(Boolean)
                   .join(' · '),
-            meta: `icao ${a.id}`,
+            meta: generic ? '' : [a.registration, `icao ${a.id}`].filter(Boolean).join(' · '),
             provider: json.provider || 'ADSB public telemetry',
             sourceUrl: 'https://api.adsb.lol/',
             updatedAt: a.updatedAt,

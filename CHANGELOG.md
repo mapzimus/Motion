@@ -2,6 +2,74 @@
 
 ## Unreleased
 
+### Boats
+- Far more boats on the map. The AIS hub now ages vessels by listening time:
+  a boat is only dropped after 15 minutes of the upstream being open without
+  hearing it (60 minutes if it was moored, under 1 knot), plus a 6-hour
+  real-time cap. Quiet spells with no viewers no longer empty the snapshot, so
+  a new visitor sees every boat the hub still knows instead of a blank harbor.
+  The listening clock is saved with the snapshot and survives restarts.
+- The hub keeps its AISStream connection 20 minutes after the last viewer
+  leaves (was 5), so the next visitor usually gets a warm snapshot.
+- The map uses the same rules: moving boats drop after 15 minutes unheard,
+  moored boats after 60, and snapshot boats up to 6 hours old show dimmed
+  instead of being discarded. Vessel popups and the trip card say "Last heard
+  12 min ago" (hours when older) from the boat's real last report.
+- Popup ages read "5 min ago" and "2 h 5 min ago" instead of "5m ago" and
+  "125m ago".
+
+### Aviation conditions
+- **Airport weather (METAR)**: about 64 New England weather stations as dots
+  colored by flight category (VFR green, MVFR blue, IFR red, LIFR magenta).
+  The popup shows the category, wind, visibility, ceiling, how old the
+  observation is, and the raw METAR, then loads the station's TAF. Served by
+  the new gateway endpoints `/api/airport-weather` (5 min edge cache) and
+  `/api/airport-taf?id=` (strict ICAO id check, 30 min cache) with the
+  User-Agent AviationWeather.gov asks for.
+- **Temporary flight restrictions (FAA)**: TFR polygons inside New England
+  from the FAA TFR map service, joined to the FAA TFR list for type and
+  facility (`/api/tfrs`, 5 min cache). Clicking one loads its altitudes,
+  effective times, and reason from the FAA notice (`/api/tfr-detail?id=`,
+  30 min cache) and links to it.
+- **Airspace (Class B/C/D & special use)**: a static FAA reference layer,
+  `public/data/airspace.geojson` (69 shapes, ~100 KB), built by the new
+  `scripts/build-airspace.py` from the FAA ADDS services. It downloads only
+  when switched on. Outlines follow the sectional chart (B blue, C magenta,
+  D dashed blue, special use orange) with "ceiling/floor" labels; popups list
+  every layer at the click, floor first, with a reminder to check current
+  charts and NOTAMs. `npm run check` validates the file.
+- All three rows sit under Air & water beside Airport delays, start switched off, and join the Air
+  preset. `/health` reports `airportWeather` and `tfrs`.
+
+### Aircraft and airports
+- Live aircraft draw by type: airliner, light aircraft, helicopter, or a
+  plain dart for gliders, balloons, drones and unknowns, from the ADS-B
+  emitter category (or the ICAO type code when none is sent).
+- An aircraft squawking 7500, 7600 or 7700, or reporting an emergency
+  status, gets a red ring on the map and a line in its card, e.g.
+  "Squawking 7700 · general emergency".
+- Aircraft are clipped with the coastal boundary like vessels, so planes over
+  Boston Harbor, Long Island Sound and the Cape waters no longer vanish.
+- Cards show the registration and whether the aircraft is climbing or
+  descending. Privacy: owner/operator names are never relayed, registrations
+  are withheld for PIA and LADD aircraft, and helicopters show only their
+  type. Nothing singles out military or LADD aircraft.
+- Heliports and seaplane bases get their own marks; public-use airports are
+  in Find by name or FAA/ICAO code (`BOS`, `KBOS`, `logan`).
+- Seasonal air corridors now carry their season dates and turn into
+  reference lines out of season. Tradewind's Bedford–Nantucket and
+  Bedford–Martha's Vineyard flights (season ended September 8, 2026) now
+  read that way; Cape Air Boston–Provincetown is year-round (reduced winter
+  schedule); Norwood–Nantucket runs through October 13, 2026.
+- The aircraft relay returns `category`, `squawk`, `emergency`,
+  `registration`, `verticalRateFpm` and `dbFlags` (fields only added), and
+  `/api/route` answers a clean 502 when the route catalog is down. **The
+  relay is a separate Vercel project: redeploy it (`cd aircraft-gateway;
+  npx vercel --prod`) for emergency rings, registrations and
+  category-based icons to appear.** Until then icons come from the type code
+  alone.
+- Removed the unused plane popup route lookup; the trip card keeps it.
+
 ### Legend & colors
 - A map key appears at the bottom right (on a phone, a "Key" pill that opens a
   sheet) listing what is switched on and who runs it, with live-vehicle and
@@ -19,6 +87,9 @@
   York's Port Authority, road-routed from the official timetables, with the
   six C&J stops and their addresses.
 - Hand-built bus corridors can list named stops and road-route every leg.
+- Go Buses' Alewife–Riverside–New York coach drawn as a road-routed corridor
+  with its two Boston-area stops. All cached road segments were refetched
+  because the routing controls changed; no existing route moved by more than 2%.
 
 ### Regions, presets & basemaps
 - New **North Shore** region: 26 communities from Revere to Newburyport,
@@ -95,6 +166,27 @@
   the old Passio endpoint still answers but is permanently empty. Harvard's
   scheduled routes stay on the map. Roger Williams was checked too: its Passio
   system has no realtime endpoint, so it stays scheduled-only.
+
+### Logan Express & Massport
+- Massport's 16 announcement and timing points ("Welcome to Logan",
+  "Announcement #1–#5", "Overflow Parking Lot (FH)", "RCC Ez Pass" and the
+  like) are no longer drawn as bus stops: nobody can board or leave there.
+  New opt-in feed rule `skip_non_boarding_stops`.
+- Woburn is labelled "WO · Woburn" instead of "WO". A letter-code short name
+  now hides the long name only when it appears there as a whole word, which
+  also fixes RIPTA "R · Broad/North Main", Harvard "AL · Allston Loop", Brown
+  "X · Daytime Express" and "E · Evening CW/CCW Route", Nashua "N · North
+  Route" and "S · South Route", GATRA "LIB · Liberty Link", SRTA "WARE ·
+  Wareham/New Bedford", and Western Maine "BLU · Blue Line".
+- Each Logan Express route and its stops link to the route's Massport page
+  (terminal-curb stops to the Logan Express overview); the airport shuttles
+  link to Massport's On-Airport Shuttle page instead of the Mobility Database.
+- "RF · Remote Framingham" is marked as the Remote Terminal pilot: Delta and
+  JetBlue passengers only, reservation required, drops passengers inside
+  security at Logan, through February 2027.
+- The Logan Airport Remote Terminal (19 Flutie Pass, Framingham) is a new
+  reference point in Local & on-demand services, with hours, airlines, how
+  the TSA screening works, and the pilot's end date.
 
 ### Transit coverage
 - Eight more schedule feeds: EZRide, Longwood Collective, Mass General Brigham,

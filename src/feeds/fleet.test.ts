@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 const { setFleetData } = vi.hoisted(() => ({ setFleetData: vi.fn() }));
 vi.mock('../map/map.js', () => ({ setFleetData }));
-vi.mock('./regions.js', () => ({ filterItems: (items: unknown[]) => items }));
+vi.mock('./regions.js', () => ({ filterItems: (items: unknown[]) => items, fleetBoundaryOptions: () => ({}) }));
 
 import { createFleet, recolorAllFleets } from './fleet.js';
 

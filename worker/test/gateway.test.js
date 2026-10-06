@@ -22,6 +22,8 @@ describe('Motion gateway', () => {
         traffic: true,
         airportStatus: true,
         weatherAlerts: true,
+        airportWeather: true,
+        tfrs: true,
       },
     });
     // Aircraft come from the Vercel relay, not this Worker.
@@ -38,6 +40,23 @@ describe('Motion gateway', () => {
     const response = await call('/api/weather-alerts?region=california');
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({ error: 'Unknown region' });
+  });
+
+  it('validates airport TAF station ids before calling AviationWeather.gov', async () => {
+    for (const id of ['', 'bos', 'KBOSX', 'KB%26S', '..%2Fx']) {
+      const response = await call(`/api/airport-taf?id=${id}`);
+      expect(response.status, id).toBe(400);
+      await expect(response.json()).resolves.toEqual({ error: 'Invalid station id' });
+    }
+    expect((await call('/api/airport-taf')).status).toBe(400);
+  });
+
+  it('validates TFR NOTAM ids before calling the FAA', async () => {
+    for (const id of ['', '6-7153', '6%2F7153%26x%3D1', 'abc']) {
+      const response = await call(`/api/tfr-detail?id=${id}`);
+      expect(response.status, id).toBe(400);
+      await expect(response.json()).resolves.toEqual({ error: 'Invalid NOTAM id' });
+    }
   });
 
   it('rejects browser origins outside the allowlist', async () => {

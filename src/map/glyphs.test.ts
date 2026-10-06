@@ -3,7 +3,7 @@ import { GLYPHS, glyphSvgPath, iconName, parseIconName } from './glyphs.js';
 
 describe('glyphs', () => {
   it('has a path builder for every vehicle shape', () => {
-    expect(Object.keys(GLYPHS).sort()).toEqual(['boat', 'bus', 'dock', 'plane', 'share-bike', 'share-scooter']);
+    expect(Object.keys(GLYPHS).sort()).toEqual(['boat', 'bus', 'dock', 'plane', 'plane-heli', 'plane-light', 'plane-other', 'share-bike', 'share-scooter']);
     for (const draw of Object.values(GLYPHS)) expect(typeof draw).toBe('function');
   });
 
@@ -11,7 +11,7 @@ describe('glyphs', () => {
     const calls: string[] = [];
     const ctx = new Proxy({}, { get: (_t, k) => () => { calls.push(String(k)); } });
     for (const draw of Object.values(GLYPHS)) draw(ctx as unknown as CanvasRenderingContext2D, 64);
-    expect(calls.filter((c) => c === 'beginPath')).toHaveLength(6);
+    expect(calls.filter((c) => c === 'beginPath')).toHaveLength(9);
   });
 
   it('gives an SVG path for the polygon and box shapes', () => {
