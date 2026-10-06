@@ -49,6 +49,8 @@ export function startPlanes(onCounts, initialRegion, enabled = true) {
             emergency: Boolean(alert),
             alert,
             dataStatus: 'live',
+            legendKey: 'all',
+            legendLabel: 'Aircraft',
             color: CONFIG.PLANE_COLOR,
             bearing: a.bearing ?? 0,
             hasBearing: Number.isFinite(a.bearing),

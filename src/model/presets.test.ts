@@ -7,6 +7,7 @@ import {
   VEHICLE_PRESETS,
   resolvePreset,
 } from './presets.js';
+import { LEGEND_GROUPS } from './legendConfig.js';
 
 const group = (key: string, extra: Record<string, unknown> = {}) => ({ key, ...extra });
 const allGroups = GROUP_KEYS.map((key) =>
@@ -51,5 +52,20 @@ describe('resolvePreset', () => {
       (['traffic', 'incident', 'roadwork', 'camera'].includes(g.key) ? { ...g, needsKey: true } : g));
     const plan = resolvePreset('roads', { region: 'ma', groups: gated, hasSubway: subwayRegion });
     expect(plan?.groups).toEqual([]);
+  });
+});
+
+describe('legend descriptors', () => {
+  it('every GROUP_KEYS entry has a LEGEND_GROUPS descriptor and vice versa', () => {
+    expect(Object.keys(LEGEND_GROUPS).sort()).toEqual([...GROUP_KEYS].sort());
+    for (const key of GROUP_KEYS) {
+      expect(LEGEND_GROUPS[key].name, key).toBeTruthy();
+      expect(Array.isArray(LEGEND_GROUPS[key].notes), key).toBe(true);
+    }
+  });
+  it('every fixedRows entry has a 6-digit hex color', () => {
+    for (const [key, g] of Object.entries(LEGEND_GROUPS)) {
+      for (const row of g.fixedRows ?? []) expect(row.color, `${key}/${row.key}`).toMatch(/^#[0-9a-fA-F]{6}$/);
+    }
   });
 });

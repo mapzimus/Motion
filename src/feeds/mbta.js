@@ -5,6 +5,7 @@
 import { CONFIG } from './config.js';
 import { fetchVehicles } from './api.js';
 import { createFleet } from './fleet.js';
+import { paintVehicle } from '../stores/legend.js';
 
 // Groups this poller can produce (used to zero counts each cycle).
 export const MBTA_GROUPS = [
@@ -97,7 +98,10 @@ function apply(vehicles) {
     const info = routeInfo.get(v.route);
     const group = groupFor(v.route, info);
     const trainNumber = trainNumberFor(v.route, v.tripId);
-    return {
+    const baseColor = info?.color ?? '#8a939c';
+    // Bus, ferry and commuter rail take the operator palette (paintVehicle);
+    // subway lines keep their route color.
+    return paintVehicle({
       id: v.id,
       detail: {
         tripId: v.tripId,
@@ -116,7 +120,11 @@ function apply(vehicles) {
       props: {
         group,
         dataStatus: 'live',
-        color: info?.color ?? '#8a939c',
+        legendKey: 'mbta',
+        legendLabel: 'MBTA',
+        modeColor: baseColor,
+        color: baseColor,
+        shadeKey: v.route, // MBTA static routes use raw route ids
         bearing: v.bearing ?? 0,
         hasBearing: typeof v.bearing === 'number',
         stale: now - Date.parse(v.updatedAt) > CONFIG.STALE_AFTER_MS,
@@ -136,7 +144,7 @@ function apply(vehicles) {
         sourceUrl: 'https://www.mbta.com/developers/v3-api',
         updatedAt: v.updatedAt,
       },
-    };
+    });
   });
 
   const visible = fleet.update(items);

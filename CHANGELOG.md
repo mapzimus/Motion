@@ -38,7 +38,7 @@
   D dashed blue, special use orange) with "ceiling/floor" labels; popups list
   every layer at the click, floor first, with a reminder to check current
   charts and NOTAMs. `npm run check` validates the file.
-- All three rows sit under Conditions, start switched off, and join the Air
+- All three rows sit under Air & water beside Airport delays, start switched off, and join the Air
   preset. `/health` reports `airportWeather` and `tfrs`.
 
 ### Aircraft and airports
@@ -69,6 +69,17 @@
   category-based icons to appear.** Until then icons come from the type code
   alone.
 - Removed the unused plane popup route lookup; the trip card keeps it.
+
+### Legend & colors
+- A map key appears at the bottom right (on a phone, a "Key" pill that opens a
+  sheet) listing what is switched on and who runs it, with live-vehicle and
+  route counts.
+- Buses, ferries, commuter rail, and air services are now colored by operator.
+  Each operator's routes shade apart when you zoom in past about zoom 13.5,
+  and live vehicles match their routes.
+- Vessels are colored by their AIS ship type.
+- The layer panel merged its two "Conditions" sections and renamed the bus,
+  local, and commuter rail rows.
 
 ### Coaches
 - C&J Bus Lines' full network replaces its two-trip GTFS stub: Dover,
@@ -137,7 +148,8 @@
 - Metro-North trains on the New Haven, New Canaan, Danbury, and Waterbury lines
   now use the GPS position the MTA feed reports and are labeled live. Trains
   without a fresh fix keep the between-stations estimate.
-- Twelve more live feeds: Lowell RTA, Lexpress, Harvard, EZRide, Longwood
+- Twelve more live feeds: Lowell RTA, Lexpress, Harvard (since removed, see
+  below), EZRide, Longwood
   Collective, Mass General Brigham, Quinnipiac, University of Hartford,
   University of New Haven, Providence College, Bangor Community Connector, and
   Lewiston-Auburn citylink.
@@ -149,6 +161,11 @@
 - The Swiftly key is sent only to agencies that approved sharing (Casco Bay
   Lines), and approved feeds are cached for 30 seconds. Previously a configured
   key was sent to every Swiftly feed and rejected by nine of them every poll.
+- Harvard's live shuttle feed is removed. Harvard moved its tracking from
+  Passio GO to Citymapper on 2026-07-01 and Citymapper publishes no open feed;
+  the old Passio endpoint still answers but is permanently empty. Harvard's
+  scheduled routes stay on the map. Roger Williams was checked too: its Passio
+  system has no realtime endpoint, so it stays scheduled-only.
 
 ### Logan Express & Massport
 - Massport's 16 announcement and timing points ("Welcome to Logan",

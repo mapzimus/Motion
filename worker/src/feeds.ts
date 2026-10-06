@@ -87,16 +87,6 @@ export const TRANSIT_FEEDS: TransitFeed[] = [
     mbtaCore: true,
   },
   {
-    // Passio GTFS-realtime mirrors the Passio GO rider app: on 2026-10-04 every system with
-    // buses in the app (EZRide, MGB, Quinnipiac) decoded the same count here, and systems
-    // with none in the app (Harvard, Longwood, Bangor, citylink, Lexpress) decoded zero.
-    id: 'harvard',
-    agency: 'Harvard University shuttles',
-    states: ['ma'],
-    url: 'https://passio3.com/harvard/passioTransit/gtfs/realtime/vehiclePositions',
-    mbtaCore: true,
-  },
-  {
     // Live-verified 2026-10-04: one vehicle at Lechmere/Kendall.
     id: 'ezride',
     agency: 'EZRide · Charles River TMA',

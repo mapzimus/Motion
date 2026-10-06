@@ -80,6 +80,8 @@ export function normalizeAmtrakTrain(train, { box, color, now, staleAfterMs }) {
     props: {
       group: 'amtrak',
       dataStatus: predeparture ? 'estimated' : 'live',
+      legendKey: 'amtrak',
+      legendLabel: 'Amtrak',
       color,
       bearing: heading ?? 0,
       hasBearing: heading !== undefined,

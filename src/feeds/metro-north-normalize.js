@@ -24,6 +24,7 @@ export function trainItem(trip, stops, { color = '#ee0034', staleAfterMs = 120_0
     ? `${previous.name} → ${next.name}${eta}`
     : next ? `Next stop ${next.name}${eta}` : 'In service';
   const updatedAt = gps?.at ?? trip.updatedAt;
+  const modeColor = trip.color ?? color;
   return {
     id: `mnr-${trip.id}`,
     detail: {
@@ -38,7 +39,11 @@ export function trainItem(trip, stops, { color = '#ee0034', staleAfterMs = 120_0
     props: {
       group: 'commuter',
       dataStatus: gps ? 'live' : 'estimated',
-      color: trip.color ?? color,
+      legendKey: 'metro-north',
+      legendLabel: 'Metro-North',
+      modeColor,
+      color: modeColor,
+      shadeKey: trip.routeId ? `metro-north:${trip.routeId}` : '',
       bearing: previous && next ? bearingBetween(previous, next) : 0,
       hasBearing: Boolean(previous && next),
       stale: now - Date.parse(updatedAt) > staleAfterMs,

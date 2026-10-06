@@ -1,8 +1,9 @@
 // Map engine: MapLibre GL setup, route ribbons, one animated layer-pair per
 // vehicle fleet, source-agnostic popups, and alert-focus navigation.
 
-import { PLANE_ICON_BY_KIND } from '../feeds/aircraft.js';
 import { CONFIG } from '../feeds/config.js';
+import { AIRPORT_STATUS_LABELS } from '../model/legendConfig.js';
+import { lookupFlightRoute } from '../feeds/flight-routes.js';
 import { ageText } from '../feeds/age.js';
 import { attachStopPredictions } from '../feeds/predictions.js';
 import {
@@ -17,8 +18,44 @@ import {
   maxZoomForRegion,
   setActiveRegion,
 } from '../feeds/regions.js';
+import { buildRouteKeyIndex, stampRouteColors } from '../model/routeColors.js';
+import {
+  setRouteKeyIndex,
+  paletteAssignment,
+  setLiveKeyCounts,
+  setLegendZoom,
+  setViewportRoutes,
+  wantsViewportRoutes,
+} from '../stores/legend.js';
+import { countLiveKeys, viewportRoutesFromFeatures, VIEWPORT_ZOOM } from '../model/legendRows.js';
+import { PALETTE, VESSEL_BANDS } from '../model/palette.js';
+import { GLYPHS, iconName, parseIconName } from './glyphs.js';
 
 const EMPTY_FC = { type: 'FeatureCollection', features: [] };
+
+// Static routes and stops: operator color when zoomed out, per-route shade when
+// zoomed in. Subway and Amtrak carry no opColor and keep their baked color.
+const ROUTE_COLOR_EXPR = [
+  'interpolate', ['linear'], ['zoom'],
+  12.5, ['coalesce', ['get', 'opColor'], ['get', 'color']],
+  13.5, ['coalesce', ['get', 'routeColor'], ['get', 'color']],
+];
+const ROUTE_COLOR_LAYERS = {
+  'route-halo': 'line-color',
+  'route-lines': 'line-color',
+  'scheduled-station-halo': 'circle-color',
+  'scheduled-stations': 'circle-color',
+  'scheduled-ferry-stops': 'circle-color',
+  'scheduled-bus-stops': 'circle-color',
+};
+
+/** Re-assert the route color expression (a basemap swap rebuilds the layers). */
+export function applyRoutePalette() {
+  if (!map || !layersReady) return;
+  for (const [layerId, prop] of Object.entries(ROUTE_COLOR_LAYERS)) {
+    if (map.getLayer(layerId)) map.setPaintProperty(layerId, prop, ROUTE_COLOR_EXPR);
+  }
+}
 
 // Draw order, bottom to top: bike docks under boats under trains under planes.
 const FLEETS = ['bike', 'vessel', 'amtrak', 'regional', 'mnr', 'mbta', 'plane'];
@@ -28,6 +65,24 @@ const FLEETS = ['bike', 'vessel', 'amtrak', 'regional', 'mnr', 'mbta', 'plane'];
 // mode gets its own silhouette so it reads at first glance.
 const RAIL_GROUPS = ['red', 'orange', 'green', 'blue', 'silver', 'mattapan', 'commuter', 'amtrak'];
 const ICON_GROUPS = ['bus', 'ferry', 'plane', 'vessel', 'bike'];
+// Sprite color for a vehicle that arrives without one; drawn on first use by
+// the styleimagemissing handler like any other icon-<shape>-<hex6> sprite.
+const FALLBACK_ICON_COLOR = '#8a939c';
+// Glyph shape per vehicle; shared mobility splits docks from free vehicles.
+const ICON_SHAPE_EXPR = [
+  'match', ['get', 'group'],
+  'plane', ['match', ['get', 'planeKind'], 'light', 'plane-light', 'heli', 'plane-heli', 'other', 'plane-other', 'plane'],
+  'bus', 'bus',
+  'ferry', 'boat',
+  'vessel', 'boat',
+  ['match', ['get', 'markerKind'], 'scooter', 'share-scooter', 'bicycle', 'share-bike', 'dock'],
+];
+// Live rail dots: operator color zoomed out, route shade zoomed in.
+const VEHICLE_COLOR_EXPR = [
+  'interpolate', ['linear'], ['zoom'],
+  12.5, ['get', 'color'],
+  13.5, ['coalesce', ['get', 'routeColor'], ['get', 'color']],
+];
 const STOP_POINT_LAYERS = ['scheduled-stations', 'scheduled-ferry-stops', 'scheduled-bus-stops'];
 const AIRPORT_LAYERS = ['airport-public-points', 'airport-private-points', 'airport-public-marks', 'airport-private-marks', 'airport-labels'];
 const AIRPORT_CIRCLE_FILTER = ['!', ['in', ['get', 'facilityType'], ['literal', ['Heliport', 'Seaplane base']]]];
@@ -137,6 +192,7 @@ export function setBasemap(key) {
 function onStyleReady() {
   setupLayers();
   layersReady = true;
+  applyRoutePalette();
   if (pendingFilters) applyGroupFilter(pendingFilters.groups, pendingFilters.statuses);
   applyRegion(false);
 }
@@ -172,6 +228,8 @@ export function initMap() {
       // Layer click/hover listeners live on the map, not the style, so they
       // survive basemap swaps and are wired once.
       wirePopups();
+      map.on('styleimagemissing', drawMissingIcon);
+      wireLegend();
       resolve(map);
     });
   });
@@ -196,84 +254,6 @@ function chevronImage(size = 48) {
 // ---- mode icon sprites -----------------------------------------------------
 // Pre-rendered filled silhouettes wearing the same white outline as the rail
 // dots. Shapes point north; MapLibre rotates them by live bearing.
-
-function mirroredPolygon(ctx, rightHalf, size) {
-  const u = size / 64;
-  ctx.beginPath();
-  ctx.moveTo(rightHalf[0][0] * u, rightHalf[0][1] * u);
-  for (const [x, y] of rightHalf.slice(1)) ctx.lineTo(x * u, y * u);
-  for (const [x, y] of [...rightHalf].reverse()) ctx.lineTo((64 - x) * u, y * u);
-  ctx.closePath();
-}
-
-// Airliner from above, nose up: fuselage, swept wings, tailplane.
-const PLANE_HALF = [
-  [32, 2], [35, 8], [36, 20], [62, 36], [62, 43], [36, 33],
-  [35, 46], [45, 56], [45, 61], [32, 57],
-];
-// Light aircraft from above: short fuselage, straight high wing, small tail.
-const LIGHT_PLANE_HALF = [
-  [32, 8], [35, 11], [35, 21], [61, 21], [61, 29], [35, 30],
-  [34, 47], [44, 48], [44, 54], [33, 55], [32, 58],
-];
-// Anything else that flies (glider, balloon, drone, unknown): a plain dart.
-const DART_HALF = [
-  [32, 6], [50, 56], [32, 46],
-];
-
-// Helicopter from above: crossed rotor blades over a cabin and tail boom.
-// Every sub-path winds the same way so the fill is one clean silhouette.
-function helicopter(ctx, size) {
-  const u = size / 64;
-  const blade = (angle) => {
-    const [cx, cy, half, width] = [32, 27, 27, 2.6];
-    const [dx, dy] = [Math.cos(angle), Math.sin(angle)];
-    const [nx, ny] = [dy * width, -dx * width]; // keeps the blade clockwise like rect()
-    ctx.moveTo((cx - dx * half + nx) * u, (cy - dy * half + ny) * u);
-    ctx.lineTo((cx + dx * half + nx) * u, (cy + dy * half + ny) * u);
-    ctx.lineTo((cx + dx * half - nx) * u, (cy + dy * half - ny) * u);
-    ctx.lineTo((cx - dx * half - nx) * u, (cy - dy * half - ny) * u);
-    ctx.closePath();
-  };
-  ctx.beginPath();
-  ctx.ellipse(32 * u, 28 * u, 9 * u, 13 * u, 0, 0, Math.PI * 2);
-  ctx.closePath();
-  ctx.rect(30 * u, 38 * u, 4 * u, 20 * u);
-  ctx.rect(25 * u, 55 * u, 14 * u, 4 * u);
-  blade(Math.PI / 4);
-  blade((3 * Math.PI) / 4);
-}
-// Boat hull from above, bow up.
-const BOAT_HALF = [
-  [32, 2], [45, 14], [48, 34], [45, 58], [32, 61],
-];
-
-const roundedRect = (x, y, w, h, r) => (ctx, size) => {
-  const u = size / 64;
-  ctx.beginPath();
-  ctx.roundRect(x * u, y * u, w * u, h * u, r * u);
-};
-
-const diamond = (ctx, size) => {
-  ctx.beginPath();
-  ctx.moveTo(size * 0.5, size * 0.08);
-  ctx.lineTo(size * 0.92, size * 0.5);
-  ctx.lineTo(size * 0.5, size * 0.92);
-  ctx.lineTo(size * 0.08, size * 0.5);
-  ctx.closePath();
-};
-
-const scooter = (ctx, size) => {
-  const u = size / 64;
-  ctx.beginPath();
-  ctx.roundRect(12 * u, 40 * u, 38 * u, 11 * u, 5 * u);
-  ctx.moveTo(43 * u, 42 * u);
-  ctx.lineTo(48 * u, 12 * u);
-  ctx.lineTo(57 * u, 12 * u);
-  ctx.lineTo(57 * u, 18 * u);
-  ctx.lineTo(51 * u, 18 * u);
-  ctx.lineTo(47 * u, 42 * u);
-};
 
 function makeIcon(fill, draw, size = 64) {
   const canvas = document.createElement('canvas');
@@ -330,18 +310,6 @@ function seaplaneGlyph(ctx, u) {
   ctx.stroke();
 }
 
-const PLANE_SHAPES = {
-  airliner: (c, s) => mirroredPolygon(c, PLANE_HALF, s),
-  light: (c, s) => mirroredPolygon(c, LIGHT_PLANE_HALF, s),
-  heli: helicopter,
-  other: (c, s) => mirroredPolygon(c, DART_HALF, s),
-};
-// planes.js tags each aircraft with planeKind (see feeds/aircraft.js).
-const PLANE_ICON_EXPRESSION = [
-  'match', ['get', 'planeKind'],
-  ...Object.entries(PLANE_ICON_BY_KIND).filter(([kind]) => kind !== 'airliner').flat(),
-  PLANE_ICON_BY_KIND.airliner,
-];
 // Light aircraft, helicopters and the rest draw a little smaller than airliners.
 const planeIconSize = (airliner) => [
   'match', ['get', 'planeKind'],
@@ -351,25 +319,35 @@ const planeIconSize = (airliner) => [
   airliner,
 ];
 
+// Sprites are named icon-<shape>-<hex6> (glyphs.js). The common ones are
+// drawn up front; route shades and overflow colors are drawn on first use by
+// the styleimagemissing handler.
 function registerModeIcons() {
-  const icons = {
-    ...Object.fromEntries(Object.entries(PLANE_ICON_BY_KIND).map(
-      ([kind, name]) => [name, makeIcon(CONFIG.PLANE_COLOR, PLANE_SHAPES[kind])],
-    )),
-    'icon-heliport': facilityIcon(heliportGlyph),
-    'icon-seaplane-base': facilityIcon(seaplaneGlyph),
-    'icon-boat-ferry': makeIcon(CONFIG.FERRY_COLOR, (c, s) => mirroredPolygon(c, BOAT_HALF, s)),
-    'icon-boat-vessel': makeIcon(CONFIG.VESSEL_COLOR, (c, s) => mirroredPolygon(c, BOAT_HALF, s)),
-    'icon-bus': makeIcon(CONFIG.BUS_COLOR, roundedRect(21, 8, 22, 48, 9)),
-    'icon-dock-ok': makeIcon(CONFIG.BIKE_COLOR, roundedRect(15, 15, 34, 34, 8)),
-    'icon-dock-low': makeIcon(CONFIG.BIKE_LOW_COLOR, roundedRect(15, 15, 34, 34, 8)),
-    'icon-dock-empty': makeIcon(CONFIG.BIKE_EMPTY_COLOR, roundedRect(15, 15, 34, 34, 8)),
-    'icon-share-bike': makeIcon(CONFIG.BIKE_FREE_COLOR, diamond),
-    'icon-share-scooter': makeIcon(CONFIG.BIKE_FREE_COLOR, scooter),
+  const bikeColors = CONFIG.SHARED_MOBILITY_SYSTEMS.map((system) => system.color).filter(Boolean);
+  const preset = {
+    plane: [CONFIG.PLANE_COLOR],
+    'plane-light': [CONFIG.PLANE_COLOR],
+    'plane-heli': [CONFIG.PLANE_COLOR],
+    'plane-other': [CONFIG.PLANE_COLOR],
+    bus: [CONFIG.BUS_COLOR, ...PALETTE],
+    boat: [CONFIG.FERRY_COLOR, ...PALETTE, ...VESSEL_BANDS.map((band) => band.color)],
+    dock: [CONFIG.BIKE_COLOR, CONFIG.BIKE_LOW_COLOR, CONFIG.BIKE_EMPTY_COLOR, ...bikeColors],
+    'share-bike': [CONFIG.BIKE_FREE_COLOR, ...bikeColors],
+    'share-scooter': [CONFIG.BIKE_FREE_COLOR, ...bikeColors],
   };
-  for (const [name, image] of Object.entries(icons)) {
-    addImageOnce(name, image);
+  for (const [shape, colors] of Object.entries(preset)) {
+    for (const color of new Set(colors)) {
+      addImageOnce(iconName(shape, color), makeIcon(color, GLYPHS[shape]));
+    }
   }
+  addImageOnce('icon-heliport', facilityIcon(heliportGlyph));
+  addImageOnce('icon-seaplane-base', facilityIcon(seaplaneGlyph));
+}
+
+function drawMissingIcon(event) {
+  const sprite = parseIconName(event.id);
+  if (!sprite || map.hasImage(event.id)) return;
+  map.addImage(event.id, makeIcon(sprite.color, GLYPHS[sprite.shape]), { pixelRatio: 2 });
 }
 
 // setStyle() can carry images over from the previous style; re-adding one
@@ -841,7 +819,7 @@ function setupLayers() {
     source: 'route-shapes',
     layout: { 'line-cap': 'round', 'line-join': 'round' },
     paint: {
-      'line-color': ['get', 'color'],
+      'line-color': ROUTE_COLOR_EXPR,
       'line-width': ['interpolate', ['linear'], ['zoom'], 10, 6, 15, 14],
       'line-opacity': 0.18,
       'line-blur': 4,
@@ -853,7 +831,7 @@ function setupLayers() {
     source: 'route-shapes',
     layout: { 'line-cap': 'round', 'line-join': 'round' },
     paint: {
-      'line-color': ['get', 'color'],
+      'line-color': ROUTE_COLOR_EXPR,
       // Dense bus ribbons and straight-line air-service references stay subtle
       // so they inform without burying rail and water routes.
       'line-width': [
@@ -874,7 +852,7 @@ function setupLayers() {
       ['in', ['get', 'group'], ['literal', RAIL_GROUPS]],
     ],
     paint: {
-      'circle-color': ['get', 'color'],
+      'circle-color': ROUTE_COLOR_EXPR,
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 5.5, 10, 9, 14, 14],
       'circle-opacity': 0.16,
       'circle-blur': 0.55,
@@ -890,7 +868,7 @@ function setupLayers() {
       ['in', ['get', 'group'], ['literal', RAIL_GROUPS]],
     ],
     paint: {
-      'circle-color': ['get', 'color'],
+      'circle-color': ROUTE_COLOR_EXPR,
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 3.2, 10, 5.4, 14, 8],
       'circle-stroke-color': '#f4f6f8',
       'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 5, 0.7, 14, 1.8],
@@ -958,7 +936,7 @@ function setupLayers() {
       ['==', ['get', 'group'], 'ferry'],
     ],
     paint: {
-      'circle-color': ['get', 'color'],
+      'circle-color': ROUTE_COLOR_EXPR,
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 8.5, 2.5, 14, 5],
       'circle-stroke-color': '#f4f6f8',
       'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 8.5, 0.7, 14, 1.3],
@@ -1001,7 +979,7 @@ function setupLayers() {
       ['==', ['get', 'group'], 'bus'],
     ],
     paint: {
-      'circle-color': ['get', 'color'],
+      'circle-color': ROUTE_COLOR_EXPR,
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 12.5, 1.2, 16, 2.6],
       'circle-stroke-color': '#10151c',
       'circle-stroke-width': 0.55,
@@ -1060,7 +1038,7 @@ function setupLayers() {
       source: `veh-${fleetId}`,
       filter: ['in', ['get', 'group'], ['literal', RAIL_GROUPS]],
       paint: {
-        'circle-color': ['get', 'color'],
+        'circle-color': VEHICLE_COLOR_EXPR,
         'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 3.5, 12, 6, 15, 10],
         'circle-stroke-color': '#f4f6f8',
         'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 9, 1, 15, 2],
@@ -1096,19 +1074,9 @@ function setupLayers() {
       filter: ['in', ['get', 'group'], ['literal', ICON_GROUPS]],
       layout: {
         'icon-image': [
-          'match', ['get', 'group'],
-          'plane', PLANE_ICON_EXPRESSION,
-          'bus', 'icon-bus',
-          'ferry', 'icon-boat-ferry',
-          'vessel', 'icon-boat-vessel',
-          // default arm = shared mobility; shape separates docks from vehicles
-          ['match', ['get', 'markerKind'],
-            'scooter', 'icon-share-scooter',
-            'bicycle', 'icon-share-bike',
-            ['match', ['get', 'color'],
-              CONFIG.BIKE_LOW_COLOR, 'icon-dock-low',
-              CONFIG.BIKE_EMPTY_COLOR, 'icon-dock-empty',
-              'icon-dock-ok']],
+          'step', ['zoom'],
+          ['concat', 'icon-', ICON_SHAPE_EXPR, '-', ['slice', ['coalesce', ['get', 'color'], FALLBACK_ICON_COLOR], 1]],
+          13.5, ['concat', 'icon-', ICON_SHAPE_EXPR, '-', ['slice', ['coalesce', ['get', 'routeColor'], ['get', 'color'], FALLBACK_ICON_COLOR], 1]],
         ],
         'icon-size': [
           'interpolate', ['linear'], ['zoom'],
@@ -1935,7 +1903,16 @@ function renderRouteShapes() {
       return featureTouchesRegion(feature, activeRegion);
     }),
   };
+  colorRouteFeatures(routeShapesFC.features);
   map?.getSource('route-shapes')?.setData(routeShapesFC);
+  applyRoutePalette();
+}
+
+/** Publish the region's operator index, then stamp opColor/routeColor from the resulting palette. */
+function colorRouteFeatures(features) {
+  const index = buildRouteKeyIndex(features);
+  setRouteKeyIndex(index);
+  stampRouteColors(features, paletteAssignment.peek(), index);
 }
 
 export function setRoadworkData(featureCollection) {
@@ -2048,13 +2025,6 @@ export function airportStatusCountForRegion() {
   return filterFeatureCollection(allAirportStatusFC, activeRegion).features.length;
 }
 
-const AIRPORT_STATUS_LABELS = {
-  'ground-stop': 'Ground stop',
-  'ground-delay': 'Ground delay program',
-  'arrival-delay': 'Arrival delays',
-  'departure-delay': 'Departure delays',
-  closure: 'Airport closure / NOTAM',
-};
 const AIRPORT_STATUS_BADGES = {
   'ground-stop': 'STOP',
   'ground-delay': 'GDP',
@@ -2356,6 +2326,51 @@ function renderFleetData(fleetId) {
   const filtered = filterFeatureCollection(collection, activeRegion, fleetFilterOptions(fleetId));
   fleetData.set(fleetId, filtered);
   map?.getSource(`veh-${fleetId}`)?.setData(filtered);
+  scheduleLiveKeyCounts();
+  scheduleViewportRoutes();
+}
+
+// ---- legend feeds ------------------------------------------------------------
+// renderFleetData runs every animation frame during glides, so the legend's
+// live counts and viewport routes are coalesced into one update per 300 ms.
+
+const LEGEND_THROTTLE_MS = 300;
+let liveKeyTimer = null;
+let viewportTimer = null;
+
+function scheduleLiveKeyCounts() {
+  if (liveKeyTimer) return;
+  liveKeyTimer = setTimeout(() => {
+    liveKeyTimer = null;
+    setLiveKeyCounts(countLiveKeys(fleetData.values()));
+  }, LEGEND_THROTTLE_MS);
+}
+
+function scheduleViewportRoutes() {
+  if (viewportTimer || !map) return;
+  viewportTimer = setTimeout(() => {
+    viewportTimer = null;
+    // Zoomed out, collapsed, or no route group on: the legend shows no route list.
+    if (!layersReady || map.getZoom() < VIEWPORT_ZOOM || !wantsViewportRoutes()) return;
+    const layers = ['route-lines', ...FLEETS.flatMap((id) => [`veh-${id}-icons`, `veh-${id}-dots`])]
+      .filter((id) => map.getLayer(id));
+    setViewportRoutes(viewportRoutesFromFeatures(map.queryRenderedFeatures({ layers })));
+  }, LEGEND_THROTTLE_MS);
+}
+
+/**
+ * Recount and requery for the legend now. Called by the legend bridge when a
+ * route list becomes possible (legend expanded or a route group switched on).
+ */
+export function refreshLegendFeeds() {
+  scheduleLiveKeyCounts();
+  scheduleViewportRoutes();
+}
+
+function wireLegend() {
+  setLegendZoom(map.getZoom());
+  map.on('zoomend', () => setLegendZoom(map.getZoom()));
+  map.on('moveend', scheduleViewportRoutes);
 }
 
 // The UI can emit visibility before the map finishes loading — queue the
@@ -2415,6 +2430,7 @@ function applyRegion(fit) {
   renderWeatherAlerts();
   renderAviationConditions();
   for (const fleetId of rawFleetData.keys()) renderFleetData(fleetId);
+  scheduleLiveKeyCounts();
   if (!fit) return;
   takeCamera('region');
   const bounds = boundsForRegion(activeRegion);
@@ -2428,6 +2444,7 @@ function applyRegion(fit) {
 }
 
 function applyGroupFilter(groups, statuses) {
+  scheduleViewportRoutes();
   const visible = ['in', ['get', 'group'], ['literal', groups]];
   const statusVisible = [
     'in',

@@ -23,6 +23,7 @@ import {
 } from './regions.js';
 import { closePanelOnMobile } from '../ui.js';
 import { recentVehicles, searchVehicles } from './vehicle-search.js';
+import { colorFor } from '../stores/legend.js';
 
 const MAX_RESULTS = 8;
 const DEBOUNCE_MS = 70;
@@ -236,6 +237,8 @@ function buildIndex() {
           name: p.name || p.route,
           sub: p.agency || p.provider || '',
           color: p.color || '#8a939c',
+          group: p.group,
+          legendKey: p.legendKey,
           features: [],
         });
       }
@@ -250,6 +253,8 @@ function buildIndex() {
           name,
           sub: 'MBTA',
           color: p.color || info?.color || '#8a939c',
+          group: p.group,
+          legendKey: p.legendKey,
           features: [],
         });
       }
@@ -258,7 +263,10 @@ function buildIndex() {
   }
 
   for (const [id, route] of routeGeometry) {
-    list.push({ type: 'route', name: route.name, norm: normalize(route.name), sub: route.sub, color: route.color, id, features: route.features });
+    list.push({
+      type: 'route', name: route.name, norm: normalize(route.name), sub: route.sub,
+      color: route.color, group: route.group, legendKey: route.legendKey, id, features: route.features,
+    });
   }
 
   for (const { name, state, ambiguous, points } of muniHits.values()) {
@@ -334,6 +342,12 @@ export function clearHighlight() {
   map?.getSource(HIGHLIGHT_SOURCE)?.setData({ type: 'FeatureCollection', features: [] });
 }
 
+// Route entries resolve their operator color when shown, so the swatch tracks
+// palette changes after the index was built.
+function swatchColor(entry) {
+  return entry.legendKey ? colorFor(entry.group, entry.legendKey, entry.color) : entry.color;
+}
+
 function highlightRoute(entry) {
   ensureHighlightLayers();
   map.getSource(HIGHLIGHT_SOURCE).setData({
@@ -341,7 +355,7 @@ function highlightRoute(entry) {
     features: entry.features.map((feature) => ({
       type: 'Feature',
       geometry: feature.geometry,
-      properties: { color: entry.color },
+      properties: { color: swatchColor(entry) },
     })),
   });
 }
@@ -426,7 +440,7 @@ function renderResults() {
     item.className = `search-option${index === activeIndex ? ' active' : ''}`;
     const swatch = document.createElement('span');
     swatch.className = 'search-swatch';
-    swatch.style.background = entry.color || 'transparent';
+    swatch.style.background = swatchColor(entry) || 'transparent';
     swatch.hidden = !entry.color;
     const name = document.createElement('span');
     name.className = 'search-name';
