@@ -21,11 +21,11 @@ const DART_HALF = [
 export const BOAT_HALF = [
   [32, 2], [45, 14], [48, 34], [45, 58], [32, 61],
 ];
-// Two-car train from above, nose up. A tapered cab and a pinched coupler
-// keep it from reading as the bus's single rounded box.
-const TRAIN_HALF = [
-  [32, 2], [38, 10], [40, 16], [40, 32], [36, 35],
-  [40, 38], [40, 54], [36, 60], [32, 61],
+// Two rail cars from above, nose up. A real gap between the cars stays open
+// after the icon outline, so the mark reads as a train rather than an arrow.
+const TRAIN_CARS = [
+  [22, 3, 20, 22],
+  [22, 39, 20, 22],
 ];
 
 /** The full outline of a left/right symmetric shape from its right half (64-unit grid). */
@@ -113,7 +113,11 @@ export const GLYPHS = {
   'plane-heli': helicopter,
   'plane-other': polygon(mirrorHalf(DART_HALF)),
   boat: polygon(mirrorHalf(BOAT_HALF)),
-  train: polygon(mirrorHalf(TRAIN_HALF)),
+  train: (ctx, size) => {
+    const u = size / 64;
+    ctx.beginPath();
+    for (const [x, y, w, h] of TRAIN_CARS) ctx.rect(x * u, y * u, w * u, h * u);
+  },
   bus: roundedRect(...BUS_BOX),
   station,
   dock: roundedRect(...DOCK_BOX),
@@ -132,7 +136,7 @@ const svgRect = (x, y, w, h) => `M${x} ${y}H${x + w}V${y + h}H${x}Z`;
 const SVG_PATHS = {
   plane: svgPolygon(mirrorHalf(PLANE_HALF)),
   boat: svgPolygon(mirrorHalf(BOAT_HALF)),
-  train: svgPolygon(mirrorHalf(TRAIN_HALF)),
+  train: TRAIN_CARS.map(([x, y, w, h]) => svgRect(x, y, w, h)).join(''),
   bus: svgRoundedRect(...BUS_BOX),
   station: svgRect(...STATION_BOX),
   dock: svgRoundedRect(...DOCK_BOX),

@@ -51,7 +51,7 @@ const ROUTE_COLOR_LAYERS = {
   'route-lines': 'line-color',
   'scheduled-station-halo': 'circle-color',
   'scheduled-ferry-stops': 'circle-color',
-  'scheduled-bus-stops': 'circle-stroke-color',
+  'scheduled-bus-stops': 'circle-color',
 };
 
 /** Re-assert the route color expression (a basemap swap rebuilds the layers). */
@@ -68,7 +68,7 @@ const FLEETS = ['bike', 'vessel', 'amtrak', 'regional', 'mnr', 'mbta', 'coaches'
 // The visual language: SHAPE says what kind of vehicle it is, COLOR says whose
 // service it is. Subway, commuter rail and Amtrak are a rail silhouette; the
 // Silver Line is a bus, so it wears the bus silhouette. Stations are a quiet
-// square under those vehicles. Bus stops are a faint ring, quieter still.
+// square under those vehicles. Bus stops are a faint dot, quieter still.
 const TRAIN_GROUPS = ['red', 'orange', 'green', 'blue', 'mattapan', 'commuter', 'amtrak'];
 const RAIL_GROUPS = [...TRAIN_GROUPS, 'silver'];
 const ICON_GROUPS = ['bus', 'ferry', 'plane', 'vessel', 'bike', 'silver', ...TRAIN_GROUPS];
@@ -1159,13 +1159,13 @@ function setupLayers() {
       ['==', ['get', 'group'], 'bus'],
     ],
     paint: {
-      // A hollow ring: lighter than a station square, and not a vehicle shape.
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 12.5, 2.3, 16, 3.3],
+      // A small soft dot: lighter than a station square, and not a bus or train.
       'circle-color': ROUTE_COLOR_EXPR,
-      'circle-opacity': 0,
-      'circle-stroke-color': ROUTE_COLOR_EXPR,
-      'circle-stroke-width': 1.15,
-      'circle-stroke-opacity': ['interpolate', ['linear'], ['zoom'], 12.5, 0.32, 16, 0.48],
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 12.5, 1.7, 16, 2.7],
+      'circle-opacity': ['interpolate', ['linear'], ['zoom'], 12.5, 0.34, 16, 0.5],
+      'circle-stroke-color': '#10151b',
+      'circle-stroke-width': 0.6,
+      'circle-stroke-opacity': ['interpolate', ['linear'], ['zoom'], 12.5, 0.35, 16, 0.5],
     },
   });
   map.addLayer({
@@ -1223,8 +1223,8 @@ function setupLayers() {
         'icon-image': ZOOM_SPRITE_EXPR(ICON_SHAPE_EXPR),
         'icon-size': [
           'interpolate', ['linear'], ['zoom'],
-          9, ['match', ['get', 'group'], 'plane', planeIconSize(0.38), 'bike', 0.2, 0.3],
-          15, ['match', ['get', 'group'], 'plane', planeIconSize(0.8), 'bike', 0.5, 0.7],
+          9, ['match', ['get', 'group'], 'plane', planeIconSize(0.38), 'bike', 0.2, TRAIN_GROUPS, 0.46, 0.3],
+          15, ['match', ['get', 'group'], 'plane', planeIconSize(0.8), 'bike', 0.5, TRAIN_GROUPS, 0.95, 0.7],
         ],
         'icon-rotate': ['case', ['get', 'hasBearing'], ['get', 'bearing'], 0],
         'icon-rotation-alignment': 'map',
