@@ -1,5 +1,5 @@
 import { transit_realtime } from 'gtfs-realtime-bindings';
-import { feedsForRegion, swiftlyApproved, type TransitFeed } from './feeds';
+import { feedsForRegion, swiftlyApproved, vehiclesFromTrilliumMap, type TransitFeed } from './feeds';
 import { MNR_ROUTES, metroNorthTrips } from './metro-north';
 import { insideNewEngland, isRegionId, type RegionId } from './regions';
 import { MASSDOT_EVENTS_URL, parseErsEvents } from './massdot-events';
@@ -220,6 +220,16 @@ async function swiftlyFeedBytes(feed: TransitFeed, key: string, ctx: ExecutionCo
 }
 
 async function readTransitFeed(feed: TransitFeed, env: Env, ctx: ExecutionContext) {
+  if (feed.source === 'trillium') {
+    const upstream = await fetch(feed.url, {
+      headers: { accept: 'application/json' },
+      cf: { cacheEverything: true, cacheTtl: 15 },
+    });
+    if (!upstream.ok) throw new Error(`${feed.id} ${upstream.status}`);
+    const vehicles = vehiclesFromTrilliumMap(feed, await upstream.json());
+    return { feed: feed.id, agency: feed.agency, state: 'live' as const, vehicles };
+  }
+
   let bytes: Uint8Array;
   if (feed.authorization === 'swiftly') {
     const swiftlyKey = secret(env, 'SWIFTLY_API_KEY');

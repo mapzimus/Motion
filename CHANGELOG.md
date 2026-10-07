@@ -33,7 +33,9 @@
 - Vermont plow trucks from the VTrans public file. The file is empty outside winter, and an empty file stays a healthy feed. New Hampshire winter plow routes are a reference layer under the same switch.
 - Ski lifts, gondolas, and aerial tramways from OpenStreetMap. These are the lift lines, not live cabins.
 - New England Airlines Westerly–Block Island, OurBus and Lucky Star Boston–New York, and the AMC hiker shuttles (Pinkham Notch–Highland Center and Highland Center–Lincoln via Franconia Notch) as scheduled ribbons.
-- Catalog points for the Bustins Island ferry, Dolphin Fleet and Cape Ann whale watches, and MBTA The RIDE. The RIDE has no public vehicle positions.
+- Catalog points for Dolphin Fleet and Cape Ann whale watches, and MBTA The RIDE. The RIDE has no public vehicle positions. The Lilly B crossing to Bustins Island is a shoreline-audited water path; the 2026 off-season table runs through 13 October. There is no vehicle feed.
+- Advance Transit, MOOver, Rural Community Transportation, and Tri-Valley positions from their public Trillium maps. A New Hampshire visit also requests Merrimack Valley, which still draws nothing until Swiftly approves it.
+- Massachusetts snow-route beats on the plow layer, beside the New Hampshire routes. These are beats, not trucks.
 
 ### Roads and vessels
 - RIDOT traffic cameras, with the still image URL on each point, and `ri` on the camera coverage list.

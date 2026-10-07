@@ -40,4 +40,23 @@ describe('regionalVehicleItem', () => {
     expect(regionalVehicleItem({ ...bus, updatedAt: '2026-10-05T11:00:00Z' }, NOW, OPTS).props.stale).toBe(true);
     expect(item.detail).toEqual({ label: '42', routeName: 'boston-south-station', agency: 'C&J' });
   });
+
+  it('shows a Trillium headsign without calling the position GTFS-realtime', () => {
+    const item = regionalVehicleItem({
+      ...bus,
+      feed: 'advance-transit',
+      agency: 'Advance Transit',
+      route: '7130',
+      label: '2254',
+      headsign: 'To Hanover',
+      positionSource: 'Trillium map',
+      speedMps: null,
+    }, NOW, OPTS);
+    expect(item.props.dest).toBe('To Hanover');
+    expect(item.props.shadeKey).toBe('advance-transit:7130');
+    expect(item.props.meta).toBe('Trillium map · advance-transit');
+    expect(item.props.provider).toBe('Advance Transit · Trillium map');
+    expect(item.props.status).toBe('In service');
+    expect(item.detail.headsign).toBe('To Hanover');
+  });
 });

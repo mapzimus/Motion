@@ -2245,7 +2245,7 @@ async function ensurePlowRoutes() {
     })
     .catch((error) => {
       plowRoutesPromise = null;
-      console.warn('NHDOT plow routes unavailable:', error);
+      console.warn('Plow routes unavailable:', error);
     });
   return plowRoutesPromise;
 }
