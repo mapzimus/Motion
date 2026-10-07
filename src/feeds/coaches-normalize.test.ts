@@ -32,6 +32,31 @@ describe('coachItem', () => {
     });
   });
 
+  it('keeps a C&J coach on its own legend entry', () => {
+    const item = coachItem({
+      ...coach,
+      id: 'cj_43.05962_-70.80386',
+      title: 'C&J · DVLG',
+      dest: 'Dover, NH → Logan Airport',
+      route: 'DVLG',
+      legendKey: 'cj',
+      legendLabel: 'C&J Bus Lines',
+      provider: 'C&J Bus Lines',
+      sourceUrl: 'https://bustracker.ridecj.com/',
+      meta: 'C&J tracker',
+    }, NOW, OPTS);
+    expect(item.props).toMatchObject({
+      group: 'bus',
+      legendKey: 'cj',
+      legendLabel: 'C&J Bus Lines',
+      shadeKey: 'cj:DVLG',
+      provider: 'C&J Bus Lines',
+      sourceUrl: 'https://bustracker.ridecj.com/',
+      meta: 'C&J tracker',
+      title: 'C&J · DVLG',
+    });
+  });
+
   it('does not aim a parked coach north just because the azimuth is zero', () => {
     const item = coachItem({ ...coach, speedMph: 0, bearing: 0, updatedAt: '2026-10-06T23:30:00Z' }, NOW, OPTS);
     expect(item.props.hasBearing).toBe(false);

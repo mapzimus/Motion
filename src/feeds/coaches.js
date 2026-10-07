@@ -1,4 +1,4 @@
-// Peter Pan coaches from the public tracker, normalized by the gateway.
+// Peter Pan and C&J coaches from their public trackers, normalized by the gateway.
 // They share the bus layer with agency buses.
 
 import { CONFIG } from './config.js';
@@ -40,7 +40,7 @@ export function startCoaches(onCounts, enabled = true) {
       const visible = fleet.update(items);
       onCounts({ bus: visible.length });
     } catch (error) {
-      console.warn('Peter Pan coaches unavailable:', error.message);
+      console.warn('Coach trackers unavailable:', error.message);
     }
     timer = setTimeout(poll, CONFIG.COACH_POLL_MS);
   }

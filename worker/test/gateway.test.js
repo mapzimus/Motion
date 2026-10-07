@@ -1,7 +1,7 @@
 import { createExecutionContext, env } from 'cloudflare:test';
 import { exports } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
-import worker, { cameraImageUrl, constructionProjectFeatures } from '../src/index';
+import worker, { cameraImageUrl, constructionProjectFeatures, laneClosureFeatures } from '../src/index';
 
 const call = (path, init) =>
   exports.default.fetch(new Request(`http://motion.test${path}`, init));
@@ -186,5 +186,31 @@ describe('keyless road and camera feeds', () => {
       provider: 'CTDOT active capital projects · construction phase',
     });
     expect(JSON.stringify(features)).not.toMatch(/work zone/i);
+  });
+
+  it('reads CTroads construction icons as lane-closure points', () => {
+    const features = laneClosureFeatures(
+      [
+        { itemId: '63063', location: [41.39, -73.07] },
+        { itemId: 'nope', location: [41.39, -73.07] },
+        { itemId: '1', location: [40.7, -74.0] },
+      ],
+      {
+        63063: '<table><tr><td colspan="2">Seymour, RT 8 SB, right lane closed</td></tr><tr><th>Start Time</th><td>Oct 1, 2026</td></tr></table>',
+      },
+    );
+    expect(features).toHaveLength(1);
+    expect(features[0].geometry.coordinates).toEqual([-73.07, 41.39]);
+    expect(features[0].properties).toMatchObject({
+      kind: 'lane-closure',
+      status: 'Lane closure',
+      title: 'Seymour, RT 8 SB, right lane closed',
+      provider: 'CTroads lane closures',
+      dataStatus: 'live',
+      group: 'roadwork',
+    });
+    const labels = JSON.stringify(features[0].properties);
+    expect(labels).not.toMatch(/work zone/i);
+    expect(labels).not.toMatch(/construction project/i);
   });
 });

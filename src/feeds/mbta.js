@@ -13,7 +13,14 @@ export const MBTA_GROUPS = [
   'commuter', 'bus', 'ferry',
 ];
 
+// Rail-replacement buses stay in the vehicle poll with listed_route false, so
+// they have no route record. Their ids still start with Shuttle-.
+function isRailReplacementRoute(routeId) {
+  return /^Shuttle-/i.test(routeId ?? '');
+}
+
 export function groupFor(routeId, info) {
+  if (isRailReplacementRoute(routeId)) return 'bus';
   if (CONFIG.SILVER_ROUTES.includes(routeId)) return 'silver';
   switch (info?.type) {
     case 2: return 'commuter';
@@ -34,7 +41,8 @@ export function trainNumberFor(routeId, tripId) {
   return /^\d{3,5}$/.test(suffix) ? suffix : '';
 }
 
-function titleFor(group, routeId, info) {
+export function titleFor(group, routeId, info) {
+  if (isRailReplacementRoute(routeId)) return 'Rail replacement bus';
   switch (group) {
     case 'silver': return `Silver Line ${info?.shortName ?? ''}`.trim();
     case 'bus': return `Bus ${info?.shortName || routeId}`;
