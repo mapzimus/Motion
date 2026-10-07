@@ -9,6 +9,7 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  actions: read
 
 concurrency:
   group: pages
@@ -17,7 +18,7 @@ concurrency:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -35,5 +36,34 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
+      # While Settings → Pages → Source is "Deploy from a branch", GitHub's own
+      # "pages build and deployment" run publishes the raw repo (index.html
+      # pointing at src/main.tsx, which never loads) on every push. Whichever
+      # deploy finishes last is what the site serves, so wait for that run to
+      # finish and land this one on top. A no-op once Source is "GitHub Actions".
+      - name: Wait for GitHub's branch deploy so this one lands last
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const sha = context.sha;
+            const deadline = Date.now() + 8 * 60_000;
+            for (;;) {
+              const { data } = await github.rest.actions.listWorkflowRunsForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                head_sha: sha,
+                per_page: 50,
+              });
+              const pending = data.workflow_runs.filter(
+                (run) => run.name === 'pages build and deployment' && run.status !== 'completed',
+              );
+              if (!pending.length) break;
+              if (Date.now() > deadline) {
+                core.warning('Branch deploy still running after 8 minutes; deploying anyway.');
+                break;
+              }
+              core.info(`Waiting on branch deploy run ${pending[0].id} (${pending[0].status})…`);
+              await new Promise((resolve) => setTimeout(resolve, 10_000));
+            }
       - id: deployment
         uses: actions/deploy-pages@v4
