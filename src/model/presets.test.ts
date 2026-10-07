@@ -49,10 +49,35 @@ describe('resolvePreset', () => {
 
   it('resolves to no groups when every group needs the gateway', () => {
     const gated = allGroups.map((g) =>
-      (['traffic', 'incident', 'roadwork', 'camera', 'road-weather', 'message-sign'].includes(g.key) ? { ...g, needsKey: true } : g));
+      (['traffic', 'incident', 'roadwork', 'camera', 'road-weather', 'message-sign', 'weather'].includes(g.key) ? { ...g, needsKey: true } : g));
     const plan = resolvePreset('roads', { region: 'ma', groups: gated, hasSubway: subwayRegion });
     // Plow routes are a static file, so the Roads preset still has them.
     expect(plan?.groups).toEqual(['plow']);
+  });
+});
+
+describe('preset additions', () => {
+  it('Disruptions resolves to the alert layers and nothing else', () => {
+    const plan = resolvePreset('disruptions', { region: 'ma', groups: allGroups, hasSubway: subwayRegion });
+    expect(plan?.groups?.sort()).toEqual(['airport-status', 'incident', 'roadwork', 'tfr', 'weather']);
+    expect(plan?.region).toBeNull();
+  });
+
+  it('Disruptions is empty without the gateway', () => {
+    const gated = allGroups.map((g) =>
+      (['incident', 'roadwork', 'weather', 'airport-status', 'tfr'].includes(g.key) ? { ...g, needsKey: true } : g));
+    expect(resolvePreset('disruptions', { region: 'ma', groups: gated })?.groups).toEqual([]);
+  });
+
+  it.each([
+    ['providence', 'providence-metro'],
+    ['casco-bay', 'southern-maine'],
+    ['ct-shoreline', 'new-haven-shoreline'],
+  ])('scene %s switches to %s with every status shown', (key, region) => {
+    const plan = resolvePreset(key, { region: 'greater-boston', groups: allGroups, hasSubway: subwayRegion });
+    expect(plan?.region).toBe(region);
+    expect(plan?.statuses).toEqual(['live', 'estimated', 'scheduled', 'reference']);
+    for (const subway of SUBWAY_GROUPS) expect(plan?.groups).not.toContain(subway);
   });
 });
 

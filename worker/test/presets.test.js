@@ -97,13 +97,13 @@ describe('resolvePreset', () => {
 
   it('skips groups that need a missing gateway key', () => {
     const withoutAis = groups.map((group) => (group.key === 'vessel' ? { ...group, needsKey: true } : group));
-    expect(resolvePreset('water', { region: 'ma', groups: withoutAis, hasSubway }).groups).toEqual(['ferry']);
+    expect(resolvePreset('water', { region: 'ma', groups: withoutAis, hasSubway }).groups).toEqual(['ferry', 'drawbridge']);
   });
 
   it('drops subway lines from Rail outside subway regions', () => {
-    expect(resolvePreset('rail', { region: 'ct', groups, hasSubway }).groups).toEqual(['commuter', 'amtrak']);
+    expect(resolvePreset('rail', { region: 'ct', groups, hasSubway }).groups).toEqual(['commuter', 'amtrak', 'heritage-rail']);
     expect(resolvePreset('rail', { region: 'boston', groups, hasSubway }).groups).toEqual([
-      ...SUBWAY_GROUPS, 'commuter', 'amtrak',
+      ...SUBWAY_GROUPS, 'commuter', 'amtrak', 'heritage-rail',
     ]);
   });
 

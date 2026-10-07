@@ -157,10 +157,11 @@ knows the eight IDs listed under [Gateway API](#gateway-api).
 ### Presets and scenes
 
 Above the layer list, **Default**, **Routes** and **Clear** work as before.
-The **Show** row switches on one kind of vehicle (Rail, Buses, Water, Air,
-Roads, Bikes, or All live). The **Scenes** row sets a region and its layers in
-one tap: Boston commute, Harbor watch, Islands by sea & air, Road trip, and
-Maine islands. Presets live in `src/model/presets.js` as plain data; the
+The **Show** row switches on one kind of travel with the places that go with
+it (Rail, Buses, Water, Air, Roads, Bike & walk, Disruptions, or All live).
+The **Scenes** row sets a region and its layers in one tap: Boston commute,
+Harbor watch, Islands by sea & air, Road trip, Maine islands, Providence,
+Portland & Casco Bay, and CT shoreline rail. Presets live in `src/model/presets.js` as plain data; the
 active preset stays highlighted until you change a layer by hand, and presets
 whose layers all need the gateway are disabled rather than clearing the map.
 
@@ -556,8 +557,9 @@ the two-foot, cog, and streetcar lines are drawn as labeled approximate paths.
 Park-and-ride lots come from each state DOT's ArcGIS service, including
 RIDOT's facilities layer (New Hampshire's is a 2013 inventory and its popup
 says so).
-Public EV charging keeps only stations with DC fast or Level 2 ports and is
-hidden below zoom 10 because it is dense. Drawbridges are the major movable
+Public EV charging keeps only stations with DC fast or Level 2 ports. It is
+dense, so below zoom 10 it draws as a density heatmap (DC fast stations count
+double) that fades into the individual stations as you zoom in. Drawbridges are the major movable
 bridges whose opening rules are published in 33 CFR 117, each popup linking the
 governing section. All four start switched off, are clipped to the selected
 region, and are reference points rather than live status.

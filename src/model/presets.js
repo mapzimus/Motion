@@ -26,12 +26,14 @@ export const ROUTE_GROUPS = ['commuter', 'bus', 'amtrak', 'ferry'];
 // "Show" row: vehicle presets grouped like the redesign's mode chips.
 // `groups: 'live'` means every group whose truth tag says it is live.
 export const VEHICLE_PRESETS = [
-  { key: 'rail', label: 'Rail', groups: [...SUBWAY_GROUPS, 'commuter', 'amtrak'] },
-  { key: 'buses', label: 'Buses', groups: ['bus', 'local'] },
-  { key: 'water', label: 'Water', groups: ['ferry', 'vessel'] },
+  { key: 'rail', label: 'Rail', groups: [...SUBWAY_GROUPS, 'commuter', 'amtrak', 'heritage-rail'] },
+  { key: 'buses', label: 'Buses', groups: ['bus', 'local', 'taxi', 'park-ride'] },
+  { key: 'water', label: 'Water', groups: ['ferry', 'vessel', 'drawbridge'] },
   { key: 'air', label: 'Air', groups: ['plane', 'air-service', 'airport', 'airport-status', 'airport-weather', 'tfr', 'airspace'] },
-  { key: 'roads', label: 'Roads', groups: ['traffic', 'incident', 'roadwork', 'camera', 'road-weather', 'message-sign', 'plow'] },
-  { key: 'bikes', label: 'Bikes', groups: ['bike', 'bikeshare', 'cycling'] },
+  { key: 'roads', label: 'Roads', groups: ['traffic', 'incident', 'roadwork', 'camera', 'road-weather', 'message-sign', 'plow', 'weather'] },
+  { key: 'bikes', label: 'Bike & walk', groups: ['bike', 'bikeshare', 'cycling', 'walking'] },
+  // Everything currently going wrong; all gateway layers, so it disables without one.
+  { key: 'disruptions', label: 'Disruptions', groups: ['incident', 'roadwork', 'weather', 'airport-status', 'tfr'] },
   { key: 'all-live', label: 'All live', groups: 'live' },
 ];
 
@@ -57,6 +59,24 @@ export const SCENES = [
     groups: ['traffic', 'incident', 'roadwork', 'camera', 'road-weather', 'message-sign', 'plow'],
   },
   { key: 'maine-islands', label: 'Maine islands', region: 'midcoast', groups: ['ferry', 'vessel'] },
+  {
+    key: 'providence',
+    label: 'Providence',
+    region: 'providence-metro',
+    groups: ['commuter', 'bus', 'amtrak', 'ferry'],
+  },
+  {
+    key: 'casco-bay',
+    label: 'Portland & Casco Bay',
+    region: 'southern-maine',
+    groups: ['ferry', 'vessel', 'bus', 'amtrak'],
+  },
+  {
+    key: 'ct-shoreline',
+    label: 'CT shoreline rail',
+    region: 'new-haven-shoreline',
+    groups: ['commuter', 'amtrak', 'bus'],
+  },
 ];
 
 export const presetByKey = (key) =>
