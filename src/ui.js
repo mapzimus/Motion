@@ -1,11 +1,17 @@
 // Panel UI: layer toggles, alert feed, connection status, loading states.
 
 import { CONFIG } from './feeds/config.js';
-import { focusAlert, focusGroup, getBasemap, setBasemap } from './map/map.js';
+import { focusAlert, focusGroup, getBasemap, getDrillDown, getDrillDownItems, setBasemap, setDrillDown } from './map/map.js';
 import { REGIONS, REGION_GROUPS, busDefaultOn, hasSubway, regionInfo, regionName } from './feeds/regions.js';
 import { SCENES, VEHICLE_PRESETS, resolvePreset } from './model/presets.js';
+import { getRouteColorMap } from './model/routePalette.js';
 
 const el = (id) => document.getElementById(id);
+
+const DRILLABLE_GROUPS = new Set([
+  'red', 'orange', 'green', 'blue', 'silver', 'mattapan',
+  'commuter', 'bus', 'amtrak', 'ferry',
+]);
 
 let GROUPS = [];
 const groupState = new Map();
@@ -275,12 +281,17 @@ export function initPanel(routeInfo, visibleChangeHandler, regionChangeHandler, 
       emitVisible();
     });
 
-    // Clicking the row itself (not the switch) flies the map to wherever this
-    // fleet currently is — and switches the layer on first if it was off.
-    // (Not for area layers like traffic, where "zoom to it" is meaningless.)
+    // Clicking the row itself (not the switch) either drills down into the
+    // group (showing per-route colors) or flies to it. Drillable groups
+    // enter drill-down; non-drillable ones just zoom.
     if (!group.needsKey && group.zoomable !== false) {
       row.classList.add('zoomable');
-      row.title = `Zoom to ${group.name}`;
+      if (DRILLABLE_GROUPS.has(group.key)) {
+        row.classList.add('drillable');
+        row.title = `Explore ${group.name} by route`;
+      } else {
+        row.title = `Zoom to ${group.name}`;
+      }
       row.addEventListener('click', async (e) => {
         if (e.target.closest('.switch') || e.target.closest('a')) return;
         if (!groupState.get(group.key)) {
@@ -290,9 +301,13 @@ export function initPanel(routeInfo, visibleChangeHandler, regionChangeHandler, 
           syncMaster();
           emitVisible();
         }
-        const flew = await focusGroup(group.key, group.routes);
-        if (flew && window.matchMedia('(max-width: 760px)').matches) {
-          setPanelOpen(false);
+        if (DRILLABLE_GROUPS.has(group.key)) {
+          enterDrillDown(group);
+        } else {
+          const flew = await focusGroup(group.key, group.routes);
+          if (flew && window.matchMedia('(max-width: 760px)').matches) {
+            setPanelOpen(false);
+          }
         }
       });
     }
@@ -665,6 +680,87 @@ export function renderAlerts(alerts) {
     }
     list.appendChild(li);
   }
+}
+
+// ---- drill-down -----------------------------------------------------------
+
+function enterDrillDown(group) {
+  setDrillDown(group.key);
+  renderDrillDown(group);
+}
+
+function renderDrillDown(group) {
+  const container = el('drill-down');
+  const routeColors = getRouteColorMap();
+  const items = getDrillDownItems(group.key);
+
+  const counts = new Map();
+  for (const f of items) {
+    const route = f.properties?.route ?? '';
+    if (!route) continue;
+    counts.set(route, (counts.get(route) || 0) + 1);
+  }
+  const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+
+  container.innerHTML = '';
+  const header = document.createElement('button');
+  header.type = 'button';
+  header.className = 'drill-header';
+  header.innerHTML = `<span class="drill-back" aria-hidden="true">←</span>
+    <span class="bullet" style="background:${group.color ?? '#39424c'}">${group.initial}</span>
+    <span class="drill-title">${group.name} · ${items.length} vehicles</span>`;
+  header.addEventListener('click', () => exitDrillDown());
+  container.appendChild(header);
+
+  for (const [route, count] of sorted) {
+    const color = routeColors.get(route) ?? '#888';
+    const row = document.createElement('div');
+    row.className = 'line-row drill-route zoomable';
+    row.style.setProperty('--line-color', color);
+    const bullet = document.createElement('span');
+    bullet.className = 'bullet';
+    bullet.textContent = route.charAt(0);
+    const nameWrap = document.createElement('span');
+    nameWrap.className = 'line-name';
+    const label = document.createElement('span');
+    label.className = 'line-label';
+    label.textContent = route;
+    nameWrap.appendChild(label);
+    const countEl = document.createElement('span');
+    countEl.className = 'count';
+    countEl.textContent = count;
+    row.append(bullet, nameWrap, countEl);
+    row.title = `Filter to ${route}`;
+    row.addEventListener('click', () => {
+      const current = getDrillDown();
+      if (current.route === route) {
+        setDrillDown(group.key, null);
+        container.querySelectorAll('.drill-route').forEach((r) => r.classList.remove('dimmed'));
+      } else {
+        setDrillDown(group.key, route);
+        container.querySelectorAll('.drill-route').forEach((r) => {
+          r.classList.toggle('dimmed', r.querySelector('.line-label').textContent !== route);
+        });
+      }
+    });
+    container.appendChild(row);
+  }
+
+  el('subway-master')?.closest('.master-row')?.classList.add('drill-hidden');
+  el('layer-rows').classList.add('drill-hidden');
+  el('modal-rows').classList.add('drill-hidden');
+  for (const h of document.querySelectorAll('.layer-subhead, .modal-divider')) h.classList.add('drill-hidden');
+  container.hidden = false;
+}
+
+function exitDrillDown() {
+  setDrillDown(null);
+  el('drill-down').hidden = true;
+  el('drill-down').innerHTML = '';
+  el('subway-master')?.closest('.master-row')?.classList.remove('drill-hidden');
+  el('layer-rows').classList.remove('drill-hidden');
+  el('modal-rows').classList.remove('drill-hidden');
+  for (const h of document.querySelectorAll('.layer-subhead, .modal-divider')) h.classList.remove('drill-hidden');
 }
 
 // ---- overlay --------------------------------------------------------------

@@ -7,6 +7,9 @@ import { CONFIG } from '../feeds/config.js';
 import { AIRPORT_STATUS_LABELS } from '../model/legendConfig.js';
 import { lookupFlightRoute } from '../feeds/flight-routes.js';
 import { ageText } from '../feeds/age.js';
+import { assignRouteColors, clearRouteColors } from '../model/routePalette.js';
+import { recolorAllFleets } from '../feeds/fleet.js';
+import { liveVehicleColors } from '../stores/legend.ts';
 import { attachStopPredictions } from '../feeds/predictions.js';
 import {
   DEFAULT_REGION,
@@ -2695,6 +2698,13 @@ let pendingFilters = null;
 let layersReady = false;
 let activeRegion = DEFAULT_REGION;
 
+// Drill-down: when set, the map shows only one group's vehicles colored by
+// individual route. drillRoute further narrows to a single route within that group.
+let drillGroup = null;
+let drillRoute = null;
+let drillRouteColorMap = null;
+let preDrillBounds = null;
+
 export function setVisibleGroups(groups, statuses = ['live', 'estimated', 'scheduled', 'reference']) {
   pendingFilters = { groups, statuses };
   if (groups.some((group) => ['roads', 'freight', 'local', 'bikeshare', 'airport', 'border', 'airport-status'].includes(group))) {
@@ -2707,6 +2717,68 @@ export function setVisibleGroups(groups, statuses = ['live', 'estimated', 'sched
   if (groups.includes('plow')) ensurePlowRoutes();
   if (groups.includes('aerialway')) ensureAerialways();
   if (layersReady) applyGroupFilter(groups, statuses);
+}
+
+export function setDrillDown(group, route = null) {
+  if (group && !drillGroup) {
+    preDrillBounds = map.getBounds();
+  }
+  drillGroup = group;
+  drillRoute = route;
+  if (group) {
+    const allFeatures = [];
+    for (const [, collection] of rawFleetData) {
+      for (const f of (collection?.features ?? [])) {
+        if (f.properties.group === group) allFeatures.push(f);
+      }
+    }
+    drillRouteColorMap = assignRouteColors(allFeatures, group);
+    recolorAllFleets((props) => {
+      if (props.group !== group) return null;
+      const c = drillRouteColorMap.get(props.route);
+      return c ? { color: c, routeColor: c } : null;
+    });
+  } else {
+    drillRouteColorMap = null;
+    clearRouteColors();
+    recolorAllFleets(liveVehicleColors);
+  }
+  if (pendingFilters && layersReady) applyGroupFilter(pendingFilters.groups, pendingFilters.statuses);
+  if (!group && preDrillBounds) {
+    map.fitBounds(preDrillBounds, { duration: 600, padding: fitPadding() });
+    preDrillBounds = null;
+  } else if (group) {
+    const allCoords = [];
+    for (const [, collection] of rawFleetData) {
+      for (const f of (collection?.features ?? [])) {
+        if (f.properties.group !== group) continue;
+        if (route && f.properties.route !== route) continue;
+        allCoords.push(f.geometry.coordinates);
+      }
+    }
+    if (allCoords.length > 1) {
+      const lngs = allCoords.map((c) => c[0]);
+      const lats = allCoords.map((c) => c[1]);
+      map.fitBounds(
+        [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
+        { padding: fitPadding(), maxZoom: 14, duration: 800 },
+      );
+    }
+  }
+}
+
+export function getDrillDown() {
+  return { group: drillGroup, route: drillRoute, routeColors: drillRouteColorMap };
+}
+
+export function getDrillDownItems(group) {
+  const items = [];
+  for (const [, collection] of rawFleetData) {
+    for (const f of (collection?.features ?? [])) {
+      if (f.properties.group === group) items.push(f);
+    }
+  }
+  return items;
 }
 
 export function setRegion(regionKey, { fit = true } = {}) {
@@ -2769,14 +2841,19 @@ function applyRegion(fit) {
 
 function applyGroupFilter(groups, statuses) {
   scheduleViewportRoutes();
-  const visible = ['in', ['get', 'group'], ['literal', groups]];
+  const effectiveGroups = drillGroup ? [drillGroup] : groups;
+  const visible = ['in', ['get', 'group'], ['literal', effectiveGroups]];
   const statusVisible = [
     'in',
     ['coalesce', ['get', 'dataStatus'], 'live'],
     ['literal', statuses],
   ];
-  const visibleByStatus = ['all', visible, statusVisible];
-  const iconVisible = ['all', visibleByStatus, ['in', ['get', 'group'], ['literal', ICON_GROUPS]]];
+  let visibleByStatus = ['all', visible, statusVisible];
+  if (drillRoute) {
+    visibleByStatus = ['all', visibleByStatus, ['==', ['get', 'route'], drillRoute]];
+  }
+
+  const iconVisible = visibleByStatus;
 
   // Bus ribbons and conceptual air corridors skip the halo pass.
   map.setFilter('route-halo', [

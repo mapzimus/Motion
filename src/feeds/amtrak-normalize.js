@@ -79,6 +79,7 @@ export function normalizeAmtrakTrain(train, { box, color, now, staleAfterMs }) {
     lat,
     props: {
       group: 'amtrak',
+      route: train.routeName ?? '',
       dataStatus: predeparture ? 'estimated' : 'live',
       legendKey: 'amtrak',
       legendLabel: 'Amtrak',
