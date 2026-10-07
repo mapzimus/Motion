@@ -1,4 +1,4 @@
-// WZDx work-zone lines for MA, ME, NH, and VT, plus CTDOT construction-project areas.
+// WZDx work-zone lines for MA, ME, NH, and VT, CTDOT construction-project areas, and CTroads lane-closure points.
 
 import { CONFIG } from './config.js';
 import { roadworkCountForRegion, setRoadworkData } from '../map/map.js';

@@ -16,8 +16,10 @@ describe('realtime transit feed registry', () => {
   });
 
   it('keys every realtime feed to a static schedule feed so route ids can join', () => {
+    // Connecticut Children's publishes positions only; its GTFS zip is 404.
+    const liveWithoutStaticGtfs = new Set(['ccmc']);
     const orphans = TRANSIT_FEEDS.map((feed) => feed.id).filter((id) => !staticIds.has(id));
-    expect(orphans).toEqual([]);
+    expect(orphans.sort()).toEqual([...liveWithoutStaticGtfs].sort());
   });
 
   it('never points at the out-of-region Williamsport, PA tracker again', () => {
@@ -30,9 +32,9 @@ describe('realtime transit feed registry', () => {
     expect(ids('ma')).toEqual(expect.arrayContaining(['wrta', 'gatra', 'mit', 'tufts']));
     expect(ids('ct')).toContain('uconn-wrtd');
     expect(ids('ri')).toEqual(expect.arrayContaining(['brown', 'uri', 'providence-college']));
-    expect(ids('ct')).toEqual(expect.arrayContaining(['quinnipiac', 'uhartford', 'unewhaven', 'harbor-point']));
+    expect(ids('ct')).toEqual(expect.arrayContaining(['quinnipiac', 'uhartford', 'unewhaven', 'harbor-point', 'ccmc']));
     expect(ids('me')).toEqual(expect.arrayContaining(['bangor', 'citylink']));
-    expect(ids('ma')).toEqual(expect.arrayContaining(['lrta', 'ezride', 'longwood', 'mgb', 'lexpress', 'nantucket-wave', 'bu', 'bc', 'umb']));
+    expect(ids('ma')).toEqual(expect.arrayContaining(['lrta', 'ezride', 'longwood', 'mgb', 'lexpress', 'nantucket-wave', 'bu', 'bc', 'umb', 'wellesley']));
   });
 
   it('serves only MBTA-core shuttles for the legacy boston region', () => {

@@ -37,7 +37,7 @@ import {
   type RoadCatalog,
   type RoadPointFeature,
 } from './road-extras';
-import { PETER_PAN_SOURCE_URL, loadCoachVehicles } from './coaches';
+import { CJ_SOURCE_URL, PETER_PAN_SOURCE_URL, loadCoachVehicles } from './coaches';
 import { combinePlowFeeds, fetchKeeneTrucks } from './keene';
 
 const MASSDOT_WORK_ZONE_URL = 'https://feed.massdot-swzm.com/massdot_wzdx_v4.1_work_zone_feed.geojson';
@@ -48,6 +48,8 @@ const RIDOT_CAMERA_URL = 'https://gisprod.dot.ri.gov/scp/rest/services/TMC_ITS_A
 // Phase filter is in the query. These are project footprints, not WZDx work zones.
 const CTDOT_CONSTRUCTION_URL = 'https://services1.arcgis.com/FCaUeJ5SOVtImake/arcgis/rest/services/CTDOT_Active_Capital_Projects_with_Funding_Type/FeatureServer/0/query?where=CurrentSchedulePhase%3D%2705_Construction%27&outFields=ProjectNumber,Title,ProjectDescription,CurrentSchedulePhase&returnGeometry=true&outSR=4326&f=geojson';
 const CTDOT_CONSTRUCTION_PAGE = 'https://geodata.ct.gov/datasets/CTDOT::ctdot-active-capital-projects-with-funding-type';
+// CTroads "Construction" icons are lane-closure points, not the capital-project polygons.
+const CTROADS_LANE_CLOSURE_URL = 'https://prod-ct.ibi511.com/map/mapIcons/Construction';
 const IBI_511_SOURCES = [
   {
     key: 'north',
@@ -505,15 +507,44 @@ async function roadwork(request: Request, ctx: ExecutionContext): Promise<Respon
     } catch (error) {
       console.warn('CTDOT construction projects unavailable', error);
     }
-    markProvider('roadwork', inputs.length > 0 || construction.length > 0);
-    if (!inputs.length && !construction.length) return json({ error: 'Official work-zone feeds unavailable' }, 502);
+    let laneClosures: Array<Record<string, unknown>> = [];
+    try {
+      const response = await fetch(CTROADS_LANE_CLOSURE_URL, {
+        headers: { accept: 'application/json' },
+        cf: { cacheEverything: true, cacheTtl: 60 },
+      });
+      if (response.ok) {
+        const icons = await response.json() as IbiIcons;
+        const points = (icons.item2 ?? []).filter((icon) => /^\d+$/.test(String(icon.itemId ?? '')));
+        const htmlById: Record<string, string> = {};
+        await Promise.all(points.slice(0, 40).map(async (icon) => {
+          const id = String(icon.itemId);
+          try {
+            const tip = await fetch(`https://prod-ct.ibi511.com/tooltip/Construction/${id}?lang=en`, {
+              cf: { cacheEverything: true, cacheTtl: 60 },
+            });
+            if (tip.ok) htmlById[id] = await tip.text();
+          } catch {
+            // The point is still drawn if the tooltip markup changes.
+          }
+        }));
+        laneClosures = laneClosureFeatures(points, htmlById);
+      }
+    } catch (error) {
+      console.warn('CTroads lane closures unavailable', error);
+    }
+    markProvider('roadwork', inputs.length > 0 || construction.length > 0 || laneClosures.length > 0);
+    if (!inputs.length && !construction.length && !laneClosures.length) {
+      return json({ error: 'Official work-zone feeds unavailable' }, 502);
+    }
     const features = [
       ...inputs.flatMap((input) => normalizeWorkZones(input.source, input.provider, input.sourceUrl)),
       ...construction,
+      ...laneClosures,
     ];
     return json({
       type: 'FeatureCollection',
-      provider: 'MassDOT, MaineDOT, NHDOT, and VTrans work zones, plus CTDOT construction projects',
+      provider: 'MassDOT, MaineDOT, NHDOT, and VTrans work zones, CTDOT construction projects, and CTroads lane closures',
       coverage: ['ct', 'ma', 'me', 'nh', 'vt'],
       features,
     });
@@ -584,6 +615,43 @@ export function constructionProjectFeatures(features: ArcGisFeature[]): Array<Re
         details: description,
         provider: 'CTDOT active capital projects · construction phase',
         sourceUrl: CTDOT_CONSTRUCTION_PAGE,
+        updatedAt: new Date().toISOString(),
+      },
+    }];
+  });
+}
+
+// CTroads map icons whose catalog is "Construction". These are point lane
+// closures. They are not CTDOT capital-project polygons and not a WZDx feed.
+export function laneClosureFeatures(
+  icons: IbiIcon[],
+  htmlById: Record<string, string> = {},
+): Array<Record<string, unknown>> {
+  return icons.flatMap((icon) => {
+    const id = String(icon.itemId ?? '');
+    const location = icon.location;
+    if (!/^\d+$/.test(id) || !location || location.length !== 2) return [];
+    const lng = Number(location[1]);
+    const lat = Number(location[0]);
+    if (!Number.isFinite(lng) || !Number.isFinite(lat) || !insideNewEngland(lng, lat)) return [];
+    const html = htmlById[id] ?? '';
+    const descriptionMatch = html.match(/<td[^>]*colspan=["']?2["']?[^>]*>([\s\S]*?)<\/td>/i);
+    const description = descriptionMatch ? decodeHtml(descriptionMatch[1]) : '';
+    const started = html ? htmlCell(html, 'Start Time') : '';
+    return [{
+      type: 'Feature',
+      id: `ct-lane-${id}`,
+      geometry: { type: 'Point', coordinates: [lng, lat] },
+      properties: {
+        group: 'roadwork',
+        kind: 'lane-closure',
+        dataStatus: 'live',
+        color: '#e6c15a',
+        title: clipText(description, 180) || 'Lane closure',
+        status: 'Lane closure',
+        details: [description, started && `Started ${started}`].filter(Boolean).join(' · '),
+        provider: 'CTroads lane closures',
+        sourceUrl: `https://prod-ct.ibi511.com/Event/Construction/${id}?lang=en`,
         updatedAt: new Date().toISOString(),
       },
     }];
@@ -1198,12 +1266,12 @@ async function coaches(request: Request, ctx: ExecutionContext): Promise<Respons
     const loaded = await loadCoachVehicles();
     if (!loaded.ok) {
       markProvider('coaches', false);
-      return json({ error: 'Peter Pan coach tracker unavailable' }, 502);
+      return json({ error: 'Coach trackers unavailable' }, 502);
     }
     markProvider('coaches', true);
     return json({
-      provider: 'Peter Pan Bus Lines',
-      sourceUrl: PETER_PAN_SOURCE_URL,
+      provider: loaded.provider,
+      sourceUrl: loaded.provider.includes('Peter Pan') ? PETER_PAN_SOURCE_URL : CJ_SOURCE_URL,
       vehicles: loaded.vehicles,
     });
   });

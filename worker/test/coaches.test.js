@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { coachesFromStopFeeds, parsePeterPanConfig } from '../src/coaches';
+import { CJ, coachesFromStopFeeds, parsePeterPanConfig, parseUtrackConfig } from '../src/coaches';
 
 const NOW = Date.parse('2026-10-06T23:50:00Z');
 const FRESH = Math.floor(NOW / 1000) - 60;
@@ -105,5 +105,57 @@ describe('Peter Pan coaches', () => {
       ] }],
     }], NOW);
     expect(coaches.map((coach) => coach.route)).toEqual(['BZ200']);
+  });
+
+  it('reads the C&J tracker and drops a coach that is outside New England', () => {
+    expect(parseUtrackConfig(`
+      API_URL: 'https://cj.origin.utrack.com/api',
+      API_KEY: 'PUBLICEXAMPLEKEY123',
+    `, 'cj.origin.utrack.com')).toEqual({
+      apiUrl: 'https://cj.origin.utrack.com/api',
+      apiKey: 'PUBLICEXAMPLEKEY123',
+    });
+    const coaches = coachesFromStopFeeds([{
+      stops: [{ chronological_departures: [
+        departure({
+          trip: {
+            short_name: 'DVLG',
+            route_id: 'DVLG',
+            departure_location_name: 'Dover, NH',
+            arrival_location_name: 'Logan Airport',
+          },
+          active_vehicle: {
+            current_wgs84_latitude_degrees: 43.05962,
+            current_wgs84_longitude_degrees: -70.80386,
+            current_forward_azimuth_degrees: 180,
+            current_speed_mph: 40,
+            last_update_time_unix: FRESH,
+          },
+        }),
+        departure({
+          trip: {
+            short_name: 'NY',
+            route_id: 'NY',
+            departure_location_name: 'New York, NY',
+            arrival_location_name: 'Dover, NH',
+          },
+          active_vehicle: {
+            current_wgs84_latitude_degrees: 40.75695,
+            current_wgs84_longitude_degrees: -73.9905,
+            current_speed_mph: 10,
+            current_forward_azimuth_degrees: 0,
+            last_update_time_unix: FRESH,
+          },
+        }),
+      ] }],
+    }], NOW, CJ);
+    expect(coaches).toHaveLength(1);
+    expect(coaches[0]).toMatchObject({
+      id: 'cj_43.05962_-70.80386',
+      legendKey: 'cj',
+      provider: 'C&J Bus Lines',
+      title: 'C&J · DVLG',
+      route: 'DVLG',
+    });
   });
 });

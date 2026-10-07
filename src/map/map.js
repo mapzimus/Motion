@@ -991,6 +991,20 @@ function setupLayers() {
       'line-dasharray': [2, 1],
     },
   });
+  map.addLayer({
+    id: 'roadwork-points',
+    type: 'circle',
+    source: 'roadwork',
+    filter: ['==', ['geometry-type'], 'Point'],
+    layout: { visibility: 'none' },
+    paint: {
+      'circle-color': '#151a21',
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 6, 3.5, 13, 7],
+      'circle-stroke-color': ['get', 'color'],
+      'circle-stroke-width': 2,
+      'circle-opacity': 0.95,
+    },
+  });
 
   map.addSource('route-shapes', { type: 'geojson', data: EMPTY_FC });
 
@@ -1236,7 +1250,7 @@ function setupLayers() {
   }
   // Operational point layers remain clickable above route ribbons and dense
   // infrastructure without covering moving vehicle symbols.
-  for (const layerId of ['local-service-points', 'bikeshare-points', 'camera-points', 'incident-points', 'road-weather-points', 'message-sign-points', 'plow-points']) {
+  for (const layerId of ['local-service-points', 'bikeshare-points', 'camera-points', 'incident-points', 'road-weather-points', 'message-sign-points', 'plow-points', 'roadwork-points']) {
     map.moveLayer(layerId, 'veh-bike-icons');
   }
   setupConditionLayers();
@@ -2066,6 +2080,14 @@ function roadworkPopupHtml(p) {
       <div class="popup-meta"><span class="popup-data-status reference">reference</span> · ${esc(p.provider ?? 'CTDOT construction projects')}</div>
       ${sourceLink}`;
   }
+  if (p.kind === 'lane-closure') {
+    return `
+      <div class="popup-title" style="color:${esc(p.color)}">${esc(p.title)}</div>
+      <div class="popup-dest">Lane closure</div>
+      ${p.details ? `<div class="popup-status popup-details">${esc(p.details)}</div>` : ''}
+      <div class="popup-meta"><span class="popup-data-status live">live</span> · ${esc(p.provider ?? 'CTroads lane closures')} · ${relativeAge(p.updatedAt)}</div>
+      ${sourceLink}`;
+  }
   const timing = [readableTime(p.startAt), readableTime(p.endAt)].filter(Boolean).join(' – ');
   return `
     <div class="popup-title" style="color:${esc(p.color)}">${esc(p.title)}</div>
@@ -2079,7 +2101,7 @@ function roadworkPopupHtml(p) {
 }
 
 function wireRoadworkPopups() {
-  for (const layerId of ['roadwork-lines', 'roadwork-areas']) {
+  for (const layerId of ['roadwork-lines', 'roadwork-areas', 'roadwork-points']) {
     map.on('click', layerId, (event) => {
       const p = event.features[0].properties;
       new maplibregl.Popup({ offset: 10, maxWidth: '310px' })
@@ -2804,7 +2826,7 @@ function applyGroupFilter(groups, statuses) {
       groups.includes('traffic') && statuses.includes('live') ? 'visible' : 'none',
     );
   }
-  for (const layerId of ['roadwork-halo', 'roadwork-lines', 'roadwork-areas', 'roadwork-area-outline']) {
+  for (const layerId of ['roadwork-halo', 'roadwork-lines', 'roadwork-areas', 'roadwork-area-outline', 'roadwork-points']) {
     map.setLayoutProperty(
       layerId,
       'visibility',
@@ -2813,10 +2835,12 @@ function applyGroupFilter(groups, statuses) {
   }
   const lineWork = ['all', statusVisible, ['in', ['geometry-type'], ['literal', ['LineString', 'MultiLineString']]]];
   const areaWork = ['all', statusVisible, ['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]]];
+  const pointWork = ['all', statusVisible, ['==', ['geometry-type'], 'Point']];
   map.setFilter('roadwork-lines', lineWork);
   map.setFilter('roadwork-halo', lineWork);
   map.setFilter('roadwork-areas', areaWork);
   map.setFilter('roadwork-area-outline', areaWork);
+  map.setFilter('roadwork-points', pointWork);
   map.setFilter('incident-points', ['all', ['==', ['get', 'group'], 'incident'], statusVisible]);
   map.setFilter('camera-points', ['all', ['==', ['get', 'group'], 'camera'], statusVisible]);
   map.setFilter('road-weather-points', ['all', ['==', ['get', 'group'], 'road-weather'], statusVisible]);

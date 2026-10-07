@@ -8,6 +8,8 @@ export function coachItem(vehicle, now, { busColor, staleAfterMs }) {
   const bearing = Number(vehicle.bearing);
   const hasSpeed = Number.isFinite(speed);
   const moving = hasSpeed && speed >= BEARING_MIN_MPH;
+  const legendKey = vehicle.legendKey || 'peter-pan';
+  const legendLabel = vehicle.legendLabel || 'Peter Pan Bus Lines';
   return {
     id: `coaches-${vehicle.id}`,
     detail: {
@@ -20,20 +22,20 @@ export function coachItem(vehicle, now, { busColor, staleAfterMs }) {
     props: {
       group: 'bus',
       dataStatus: 'live',
-      legendKey: 'peter-pan',
-      legendLabel: 'Peter Pan Bus Lines',
+      legendKey,
+      legendLabel,
       modeColor: busColor,
       color: busColor,
-      shadeKey: vehicle.route ? `peter-pan:${vehicle.route}` : '',
+      shadeKey: vehicle.route ? `${legendKey}:${vehicle.route}` : '',
       bearing: Number.isFinite(bearing) ? bearing : 0,
       hasBearing: moving && Number.isFinite(bearing),
       stale: now - Date.parse(vehicle.updatedAt) > staleAfterMs,
-      title: vehicle.title || 'Peter Pan',
+      title: vehicle.title || legendLabel,
       dest: vehicle.dest || '',
       status: !hasSpeed ? 'In service' : speed < 1 ? 'Stopped' : `${Math.round(speed)} mph`,
-      meta: 'Peter Pan tracker',
-      provider: 'Peter Pan Bus Lines',
-      sourceUrl: 'https://bustracker.peterpanbus.com/',
+      meta: vehicle.meta || 'Peter Pan tracker',
+      provider: vehicle.provider || 'Peter Pan Bus Lines',
+      sourceUrl: vehicle.sourceUrl || 'https://bustracker.peterpanbus.com/',
       updatedAt: vehicle.updatedAt,
     },
   };

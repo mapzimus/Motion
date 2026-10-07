@@ -152,6 +152,14 @@ export const TRANSIT_FEEDS: TransitFeed[] = [
     mbtaCore: true,
   },
   {
+    // Wellesley College Local Motion. Public GTFS and a keyless vehicle feed.
+    // The campus is outside the 17-municipality MBTA core.
+    id: 'wellesley',
+    agency: 'Wellesley College (Local Motion)',
+    states: ['ma'],
+    url: 'https://wellesleycollege.transloc.com/subscriptions/gtfsrt/vehicles.ashx',
+  },
+  {
     id: 'cttransit',
     agency: 'CTtransit',
     states: ['ct'],
@@ -174,6 +182,15 @@ export const TRANSIT_FEEDS: TransitFeed[] = [
     agency: 'River Valley Transit (Middletown / 9 Town Transit)',
     states: ['ct'],
     url: 'https://passio3.com/9town/passioTransit/gtfs/realtime/vehiclePositions',
+  },
+  {
+    // Connecticut Children's hospital shuttle (Passio username ccmc). The
+    // static GTFS zip returns 404, so these buses are drawn from positions
+    // only and do not join a schedule ribbon.
+    id: 'ccmc',
+    agency: "Connecticut Children's",
+    states: ['ct'],
+    url: 'https://passio3.com/ccmc/passioTransit/gtfs/realtime/vehiclePositions',
   },
   {
     id: 'norwalk',
