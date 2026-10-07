@@ -152,10 +152,11 @@ knows the eight IDs listed under [Gateway API](#gateway-api).
 ### Presets and scenes
 
 Above the layer list, **Default**, **Routes** and **Clear** work as before.
-The **Show** row switches on one kind of vehicle (Rail, Buses, Water, Air,
-Roads, Bikes, or All live). The **Scenes** row sets a region and its layers in
-one tap: Boston commute, Harbor watch, Islands by sea & air, Road trip, and
-Maine islands. Presets live in `src/model/presets.js` as plain data; the
+The **Show** row switches on one kind of travel with the places that go with
+it (Rail, Buses, Water, Air, Roads, Bike & walk, Disruptions, or All live).
+The **Scenes** row sets a region and its layers in one tap: Boston commute,
+Harbor watch, Islands by sea & air, Road trip, Maine islands, Providence,
+Portland & Casco Bay, and CT shoreline rail. Presets live in `src/model/presets.js` as plain data; the
 active preset stays highlighted until you change a layer by hand, and presets
 whose layers all need the gateway are disabled rather than clearing the map.
 

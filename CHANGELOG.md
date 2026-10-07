@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Presets & scenes
+- Show presets bring their related places with them: Rail adds heritage
+  railroads; Buses adds taxis and park & ride; Water adds drawbridges; Roads
+  adds weather alerts; Bikes becomes **Bike & walk** with marked walking routes.
+- New **Disruptions** preset: incidents, work zones, weather alerts, airport
+  delays and flight restrictions together. Like Roads, it is disabled when the
+  site has no gateway.
+- Three scenes outside Massachusetts: **Providence**, **Portland & Casco Bay**,
+  and **CT shoreline rail**.
+
 ### Roads and vessels
 - RIDOT traffic cameras, with the still image URL on each point, and `ri` on the camera coverage list.
 - RIDOT park-and-ride lots in the reference-places layer.
