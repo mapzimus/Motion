@@ -1,6 +1,7 @@
 /// <reference types="geojson" />
 
 import { CONFIG } from '../feeds/config.js';
+import { ensureCartoKey } from '../feeds/carto.js';
 import { fetchRoutes } from '../feeds/api.js';
 import { startMbta, onStats, onStatus, groupFor } from '../feeds/mbta.js';
 import { startAmtrak } from '../feeds/amtrak.js';
@@ -108,6 +109,7 @@ export async function boot(): Promise<void> {
     fetchRoutes(),
     loadRegions(),
     loadGatewayCapabilities(),
+    ensureCartoKey(CONFIG.GATEWAY_BASE),
   ]);
   const routeInfo: Map<string, any> = new Map(routes.map((r: any) => [r.id, r]));
   setSubwayColors(subwayColorsFrom(routeInfo));

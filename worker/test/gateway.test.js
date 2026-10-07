@@ -85,6 +85,26 @@ describe('Motion gateway', () => {
     await expect(response.json()).resolves.toEqual({ error: 'Unknown region' });
   });
 
+  it('gives an allowed origin the CARTO key and keeps it out of /health', async () => {
+    const callWith = (path, extraEnv, init) =>
+      worker.fetch(new Request(`http://motion.test${path}`, init), { ...env, ...extraEnv }, createExecutionContext());
+    const missing = await call('/api/basemap-key', { headers: { origin: 'http://localhost:5500' } });
+    expect(missing.status).toBe(200);
+    await expect(missing.json()).resolves.toEqual({ key: null });
+    const refused = await call('/api/basemap-key', { headers: { origin: 'https://example.net' } });
+    expect(refused.status).toBe(403);
+    expect((await call('/api/basemap-key')).status).toBe(403);
+
+    const allowed = { headers: { origin: 'http://localhost:5500' } };
+    const withKey = await callWith('/api/basemap-key', { CARTO_API_KEY: 'carto-test-key' }, allowed);
+    expect(withKey.status).toBe(200);
+    await expect(withKey.json()).resolves.toEqual({ key: 'carto-test-key' });
+    const placeholder = await callWith('/api/basemap-key', { CARTO_API_KEY: 'replace-with-carto-key' }, allowed);
+    await expect(placeholder.json()).resolves.toEqual({ key: null });
+    const health = await callWith('/health', { CARTO_API_KEY: 'carto-test-key' });
+    expect(JSON.stringify(await health.json())).not.toContain('carto-test-key');
+  });
+
   it('relays the public 511 traffic tiles without a commercial key', async () => {
     const response = await call('/api/traffic/10/302/385.png');
     expect(response.status).toBe(200);

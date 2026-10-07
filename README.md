@@ -171,9 +171,11 @@ cameras, NWS weather alerts), and Movement infrastructure. Airport delays sit
 with the airports in Air & water. The map key (legend) lists the operators
 behind each layer.
 
-**Basemap**, under Geography, switches between Dark (CARTO Dark Matter), Dark
-without labels, and Satellite (Esri World Imagery with Esri place labels). The
-choice is remembered, and `?basemap=satellite` opens it directly.
+**Basemap**, under Geography, switches between Dark (CARTO Dark Matter), Light
+(CARTO Positron), Dark without labels, and Satellite (USGS Imagery Only, slightly
+muted, with place names from CARTO Dark Matter). The panel stays dark on every
+basemap. The choice is remembered, and `?basemap=light` or `?basemap=satellite`
+opens it directly. Dark is the default and drops `basemap` from the URL.
 Metro-North's New Haven, New Canaan, Danbury, and Waterbury lines are included
 in Connecticut; connected routes are allowed to continue outside the selected
 boundary so riders can see the full trip into New York City.
@@ -647,7 +649,7 @@ the deployed gateway at
 
 ```powershell
 Copy-Item .dev.vars.example .dev.vars
-# Edit .dev.vars; AIS, TomTom, and Swiftly are all optional.
+# Edit .dev.vars; AIS, TomTom, Swiftly, and CARTO are all optional.
 npm run gateway:dev
 ```
 
@@ -677,12 +679,19 @@ npx wrangler login
 npx wrangler secret put AISSTREAM_API_KEY --env production
 npx wrangler secret put TOMTOM_API_KEY --env production
 npx wrangler secret put SWIFTLY_API_KEY --env production
+npx wrangler secret put CARTO_API_KEY --env production
 npx wrangler deploy --env production
 ```
 
-AISStream, TomTom, and Swiftly are optional. Without TomTom the traffic layer
+AISStream, TomTom, Swiftly, and CARTO are optional. Without TomTom the traffic layer
 uses public New England 511 tiles. `SWIFTLY_API_KEY` must be the complete value expected by the
-Swiftly `Authorization` header. Add any custom production frontend origin to
+Swiftly `Authorization` header. `CARTO_API_KEY` is the free basemap key from
+[carto.com/basemaps/apikey](https://carto.com/basemaps/apikey/). Restrict it to
+the Pages host (`https://mapzimus.github.io`). If that dashboard will not also
+allow localhost, put a second key in an uncommitted `.env` as
+`VITE_CARTO_API_KEY` (see `.env.example`); a build env wins over the Worker.
+Leave the key unset and the vector styles still load. Do not commit either
+file. Add any custom production frontend origin to
 `ALLOWED_ORIGINS` in `wrangler.jsonc` before deployment.
 
 #### Enable live vessels (AIS)

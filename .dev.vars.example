@@ -1,5 +1,10 @@
 # Copy to .dev.vars for local gateway development. Never commit .dev.vars.
 AISSTREAM_API_KEY=replace-with-aisstream-key
 TOMTOM_API_KEY=replace-with-tomtom-key
+# Optional. Free CARTO basemap key, restricted to the Pages host.
+# https://carto.com/basemaps/apikey/  Localhost needs its own key if the
+# dashboard will not share one with the Pages host. Leave unset and the
+# vector styles still load.
+CARTO_API_KEY=replace-with-carto-key
 # Optional. Swiftly expects the complete Authorization header value.
 SWIFTLY_API_KEY=replace-with-swiftly-authorization-value

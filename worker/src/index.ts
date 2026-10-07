@@ -127,7 +127,7 @@ function configured(value: string | undefined): boolean {
   return Boolean(value && !value.includes('placeholder') && !value.startsWith('replace-'));
 }
 
-type SecretName = 'AISSTREAM_API_KEY' | 'TOMTOM_API_KEY' | 'SWIFTLY_API_KEY';
+type SecretName = 'AISSTREAM_API_KEY' | 'TOMTOM_API_KEY' | 'SWIFTLY_API_KEY' | 'CARTO_API_KEY';
 
 function secret(env: Env, name: SecretName): string | undefined {
   return env[name];
@@ -939,6 +939,15 @@ async function cameraDetail(url: URL): Promise<Response> {
   });
 }
 
+// The browser sends this on CARTO style, tile, glyph, and sprite requests.
+// Only an allowed Origin may read it. /health stays free of the value.
+function basemapKey(request: Request, env: Env): Response {
+  const origin = request.headers.get('origin');
+  if (!origin || !requestOriginAllowed(request, env)) return json({ error: 'Origin not allowed' }, 403);
+  const key = secret(env, 'CARTO_API_KEY');
+  return json({ key: configured(key) ? key : null });
+}
+
 async function trafficTile(
   request: Request,
   path: string,
@@ -1392,6 +1401,8 @@ export default {
       response = await tfrDetail(request, url, ctx);
     } else if (url.pathname.startsWith('/api/traffic/')) {
       response = await trafficTile(request, url.pathname, env, ctx);
+    } else if (url.pathname === '/api/basemap-key') {
+      response = basemapKey(request, env);
     } else if (url.pathname === '/api/ais') {
       return ais(request, url, env);
     } else {
