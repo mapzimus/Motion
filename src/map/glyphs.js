@@ -21,6 +21,12 @@ const DART_HALF = [
 export const BOAT_HALF = [
   [32, 2], [45, 14], [48, 34], [45, 58], [32, 61],
 ];
+// Two-car train from above, nose up. A tapered cab and a pinched coupler
+// keep it from reading as the bus's single rounded box.
+const TRAIN_HALF = [
+  [32, 2], [38, 10], [40, 16], [40, 32], [36, 35],
+  [40, 38], [40, 54], [36, 60], [32, 61],
+];
 
 /** The full outline of a left/right symmetric shape from its right half (64-unit grid). */
 export function mirrorHalf(rightHalf) {
@@ -63,11 +69,20 @@ function helicopter(ctx, size) {
 // Rounded boxes on the 64-unit grid: [x, y, w, h, radius].
 const BUS_BOX = [21, 8, 22, 48, 9];
 const DOCK_BOX = [15, 15, 34, 34, 8];
+// Station place-mark: a sharp square, smaller than a vehicle silhouette.
+const STATION_BOX = [18, 18, 28, 28];
 
 const roundedRect = (x, y, w, h, r) => (ctx, size) => {
   const u = size / 64;
   ctx.beginPath();
   ctx.roundRect(x * u, y * u, w * u, h * u, r * u);
+};
+
+const station = (ctx, size) => {
+  const u = size / 64;
+  const [x, y, w, h] = STATION_BOX;
+  ctx.beginPath();
+  ctx.rect(x * u, y * u, w * u, h * u);
 };
 
 const diamond = (ctx, size) => {
@@ -98,7 +113,9 @@ export const GLYPHS = {
   'plane-heli': helicopter,
   'plane-other': polygon(mirrorHalf(DART_HALF)),
   boat: polygon(mirrorHalf(BOAT_HALF)),
+  train: polygon(mirrorHalf(TRAIN_HALF)),
   bus: roundedRect(...BUS_BOX),
+  station,
   dock: roundedRect(...DOCK_BOX),
   'share-bike': diamond,
   'share-scooter': scooter,
@@ -110,14 +127,18 @@ const svgRoundedRect = (x, y, w, h, r) =>
   `A${r} ${r} 0 0 1 ${x + w - r} ${y + h}H${x + r}A${r} ${r} 0 0 1 ${x} ${y + h - r}` +
   `V${y + r}A${r} ${r} 0 0 1 ${x + r} ${y}Z`;
 
+const svgRect = (x, y, w, h) => `M${x} ${y}H${x + w}V${y + h}H${x}Z`;
+
 const SVG_PATHS = {
   plane: svgPolygon(mirrorHalf(PLANE_HALF)),
   boat: svgPolygon(mirrorHalf(BOAT_HALF)),
+  train: svgPolygon(mirrorHalf(TRAIN_HALF)),
   bus: svgRoundedRect(...BUS_BOX),
+  station: svgRect(...STATION_BOX),
   dock: svgRoundedRect(...DOCK_BOX),
 };
 
-/** SVG path `d` (64x64 viewBox) for the plane, boat, bus or dock shape, '' for others. */
+/** SVG path `d` (64x64 viewBox) for a legend shape, '' when the shape has none. */
 export function glyphSvgPath(shape) {
   return SVG_PATHS[shape] ?? '';
 }
@@ -127,7 +148,7 @@ export function iconName(shape, hex) {
   return `icon-${shape}-${String(hex).replace(/^#/, '').toLowerCase()}`;
 }
 
-/** The shape and color a sprite name asks for, or null when it is not a vehicle sprite. */
+/** The shape and color a sprite name asks for, or null when it is not one of our sprites. */
 export function parseIconName(name) {
   const match = /^icon-(.+)-([0-9a-f]{6})$/i.exec(String(name));
   if (!match || !Object.hasOwn(GLYPHS, match[1])) return null;
