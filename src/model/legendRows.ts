@@ -327,3 +327,20 @@ export function buildLegendSections(inputs: LegendInputs, { hasSubway = true }: 
   });
   return subway ? [subway, ...rest] : rest;
 }
+
+/** One section for the layer currently drilled into, with a row per route. */
+export function drillLegendSection(
+  group: string,
+  rows: LegendRowView[],
+  operatorLabel?: string | null,
+): LegendSection | null {
+  const config = LEGEND_GROUPS[group];
+  if (!config) return null;
+  return {
+    group,
+    name: operatorLabel || config.name,
+    glyph: config.glyph,
+    ...capRows(rows, LEGEND_ROW_CAP),
+    notes: operatorLabel ? [config.name] : [],
+  };
+}

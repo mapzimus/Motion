@@ -1,17 +1,18 @@
 // Panel UI: layer toggles, alert feed, connection status, loading states.
 
+import { effect } from '@preact/signals';
 import { CONFIG } from './feeds/config.js';
-import { focusAlert, focusGroup, getBasemap, getDrillDown, getDrillDownItems, setBasemap, setDrillDown } from './map/map.js';
+import { focusAlert, focusGroup, getBasemap, getDrillDown, setBasemap, setDrillDown } from './map/map.js';
 import { REGIONS, REGION_GROUPS, busDefaultOn, hasSubway, regionInfo, regionName } from './feeds/regions.js';
 import { SCENES, VEHICLE_PRESETS, resolvePreset } from './model/presets.js';
-import { getRouteColorMap } from './model/routePalette.js';
+import { LEGEND_GROUPS } from './model/legendConfig.js';
+import { drillLegend } from './stores/legend.js';
 
 const el = (id) => document.getElementById(id);
 
-const DRILLABLE_GROUPS = new Set([
-  'red', 'orange', 'green', 'blue', 'silver', 'mattapan',
-  'commuter', 'bus', 'amtrak', 'ferry',
-]);
+const DRILLABLE_GROUPS = new Set(
+  Object.entries(LEGEND_GROUPS).filter(([, group]) => group.drillable).map(([key]) => key),
+);
 
 let GROUPS = [];
 const groupState = new Map();
@@ -130,6 +131,9 @@ function setActivePreset(key) {
 export function applyLayerPreset(preset) {
   const plan = resolvePreset(preset, { region: getRegion(), groups: GROUPS, hasSubway });
   if (!plan) return false;
+  // A preset chooses the layers itself. A drill left in place would keep the
+  // map on the previous layer after the key and the switches had moved on.
+  if (getDrillDown().group) setDrillDown(null);
   if (plan.region && plan.region !== getRegion()) selectRegion(plan.region);
   const region = getRegion();
   if (plan.mode === 'default') {
@@ -233,6 +237,7 @@ export function initPanel(routeInfo, visibleChangeHandler, regionChangeHandler, 
   renderRegionCopy(selectedRegion);
   regionSelect.addEventListener('change', () => {
     setActivePreset(null);
+    if (getDrillDown().group) setDrillDown(null);
     renderRegionCopy(regionSelect.value);
     applyRegionDefaults(regionSelect.value);
     onRegionChange(regionSelect.value);
@@ -360,6 +365,13 @@ export function initPanel(routeInfo, visibleChangeHandler, regionChangeHandler, 
   setInterval(renderStatus, 1000);
   renderRegionAvailability(selectedRegion);
   emitVisible();
+  // The map publishes the open drill (from a layer row or the map key). Draw
+  // the route list in the panel from that, so both controls stay in step.
+  effect(() => {
+    const state = drillLegend.value;
+    if (!state) closeDrillPanel();
+    else paintDrillPanel(state);
+  });
 }
 
 function renderBasemapOptions() {
@@ -686,62 +698,57 @@ export function renderAlerts(alerts) {
 
 function enterDrillDown(group) {
   setDrillDown(group.key);
-  renderDrillDown(group);
 }
 
-function renderDrillDown(group) {
+function paintDrillPanel(state) {
+  const group = GROUPS.find((item) => item.key === state.group);
   const container = el('drill-down');
-  const routeColors = getRouteColorMap();
-  const items = getDrillDownItems(group.key);
-
-  const counts = new Map();
-  for (const f of items) {
-    const route = f.properties?.route ?? '';
-    if (!route) continue;
-    counts.set(route, (counts.get(route) || 0) + 1);
-  }
-  const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  if (!container || !group) return;
+  const title = state.operatorLabel
+    ? `${state.operatorLabel} · ${state.vehicles} vehicles`
+    : `${group.name} · ${state.vehicles} vehicles`;
 
   container.innerHTML = '';
   const header = document.createElement('button');
   header.type = 'button';
   header.className = 'drill-header';
-  header.innerHTML = `<span class="drill-back" aria-hidden="true">←</span>
-    <span class="bullet" style="background:${group.color ?? '#39424c'}">${group.initial}</span>
-    <span class="drill-title">${group.name} · ${items.length} vehicles</span>`;
-  header.addEventListener('click', () => exitDrillDown());
+  const back = document.createElement('span');
+  back.className = 'drill-back';
+  back.setAttribute('aria-hidden', 'true');
+  back.textContent = '←';
+  const bullet = document.createElement('span');
+  bullet.className = 'bullet';
+  bullet.style.background = group.color ?? '#39424c';
+  bullet.textContent = group.initial;
+  const titleEl = document.createElement('span');
+  titleEl.className = 'drill-title';
+  titleEl.textContent = title;
+  header.append(back, bullet, titleEl);
+  header.addEventListener('click', () => setDrillDown(null));
   container.appendChild(header);
 
-  for (const [route, count] of sorted) {
-    const color = routeColors.get(route) ?? '#888';
+  for (const route of state.rows) {
     const row = document.createElement('div');
     row.className = 'line-row drill-route zoomable';
-    row.style.setProperty('--line-color', color);
-    const bullet = document.createElement('span');
-    bullet.className = 'bullet';
-    bullet.textContent = route.charAt(0);
+    if (state.route && state.route !== route.key) row.classList.add('dimmed');
+    row.style.setProperty('--line-color', route.color);
+    const mark = document.createElement('span');
+    mark.className = 'bullet';
+    mark.style.background = route.color;
+    mark.textContent = route.label.charAt(0);
     const nameWrap = document.createElement('span');
     nameWrap.className = 'line-name';
     const label = document.createElement('span');
     label.className = 'line-label';
-    label.textContent = route;
+    label.textContent = route.label;
     nameWrap.appendChild(label);
     const countEl = document.createElement('span');
     countEl.className = 'count';
-    countEl.textContent = count;
-    row.append(bullet, nameWrap, countEl);
-    row.title = `Filter to ${route}`;
+    countEl.textContent = String(route.live);
+    row.append(mark, nameWrap, countEl);
+    row.title = `Filter to ${route.label}`;
     row.addEventListener('click', () => {
-      const current = getDrillDown();
-      if (current.route === route) {
-        setDrillDown(group.key, null);
-        container.querySelectorAll('.drill-route').forEach((r) => r.classList.remove('dimmed'));
-      } else {
-        setDrillDown(group.key, route);
-        container.querySelectorAll('.drill-route').forEach((r) => {
-          r.classList.toggle('dimmed', r.querySelector('.line-label').textContent !== route);
-        });
-      }
+      setDrillDown(state.group, state.route === route.key ? null : route.key);
     });
     container.appendChild(row);
   }
@@ -749,18 +756,19 @@ function renderDrillDown(group) {
   el('subway-master')?.closest('.master-row')?.classList.add('drill-hidden');
   el('layer-rows').classList.add('drill-hidden');
   el('modal-rows').classList.add('drill-hidden');
-  for (const h of document.querySelectorAll('.layer-subhead, .modal-divider')) h.classList.add('drill-hidden');
+  for (const heading of document.querySelectorAll('.layer-subhead, .modal-divider')) heading.classList.add('drill-hidden');
   container.hidden = false;
 }
 
-function exitDrillDown() {
-  setDrillDown(null);
-  el('drill-down').hidden = true;
-  el('drill-down').innerHTML = '';
+function closeDrillPanel() {
+  const container = el('drill-down');
+  if (!container) return;
+  container.hidden = true;
+  container.innerHTML = '';
   el('subway-master')?.closest('.master-row')?.classList.remove('drill-hidden');
-  el('layer-rows').classList.remove('drill-hidden');
-  el('modal-rows').classList.remove('drill-hidden');
-  for (const h of document.querySelectorAll('.layer-subhead, .modal-divider')) h.classList.remove('drill-hidden');
+  el('layer-rows')?.classList.remove('drill-hidden');
+  el('modal-rows')?.classList.remove('drill-hidden');
+  for (const heading of document.querySelectorAll('.layer-subhead, .modal-divider')) heading.classList.remove('drill-hidden');
 }
 
 // ---- overlay --------------------------------------------------------------

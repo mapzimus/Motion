@@ -8,11 +8,14 @@ import {
   type OperatorStat,
 } from '../model/palette.js';
 import { vehicleColors, type VehicleColorProps, type VehicleColors } from '../model/vehicleColors.js';
+import { drillColorFor } from '../model/routePalette.js';
 import {
   VIEWPORT_GROUPS,
   buildLegendSections,
+  drillLegendSection,
   legendFooter as footerFor,
   sameNestedMap,
+  type LegendRowView,
   type ViewportRoutes,
 } from '../model/legendRows.js';
 import { visibleGroups } from './layers.js';
@@ -65,11 +68,77 @@ export function liveVehicleColors(props: VehicleColorProps): VehicleColors | nul
   return vehicleColors(props, colorFor, routeCountFor);
 }
 
-/** Apply liveVehicleColors to a feed item's props in place; returns the item. */
+/** Color a vehicle had before the current drill recolored it. Keyed by the props object. */
+const drillOrigins = new WeakMap<object, VehicleColors>();
+
+/**
+ * Color to draw a vehicle right now. A drill route color wins over the operator
+ * palette, and the pre-drill color is remembered so leaving the drill can put it back.
+ */
+export function displayVehicleColors(props: VehicleColorProps): VehicleColors | null {
+  const drilled = drillColorFor(props);
+  if (drilled) {
+    if (!drillOrigins.has(props)) {
+      drillOrigins.set(props, {
+        color: props.color ?? drilled.color,
+        routeColor: props.routeColor ?? props.color ?? drilled.color,
+      });
+    }
+    return drilled;
+  }
+  return liveVehicleColors(props);
+}
+
+/** The color to restore when the drill closes. */
+export function restoreVehicleColors(props: VehicleColorProps): VehicleColors | null {
+  const origin = drillOrigins.get(props);
+  if (origin) {
+    drillOrigins.delete(props);
+    return origin;
+  }
+  return liveVehicleColors(props);
+}
+
+/** Apply the color the map should show, including an active route drill. */
 export function paintVehicle<T extends { props: VehicleColorProps & { routeColor?: string } }>(item: T): T {
-  const colors = liveVehicleColors(item.props);
+  const colors = displayVehicleColors(item.props);
   if (colors) Object.assign(item.props, colors);
   return item;
+}
+
+export interface DrillLegendState {
+  group: string;
+  route: string | null;
+  operator: string | null;
+  operatorLabel: string | null;
+  vehicles: number;
+  rows: LegendRowView[];
+}
+
+/** Set while a layer drill is open. The map key renders this instead of every layer. */
+export const drillLegend = signal<DrillLegendState | null>(null);
+
+export function setDrillLegend(state: DrillLegendState | null) {
+  drillLegend.value = state;
+}
+
+export interface DrillRequest {
+  group: string | null;
+  route?: string | null;
+  operator?: string | null;
+  operatorLabel?: string | null;
+  seq: number;
+}
+
+let drillSeq = 0;
+/** A click in the map key. The legend bridge turns it into a map drill. */
+export const drillRequest = signal<DrillRequest | null>(null);
+
+export function askDrill(
+  group: string | null,
+  extra: { route?: string | null; operator?: string | null; operatorLabel?: string | null } = {},
+) {
+  drillRequest.value = { group, ...extra, seq: ++drillSeq };
 }
 
 /** Map zoom as of the last zoomend; picks operator rows or viewport routes. */
@@ -138,14 +207,21 @@ export function wantsViewportRoutes(): boolean {
 /** Legend footer lines (the stale-position note, once). */
 export const legendFooter = computed(() => footerFor(visibleGroups.value));
 
-/** One legend section per visible group, in panel order. */
-export const legendSections = computed(() => buildLegendSections({
-  groups: visibleGroups.value,
-  zoom: legendZoom.value,
-  index: routeKeyIndex.value,
-  live: liveKeyCounts.value,
-  assignment: paletteAssignment.value,
-  viewport: viewportRoutes.value,
-  subwayColors: subwayColors.value,
-  notesByGroup: legendNotes.value,
-}, { hasSubway: hasSubway(region.value) }));
+/** One legend section per visible group, in panel order. A drill replaces that list. */
+export const legendSections = computed(() => {
+  const drill = drillLegend.value;
+  if (drill) {
+    const section = drillLegendSection(drill.group, drill.rows, drill.operatorLabel);
+    return section ? [section] : [];
+  }
+  return buildLegendSections({
+    groups: visibleGroups.value,
+    zoom: legendZoom.value,
+    index: routeKeyIndex.value,
+    live: liveKeyCounts.value,
+    assignment: paletteAssignment.value,
+    viewport: viewportRoutes.value,
+    subwayColors: subwayColors.value,
+    notesByGroup: legendNotes.value,
+  }, { hasSubway: hasSubway(region.value) });
+});

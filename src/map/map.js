@@ -7,9 +7,9 @@ import { CONFIG } from '../feeds/config.js';
 import { AIRPORT_STATUS_LABELS } from '../model/legendConfig.js';
 import { lookupFlightRoute } from '../feeds/flight-routes.js';
 import { ageText } from '../feeds/age.js';
-import { assignRouteColors, clearRouteColors } from '../model/routePalette.js';
+import { assignRouteColors, clearRouteColors, drillKey, drillLabel } from '../model/routePalette.js';
 import { recolorAllFleets } from '../feeds/fleet.js';
-import { liveVehicleColors } from '../stores/legend.ts';
+import { displayVehicleColors, restoreVehicleColors, setDrillLegend } from '../stores/legend.ts';
 import { attachStopPredictions } from '../feeds/predictions.js';
 import {
   DEFAULT_REGION,
@@ -2700,10 +2700,32 @@ let activeRegion = DEFAULT_REGION;
 
 // Drill-down: when set, the map shows only one group's vehicles colored by
 // individual route. drillRoute further narrows to a single route within that group.
+// drillOperator narrows a multi-operator group (a row in the map key) first.
 let drillGroup = null;
 let drillRoute = null;
+let drillOperator = null;
+let drillOperatorLabel = null;
 let drillRouteColorMap = null;
-let preDrillBounds = null;
+// Camera from just before the drill. Restored with easeTo so panel padding
+// does not zoom the view out on the way back.
+let preDrillView = null;
+
+function drillFeatures(group, operator) {
+  const items = [];
+  for (const collection of fleetData.values()) {
+    for (const feature of collection?.features ?? []) {
+      const props = feature?.properties;
+      if (!props || props.group !== group) continue;
+      if (operator && props.legendKey !== operator) continue;
+      items.push(feature);
+    }
+  }
+  return items;
+}
+
+function finiteCoord(coord) {
+  return Array.isArray(coord) && Number.isFinite(coord[0]) && Number.isFinite(coord[1]);
+}
 
 export function setVisibleGroups(groups, statuses = ['live', 'estimated', 'scheduled', 'reference']) {
   pendingFilters = { groups, statuses };
@@ -2719,66 +2741,109 @@ export function setVisibleGroups(groups, statuses = ['live', 'estimated', 'sched
   if (layersReady) applyGroupFilter(groups, statuses);
 }
 
-export function setDrillDown(group, route = null) {
-  if (group && !drillGroup) {
-    preDrillBounds = map.getBounds();
+/**
+ * @param {string | null} group
+ * @param {string | null} [route]
+ * @param {string | null} [operator]
+ * @param {string | null} [operatorLabel]
+ */
+export function setDrillDown(group, route = null, operator = undefined, operatorLabel = undefined) {
+  const entering = Boolean(group) && !drillGroup;
+  if (entering && map) {
+    try {
+      preDrillView = { center: map.getCenter(), zoom: map.getZoom() };
+    } catch {
+      preDrillView = null;
+    }
+  }
+  if (group && group === drillGroup) {
+    if (operator === undefined) operator = drillOperator;
+    if (operatorLabel === undefined) operatorLabel = drillOperatorLabel;
+  } else if (!group) {
+    operator = null;
+    operatorLabel = null;
+  } else {
+    if (operator === undefined) operator = null;
+    if (operatorLabel === undefined) operatorLabel = null;
   }
   drillGroup = group;
   drillRoute = route;
+  drillOperator = operator;
+  drillOperatorLabel = operatorLabel;
   if (group) {
-    const allFeatures = [];
-    for (const [, collection] of rawFleetData) {
-      for (const f of (collection?.features ?? [])) {
-        if (f.properties.group === group) allFeatures.push(f);
-      }
+    const features = drillFeatures(group, operator);
+    drillRouteColorMap = assignRouteColors(features, group, operator);
+    recolorAllFleets(displayVehicleColors);
+    const counts = new Map();
+    const labels = new Map();
+    for (const feature of features) {
+      const key = drillKey(feature);
+      if (!key) continue;
+      counts.set(key, (counts.get(key) || 0) + 1);
+      if (!labels.has(key)) labels.set(key, drillLabel(feature));
     }
-    drillRouteColorMap = assignRouteColors(allFeatures, group);
-    recolorAllFleets((props) => {
-      if (props.group !== group) return null;
-      const c = drillRouteColorMap.get(props.route);
-      return c ? { color: c, routeColor: c } : null;
+    const rows = [...counts.entries()]
+      .sort((a, b) => b[1] - a[1] || String(labels.get(a[0])).localeCompare(String(labels.get(b[0]))))
+      .map(([key, live]) => ({
+        key,
+        label: labels.get(key) || key,
+        color: drillRouteColorMap.get(key) || '#888888',
+        live,
+      }));
+    setDrillLegend({
+      group,
+      route,
+      operator,
+      operatorLabel,
+      vehicles: features.length,
+      rows,
     });
+    if (map) frameDrill(features, route);
   } else {
     drillRouteColorMap = null;
     clearRouteColors();
-    recolorAllFleets(liveVehicleColors);
+    recolorAllFleets(restoreVehicleColors);
+    setDrillLegend(null);
+    if (preDrillView && map) {
+      map.easeTo({ center: preDrillView.center, zoom: preDrillView.zoom, duration: 600 });
+      preDrillView = null;
+    }
   }
   if (pendingFilters && layersReady) applyGroupFilter(pendingFilters.groups, pendingFilters.statuses);
-  if (!group && preDrillBounds) {
-    map.fitBounds(preDrillBounds, { duration: 600, padding: fitPadding() });
-    preDrillBounds = null;
-  } else if (group) {
-    const allCoords = [];
-    for (const [, collection] of rawFleetData) {
-      for (const f of (collection?.features ?? [])) {
-        if (f.properties.group !== group) continue;
-        if (route && f.properties.route !== route) continue;
-        allCoords.push(f.geometry.coordinates);
-      }
-    }
-    if (allCoords.length > 1) {
-      const lngs = allCoords.map((c) => c[0]);
-      const lats = allCoords.map((c) => c[1]);
-      map.fitBounds(
-        [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
-        { padding: fitPadding(), maxZoom: 14, duration: 800 },
-      );
-    }
+}
+
+function frameDrill(features, route) {
+  const coords = [];
+  for (const feature of features) {
+    if (route && drillKey(feature) !== route && feature.properties?.route !== route) continue;
+    const coord = feature.geometry?.coordinates;
+    if (finiteCoord(coord)) coords.push(coord);
   }
+  if (coords.length === 1) {
+    map.easeTo({ center: coords[0], zoom: Math.max(map.getZoom(), 13), duration: 800 });
+    return;
+  }
+  if (coords.length < 2) return;
+  const lngs = coords.map((coord) => coord[0]);
+  const lats = coords.map((coord) => coord[1]);
+  map.fitBounds(
+    [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
+    { padding: fitPadding(), maxZoom: 14, duration: 800 },
+  );
 }
 
 export function getDrillDown() {
-  return { group: drillGroup, route: drillRoute, routeColors: drillRouteColorMap };
+  return {
+    group: drillGroup,
+    route: drillRoute,
+    operator: drillOperator,
+    operatorLabel: drillOperatorLabel,
+    routeColors: drillRouteColorMap,
+  };
 }
 
 export function getDrillDownItems(group) {
-  const items = [];
-  for (const [, collection] of rawFleetData) {
-    for (const f of (collection?.features ?? [])) {
-      if (f.properties.group === group) items.push(f);
-    }
-  }
-  return items;
+  return drillFeatures(group, drillGroup === group ? drillOperator : null);
 }
 
 export function setRegion(regionKey, { fit = true } = {}) {
@@ -2849,8 +2914,15 @@ function applyGroupFilter(groups, statuses) {
     ['literal', statuses],
   ];
   let visibleByStatus = ['all', visible, statusVisible];
+  if (drillOperator) {
+    visibleByStatus = ['all', visibleByStatus, ['==', ['get', 'legendKey'], drillOperator]];
+  }
   if (drillRoute) {
-    visibleByStatus = ['all', visibleByStatus, ['==', ['get', 'route'], drillRoute]];
+    // Vehicles carry shadeKey (feed:route); ribbons carry the same id on route.
+    visibleByStatus = ['all', visibleByStatus, ['any',
+      ['==', ['get', 'route'], drillRoute],
+      ['==', ['get', 'shadeKey'], drillRoute],
+    ]];
   }
 
   const iconVisible = visibleByStatus;

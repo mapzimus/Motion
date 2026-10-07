@@ -23,11 +23,37 @@ const PALETTE = [
 
 let currentMap = new Map();
 let currentGroup = null;
+let currentOperator = null;
 
-export function assignRouteColors(items, groupKey) {
+function propsOf(itemOrProps) {
+  return itemOrProps?.properties || itemOrProps?.props || itemOrProps || {};
+}
+
+/** Stable id shared by a live vehicle and its route ribbon. */
+export function drillKey(itemOrProps) {
+  const props = propsOf(itemOrProps);
+  return props.shadeKey || props.route || '';
+}
+
+/** Short label for a drill row. Prefers the rider-facing route id or name. */
+export function drillLabel(itemOrProps) {
+  const props = propsOf(itemOrProps);
+  const route = props.route ? String(props.route) : '';
+  const shade = props.shadeKey ? String(props.shadeKey) : '';
+  if (route && route !== shade && !route.includes(':')) return route;
+  if (shade.includes(':')) return shade.slice(shade.lastIndexOf(':') + 1);
+  return route || shade;
+}
+
+/**
+ * @param {Array<{ properties?: Record<string, any>, props?: Record<string, any> }>} items
+ * @param {string | null} groupKey
+ * @param {string | null} [operator]
+ */
+export function assignRouteColors(items, groupKey, operator = null) {
   const counts = new Map();
   for (const item of items) {
-    const route = item.props?.route ?? item.properties?.route ?? '';
+    const route = drillKey(item);
     if (!route) continue;
     counts.set(route, (counts.get(route) || 0) + 1);
   }
@@ -38,7 +64,18 @@ export function assignRouteColors(items, groupKey) {
   }
   currentMap = map;
   currentGroup = groupKey;
+  currentOperator = operator || null;
   return map;
+}
+
+/** Route color while this group (and operator, when set) is drilled into. */
+export function drillColorFor(props) {
+  if (!props || !currentGroup || props.group !== currentGroup) return null;
+  if (currentOperator && props.legendKey !== currentOperator) return null;
+  const key = props.shadeKey || props.route || '';
+  const color = currentMap.get(key) || (props.route ? currentMap.get(props.route) : null);
+  if (!color) return null;
+  return { color, routeColor: color };
 }
 
 export function getRouteColorMap() {
@@ -52,6 +89,7 @@ export function getDrillGroup() {
 export function clearRouteColors() {
   currentMap = new Map();
   currentGroup = null;
+  currentOperator = null;
 }
 
 export function buildMatchExpression(routeColorMap, fallback = '#888888') {
