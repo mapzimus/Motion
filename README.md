@@ -862,10 +862,12 @@ documented `freshness_exempt`), and commit the refreshed `feed-freshness.json`.
 - An October 2026 tracker survey found public rider maps with no open feed
   for Greater Bridgeport Transit (Trapeze WebWatch), SEAT (Swiftly), Massport's
   Logan shuttles, the Dartmouth Campus Connector, and BSOOB Transit (Trillium
-  maps), the 128 Business Council (TripShot), and C&J and Peter Pan (uTrack).
+  maps), the 128 Business Council (TripShot), and C&J (uTrack; not verified from here).
   Milford Transit, NECTD, NWCTD, CTrail's Hartford Line and Shore Line East,
   Plymouth & Brockton, and the smaller Maine and New Hampshire operators have
-  no tracker.   VTrans plow trucks are drawn when the public file lists them, and that
+  no tracker. Peter Pan coaches are live positions from the public tracker
+  (https://bustracker.peterpanbus.com/), drawn with the buses. Trip rows that
+  share one fix are one coach. VTrans plow trucks are drawn when the public file lists them, and that
   file is empty outside winter. New Hampshire plow routes are a reference
   layer. No other state publishes keyless live plow positions. Massport's bus-locator JSON (behind its
   website's bus locator for the shuttles and Logan Express) is private and is
@@ -882,7 +884,7 @@ documented `freshness_exempt`), and commit the refreshed `feed-freshness.json`.
   answered on 2026-10-04 with no vehicles (its loop runs Saturdays only).
 - Peter Pan's public GTFS has not been re-published since June 2024, so its
   corridors are shown as scheduled service relationships rather than a
-  current timetable.
+  current timetable. Live coach positions come from the public tracker.
 - Metro-North reports GPS only for trains that are running; a train without a
   recent fix is an estimate between realtime station predictions.
 - Non-MBTA ferry operators generally publish schedules, not GTFS-realtime
@@ -910,7 +912,9 @@ documented `freshness_exempt`), and commit the refreshed `feed-freshness.json`.
   they publish discoverable public feeds; until then they appear as reference
   markers in the Other bike-share systems layer, not as live stations.
 - Public truck, delivery, and company-fleet positions are generally private
-  telematics, and there is no national public live freight-train position feed.
+  telematics. The exception on the map is City of Keene trucks, last parked
+  positions from the city's public viewer, not a live storm tracker.
+  There is no national public live freight-train position feed.
   Motion maps the public FRA rail network instead of claiming scheduled or
   live freight locations it cannot verify.
 - Flock/ALPR camera locations and live emergency-responder positions are not

@@ -174,6 +174,7 @@ export const CONFIG = {
   ROAD_WEATHER_COLOR: '#7ec8e3',
   MESSAGE_SIGN_COLOR: '#f0c14a',
   PLOW_COLOR: '#d6e8ff',
+  CITY_TRUCK_COLOR: '#d7a15a',
   AERIALWAY_COLOR: '#c4b5fd',
   INCIDENT_COLOR: '#ff5c5c',
   ROAD_COLOR: '#8a949f',
@@ -193,6 +194,7 @@ export const CONFIG = {
   ROAD_WEATHER_POLL_MS: 5 * 60_000,
   MESSAGE_SIGN_POLL_MS: 5 * 60_000,
   PLOW_POLL_MS: 60_000,
+  CITY_TRUCK_POLL_MS: 60_000,
   ROAD_EVENT_POLL_MS: 60_000,
 
   // Conditions: NWS active weather alerts (zone polygons) and FAA airport
@@ -233,7 +235,7 @@ export const CONFIG = {
   // on: ~400 buses, ~600 bike stations, wall-to-wall traffic color).
   DEFAULT_OFF_GROUPS: [
     'bus', 'bike', 'roadwork', 'traffic', 'incident', 'camera',
-    'road-weather', 'message-sign', 'plow',
+    'road-weather', 'message-sign', 'plow', 'city-truck',
     'roads', 'freight', 'walking', 'cycling', 'local', 'airport', 'border', 'air-service',
     'bikeshare', 'heritage-rail', 'aerialway', 'park-ride', 'ev-charging', 'drawbridge', 'taxi',
     'weather', 'airport-status',

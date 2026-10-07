@@ -36,6 +36,7 @@ import {
   validRoadDetail,
   type RoadCatalog,
 } from './road-extras';
+import { keeneCityTrucks, peterPanCoaches } from './company-vehicles';
 
 const MASSDOT_WORK_ZONE_URL = 'https://feed.massdot-swzm.com/massdot_wzdx_v4.1_work_zone_feed.geojson';
 const NORTHERN_WORK_ZONE_URL = 'https://api.dx.ne-compass.com/wzdx-latest/';
@@ -85,6 +86,29 @@ const TFR_DETAIL_URL = 'https://tfr.faa.gov/tfrapi/getWebText';
 const TFR_CACHE_SECONDS = 5 * 60;
 const TFR_DETAIL_CACHE_SECONDS = 30 * 60;
 const VTRANS_PLOW_URL = 'https://plowtrucks.vtrans.vermont.gov/assets/vehicleJSON.json';
+// Public client key shipped by https://bustracker.peterpanbus.com/configs/global.js.
+const PETER_PAN_API = 'https://peterpan.origin.utrack.com/api';
+const PETER_PAN_PUBLIC_KEY = 'PUBLICLZG198W0ZYCMR7DBYRQA5TD67W';
+// Hub stops the public tracker searches. One stop does not cover the network.
+const PETER_PAN_STOPS = ['6709', '6697', '6690', '6743', '5432', '6751', '6703', '6734', '6673'];
+// Public viewer token from the City of Keene snow-plow page. No account.
+const KEENE_VIEWER_TOKEN = '9UjyA9zT0itLijnVB1po';
+const KEENE_VIEWER_URL = 'https://cloud.samsara.com/o/10007013/fleet/viewer/9UjyA9zT0itLijnVB1po';
+const KEENE_VIEWER_QUERY = `query FleetViewer($token: string!, $duration: int64!) {
+  fleetViewerToken(token: $token) {
+    devices(feature: "fleetTrackable") {
+      name
+      id
+      location: fleetViewerLocation(duration: $duration) {
+        time
+        latitude
+        longitude
+        heading
+        speed
+      }
+    }
+  }
+}`;
 const ROAD_ICON_CACHE_SECONDS = 5 * 60;
 
 // ---- provider health -------------------------------------------------------
@@ -1192,6 +1216,104 @@ async function plows(request: Request, ctx: ExecutionContext): Promise<Response>
   });
 }
 
+function sessionCookie(response: Response): string {
+  const withList = response.headers as Headers & { getSetCookie?: () => string[] };
+  const listed = withList.getSetCookie?.() ?? [];
+  const raw = listed.length ? listed : [response.headers.get('set-cookie') ?? ''];
+  return raw.map((value) => value.split(';')[0]?.trim()).filter(Boolean).join('; ');
+}
+
+// The same departures call the public tracker makes, across its hub stops.
+async function peterPan(request: Request, ctx: ExecutionContext): Promise<Response> {
+  return cachedJson(request, ctx, 30, async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const start = now - 21_600;
+    const end = start + 172_800;
+    const settled = await Promise.allSettled(PETER_PAN_STOPS.map(async (stopId) => {
+      const upstream = await fetch(
+        `${PETER_PAN_API}/public-departures-by-stop-v1/${stopId}/${start}/${end}?api_key=${PETER_PAN_PUBLIC_KEY}`,
+        { headers: { accept: 'application/json' } },
+      );
+      if (!upstream.ok) throw new Error(`Peter Pan stop ${stopId} ${upstream.status}`);
+      return upstream.json();
+    }));
+    const payloads = settled.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : []));
+    if (!payloads.length) {
+      markProvider('peterPan', false);
+      return json({ error: 'Peter Pan tracker unavailable' }, 502);
+    }
+    markProvider('peterPan', true);
+    return json({
+      provider: 'Peter Pan public tracker',
+      sourceUrl: 'https://bustracker.peterpanbus.com/',
+      vehicles: peterPanCoaches(payloads),
+    });
+  });
+}
+
+// Last positions from the city's public Samsara viewer. Not a storm tracker.
+async function cityTrucks(request: Request, ctx: ExecutionContext): Promise<Response> {
+  return cachedJson(request, ctx, 60, async () => {
+    const csrfResponse = await fetch('https://cloud.samsara.com/r/auth/csrf', {
+      headers: { accept: 'application/json' },
+    }).catch(() => null);
+    let csrfToken = '';
+    if (csrfResponse?.ok) {
+      try {
+        csrfToken = ((await csrfResponse.json()) as { csrf_token?: string }).csrf_token ?? '';
+      } catch {
+        csrfToken = '';
+      }
+    }
+    const cookie = csrfResponse ? sessionCookie(csrfResponse) : '';
+    if (!csrfToken) {
+      markProvider('cityTrucks', false);
+      return json({ error: 'Keene truck viewer unavailable' }, 502);
+    }
+    const upstream = await fetch('https://cloud.samsara.com/r/graphql', {
+      method: 'POST',
+      headers: {
+        accept: 'application/json; version=2',
+        'content-type': 'application/json',
+        'x-csrf-token': csrfToken,
+        origin: 'https://cloud.samsara.com',
+        referer: KEENE_VIEWER_URL,
+        ...(cookie ? { cookie } : {}),
+      },
+      body: JSON.stringify({
+        query: KEENE_VIEWER_QUERY,
+        variables: { token: KEENE_VIEWER_TOKEN, duration: 30_000 },
+        extensions: {},
+      }),
+    }).catch(() => null);
+    if (!upstream?.ok) {
+      markProvider('cityTrucks', false);
+      return json({ error: `Keene truck viewer ${upstream?.status ?? 'unavailable'}` }, 502);
+    }
+    let payload: unknown;
+    try {
+      payload = await upstream.json();
+    } catch {
+      markProvider('cityTrucks', false);
+      return json({ error: 'Keene truck viewer was not JSON' }, 502);
+    }
+    const features = keeneCityTrucks(payload, Date.now());
+    if (!features.length && payload && typeof payload === 'object' && (payload as { errors?: unknown }).errors) {
+      markProvider('cityTrucks', false);
+      return json({ error: 'Keene truck viewer rejected the request' }, 502);
+    }
+    markProvider('cityTrucks', true);
+    return json({
+      type: 'FeatureCollection',
+      provider: 'City of Keene',
+      coverage: ['nh'],
+      sourceUrl: KEENE_VIEWER_URL,
+      note: 'Last parked positions of City of Keene trucks. A fix may be hours or months old.',
+      features,
+    });
+  });
+}
+
 async function tfrDetail(request: Request, url: URL, ctx: ExecutionContext): Promise<Response> {
   const notamId = url.searchParams.get('id');
   if (!validNotamId(notamId)) return json({ error: 'Invalid NOTAM id' }, 400);
@@ -1243,6 +1365,8 @@ export default {
           roadWeather: providerHealthy('roadWeather'),
           messageSigns: providerHealthy('messageSigns'),
           plows: providerHealthy('plows'),
+          peterPan: providerHealthy('peterPan'),
+          cityTrucks: providerHealthy('cityTrucks'),
           airportStatus: providerHealthy('airportStatus'),
           weatherAlerts: providerHealthy('weatherAlerts'),
           airportWeather: providerHealthy('airportWeather'),
@@ -1280,6 +1404,10 @@ export default {
       response = await roadDetail(url);
     } else if (url.pathname === '/api/plows') {
       response = await plows(request, ctx);
+    } else if (url.pathname === '/api/peter-pan') {
+      response = await peterPan(request, ctx);
+    } else if (url.pathname === '/api/city-trucks') {
+      response = await cityTrucks(request, ctx);
     } else if (url.pathname === '/api/airport-status') {
       response = await airportStatus(request, ctx);
     } else if (url.pathname === '/api/weather-alerts') {

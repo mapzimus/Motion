@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### More of what moves
+- Peter Pan coach positions from the public tracker at https://bustracker.peterpanbus.com/. Trip rows that share one GPS fix draw as one coach, on the bus layer beside the scheduled corridors.
+- City of Keene trucks from the city's public viewer at https://cloud.samsara.com/o/10007013/fleet/viewer/9UjyA9zT0itLijnVB1po. These are last parked positions, including fixes that are hours or months old, labeled as city trucks.
 - Road weather stations from New England 511 (Maine, New Hampshire, Vermont). The map loads locations only; click a station for air temperature, wind, and pavement temperature.
 - Highway message signs from New England 511 and CTroads. Click a sign for the message it is posting.
 - Vermont plow trucks from the VTrans public file. The file is empty outside winter, and an empty file stays a healthy feed. New Hampshire winter plow routes are a reference layer under the same switch.

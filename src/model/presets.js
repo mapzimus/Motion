@@ -15,7 +15,7 @@ export const GROUP_KEYS = [
   'commuter', 'bus', 'amtrak', 'local', 'taxi',
   'ferry', 'plane', 'air-service', 'airport', 'airport-status', 'airport-weather', 'tfr', 'airspace', 'vessel',
   'bike', 'bikeshare', 'walking', 'cycling',
-  'traffic', 'roadwork', 'incident', 'camera', 'road-weather', 'message-sign', 'plow', 'weather',
+  'traffic', 'roadwork', 'incident', 'camera', 'road-weather', 'message-sign', 'plow', 'city-truck', 'weather',
   'roads', 'freight', 'border', 'heritage-rail', 'aerialway', 'park-ride', 'ev-charging', 'drawbridge',
 ];
 
