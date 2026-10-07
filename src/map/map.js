@@ -50,7 +50,6 @@ const ROUTE_COLOR_LAYERS = {
   'route-halo': 'line-color',
   'route-lines': 'line-color',
   'scheduled-station-halo': 'circle-color',
-  'scheduled-stations': 'circle-color',
   'scheduled-ferry-stops': 'circle-color',
   'scheduled-bus-stops': 'circle-color',
 };
@@ -67,10 +66,12 @@ export function applyRoutePalette() {
 const FLEETS = ['bike', 'vessel', 'amtrak', 'regional', 'mnr', 'mbta', 'coaches', 'plane'];
 
 // The visual language: SHAPE says what kind of vehicle it is, COLOR says whose
-// service it is. Rail keeps the classic dot + heading chevron; every other
-// mode gets its own silhouette so it reads at first glance.
-const RAIL_GROUPS = ['red', 'orange', 'green', 'blue', 'silver', 'mattapan', 'commuter', 'amtrak'];
-const ICON_GROUPS = ['bus', 'ferry', 'plane', 'vessel', 'bike'];
+// service it is. Subway, commuter rail and Amtrak are a rail silhouette; the
+// Silver Line is a bus, so it wears the bus silhouette. Stations are a quiet
+// square under those vehicles. Bus stops are a faint dot, quieter still.
+const TRAIN_GROUPS = ['red', 'orange', 'green', 'blue', 'mattapan', 'commuter', 'amtrak'];
+const RAIL_GROUPS = [...TRAIN_GROUPS, 'silver'];
+const ICON_GROUPS = ['bus', 'ferry', 'plane', 'vessel', 'bike', 'silver', ...TRAIN_GROUPS];
 // Sprite color for a vehicle that arrives without one; drawn on first use by
 // the missing-image resolver like any other icon-<shape>-<hex6> sprite.
 const FALLBACK_ICON_COLOR = '#8a939c';
@@ -79,15 +80,24 @@ const ICON_SHAPE_EXPR = [
   'match', ['get', 'group'],
   'plane', ['match', ['get', 'planeKind'], 'light', 'plane-light', 'heli', 'plane-heli', 'other', 'plane-other', 'plane'],
   'bus', 'bus',
+  'silver', 'bus',
   'ferry', 'boat',
   'vessel', 'boat',
+  TRAIN_GROUPS, 'train',
   ['match', ['get', 'markerKind'], 'scooter', 'share-scooter', 'bicycle', 'share-bike', 'dock'],
 ];
-// Live rail dots: operator color zoomed out, route shade zoomed in.
-const VEHICLE_COLOR_EXPR = [
-  'interpolate', ['linear'], ['zoom'],
-  12.5, ['get', 'color'],
-  13.5, ['coalesce', ['get', 'routeColor'], ['get', 'color']],
+// Operator color zoomed out, route shade zoomed in. Shared by vehicle sprites
+// and the quieter station square.
+const spriteHex = (colorExpr) => ['slice', ['coalesce', colorExpr, FALLBACK_ICON_COLOR], 1];
+const ZOOM_SPRITE_EXPR = (shapeExpr) => [
+  'step', ['zoom'],
+  ['concat', 'icon-', shapeExpr, '-', spriteHex(['get', 'color'])],
+  13.5, ['concat', 'icon-', shapeExpr, '-', spriteHex(['coalesce', ['get', 'routeColor'], ['get', 'color']])],
+];
+const STATION_ICON_EXPR = [
+  'step', ['zoom'],
+  ['concat', 'icon-station-', spriteHex(['coalesce', ['get', 'opColor'], ['get', 'color']])],
+  13.5, ['concat', 'icon-station-', spriteHex(['coalesce', ['get', 'routeColor'], ['get', 'color']])],
 ];
 const STOP_POINT_LAYERS = ['scheduled-stations', 'scheduled-ferry-stops', 'scheduled-bus-stops'];
 const AIRPORT_LAYERS = ['airport-public-points', 'airport-private-points', 'airport-public-marks', 'airport-private-marks', 'airport-labels'];
@@ -259,25 +269,8 @@ export function initMap() {
   });
 }
 
-// White chevron pointing north; MapLibre rotates it per-feature by bearing.
-function chevronImage(size = 48) {
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = size;
-  const ctx = canvas.getContext('2d');
-  ctx.beginPath();
-  ctx.moveTo(size * 0.5, size * 0.06);
-  ctx.lineTo(size * 0.84, size * 0.64);
-  ctx.lineTo(size * 0.5, size * 0.48);
-  ctx.lineTo(size * 0.16, size * 0.64);
-  ctx.closePath();
-  ctx.fillStyle = '#ffffff';
-  ctx.fill();
-  return ctx.getImageData(0, 0, size, size);
-}
-
-// ---- mode icon sprites -----------------------------------------------------
-// Pre-rendered filled silhouettes wearing the same white outline as the rail
-// dots. Shapes point north; MapLibre rotates them by live bearing.
+// Shapes point north; MapLibre rotates vehicle sprites by live bearing.
+// Stations are a quiet square with a dark edge, not the vehicle highlight.
 
 function makeIcon(fill, draw, size = 64) {
   const canvas = document.createElement('canvas');
@@ -287,6 +280,20 @@ function makeIcon(fill, draw, size = 64) {
   ctx.lineJoin = 'round';
   ctx.strokeStyle = '#f4f6f8';
   ctx.lineWidth = 4.5;
+  ctx.stroke();
+  ctx.fillStyle = fill;
+  ctx.fill();
+  return ctx.getImageData(0, 0, size, size);
+}
+
+function makeStationIcon(fill, size = 64) {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  GLYPHS.station(ctx, size);
+  ctx.lineJoin = 'miter';
+  ctx.strokeStyle = '#10151b';
+  ctx.lineWidth = 5;
   ctx.stroke();
   ctx.fillStyle = fill;
   ctx.fill();
@@ -348,12 +355,20 @@ const planeIconSize = (airliner) => [
 // the missing-image resolver.
 function registerModeIcons() {
   const bikeColors = CONFIG.SHARED_MOBILITY_SYSTEMS.map((system) => system.color).filter(Boolean);
+  const railColors = [
+    '#da291c', '#ed8b00', '#003da5', '#00843d', '#7c878e',
+    CONFIG.AMTRAK_COLOR, CONFIG.COMMUTER_COLOR, CONFIG.MNR_COLOR,
+    '#80276c', '#0070c0',
+    ...PALETTE,
+  ];
   const preset = {
     plane: [CONFIG.PLANE_COLOR],
     'plane-light': [CONFIG.PLANE_COLOR],
     'plane-heli': [CONFIG.PLANE_COLOR],
     'plane-other': [CONFIG.PLANE_COLOR],
-    bus: [CONFIG.BUS_COLOR, ...PALETTE],
+    bus: [CONFIG.BUS_COLOR, '#7c878e', ...PALETTE],
+    train: railColors,
+    station: railColors,
     boat: [CONFIG.FERRY_COLOR, ...PALETTE, ...VESSEL_BANDS.map((band) => band.color)],
     dock: [CONFIG.BIKE_COLOR, CONFIG.BIKE_LOW_COLOR, CONFIG.BIKE_EMPTY_COLOR, ...bikeColors],
     'share-bike': [CONFIG.BIKE_FREE_COLOR, ...bikeColors],
@@ -361,7 +376,8 @@ function registerModeIcons() {
   };
   for (const [shape, colors] of Object.entries(preset)) {
     for (const color of new Set(colors)) {
-      addImageOnce(iconName(shape, color), makeIcon(color, GLYPHS[shape]));
+      const image = shape === 'station' ? makeStationIcon(color) : makeIcon(color, GLYPHS[shape]);
+      addImageOnce(iconName(shape, color), image);
     }
   }
   addImageOnce('icon-heliport', facilityIcon(heliportGlyph));
@@ -371,7 +387,10 @@ function registerModeIcons() {
 function drawMissingIcon(id) {
   const sprite = parseIconName(id);
   if (!sprite || map.hasImage(id)) return;
-  map.addImage(id, makeIcon(sprite.color, GLYPHS[sprite.shape]), { pixelRatio: 2 });
+  const image = sprite.shape === 'station'
+    ? makeStationIcon(sprite.color)
+    : makeIcon(sprite.color, GLYPHS[sprite.shape]);
+  map.addImage(id, image, { pixelRatio: 2 });
 }
 
 // setStyle() can carry images over from the previous style; re-adding one
@@ -382,7 +401,6 @@ function addImageOnce(name, image) {
 }
 
 function setupLayers() {
-  addImageOnce('nav-chevron', chevronImage());
   registerModeIcons();
 
   // Live congestion raster under everything else we draw. The gateway uses
@@ -1030,28 +1048,27 @@ function setupLayers() {
     ],
     paint: {
       'circle-color': ROUTE_COLOR_EXPR,
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 5.5, 10, 9, 14, 14],
-      'circle-opacity': 0.16,
-      'circle-blur': 0.55,
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 3.2, 10, 5, 14, 7.5],
+      'circle-opacity': 0.1,
+      'circle-blur': 0.65,
     },
   });
   map.addLayer({
     id: 'scheduled-stations',
-    type: 'circle',
+    type: 'symbol',
     source: 'route-shapes',
     filter: [
       'all',
       ['==', ['get', 'kind'], 'regional-station'],
       ['in', ['get', 'group'], ['literal', RAIL_GROUPS]],
     ],
-    paint: {
-      'circle-color': ROUTE_COLOR_EXPR,
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 3.2, 10, 5.4, 14, 8],
-      'circle-stroke-color': '#f4f6f8',
-      'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 5, 0.7, 14, 1.8],
-      'circle-opacity': 0.9,
-      'circle-stroke-opacity': 0.9,
+    layout: {
+      'icon-image': STATION_ICON_EXPR,
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 7, 0.46, 14, 0.72],
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true,
     },
+    paint: { 'icon-opacity': 0.68 },
   });
   map.addLayer({
     id: 'scheduled-station-labels',
@@ -1156,11 +1173,13 @@ function setupLayers() {
       ['==', ['get', 'group'], 'bus'],
     ],
     paint: {
+      // A small soft dot: lighter than a station square, and not a bus or train.
       'circle-color': ROUTE_COLOR_EXPR,
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 12.5, 1.2, 16, 2.6],
-      'circle-stroke-color': '#10151c',
-      'circle-stroke-width': 0.55,
-      'circle-opacity': ['interpolate', ['linear'], ['zoom'], 12.5, 0.42, 15, 0.78],
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 12.5, 1.7, 16, 2.7],
+      'circle-opacity': ['interpolate', ['linear'], ['zoom'], 12.5, 0.34, 16, 0.5],
+      'circle-stroke-color': '#10151b',
+      'circle-stroke-width': 0.6,
+      'circle-stroke-opacity': ['interpolate', ['linear'], ['zoom'], 12.5, 0.35, 16, 0.5],
     },
   });
   map.addLayer({
@@ -1210,55 +1229,16 @@ function setupLayers() {
       });
     }
     map.addLayer({
-      id: `veh-${fleetId}-dots`,
-      type: 'circle',
-      source: `veh-${fleetId}`,
-      filter: ['in', ['get', 'group'], ['literal', RAIL_GROUPS]],
-      paint: {
-        'circle-color': VEHICLE_COLOR_EXPR,
-        'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 3.5, 12, 6, 15, 10],
-        'circle-stroke-color': '#f4f6f8',
-        'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 9, 1, 15, 2],
-        'circle-opacity': ['case', ['get', 'stale'], 0.35, 1],
-        'circle-stroke-opacity': ['case', ['get', 'stale'], 0.35, 1],
-      },
-    });
-    map.addLayer({
-      id: `veh-${fleetId}-arrows`,
-      type: 'symbol',
-      source: `veh-${fleetId}`,
-      filter: [
-        'all',
-        ['in', ['get', 'group'], ['literal', RAIL_GROUPS]],
-        ['==', ['get', 'hasBearing'], true],
-      ],
-      layout: {
-        'icon-image': 'nav-chevron',
-        'icon-size': ['interpolate', ['linear'], ['zoom'], 9, 0.3, 15, 0.65],
-        'icon-rotate': ['get', 'bearing'],
-        'icon-rotation-alignment': 'map',
-        'icon-allow-overlap': true,
-        'icon-ignore-placement': true,
-        // Sits just ahead of the dot; the offset rotates with the bearing.
-        'icon-offset': [0, -36],
-      },
-      paint: { 'icon-opacity': ['case', ['get', 'stale'], 0.3, 0.95] },
-    });
-    map.addLayer({
       id: `veh-${fleetId}-icons`,
       type: 'symbol',
       source: `veh-${fleetId}`,
       filter: ['in', ['get', 'group'], ['literal', ICON_GROUPS]],
       layout: {
-        'icon-image': [
-          'step', ['zoom'],
-          ['concat', 'icon-', ICON_SHAPE_EXPR, '-', ['slice', ['coalesce', ['get', 'color'], FALLBACK_ICON_COLOR], 1]],
-          13.5, ['concat', 'icon-', ICON_SHAPE_EXPR, '-', ['slice', ['coalesce', ['get', 'routeColor'], ['get', 'color'], FALLBACK_ICON_COLOR], 1]],
-        ],
+        'icon-image': ZOOM_SPRITE_EXPR(ICON_SHAPE_EXPR),
         'icon-size': [
           'interpolate', ['linear'], ['zoom'],
-          9, ['match', ['get', 'group'], 'plane', planeIconSize(0.38), 'bike', 0.2, 0.3],
-          15, ['match', ['get', 'group'], 'plane', planeIconSize(0.8), 'bike', 0.5, 0.7],
+          9, ['match', ['get', 'group'], 'plane', planeIconSize(0.38), 'bike', 0.2, TRAIN_GROUPS, 0.46, 0.3],
+          15, ['match', ['get', 'group'], 'plane', planeIconSize(0.8), 'bike', 0.5, TRAIN_GROUPS, 0.95, 0.7],
         ],
         'icon-rotate': ['case', ['get', 'hasBearing'], ['get', 'bearing'], 0],
         'icon-rotation-alignment': 'map',
@@ -1271,7 +1251,7 @@ function setupLayers() {
   // Operational point layers remain clickable above route ribbons and dense
   // infrastructure without covering moving vehicle symbols.
   for (const layerId of ['local-service-points', 'bikeshare-points', 'camera-points', 'incident-points', 'road-weather-points', 'message-sign-points', 'plow-points', 'roadwork-points']) {
-    map.moveLayer(layerId, 'veh-bike-dots');
+    map.moveLayer(layerId, 'veh-bike-icons');
   }
   setupConditionLayers();
   setupSelectedLayers();
@@ -1388,7 +1368,7 @@ function setupConditionLayers() {
       'circle-opacity': 0.16,
       'circle-blur': 0.6,
     },
-  }, 'veh-bike-dots');
+  }, 'veh-bike-icons');
   map.addLayer({
     id: 'airport-status-rings',
     type: 'circle',
@@ -1402,7 +1382,7 @@ function setupConditionLayers() {
       'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 5, 2, 12, 3.5],
       'circle-stroke-opacity': 0.95,
     },
-  }, 'veh-bike-dots');
+  }, 'veh-bike-icons');
   map.addLayer({
     id: 'airport-status-labels',
     type: 'symbol',
@@ -1420,7 +1400,7 @@ function setupConditionLayers() {
       'text-halo-color': '#10151b',
       'text-halo-width': 1.6,
     },
-  }, 'veh-bike-dots');
+  }, 'veh-bike-icons');
   setupAviationLayers();
 }
 
@@ -1540,7 +1520,7 @@ function setupAviationLayers() {
       'circle-stroke-width': 1.5,
       'circle-opacity': 0.95,
     },
-  }, 'veh-bike-dots');
+  }, 'veh-bike-icons');
   map.addLayer({
     id: 'airport-weather-labels',
     type: 'symbol',
@@ -1559,7 +1539,7 @@ function setupAviationLayers() {
       'text-halo-color': '#10151b',
       'text-halo-width': 1.5,
     },
-  }, 'veh-bike-dots');
+  }, 'veh-bike-icons');
 }
 
 // `label` prefixes the age, e.g. vessels read "Last heard 2 h 5 min ago".
@@ -1579,11 +1559,7 @@ const esc = (s) =>
   );
 
 function wirePopups() {
-  for (const fleetId of FLEETS) {
-    for (const layerId of [`veh-${fleetId}-dots`, `veh-${fleetId}-icons`]) {
-      wirePopupLayer(layerId, fleetId);
-    }
-  }
+  for (const fleetId of FLEETS) wirePopupLayer(`veh-${fleetId}-icons`, fleetId);
   wireRoutePopups();
   for (const layerId of STOP_POINT_LAYERS) wireInformationPopup(layerId);
   wireRoadworkPopups();
@@ -2692,7 +2668,7 @@ function scheduleViewportRoutes() {
     viewportTimer = null;
     // Zoomed out, collapsed, or no route group on: the legend shows no route list.
     if (!layersReady || map.getZoom() < VIEWPORT_ZOOM || !wantsViewportRoutes()) return;
-    const layers = ['route-lines', ...FLEETS.flatMap((id) => [`veh-${id}-icons`, `veh-${id}-dots`])]
+    const layers = ['route-lines', ...FLEETS.map((id) => `veh-${id}-icons`)]
       .filter((id) => map.getLayer(id));
     setViewportRoutes(viewportRoutesFromFeatures(map.queryRenderedFeatures({ layers })));
   }, LEGEND_THROTTLE_MS);
@@ -2800,7 +2776,6 @@ function applyGroupFilter(groups, statuses) {
     ['literal', statuses],
   ];
   const visibleByStatus = ['all', visible, statusVisible];
-  const railVisible = ['all', visibleByStatus, ['in', ['get', 'group'], ['literal', RAIL_GROUPS]]];
   const iconVisible = ['all', visibleByStatus, ['in', ['get', 'group'], ['literal', ICON_GROUPS]]];
 
   // Bus ribbons and conceptual air corridors skip the halo pass.
@@ -2841,12 +2816,6 @@ function applyGroupFilter(groups, statuses) {
     ]);
   }
   for (const fleetId of FLEETS) {
-    map.setFilter(`veh-${fleetId}-dots`, railVisible);
-    map.setFilter(`veh-${fleetId}-arrows`, [
-      'all',
-      railVisible,
-      ['==', ['get', 'hasBearing'], true],
-    ]);
     map.setFilter(`veh-${fleetId}-icons`, iconVisible);
   }
   // The traffic layer is raster tiles, not features — toggle its visibility.

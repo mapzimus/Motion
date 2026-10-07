@@ -7,6 +7,9 @@ import { initLegacyBridge } from './legacyBridge.js';
 import { initLegendBridge } from './app/legendBridge.js';
 import { setFatal } from './stores/index.js';
 
+// Every import has evaluated by now; tell the startup watchdog in index.html.
+(window as unknown as { __motionStarted: boolean }).__motionStarted = true;
+
 render(<Legend />, document.getElementById('legend-root')!);
 
 // A legend setup error is logged, not shown as a boot failure: the map still works.

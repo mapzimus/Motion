@@ -22,21 +22,16 @@ function swatchKind(group: string, glyph: LegendGlyph): SwatchKind {
   return 'dot';
 }
 
-const GLYPH_SHAPE: Partial<Record<LegendGlyph, string>> = { bus: 'bus', boat: 'boat', plane: 'plane', bike: 'dock' };
+const GLYPH_SHAPE: Partial<Record<LegendGlyph, string>> = {
+  bus: 'bus', boat: 'boat', plane: 'plane', bike: 'dock', rail: 'train',
+};
 
 /** The section's mode glyph as inline SVG on the 64-unit sprite grid. */
 function Glyph({ glyph, color = 'currentColor' }: { glyph: LegendGlyph; color?: string }) {
   const shape = GLYPH_SHAPE[glyph];
   let body;
   if (shape) body = <path d={glyphSvgPath(shape)} fill={color} />;
-  else if (glyph === 'rail') {
-    body = (
-      <>
-        <circle cx="32" cy="32" r="22" fill={color} />
-        <path d="M32 18L43 40L32 34L21 40Z" fill="#fff" />
-      </>
-    );
-  } else if (glyph === 'line') body = <path d="M6 44C22 44 26 20 58 20" stroke={color} stroke-width="9" fill="none" stroke-linecap="round" />;
+  else if (glyph === 'line') body = <path d="M6 44C22 44 26 20 58 20" stroke={color} stroke-width="9" fill="none" stroke-linecap="round" />;
   else if (glyph === 'area') body = <rect x="8" y="12" width="48" height="40" rx="8" fill={color} fill-opacity="0.45" stroke={color} stroke-width="4" />;
   else body = <circle cx="32" cy="32" r="16" fill={color} />;
   return <svg class="legend-glyph" viewBox="0 0 64 64" aria-hidden="true">{body}</svg>;
