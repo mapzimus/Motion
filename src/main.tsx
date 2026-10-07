@@ -9,6 +9,15 @@ import { setFatal } from './stores/index.js';
 
 // Every import has evaluated by now; tell the startup watchdog in index.html.
 (window as unknown as { __motionStarted: boolean }).__motionStarted = true;
+// Drop the watchdog's cache-busting params so they don't stick to shared links.
+{
+  const url = new URL(location.href);
+  if (url.searchParams.has('fresh') || url.searchParams.has('try')) {
+    url.searchParams.delete('fresh');
+    url.searchParams.delete('try');
+    history.replaceState(history.state, '', url);
+  }
+}
 
 render(<Legend />, document.getElementById('legend-root')!);
 

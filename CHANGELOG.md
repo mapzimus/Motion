@@ -18,6 +18,11 @@
   download, browser too old); the three startup requests now time out after
   20 seconds and surface through the error overlay, which now names the
   actual failure instead of always blaming the MBTA feed.
+- When the app script fails to load, which right after back-to-back merges
+  usually means GitHub's raw-repo publish is live or cached, the page
+  reloads a cache-busted copy by itself (up to three times) before showing
+  the error. The watchdog now sits first in `<head>`, ahead of the bundle tag
+  the build injects there.
 
 ### Presets & scenes
 - Show presets bring their related places with them: Rail adds heritage

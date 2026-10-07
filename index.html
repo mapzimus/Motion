@@ -3,6 +3,74 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>
+    // Startup watchdog. A plain script, so it runs even when the app bundle
+    // fails to download, parse, or evaluate (a stale cached page, a browser
+    // too old for the bundle, a blocked request). Without it any of those
+    // leaves "Loading New England…" on screen forever with no clue why. It
+    // sits first in <head>, above the bundle tag the build injects there, so
+    // it is listening before that script can fail.
+    //
+    // When the app script itself fails to load, the usual cause is a deploy
+    // in progress: right after back-to-back merges GitHub briefly publishes
+    // the raw repo, whose src/main.tsx no browser can run, and browsers cache
+    // that page for 10 minutes. So reload a cache-busted copy (up to 3 times,
+    // counted in the URL) before showing the error.
+    (function () {
+      var MAX_RETRIES = 3;
+      var params = new URLSearchParams(location.search);
+      var tries = parseInt(params.get('try') || '0', 10) || 0;
+      var firstError = null;
+      var shown = false;
+      function remember(message) { if (!firstError && message) firstError = String(message); }
+      function freshUrl(nextTry) {
+        var next = new URLSearchParams(location.search);
+        next.set('fresh', String(Date.now()));
+        if (nextTry) next.set('try', String(nextTry)); else next.delete('try');
+        return location.pathname + '?' + next.toString() + location.hash;
+      }
+      function show(message, withLink) {
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', function () { show(message, withLink); });
+          return;
+        }
+        if (shown || window.__motionStarted) return;
+        shown = true;
+        var overlay = document.getElementById('overlay');
+        var text = document.getElementById('overlay-text');
+        if (!overlay || !text) return;
+        overlay.classList.remove('hidden');
+        if (withLink) overlay.classList.add('fatal');
+        text.textContent = message;
+        if (!withLink) return;
+        var reload = document.createElement('a');
+        reload.href = freshUrl(0);
+        reload.textContent = 'Reload a fresh copy';
+        text.appendChild(reload);
+      }
+      function giveUp() {
+        show('Motion didn’t start' + (firstError ? ': ' + firstError : '') + '. ', true);
+      }
+      window.addEventListener('error', function (event) {
+        var el = event.target;
+        if (el && el.tagName === 'SCRIPT' && el.type === 'module') {
+          remember('Could not load ' + el.src);
+          if (tries < MAX_RETRIES) {
+            show('Motion is updating… loading a fresh copy.', false);
+            setTimeout(function () { location.replace(freshUrl(tries + 1)); }, 4000);
+          } else {
+            giveUp();
+          }
+          return;
+        }
+        remember(event.message || (el && el.src && 'Could not load ' + el.src));
+      }, true);
+      window.addEventListener('unhandledrejection', function (event) {
+        remember(event.reason && (event.reason.message || event.reason));
+      });
+      setTimeout(giveUp, 30000);
+    })();
+  </script>
   <title>Motion — transportation moving live</title>
   <meta name="description" content="One live map for transportation across New England — transit, ferries, aircraft, harbor vessels, bikes, and road traffic, filterable by city or state.">
   <meta property="og:title" content="Motion">
@@ -160,35 +228,6 @@
     <div id="overlay-text">Loading New England…</div>
   </div>
 
-  <script>
-    // Startup watchdog. A plain script, so it runs even when the app bundle
-    // fails to download, parse, or evaluate (a stale cached page, a browser
-    // too old for the bundle, a blocked request). Without it any of those
-    // leaves "Loading New England…" on screen forever with no clue why.
-    (function () {
-      var firstError = null;
-      function remember(message) { if (!firstError && message) firstError = String(message); }
-      window.addEventListener('error', function (event) {
-        remember(event.message || (event.target && event.target.src && 'Could not load ' + event.target.src));
-      }, true);
-      window.addEventListener('unhandledrejection', function (event) {
-        remember(event.reason && (event.reason.message || event.reason));
-      });
-      setTimeout(function () {
-        if (window.__motionStarted) return; // the app is running; its own errors use the overlay
-        var overlay = document.getElementById('overlay');
-        var text = document.getElementById('overlay-text');
-        if (!overlay || !text) return;
-        overlay.classList.remove('hidden');
-        overlay.classList.add('fatal');
-        text.textContent = 'Motion didn’t start' + (firstError ? ': ' + firstError : '') + '. ';
-        var reload = document.createElement('a');
-        reload.href = location.pathname + '?fresh=' + Date.now() + location.hash;
-        reload.textContent = 'Reload a fresh copy';
-        text.appendChild(reload);
-      }, 30000);
-    })();
-  </script>
   <script type="module" src="src/main.tsx"></script>
 </body>
 </html>
