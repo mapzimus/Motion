@@ -30,9 +30,9 @@ const subwayRegions = new Set(
 const hasSubway = (key) => subwayRegions.has(key);
 
 describe('layer presets and scenes', () => {
-  it('lists 41 unique layer groups', () => {
-    expect(GROUP_KEYS).toHaveLength(41);
-    expect(new Set(GROUP_KEYS).size).toBe(41);
+  it('lists 40 unique layer groups', () => {
+    expect(GROUP_KEYS).toHaveLength(40);
+    expect(new Set(GROUP_KEYS).size).toBe(40);
   });
 
   it('puts the aviation conditions in the Air preset', () => {

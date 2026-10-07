@@ -64,7 +64,7 @@ export function applyRoutePalette() {
 }
 
 // Draw order, bottom to top: bike docks under boats under trains under planes.
-const FLEETS = ['bike', 'vessel', 'amtrak', 'regional', 'mnr', 'mbta', 'plane'];
+const FLEETS = ['bike', 'vessel', 'amtrak', 'regional', 'mnr', 'mbta', 'coaches', 'plane'];
 
 // The visual language: SHAPE says what kind of vehicle it is, COLOR says whose
 // service it is. Rail keeps the classic dot + heading chevron; every other
@@ -111,8 +111,6 @@ let allMessageSignsFC = EMPTY_FC;
 let messageSignsFC = EMPTY_FC;
 let allPlowsFC = EMPTY_FC;
 let plowsFC = EMPTY_FC;
-let allCityTrucksFC = EMPTY_FC;
-let cityTrucksFC = EMPTY_FC;
 let allPlowRoutesFC = EMPTY_FC;
 let plowRoutesFC = EMPTY_FC;
 let plowRoutesPromise = null;
@@ -823,21 +821,6 @@ function setupLayers() {
     },
   });
 
-  map.addSource('city-trucks', { type: 'geojson', data: EMPTY_FC });
-  map.addLayer({
-    id: 'city-truck-points',
-    type: 'circle',
-    source: 'city-trucks',
-    layout: { visibility: 'none' },
-    paint: {
-      'circle-color': CONFIG.CITY_TRUCK_COLOR,
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 6, 4, 13, 8],
-      'circle-stroke-color': '#151a21',
-      'circle-stroke-width': 1.6,
-      'circle-opacity': ['case', ['==', ['get', 'dataStatus'], 'live'], 0.95, 0.5],
-    },
-  });
-
   map.addSource('plows', { type: 'geojson', data: EMPTY_FC });
   map.addLayer({
     id: 'plow-points',
@@ -1248,7 +1231,7 @@ function setupLayers() {
   }
   // Operational point layers remain clickable above route ribbons and dense
   // infrastructure without covering moving vehicle symbols.
-  for (const layerId of ['local-service-points', 'bikeshare-points', 'camera-points', 'incident-points', 'road-weather-points', 'message-sign-points', 'plow-points', 'city-truck-points']) {
+  for (const layerId of ['local-service-points', 'bikeshare-points', 'camera-points', 'incident-points', 'road-weather-points', 'message-sign-points', 'plow-points']) {
     map.moveLayer(layerId, 'veh-bike-dots');
   }
   setupConditionLayers();
@@ -1584,7 +1567,6 @@ function wirePopups() {
   wireRoadDetailPopups('road-weather-points');
   wireRoadDetailPopups('message-sign-points');
   wireInformationPopup('plow-points');
-  wireInformationPopup('city-truck-points');
   wireInformationPopup('plow-route-lines');
   wireInformationPopup('aerialway-lines');
   wireConditionPopups();
@@ -2213,20 +2195,6 @@ export function plowCountForRegion() {
   return filterSpatialFeatureCollection(allPlowsFC, activeRegion).features.length;
 }
 
-export function setCityTruckData(featureCollection) {
-  allCityTrucksFC = featureCollection?.features ? featureCollection : EMPTY_FC;
-  renderCityTrucks();
-}
-
-export function cityTruckCountForRegion() {
-  return filterSpatialFeatureCollection(allCityTrucksFC, activeRegion).features.length;
-}
-
-function renderCityTrucks() {
-  cityTrucksFC = filterSpatialFeatureCollection(allCityTrucksFC, activeRegion);
-  map?.getSource('city-trucks')?.setData(cityTrucksFC);
-}
-
 function renderPlows() {
   plowsFC = filterSpatialFeatureCollection(allPlowsFC, activeRegion);
   map?.getSource('plows')?.setData(plowsFC);
@@ -2730,6 +2698,7 @@ export function fleetCountsForRegion() {
     vessel: 'ais',
     amtrak: 'amtrak',
     regional: 'regional',
+    coaches: 'coaches',
     mnr: 'mnr',
     mbta: 'mbta',
     plane: 'planes',
@@ -2757,7 +2726,6 @@ function applyRegion(fit) {
   renderMessageSigns();
   renderPlows();
   renderPlowRoutes();
-  renderCityTrucks();
   renderAerialways();
   renderReferenceData();
   renderWeatherAlerts();
@@ -2860,7 +2828,6 @@ function applyGroupFilter(groups, statuses) {
   map.setFilter('road-weather-points', ['all', ['==', ['get', 'group'], 'road-weather'], statusVisible]);
   map.setFilter('message-sign-points', ['all', ['==', ['get', 'group'], 'message-sign'], statusVisible]);
   map.setFilter('plow-points', ['all', ['==', ['get', 'group'], 'plow'], statusVisible]);
-  map.setFilter('city-truck-points', ['all', ['==', ['get', 'group'], 'city-truck'], statusVisible]);
   map.setFilter('local-service-points', ['all', ['==', ['get', 'group'], 'local'], statusVisible]);
   for (const layerId of ['bikeshare-points', 'bikeshare-labels']) {
     map.setFilter(layerId, ['all', ['==', ['get', 'group'], 'bikeshare'], statusVisible]);
@@ -2913,7 +2880,6 @@ function applyGroupFilter(groups, statuses) {
     ['road-weather-points', 'road-weather', 'live'],
     ['message-sign-points', 'message-sign', 'live'],
     ['plow-points', 'plow', 'live'],
-    ['city-truck-points', 'city-truck', null],
     ['plow-route-lines', 'plow', 'reference'],
     ['aerialway-lines', 'aerialway', 'reference'],
     ['aerialway-labels', 'aerialway', 'reference'],
@@ -3028,7 +2994,7 @@ export async function focusGroup(groupKey, routeIds = []) {
       .flatMap(lineCoordinates);
   }
   if (!coords.length) {
-    coords = [roadworkFC, roadEventsFC, camerasFC, roadWeatherFC, messageSignsFC, plowsFC, plowRoutesFC, cityTrucksFC, aerialwaysFC, infrastructureFC, localServicesFC, bikeshareFC, airportsFC, borderCrossingsFC, referencePlacesFC, weatherFC, airportStatusFC]
+    coords = [roadworkFC, roadEventsFC, camerasFC, roadWeatherFC, messageSignsFC, plowsFC, plowRoutesFC, aerialwaysFC, infrastructureFC, localServicesFC, bikeshareFC, airportsFC, borderCrossingsFC, referencePlacesFC, weatherFC, airportStatusFC]
       .flatMap((collection) => collection.features)
       .filter((feature) => feature.properties.group === groupKey)
       .flatMap((feature) => feature.geometry.type === 'Point'

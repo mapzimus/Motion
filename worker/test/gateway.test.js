@@ -22,6 +22,7 @@ describe('Motion gateway', () => {
         roadWeather: true,
         messageSigns: true,
         plows: true,
+        coaches: true,
         traffic: true,
         airportStatus: true,
         weatherAlerts: true,

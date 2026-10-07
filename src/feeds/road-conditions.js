@@ -4,12 +4,10 @@ import { CONFIG } from './config.js';
 import {
   cameraCountForRegion,
   messageSignCountForRegion,
-  cityTruckCountForRegion,
   plowCountForRegion,
   roadEventCountForRegion,
   roadWeatherCountForRegion,
   setCameraData,
-  setCityTruckData,
   setMessageSignData,
   setPlowData,
   setRoadEventsData,
@@ -98,14 +96,6 @@ export function startRoadConditions(onCounts, capabilities = {}) {
       enabled: capabilities.plows,
       setData: setPlowData,
       count: plowCountForRegion,
-    }, onCounts),
-    startFeed({
-      path: '/api/city-trucks',
-      key: 'city-truck',
-      interval: CONFIG.CITY_TRUCK_POLL_MS,
-      enabled: capabilities.cityTrucks,
-      setData: setCityTruckData,
-      count: cityTruckCountForRegion,
     }, onCounts),
   ];
 
