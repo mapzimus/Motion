@@ -109,7 +109,7 @@ describe('legend notes', () => {
   it('keeps the stale note out of section notes and shows it once in the footer', () => {
     const groups = ['red', 'bus', 'ferry', 'ev-charging'];
     const sections = buildLegendSections(inputs({ groups }));
-    expect(sections.flatMap((s) => s.notes)).toEqual(['White ring = DC fast charging']);
+    expect(sections.flatMap((s) => s.notes)).toEqual(['Zoomed out, brighter = more chargers; white ring = DC fast']);
     expect(legendFooter(groups)).toEqual([STALE_NOTE]);
   });
 

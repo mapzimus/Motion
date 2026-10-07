@@ -550,8 +550,9 @@ the two-foot, cog, and streetcar lines are drawn as labeled approximate paths.
 Park-and-ride lots come from each state DOT's ArcGIS service, including
 RIDOT's facilities layer (New Hampshire's is a 2013 inventory and its popup
 says so).
-Public EV charging keeps only stations with DC fast or Level 2 ports and is
-hidden below zoom 10 because it is dense. Drawbridges are the major movable
+Public EV charging keeps only stations with DC fast or Level 2 ports. It is
+dense, so below zoom 10 it draws as a density heatmap (DC fast stations count
+double) that fades into the individual stations as you zoom in. Drawbridges are the major movable
 bridges whose opening rules are published in 33 CFR 117, each popup linking the
 governing section. All four start switched off, are clipped to the selected
 region, and are reference points rather than live status.

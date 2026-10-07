@@ -9,6 +9,9 @@
 - New **Disruptions** preset: incidents, work zones, weather alerts, airport
   delays and flight restrictions together. Like Roads, it is disabled when the
   site has no gateway.
+- **EV charging** shows zoomed out as a density heatmap (DC fast stations
+  count double) that fades into individual stations around zoom 10, instead
+  of staying blank until zoom 10. The row drops its "(zoom in)" suffix.
 - Three scenes outside Massachusetts: **Providence**, **Portland & Casco Bay**,
   and **CT shoreline rail**.
 
