@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Startup
+- The page can no longer hang on "Loading New England…" with no explanation.
+  A plain-script watchdog shows the real error and a "Reload a fresh copy"
+  link if the app bundle never starts (stale cached page, blocked or failed
+  download, browser too old); the three startup requests now time out after
+  20 seconds and surface through the error overlay, which now names the
+  actual failure instead of always blaming the MBTA feed.
+
 ### Presets & scenes
 - Show presets bring their related places with them: Rail adds heritage
   railroads; Buses adds taxis and park & ride; Water adds drawbridges; Roads
