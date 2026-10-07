@@ -36,6 +36,10 @@ export const CONFIG = {
   AMTRAK_POLL_MS: 90_000, // Amtraker returns every US train (~1 MB) — be kind
   PLANE_POLL_MS: 45_000,
   MNR_POLL_MS: 30_000,
+  COACH_POLL_MS: 30_000,
+  // The public tracker often sits still for a few minutes. Dim after 10,
+  // and the gateway drops a fix after 20.
+  COACH_STALE_AFTER_MS: 10 * 60 * 1000,
 
   // How long markers glide between polled positions.
   ANIMATE_MS: 900,
@@ -43,7 +47,7 @@ export const CONFIG = {
   // interval at constant speed so the locked camera pans continuously instead
   // of lurching once per poll. Everything else keeps the 900 ms snap.
   FOLLOW_POLL_MS: {
-    mbta: 10_000, regional: 20_000, mnr: 30_000, plane: 45_000,
+    mbta: 10_000, regional: 20_000, coaches: 30_000, mnr: 30_000, plane: 45_000,
     amtrak: 90_000, vessel: 2_500, bike: 60_000,
   },
   FOLLOW_GLIDE_FACTOR: 0.9,

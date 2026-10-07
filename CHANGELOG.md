@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### More of what moves
+- Peter Pan coaches from the carrier's public tracker. One GPS fix is copied onto many trip rows, so the map keeps one coach per position and drops a fix older than 20 minutes. A parked coach does not get a heading from a zero azimuth.
+- City of Keene public-works trucks from the city's published live share, on the snowplow layer. A fix older than a day is dropped. The Vermont plow file can be empty and the feed still succeeds, and the other way around.
 - Road weather stations from New England 511 (Maine, New Hampshire, Vermont). The map loads locations only; click a station for air temperature, wind, and pavement temperature.
 - Highway message signs from New England 511 and CTroads. Click a sign for the message it is posting.
 - Vermont plow trucks from the VTrans public file. The file is empty outside winter, and an empty file stays a healthy feed. New Hampshire winter plow routes are a reference layer under the same switch.
