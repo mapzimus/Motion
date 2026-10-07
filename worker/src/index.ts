@@ -35,7 +35,10 @@ import {
   roadDetailFromTooltip,
   validRoadDetail,
   type RoadCatalog,
+  type RoadPointFeature,
 } from './road-extras';
+import { PETER_PAN_SOURCE_URL, loadCoachVehicles } from './coaches';
+import { combinePlowFeeds, fetchKeeneTrucks } from './keene';
 
 const MASSDOT_WORK_ZONE_URL = 'https://feed.massdot-swzm.com/massdot_wzdx_v4.1_work_zone_feed.geojson';
 const NORTHERN_WORK_ZONE_URL = 'https://api.dx.ne-compass.com/wzdx-latest/';
@@ -85,6 +88,7 @@ const TFR_DETAIL_URL = 'https://tfr.faa.gov/tfrapi/getWebText';
 const TFR_CACHE_SECONDS = 5 * 60;
 const TFR_DETAIL_CACHE_SECONDS = 30 * 60;
 const VTRANS_PLOW_URL = 'https://plowtrucks.vtrans.vermont.gov/assets/vehicleJSON.json';
+const COACH_CACHE_SECONDS = 45;
 const ROAD_ICON_CACHE_SECONDS = 5 * 60;
 
 // ---- provider health -------------------------------------------------------
@@ -1159,35 +1163,48 @@ async function roadDetail(url: URL): Promise<Response> {
   });
 }
 
-// An empty file is a successful winter-off reading, not a dead feed.
-async function plows(request: Request, ctx: ExecutionContext): Promise<Response> {
-  return cachedJson(request, ctx, 60, async () => {
+// An empty Vermont file is a successful winter-off reading, not a dead feed.
+// Keene's published share is the same: zero fresh trucks is healthy. The
+// route fails only when both sources fail.
+async function readVtransPlows(): Promise<RoadPointFeature[] | null> {
+  try {
     const upstream = await fetch(VTRANS_PLOW_URL, {
       headers: { accept: 'application/json' },
       cf: { cacheEverything: true, cacheTtl: 60 },
-    }).catch(() => null);
-    if (!upstream?.ok) {
+      signal: AbortSignal.timeout(12_000),
+    });
+    if (!upstream.ok) return null;
+    return parseVtransPlows(JSON.parse((await upstream.text()).replace(/^\uFEFF/, '')));
+  } catch {
+    return null;
+  }
+}
+
+async function plows(request: Request, ctx: ExecutionContext): Promise<Response> {
+  return cachedJson(request, ctx, 60, async () => {
+    const [vtrans, keene] = await Promise.all([readVtransPlows(), fetchKeeneTrucks()]);
+    const combined = combinePlowFeeds(vtrans, keene);
+    if (!combined) {
       markProvider('plows', false);
-      return json({ error: `VTrans plows ${upstream?.status ?? 'unavailable'}` }, 502);
-    }
-    const text = (await upstream.text()).replace(/^\uFEFF/, '');
-    let payload: unknown;
-    try {
-      payload = JSON.parse(text);
-    } catch {
-      markProvider('plows', false);
-      return json({ error: 'VTrans plow file was not JSON' }, 502);
+      return json({ error: 'Plow feeds unavailable' }, 502);
     }
     markProvider('plows', true);
-    const features = parseVtransPlows(payload);
+    return json({ type: 'FeatureCollection', ...combined });
+  });
+}
+
+async function coaches(request: Request, ctx: ExecutionContext): Promise<Response> {
+  return cachedJson(request, ctx, COACH_CACHE_SECONDS, async () => {
+    const loaded = await loadCoachVehicles();
+    if (!loaded.ok) {
+      markProvider('coaches', false);
+      return json({ error: 'Peter Pan coach tracker unavailable' }, 502);
+    }
+    markProvider('coaches', true);
     return json({
-      type: 'FeatureCollection',
-      provider: 'VTrans live plow trucks',
-      coverage: ['vt'],
-      note: features.length
-        ? 'Live Vermont plow trucks.'
-        : 'No plow trucks are reporting. The Vermont file is empty outside winter.',
-      features,
+      provider: 'Peter Pan Bus Lines',
+      sourceUrl: PETER_PAN_SOURCE_URL,
+      vehicles: loaded.vehicles,
     });
   });
 }
@@ -1243,6 +1260,7 @@ export default {
           roadWeather: providerHealthy('roadWeather'),
           messageSigns: providerHealthy('messageSigns'),
           plows: providerHealthy('plows'),
+          coaches: providerHealthy('coaches'),
           airportStatus: providerHealthy('airportStatus'),
           weatherAlerts: providerHealthy('weatherAlerts'),
           airportWeather: providerHealthy('airportWeather'),
@@ -1280,6 +1298,8 @@ export default {
       response = await roadDetail(url);
     } else if (url.pathname === '/api/plows') {
       response = await plows(request, ctx);
+    } else if (url.pathname === '/api/coaches') {
+      response = await coaches(request, ctx);
     } else if (url.pathname === '/api/airport-status') {
       response = await airportStatus(request, ctx);
     } else if (url.pathname === '/api/weather-alerts') {

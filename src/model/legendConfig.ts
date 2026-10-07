@@ -143,7 +143,7 @@ export const LEGEND_GROUPS: Record<string, LegendGroup> = {
   plow: {
     name: 'Snowplows',
     glyph: 'dot',
-    notes: ['Vermont trucks when they are reporting. Lines are New Hampshire plow routes.'],
+    notes: ['Vermont trucks when they are reporting. Keene public-works trucks from the city live share. Lines are New Hampshire plow routes.'],
   },
   roads: { name: 'Roads', glyph: 'line', notes: [] },
   freight: { name: 'Freight rail', glyph: 'line', notes: [] },

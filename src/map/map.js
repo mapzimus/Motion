@@ -64,7 +64,7 @@ export function applyRoutePalette() {
 }
 
 // Draw order, bottom to top: bike docks under boats under trains under planes.
-const FLEETS = ['bike', 'vessel', 'amtrak', 'regional', 'mnr', 'mbta', 'plane'];
+const FLEETS = ['bike', 'vessel', 'amtrak', 'regional', 'mnr', 'mbta', 'coaches', 'plane'];
 
 // The visual language: SHAPE says what kind of vehicle it is, COLOR says whose
 // service it is. Rail keeps the classic dot + heading chevron; every other
@@ -2698,6 +2698,7 @@ export function fleetCountsForRegion() {
     vessel: 'ais',
     amtrak: 'amtrak',
     regional: 'regional',
+    coaches: 'coaches',
     mnr: 'mnr',
     mbta: 'mbta',
     plane: 'planes',
