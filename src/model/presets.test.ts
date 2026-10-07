@@ -56,6 +56,17 @@ describe('resolvePreset', () => {
   });
 });
 
+describe('park & ride stays a reference layer', () => {
+  it('does not turn on with the Buses or Roads show filters', () => {
+    const buses = resolvePreset('buses', { region: 'ma', groups: allGroups, hasSubway: subwayRegion });
+    expect(buses?.groups).toEqual(['bus', 'local', 'taxi']);
+    expect(buses?.groups).not.toContain('park-ride');
+    const roads = resolvePreset('roads', { region: 'ma', groups: allGroups, hasSubway: subwayRegion });
+    expect(roads?.groups).not.toContain('park-ride');
+    expect(GROUP_KEYS).toContain('park-ride');
+  });
+});
+
 describe('preset additions', () => {
   it('Disruptions resolves to the alert layers and nothing else', () => {
     const plan = resolvePreset('disruptions', { region: 'ma', groups: allGroups, hasSubway: subwayRegion });

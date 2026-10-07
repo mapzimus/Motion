@@ -27,7 +27,8 @@ export const ROUTE_GROUPS = ['commuter', 'bus', 'amtrak', 'ferry'];
 // `groups: 'live'` means every group whose truth tag says it is live.
 export const VEHICLE_PRESETS = [
   { key: 'rail', label: 'Rail', groups: [...SUBWAY_GROUPS, 'commuter', 'amtrak', 'heritage-rail'] },
-  { key: 'buses', label: 'Buses', groups: ['bus', 'local', 'taxi', 'park-ride'] },
+  // Park & ride lots stay on their own reference layer. They are not buses.
+  { key: 'buses', label: 'Buses', groups: ['bus', 'local', 'taxi'] },
   { key: 'water', label: 'Water', groups: ['ferry', 'vessel', 'drawbridge'] },
   { key: 'air', label: 'Air', groups: ['plane', 'air-service', 'airport', 'airport-status', 'airport-weather', 'tfr', 'airspace'] },
   { key: 'roads', label: 'Roads', groups: ['traffic', 'incident', 'roadwork', 'camera', 'road-weather', 'message-sign', 'plow', 'weather'] },

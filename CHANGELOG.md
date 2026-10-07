@@ -12,9 +12,10 @@
 
 ### Presets & scenes
 - Show presets bring their related places with them: Rail adds heritage
-  railroads; Buses adds taxis and park & ride; Water adds drawbridges; Roads
+  railroads; Buses adds taxis; Water adds drawbridges; Roads
   adds weather alerts alongside road weather, message signs, and plows; Bikes
-  becomes **Bike & walk** with marked walking routes.
+  becomes **Bike & walk** with marked walking routes. Park & ride lots stay
+  on their own reference layer and do not follow the Buses filter.
 - New **Disruptions** preset: incidents, work zones, weather alerts, airport
   delays and flight restrictions together. Like Roads, it is disabled when the
   site has no gateway.
