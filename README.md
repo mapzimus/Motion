@@ -21,11 +21,11 @@ Every feature is labeled **live**, **estimated**, **scheduled**, or
 | Layer | Source | Cadence |
 |---|---|---|
 | MBTA subway, Silver Line, buses, commuter rail, ferries | [MBTA V3 API](https://www.mbta.com/developers/v3-api) | 10 s |
-| Regional buses | Agency GTFS-realtime feeds, normalized by the gateway | 20 s |
+| Regional buses | Agency GTFS-realtime feeds, plus public Trillium map JSON for Advance Transit, MOOver, RCT, and Tri-Valley, normalized by the gateway | 20 s |
 | Peter Pan coaches | [Peter Pan public tracker](https://bustracker.peterpanbus.com/). One dot per GPS fix; a fix older than 20 minutes is dropped | 30 s |
 | Metro-North New Haven branches | [MTA GTFS-Realtime](https://www.mta.info/developers) train GPS positions, trip predictions, and alerts; a train with no fresh GPS fix is estimated between stations and labeled so | 30 s |
-| Scheduled/reference bus, rail, ferry, boat, and air-service routes and stops | 104 GTFS sources plus 81 official-service corridors, including Amtrak, Metro-North, Shore Line East, regional coaches, university shuttles, 93 ferry routes, municipal water shuttles, small-island lifelines, island air taxis, and 38,000+ scheduled stops | built snapshot |
-| Small-town, county, flex, volunteer, microtransit, and on-demand water-service catalog | 56 official-directory service markers across all six states, including MBTA The RIDE, the Bustins Island ferry, and Provincetown and Cape Ann whale watches | built snapshot |
+| Scheduled/reference bus, rail, ferry, boat, and air-service routes and stops | 104 GTFS sources plus 81 official-service corridors, including Amtrak, Metro-North, Shore Line East, regional coaches, university shuttles, 94 ferry routes, municipal water shuttles, small-island lifelines, island air taxis, and 38,000+ scheduled stops | built snapshot |
+| Small-town, county, flex, volunteer, microtransit, and on-demand water-service catalog | 55 official-directory service markers across all six states, including MBTA The RIDE and Provincetown and Cape Ann whale watches | built snapshot |
 | Taxi and cab services | 106 licensed cab companies, dispatch associations, and official airport and station taxi stands from state and municipal licensing lists, airport ground-transportation pages, and operator sites, plus 30 [OpenStreetMap](https://www.openstreetmap.org/copyright) taxi stands. A directory, not live cab positions | built snapshot |
 | Amtrak | [Amtrak official static GTFS](https://content.amtrak.com/content/gtfs/GTFS.zip) for scheduled routes/stations; [Amtraker](https://amtraker.com) community API for live trains | built snapshot + 90 s |
 | Aircraft and air services | [ADSB.lol](https://api.adsb.lol/) with [adsb.fi](https://adsb.fi/) failover; 19 optional official Cape Air, Tradewind, New England Airlines, and Penobscot Island Air corridors | 45 s + built snapshot |
@@ -33,12 +33,12 @@ Every feature is labeled **live**, **estimated**, **scheduled**, or
 | Harbor/coastal vessels and identifiable passenger ferries | [AISStream](https://aisstream.io) when `AISSTREAM_API_KEY` is set; otherwise keyless [Open Waters AIS](https://openwaters.io/ais/) on the same gateway relay. Each Open Waters vessel carries its source credit (AISHub, aisstream, Open Waters AIS, and the Norwegian and Finnish lines when those sources appear) | streaming |
 | Bike and scooter share | GBFS feeds for Bluebikes across 13 Greater Boston municipalities, Veo Hartford, Veo New Haven, and Spin Providence | 60 s |
 | Other bike-share systems | 50 reference markers for ValleyBike Share, Rideable Nashua, Portland Bike Share, Port Bikeshare, Minuteman Bikeshare, CATMA's Bird e-bikes, CargoB, Metro Mobility, the Community Pedal Power library, Coast Provincetown, and Sandy Pedals — systems with no usable public GBFS feed | built snapshot |
-| Work zones and construction projects | MassDOT WZDx plus the multi-state New England 511 WZDx feed for Maine, New Hampshire, and Vermont (work-zone lines). Connecticut adds CTDOT capital-project areas in the construction phase, labeled construction projects | 5 min |
+| Work zones and construction projects | MassDOT WZDx plus the multi-state New England 511 WZDx feed for Maine, New Hampshire, and Vermont (work-zone lines). Connecticut adds CTroads lane-closure dots and CTDOT capital-project areas in the construction phase, labeled construction projects | 5 min |
 | Traffic incidents | New England 511 (Maine, New Hampshire, Vermont), CTroads incidents and closures, and MassDOT Highway Division roadway events (crashes, disabled vehicles, weather closures) | 60 s |
 | Public traffic cameras | New England 511, CTroads, the MassDOT CCTV asset inventory, and RIDOT highway cameras | 5 min |
 | Road weather stations | New England 511 pavement and air readings for Maine, New Hampshire, and Vermont. Click a station for the latest numbers | 5 min |
 | Highway message signs | New England 511 and CTroads. Click a sign for the message it is posting | 5 min |
-| Snowplows | VTrans live trucks when the public file lists them (empty outside winter), City of Keene public-works trucks from the [city's published live share](https://keenenh.gov/news/snow-plow-tracking/) (a fix older than a day is dropped), plus NHDOT winter plow-route lines | 60 s trucks · built snapshot routes |
+| Snowplows | VTrans live trucks when the public file lists them (empty outside winter), City of Keene public-works trucks from the [city's published live share](https://keenenh.gov/news/snow-plow-tracking/) (a fix older than a day is dropped), plus NHDOT winter plow-route lines and MassDOT snow-route beats. The lines are beats, not trucks | 60 s trucks · built snapshot routes |
 | Ski lifts, gondolas, and tramways | OpenStreetMap chairlifts, gondolas, and aerial tramways. Lift lines, not live cabins | built snapshot |
 | Live congestion speeds | Public 511 traffic-flow tiles through the gateway; TomTom remains an optional configured fallback | live tiles |
 | Weather alerts | [NWS active alerts](https://api.weather.gov/) for the six states, drawn as severity-colored forecast-zone polygons; Extreme/Severe alerts also join the service-alert panel | 120 s (60 s edge cache) |
@@ -280,7 +280,7 @@ includes both public Star Island approaches, published 2026 Mount Washington
 Cruises corridors, and the Sophie C island mailboat itinerary on Lake
 Winnipesaukee. Maine includes the six state-ferry links plus Chebeague, Isle au
 Haut, Monhegan, the Cranberry Isles, Schoodic, Eastport–Lubec, Frye Island,
-Swan Island WMA, Mount Kineo, and The CAT to Nova Scotia.
+Swan Island WMA, Mount Kineo, The CAT to Nova Scotia, and the Lilly B from South Freeport to Bustins Island (the 2026 off-season table runs through 13 October).
 
 Connecticut coverage now includes all four current regional Long Island Sound
 connections: New London–Orient Point, Bridgeport–Port Jefferson, New
@@ -375,7 +375,9 @@ The gateway currently knows these live vehicle-position feeds:
   campus shuttles, EZRide, the Longwood Collective, and Mass General
   Brigham shuttles (all Passio); Nantucket WAVE and the Boston University,
   Boston College, and UMass Boston shuttles (TransLoc); Merrimack Valley
-  Transit is a Swiftly feed that is not approved (see below)
+  Transit is a Swiftly feed that is not approved (see below). A New Hampshire
+  visit requests it for the Plaistow and Salem ribbons; it still draws nothing
+  until Swiftly says yes
 - Connecticut: CTtransit, HARTransit, River Valley Transit (the merged
   Middletown Area Transit / 9 Town Transit district, via Passio), Norwalk
   Transit District, UConn / Windham Region Transit District, the Quinnipiac,
@@ -389,9 +391,11 @@ The gateway currently knows these live vehicle-position feeds:
   Lewiston-Auburn citylink, and ARTS's Star City Connector (the last three
   via Passio); Casco Bay Lines ferries through Swiftly, drawn in the ferry
   layer
-- New Hampshire/Vermont: COAST (Passio) and Advance Transit, plus Nashua
-  Transit System and Vermont's GMT, GMCN, Marble Valley, MOOver!, RCT,
-  and Tri-Valley feeds
+- New Hampshire/Vermont: COAST (Passio). Advance Transit, MOOver!, RCT, and
+  Tri-Valley positions come from their public Trillium maps (keyless vehicle
+  JSON, route ids matching the GTFS already drawn). Nashua Transit System and
+  Vermont's GMT, GMCN, and Marble Valley remain Swiftly feeds that are not
+  called until approved
 
 TransLoc tenants publish keyless GTFS-realtime at
 `https://<tenant>.transloc.com/subscriptions/gtfsrt/vehicles.ashx`, with route
@@ -402,9 +406,11 @@ run inside it: MIT, Tufts, Boston University, Boston College, UMass
 Boston, EZRide, Longwood, and Mass General Brigham.
 
 The Swiftly-hosted providers (Merrimack Valley, Casco Bay Lines, Nashua,
-Advance Transit, and the Vermont agencies) use Swiftly's authorized realtime
-API. Swiftly issues one key but enables it agency by agency, and only for
-agencies that pre-approve third-party sharing or approve in writing. Motion's
+and Vermont's GMT, GMCN, and Marble Valley) use Swiftly's authorized realtime
+API. Advance Transit, MOOver!, RCT, and Tri-Valley are not called there; their
+positions come from the public Trillium map. Swiftly issues one key but
+enables it agency by agency, and only for agencies that pre-approve
+third-party sharing or approve in writing. Motion's
 key covers Casco Bay Lines (and RIPTA, which is read from its own keyless feed
 instead). The gateway therefore sends the key only to agencies listed in
 `SWIFTLY_APPROVED_AGENCIES` in `worker/src/feeds.ts`; every other Swiftly feed
@@ -860,30 +866,34 @@ documented `freshness_exempt`), and commit the refreshed `feed-freshness.json`.
   Brandeis and WPI (TripShot); Northeastern (Via on-demand, no fixed routes);
   UMass Lowell (custom LiveTransit map); Salem State and Bridgewater State
   (private vendor apps); UVM (its TransLoc host no longer resolves).
-- Swiftly-hosted agencies other than Casco Bay Lines (Merrimack Valley,
-  Nashua, Advance Transit, Green Mountain Transit, GMCN, Marble Valley,
-  MOOver!, RCT, Tri-Valley, Vermont Translines, South Portland) need each
-  agency's written approval before Swiftly will enable the key for them.
+- Swiftly-hosted agencies other than Casco Bay Lines still need each agency's
+  written approval before Swiftly will enable the key: Merrimack Valley,
+  Nashua, Green Mountain Transit, GMCN, Marble Valley, Vermont Translines,
+  and South Portland. Advance Transit, MOOver!, RCT, and Tri-Valley are drawn
+  from their public Trillium map JSON instead of those Swiftly calls.
 - An October 2026 tracker survey found public rider maps with no open feed
   for Greater Bridgeport Transit (Trapeze WebWatch), SEAT (Swiftly), Massport's
   Logan shuttles, the Dartmouth Campus Connector, and BSOOB Transit (Trillium
-  maps), the 128 Business Council (TripShot), and C&J (uTrack). Peter Pan's
+  maps), and the 128 Business Council (TripShot). C&J's timetable corridors
+  are drawn; its uTrack positions are not an open feed. Peter Pan's
   public tracker is drawn as live coaches.
   Milford Transit, NECTD, NWCTD, CTrail's Hartford Line and Shore Line East,
   Plymouth & Brockton, and the smaller Maine and New Hampshire operators have
   no tracker. VTrans plow trucks are drawn when the public file lists them, and that
-  file is empty outside winter. New Hampshire plow routes are a reference
-  layer. No other state DOT publishes keyless live plow positions. The City of
+  file is empty outside winter. New Hampshire plow routes and Massachusetts
+  snow-route beats are a reference layer. No other state DOT publishes keyless
+  live plow positions. The City of
   Keene publishes its public-works trucks on a live share, and those positions
   join the snowplow layer when they are less than a day old. Massport's bus-locator JSON (behind its
   website's bus locator for the shuttles and Logan Express) is private and is
   not used, so those buses stay scheduled ribbons.
-- Scheduled services found missing in the same audit and not yet drawn,
-  because none publishes GTFS and each needs a hand-built corridor: Downeast
-  Transportation's
-  year-round Hancock County routes, York County Community Action's Sanford
-  routes, the 128 Business Council shuttles, Seastreak's New York–Martha's
-  Vineyard–Nantucket ferry, and several Cape Air city pairs.
+- Scheduled services still not drawn, because none publishes GTFS and each
+  needs a hand-built corridor: the 128 Business Council shuttles and several
+  Cape Air city pairs. Downeast Transportation's year-round Hancock County
+  routes and York County Community Action's Sanford routes are drawn.
+  Seastreak's New England routes (New Bedford–Martha's Vineyard, New
+  Bedford–Nantucket, and Providence–Newport) are drawn from its GTFS; its
+  New York routes are New Jersey and are not New England ribbons.
 - Cyr Bus Line (Bangor–Caribou) and the Winnipesaukee Transit System publish
   no GTFS. Cyr is drawn as an official-schedule corridor and WTS is a
   directory marker; neither has live positions. ARTS's Passio GTFS-realtime
@@ -905,9 +915,9 @@ documented `freshness_exempt`), and commit the refreshed `feed-freshness.json`.
   coverage is still more shoreline receivers.
 - Work-zone lines are Massachusetts, Maine, New Hampshire, and Vermont. The
   USDOT WZDx registry still lists no Connecticut or Rhode Island feed.
-  Connecticut construction projects come from CTDOT's capital-project
-  polygons in phase `05_Construction` (project footprints, not live lane
-  closures). CTroads closures are included with CTroads incidents. Rhode
+  Connecticut lane closures are the CTroads construction icons `roadwork()`
+  already reads. CTDOT capital-project areas in phase `05_Construction` are
+  construction footprints beside those dots. Rhode
   Island still has no structured incident or work-zone feed.
 - Rhode Island cameras are the RIDOT traffic-camera feature service, and
   Rhode Island park-and-ride lots are the RIDOT facilities layer. Rhode
