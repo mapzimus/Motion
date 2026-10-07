@@ -18,7 +18,7 @@ describe('glyphs', () => {
     expect(glyphSvgPath('plane')).toMatch(/^M32 2L35 8.*Z$/);
     expect(glyphSvgPath('boat')).toMatch(/^M32 2L45 14.*Z$/);
     expect(glyphSvgPath('bus')).toMatch(/^M30 8H34A9 9 0 0 1 43 17V47.*Z$/);
-    expect(glyphSvgPath('train')).toMatch(/^M32 2L38 10.*Z$/);
+    expect(glyphSvgPath('train')).toBe('M22 3H42V25H22ZM22 39H42V61H22Z');
     expect(glyphSvgPath('station')).toBe('M18 18H46V46H18Z');
     expect(glyphSvgPath('dock')).toMatch(/^M23 15H41/);
     expect(glyphSvgPath('train')).not.toBe(glyphSvgPath('bus'));
