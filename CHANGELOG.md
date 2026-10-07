@@ -5,7 +5,8 @@
 ### Presets & scenes
 - Show presets bring their related places with them: Rail adds heritage
   railroads; Buses adds taxis and park & ride; Water adds drawbridges; Roads
-  adds weather alerts; Bikes becomes **Bike & walk** with marked walking routes.
+  adds weather alerts alongside road weather, message signs, and plows; Bikes
+  becomes **Bike & walk** with marked walking routes.
 - New **Disruptions** preset: incidents, work zones, weather alerts, airport
   delays and flight restrictions together. Like Roads, it is disabled when the
   site has no gateway.
@@ -14,6 +15,16 @@
   of staying blank until zoom 10. The row drops its "(zoom in)" suffix.
 - Three scenes outside Massachusetts: **Providence**, **Portland & Casco Bay**,
   and **CT shoreline rail**.
+
+### More of what moves
+- Peter Pan coaches from the carrier's public tracker. One GPS fix is copied onto many trip rows, so the map keeps one coach per position and drops a fix older than 20 minutes. A parked coach does not get a heading from a zero azimuth.
+- City of Keene public-works trucks from the city's published live share, on the snowplow layer. A fix older than a day is dropped. The Vermont plow file can be empty and the feed still succeeds, and the other way around.
+- Road weather stations from New England 511 (Maine, New Hampshire, Vermont). The map loads locations only; click a station for air temperature, wind, and pavement temperature.
+- Highway message signs from New England 511 and CTroads. Click a sign for the message it is posting.
+- Vermont plow trucks from the VTrans public file. The file is empty outside winter, and an empty file stays a healthy feed. New Hampshire winter plow routes are a reference layer under the same switch.
+- Ski lifts, gondolas, and aerial tramways from OpenStreetMap. These are the lift lines, not live cabins.
+- New England Airlines Westerly–Block Island, OurBus and Lucky Star Boston–New York, and the AMC hiker shuttles (Pinkham Notch–Highland Center and Highland Center–Lincoln via Franconia Notch) as scheduled ribbons.
+- Catalog points for the Bustins Island ferry, Dolphin Fleet and Cape Ann whale watches, and MBTA The RIDE. The RIDE has no public vehicle positions.
 
 ### Roads and vessels
 - RIDOT traffic cameras, with the still image URL on each point, and `ri` on the camera coverage list.

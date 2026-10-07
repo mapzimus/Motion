@@ -49,9 +49,10 @@ describe('resolvePreset', () => {
 
   it('resolves to no groups when every group needs the gateway', () => {
     const gated = allGroups.map((g) =>
-      (['traffic', 'incident', 'roadwork', 'camera', 'weather'].includes(g.key) ? { ...g, needsKey: true } : g));
+      (['traffic', 'incident', 'roadwork', 'camera', 'road-weather', 'message-sign', 'weather'].includes(g.key) ? { ...g, needsKey: true } : g));
     const plan = resolvePreset('roads', { region: 'ma', groups: gated, hasSubway: subwayRegion });
-    expect(plan?.groups).toEqual([]);
+    // Plow routes are a static file, so the Roads preset still has them.
+    expect(plan?.groups).toEqual(['plow']);
   });
 });
 

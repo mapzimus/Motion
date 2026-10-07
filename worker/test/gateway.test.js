@@ -19,6 +19,10 @@ describe('Motion gateway', () => {
         metroNorth: true,
         roadEvents: true,
         cameras: true,
+        roadWeather: true,
+        messageSigns: true,
+        plows: true,
+        coaches: true,
         traffic: true,
         airportStatus: true,
         weatherAlerts: true,
@@ -90,6 +94,12 @@ describe('Motion gateway', () => {
   it('validates camera detail requests before calling providers', async () => {
     const response = await call('/api/camera-detail?provider=flock&id=secret');
     expect(response.status).toBe(400);
+  });
+
+  it('validates road-detail requests before calling 511', async () => {
+    const response = await call('/api/road-detail?catalog=Cameras&provider=north&id=1');
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: 'Invalid road detail request' });
   });
 });
 

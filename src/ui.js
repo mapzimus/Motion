@@ -70,11 +70,15 @@ function buildGroups(routeInfo, capabilities) {
     { key: 'roadwork', name: 'Work zones & construction projects', initial: '!', section: 'conditions', routes: [], color: CONFIG.ROADWORK_COLOR, truth: 'WZDx lines · CT construction projects', needsKey: !capabilities?.roadwork, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false },
     { key: 'incident', name: 'Traffic incidents', initial: '!', section: 'conditions', routes: [], color: CONFIG.INCIDENT_COLOR, truth: 'live 511', needsKey: !capabilities?.roadEvents, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false },
     { key: 'camera', name: 'Public traffic cameras', initial: '◉', section: 'conditions', routes: [], color: CONFIG.CAMERA_COLOR, truth: 'live / viewer', needsKey: !capabilities?.cameras, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false },
+    { key: 'road-weather', name: 'Road weather stations', initial: 'RW', section: 'conditions', routes: [], color: CONFIG.ROAD_WEATHER_COLOR, darkText: true, truth: 'live', needsKey: !capabilities?.roadWeather, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false },
+    { key: 'message-sign', name: 'Highway message signs', initial: 'MS', section: 'conditions', routes: [], color: CONFIG.MESSAGE_SIGN_COLOR, darkText: true, truth: 'live', needsKey: !capabilities?.messageSigns, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false },
+    { key: 'plow', name: 'Snowplows', initial: 'SP', section: 'conditions', routes: [], color: CONFIG.PLOW_COLOR, truth: 'live + reference', countAsVehicle: false },
     { key: 'weather', name: 'Weather alerts (NWS)', initial: '⚠', section: 'conditions', routes: [], color: CONFIG.WEATHER_COLORS.moderate, darkText: true, truth: 'live', needsKey: !capabilities?.weatherAlerts, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false },
     { key: 'roads', name: 'Major roadways', initial: 'R', section: 'infrastructure', sectionName: 'Movement infrastructure', routes: [], color: CONFIG.ROAD_COLOR, truth: 'reference', countAsVehicle: false },
     { key: 'freight', name: 'Freight rail network', initial: 'FR', section: 'infrastructure', routes: [], color: CONFIG.FREIGHT_COLOR, truth: 'FRA reference', countAsVehicle: false },
     { key: 'border', name: 'Canada border crossings', initial: 'CB', section: 'infrastructure', routes: [], color: CONFIG.BORDER_COLOR, darkText: true, truth: 'CBSA reference', countAsVehicle: false },
     { key: 'heritage-rail', name: 'Heritage & scenic railroads', initial: 'HR', section: 'infrastructure', routes: [], color: CONFIG.HERITAGE_RAIL_COLOR, truth: 'operator reference', countAsVehicle: false },
+    { key: 'aerialway', name: 'Ski lifts, gondolas & tramways', initial: 'AW', section: 'infrastructure', routes: [], color: CONFIG.AERIALWAY_COLOR, truth: 'OSM reference', countAsVehicle: false },
     { key: 'park-ride', name: 'Park & ride lots', initial: 'PR', section: 'infrastructure', routes: [], color: CONFIG.PARK_RIDE_COLOR, darkText: true, truth: 'state DOT reference', countAsVehicle: false },
     { key: 'ev-charging', name: 'Public EV charging', initial: 'EV', section: 'infrastructure', routes: [], color: CONFIG.EV_CHARGING_COLOR, darkText: true, truth: 'AFDC reference', countAsVehicle: false },
     { key: 'drawbridge', name: 'Drawbridges & movable bridges', initial: 'DB', section: 'infrastructure', routes: [], color: CONFIG.DRAWBRIDGE_COLOR, darkText: true, truth: 'USCG reference', countAsVehicle: false },
@@ -505,6 +509,9 @@ function renderCounts() {
     if (secondary) {
       cell.innerHTML = `${live ? `<strong>${live} live</strong>` : ''}<small>${secondary}</small>`;
       cell.title = `${live ?? 0} live vehicle${live === 1 ? '' : 's'} · ${secondary}`;
+    } else if (references && live) {
+      cell.innerHTML = `<strong>${live} live</strong><small>${references} mapped</small>`;
+      cell.title = `${live} live · ${references} mapped reference features`;
     } else if (references) {
       cell.innerHTML = `<strong>${references}</strong><small>mapped</small>`;
       cell.title = `${references} mapped reference feature${references === 1 ? '' : 's'}`;

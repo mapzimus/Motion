@@ -64,7 +64,7 @@ export function applyRoutePalette() {
 }
 
 // Draw order, bottom to top: bike docks under boats under trains under planes.
-const FLEETS = ['bike', 'vessel', 'amtrak', 'regional', 'mnr', 'mbta', 'plane'];
+const FLEETS = ['bike', 'vessel', 'amtrak', 'regional', 'mnr', 'mbta', 'coaches', 'plane'];
 
 // The visual language: SHAPE says what kind of vehicle it is, COLOR says whose
 // service it is. Rail keeps the classic dot + heading chevron; every other
@@ -105,6 +105,18 @@ let allRoadEventsFC = EMPTY_FC;
 let roadEventsFC = EMPTY_FC;
 let allCamerasFC = EMPTY_FC;
 let camerasFC = EMPTY_FC;
+let allRoadWeatherFC = EMPTY_FC;
+let roadWeatherFC = EMPTY_FC;
+let allMessageSignsFC = EMPTY_FC;
+let messageSignsFC = EMPTY_FC;
+let allPlowsFC = EMPTY_FC;
+let plowsFC = EMPTY_FC;
+let allPlowRoutesFC = EMPTY_FC;
+let plowRoutesFC = EMPTY_FC;
+let plowRoutesPromise = null;
+let allAerialwaysFC = EMPTY_FC;
+let aerialwaysFC = EMPTY_FC;
+let aerialwaysPromise = null;
 let allInfrastructureFC = EMPTY_FC;
 let infrastructureFC = EMPTY_FC;
 let allLocalServicesFC = EMPTY_FC;
@@ -804,6 +816,95 @@ function setupLayers() {
     },
   });
 
+  map.addSource('road-weather', { type: 'geojson', data: EMPTY_FC });
+  map.addLayer({
+    id: 'road-weather-points',
+    type: 'circle',
+    source: 'road-weather',
+    layout: { visibility: 'none' },
+    paint: {
+      'circle-color': CONFIG.ROAD_WEATHER_COLOR,
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 6, 3.2, 13, 6.5],
+      'circle-stroke-color': '#151a21',
+      'circle-stroke-width': 1.4,
+      'circle-opacity': 0.92,
+    },
+  });
+
+  map.addSource('message-signs', { type: 'geojson', data: EMPTY_FC });
+  map.addLayer({
+    id: 'message-sign-points',
+    type: 'circle',
+    source: 'message-signs',
+    layout: { visibility: 'none' },
+    paint: {
+      'circle-color': '#151a21',
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 6, 3, 13, 6],
+      'circle-stroke-color': CONFIG.MESSAGE_SIGN_COLOR,
+      'circle-stroke-width': 1.8,
+      'circle-opacity': 0.92,
+    },
+  });
+
+  map.addSource('plows', { type: 'geojson', data: EMPTY_FC });
+  map.addLayer({
+    id: 'plow-points',
+    type: 'circle',
+    source: 'plows',
+    layout: { visibility: 'none' },
+    paint: {
+      'circle-color': CONFIG.PLOW_COLOR,
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 6, 4, 13, 8],
+      'circle-stroke-color': '#151a21',
+      'circle-stroke-width': 1.6,
+      'circle-opacity': 0.95,
+    },
+  });
+
+  map.addSource('plow-routes', { type: 'geojson', data: EMPTY_FC });
+  map.addLayer({
+    id: 'plow-route-lines',
+    type: 'line',
+    source: 'plow-routes',
+    layout: { visibility: 'none', 'line-cap': 'round', 'line-join': 'round' },
+    paint: {
+      'line-color': CONFIG.PLOW_COLOR,
+      'line-width': ['interpolate', ['linear'], ['zoom'], 6, 0.6, 12, 2.2],
+      'line-opacity': 0.55,
+    },
+  });
+
+  map.addSource('aerialways', { type: 'geojson', data: EMPTY_FC });
+  map.addLayer({
+    id: 'aerialway-lines',
+    type: 'line',
+    source: 'aerialways',
+    layout: { visibility: 'none', 'line-cap': 'round', 'line-join': 'round' },
+    paint: {
+      'line-color': CONFIG.AERIALWAY_COLOR,
+      'line-width': ['interpolate', ['linear'], ['zoom'], 8, 1.2, 14, 3.5],
+      'line-opacity': 0.9,
+    },
+  });
+  map.addLayer({
+    id: 'aerialway-labels',
+    type: 'symbol',
+    source: 'aerialways',
+    minzoom: 12,
+    layout: {
+      visibility: 'none',
+      'text-field': ['get', 'title'],
+      'text-size': 11,
+      'symbol-placement': 'line',
+      'text-allow-overlap': false,
+    },
+    paint: {
+      'text-color': CONFIG.AERIALWAY_COLOR,
+      'text-halo-color': '#10151b',
+      'text-halo-width': 1.4,
+    },
+  });
+
   map.addSource('cameras', { type: 'geojson', data: EMPTY_FC });
   map.addLayer({
     id: 'camera-points',
@@ -1155,7 +1256,7 @@ function setupLayers() {
   }
   // Operational point layers remain clickable above route ribbons and dense
   // infrastructure without covering moving vehicle symbols.
-  for (const layerId of ['local-service-points', 'bikeshare-points', 'camera-points', 'incident-points']) {
+  for (const layerId of ['local-service-points', 'bikeshare-points', 'camera-points', 'incident-points', 'road-weather-points', 'message-sign-points', 'plow-points']) {
     map.moveLayer(layerId, 'veh-bike-dots');
   }
   setupConditionLayers();
@@ -1488,6 +1589,11 @@ function wirePopups() {
   wireInformationPopup('drawbridge-points');
   wireInformationPopup('taxi-points');
   wireCameraPopups();
+  wireRoadDetailPopups('road-weather-points');
+  wireRoadDetailPopups('message-sign-points');
+  wireInformationPopup('plow-points');
+  wireInformationPopup('plow-route-lines');
+  wireInformationPopup('aerialway-lines');
   wireConditionPopups();
 }
 
@@ -1843,6 +1949,45 @@ function wireCameraPopups() {
   map.on('mouseleave', 'camera-points', () => { map.getCanvas().style.cursor = ''; });
 }
 
+function wireRoadDetailPopups(layerId) {
+  map.on('click', layerId, (event) => {
+    const feature = event.features[0];
+    const p = feature.properties;
+    const popup = new maplibregl.Popup({ offset: 12, maxWidth: '330px' })
+      .setLngLat(feature.geometry.coordinates)
+      .setHTML(informationPopupHtml(p, p.providerKey ? '<div class="popup-route-note">Loading the latest report…</div>' : ''))
+      .addTo(map);
+    if (!p.providerKey || !p.itemId || !p.catalog || !CONFIG.GATEWAY_BASE) return;
+    const query = new URLSearchParams({ catalog: p.catalog, provider: p.providerKey, id: p.itemId });
+    fetch(`${CONFIG.GATEWAY_BASE}/api/road-detail?${query}`, {
+      signal: AbortSignal.timeout(10_000),
+    })
+      .then((response) => {
+        if (!response.ok) throw new Error(`road detail ${response.status}`);
+        return response.json();
+      })
+      .then((detail) => {
+        if (!popup.isOpen()) return;
+        popup.setHTML(informationPopupHtml({
+          ...p,
+          title: detail.title || p.title,
+          status: detail.status || p.status,
+          details: detail.details || p.details,
+          provider: detail.provider || p.provider,
+          sourceUrl: detail.sourceUrl || p.sourceUrl,
+          updatedAt: detail.updatedAt || p.updatedAt,
+        }));
+      })
+      .catch(() => {
+        if (popup.isOpen()) {
+          popup.setHTML(informationPopupHtml(p, '<div class="popup-route-note">Latest report unavailable.</div>'));
+        }
+      });
+  });
+  map.on('mouseenter', layerId, () => { map.getCanvas().style.cursor = 'pointer'; });
+  map.on('mouseleave', layerId, () => { map.getCanvas().style.cursor = ''; });
+}
+
 // Only bike-share docks still open this popup: every other vehicle click is
 // taken by follow mode, whose trip card shows a plane's scheduled route.
 function wirePopupLayer(layerId, fleetId) {
@@ -2036,6 +2181,96 @@ export function cameraCountForRegion() {
 function renderCameras() {
   camerasFC = filterSpatialFeatureCollection(allCamerasFC, activeRegion);
   map?.getSource('cameras')?.setData(camerasFC);
+}
+
+export function setRoadWeatherData(featureCollection) {
+  allRoadWeatherFC = featureCollection?.features ? featureCollection : EMPTY_FC;
+  renderRoadWeather();
+}
+
+export function roadWeatherCountForRegion() {
+  return filterSpatialFeatureCollection(allRoadWeatherFC, activeRegion).features.length;
+}
+
+function renderRoadWeather() {
+  roadWeatherFC = filterSpatialFeatureCollection(allRoadWeatherFC, activeRegion);
+  map?.getSource('road-weather')?.setData(roadWeatherFC);
+}
+
+export function setMessageSignData(featureCollection) {
+  allMessageSignsFC = featureCollection?.features ? featureCollection : EMPTY_FC;
+  renderMessageSigns();
+}
+
+export function messageSignCountForRegion() {
+  return filterSpatialFeatureCollection(allMessageSignsFC, activeRegion).features.length;
+}
+
+function renderMessageSigns() {
+  messageSignsFC = filterSpatialFeatureCollection(allMessageSignsFC, activeRegion);
+  map?.getSource('message-signs')?.setData(messageSignsFC);
+}
+
+export function setPlowData(featureCollection) {
+  allPlowsFC = featureCollection?.features ? featureCollection : EMPTY_FC;
+  renderPlows();
+}
+
+export function plowCountForRegion() {
+  return filterSpatialFeatureCollection(allPlowsFC, activeRegion).features.length;
+}
+
+function renderPlows() {
+  plowsFC = filterSpatialFeatureCollection(allPlowsFC, activeRegion);
+  map?.getSource('plows')?.setData(plowsFC);
+}
+
+function renderPlowRoutes() {
+  plowRoutesFC = filterSpatialFeatureCollection(allPlowRoutesFC, activeRegion);
+  map?.getSource('plow-routes')?.setData(plowRoutesFC);
+}
+
+async function ensurePlowRoutes() {
+  if (plowRoutesPromise) return plowRoutesPromise;
+  plowRoutesPromise = fetch(CONFIG.PLOW_ROUTES_URL)
+    .then((response) => {
+      if (!response.ok) throw new Error(`plow routes ${response.status}`);
+      return response.json();
+    })
+    .then((collection) => {
+      allPlowRoutesFC = collection?.features ? collection : EMPTY_FC;
+      renderPlowRoutes();
+      notifyReferenceData();
+    })
+    .catch((error) => {
+      plowRoutesPromise = null;
+      console.warn('NHDOT plow routes unavailable:', error);
+    });
+  return plowRoutesPromise;
+}
+
+function renderAerialways() {
+  aerialwaysFC = filterSpatialFeatureCollection(allAerialwaysFC, activeRegion);
+  map?.getSource('aerialways')?.setData(aerialwaysFC);
+}
+
+async function ensureAerialways() {
+  if (aerialwaysPromise) return aerialwaysPromise;
+  aerialwaysPromise = fetch(CONFIG.AERIALWAYS_URL)
+    .then((response) => {
+      if (!response.ok) throw new Error(`aerialways ${response.status}`);
+      return response.json();
+    })
+    .then((collection) => {
+      allAerialwaysFC = collection?.features ? collection : EMPTY_FC;
+      renderAerialways();
+      notifyReferenceData();
+    })
+    .catch((error) => {
+      aerialwaysPromise = null;
+      console.warn('Aerialway reference unavailable:', error);
+    });
+  return aerialwaysPromise;
 }
 
 // ---- conditions data -------------------------------------------------------
@@ -2387,6 +2622,8 @@ export function referenceCountsForRegion() {
     }
   }
   if (airspaceFC.features.length) counts.airspace = airspaceFC.features.length;
+  if (plowRoutesFC.features.length) counts.plow = plowRoutesFC.features.length;
+  if (aerialwaysFC.features.length) counts.aerialway = aerialwaysFC.features.length;
   return counts;
 }
 
@@ -2469,6 +2706,8 @@ export function setVisibleGroups(groups, statuses = ['live', 'estimated', 'sched
     ensureReferencePlaces();
   }
   if (groups.includes('airspace')) ensureAirspace();
+  if (groups.includes('plow')) ensurePlowRoutes();
+  if (groups.includes('aerialway')) ensureAerialways();
   if (layersReady) applyGroupFilter(groups, statuses);
 }
 
@@ -2484,6 +2723,7 @@ export function fleetCountsForRegion() {
     vessel: 'ais',
     amtrak: 'amtrak',
     regional: 'regional',
+    coaches: 'coaches',
     mnr: 'mnr',
     mbta: 'mbta',
     plane: 'planes',
@@ -2507,6 +2747,11 @@ function applyRegion(fit) {
   renderRoadwork();
   renderRoadEvents();
   renderCameras();
+  renderRoadWeather();
+  renderMessageSigns();
+  renderPlows();
+  renderPlowRoutes();
+  renderAerialways();
   renderReferenceData();
   renderWeatherAlerts();
   renderAviationConditions();
@@ -2605,6 +2850,9 @@ function applyGroupFilter(groups, statuses) {
   map.setFilter('roadwork-area-outline', areaWork);
   map.setFilter('incident-points', ['all', ['==', ['get', 'group'], 'incident'], statusVisible]);
   map.setFilter('camera-points', ['all', ['==', ['get', 'group'], 'camera'], statusVisible]);
+  map.setFilter('road-weather-points', ['all', ['==', ['get', 'group'], 'road-weather'], statusVisible]);
+  map.setFilter('message-sign-points', ['all', ['==', ['get', 'group'], 'message-sign'], statusVisible]);
+  map.setFilter('plow-points', ['all', ['==', ['get', 'group'], 'plow'], statusVisible]);
   map.setFilter('local-service-points', ['all', ['==', ['get', 'group'], 'local'], statusVisible]);
   for (const layerId of ['bikeshare-points', 'bikeshare-labels']) {
     map.setFilter(layerId, ['all', ['==', ['get', 'group'], 'bikeshare'], statusVisible]);
@@ -2655,6 +2903,12 @@ function applyGroupFilter(groups, statuses) {
   for (const [layerId, group, status] of [
     ['incident-points', 'incident', 'live'],
     ['camera-points', 'camera', 'live'],
+    ['road-weather-points', 'road-weather', 'live'],
+    ['message-sign-points', 'message-sign', 'live'],
+    ['plow-points', 'plow', 'live'],
+    ['plow-route-lines', 'plow', 'reference'],
+    ['aerialway-lines', 'aerialway', 'reference'],
+    ['aerialway-labels', 'aerialway', 'reference'],
     ['local-service-points', 'local', null],
     ['bikeshare-points', 'bikeshare', 'reference'],
     ['bikeshare-labels', 'bikeshare', 'reference'],
@@ -2749,6 +3003,8 @@ export async function focusGroup(groupKey, routeIds = []) {
     await ensureReferencePlaces();
   }
   if (groupKey === 'airspace') await ensureAirspace();
+  if (groupKey === 'plow') await ensurePlowRoutes();
+  if (groupKey === 'aerialway') await ensureAerialways();
   let coords = [...fleetData.values()]
     .flatMap((fc) => fc.features)
     .filter((f) => f.properties.group === groupKey)
@@ -2764,7 +3020,7 @@ export async function focusGroup(groupKey, routeIds = []) {
       .flatMap(lineCoordinates);
   }
   if (!coords.length) {
-    coords = [roadworkFC, roadEventsFC, camerasFC, infrastructureFC, localServicesFC, bikeshareFC, airportsFC, borderCrossingsFC, referencePlacesFC, weatherFC, airportStatusFC]
+    coords = [roadworkFC, roadEventsFC, camerasFC, roadWeatherFC, messageSignsFC, plowsFC, plowRoutesFC, aerialwaysFC, infrastructureFC, localServicesFC, bikeshareFC, airportsFC, borderCrossingsFC, referencePlacesFC, weatherFC, airportStatusFC]
       .flatMap((collection) => collection.features)
       .filter((feature) => feature.properties.group === groupKey)
       .flatMap((feature) => feature.geometry.type === 'Point'
