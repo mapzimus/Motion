@@ -22,6 +22,8 @@ export interface LegendGroup {
   notes: string[];
   /** Live vehicles fade when stale; the legend shows STALE_NOTE once for these. */
   fades?: boolean;
+  /** Clicking this group in the key or the layer list opens the route drill. */
+  drillable?: boolean;
   fixedRows?: LegendRow[];
 }
 
@@ -88,15 +90,15 @@ const taxiRows: LegendRow[] = [
 ];
 
 export const LEGEND_GROUPS: Record<string, LegendGroup> = {
-  red: { name: 'Red Line', glyph: 'rail', notes: [], fades: true },
-  orange: { name: 'Orange Line', glyph: 'rail', notes: [], fades: true },
-  green: { name: 'Green Line', glyph: 'rail', notes: [], fades: true },
-  blue: { name: 'Blue Line', glyph: 'rail', notes: [], fades: true },
-  silver: { name: 'Silver Line', glyph: 'bus', notes: [], fades: true },
-  mattapan: { name: 'Mattapan Trolley', glyph: 'rail', notes: [], fades: true },
-  commuter: { name: 'Commuter & regional rail (MBTA, Metro-North, CTrail)', glyph: 'rail', notes: [], fades: true },
-  bus: { name: 'Buses, shuttles & coaches', glyph: 'bus', notes: [], fades: true },
-  amtrak: { name: 'Amtrak', glyph: 'rail', notes: [], fades: true },
+  red: { name: 'Red Line', glyph: 'rail', notes: [], fades: true, drillable: true },
+  orange: { name: 'Orange Line', glyph: 'rail', notes: [], fades: true, drillable: true },
+  green: { name: 'Green Line', glyph: 'rail', notes: [], fades: true, drillable: true },
+  blue: { name: 'Blue Line', glyph: 'rail', notes: [], fades: true, drillable: true },
+  silver: { name: 'Silver Line', glyph: 'bus', notes: [], fades: true, drillable: true },
+  mattapan: { name: 'Mattapan Trolley', glyph: 'rail', notes: [], fades: true, drillable: true },
+  commuter: { name: 'Commuter & regional rail (MBTA, Metro-North, CTrail)', glyph: 'rail', notes: [], fades: true, drillable: true },
+  bus: { name: 'Buses, shuttles & coaches', glyph: 'bus', notes: [], fades: true, drillable: true },
+  amtrak: { name: 'Amtrak', glyph: 'rail', notes: [], fades: true, drillable: true },
   // Catalog points, not live positions: they never fade.
   local: { name: 'On-demand & community services', glyph: 'bus', notes: [], fixedRows: localRows },
   taxi: {
@@ -105,7 +107,7 @@ export const LEGEND_GROUPS: Record<string, LegendGroup> = {
     notes: ['Small dot = cab stand, larger = company'],
     fixedRows: taxiRows,
   },
-  ferry: { name: 'Ferries', glyph: 'boat', notes: [], fades: true },
+  ferry: { name: 'Ferries', glyph: 'boat', notes: [], fades: true, drillable: true },
   plane: { name: 'Aircraft', glyph: 'plane', notes: [] },
   'air-service': { name: 'Airline service', glyph: 'line', notes: [] },
   airport: { name: 'Airports', glyph: 'dot', notes: [] },

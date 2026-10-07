@@ -13,6 +13,9 @@ import {
   setSubwayColors,
   setRouteKeyIndex,
   setViewportRoutes,
+  askDrill,
+  drillRequest,
+  setDrillLegend,
 } from '../stores/legend.js';
 
 let root: HTMLElement;
@@ -45,6 +48,8 @@ describe('Legend', () => {
     setViewportRoutes(new Map());
     setLegendZoom(10);
     setLegendCollapsed(false);
+    setDrillLegend(null);
+    drillRequest.value = null;
     try { localStorage.clear(); } catch { /* storage blocked */ }
   });
 
@@ -156,6 +161,43 @@ describe('Legend', () => {
     });
     mount();
     expect($('.legend-section .legend-empty')!.textContent).toBe('No routes in view');
+  });
+
+  it('drills from a subway row and from a layer heading', () => {
+    act(() => setVisibleGroupList(['green', 'bus']));
+    mount();
+    const green = $$('.legend-row').find((row) => row.textContent?.includes('Green Line')) as HTMLElement;
+    act(() => green.click());
+    expect(drillRequest.value?.group).toBe('green');
+    const heading = $$('.legend-section-head').find((head) => head.textContent?.includes('Buses')) as HTMLElement;
+    act(() => heading.click());
+    expect(drillRequest.value?.group).toBe('bus');
+    expect(drillRequest.value?.operator ?? null).toBeNull();
+  });
+
+  it('shows drilled routes and asks to filter when one is chosen', () => {
+    act(() => {
+      setVisibleGroupList(['red', 'bus']);
+      setDrillLegend({
+        group: 'green',
+        route: null,
+        operator: null,
+        operatorLabel: null,
+        vehicles: 3,
+        rows: [
+          { key: 'Green-E', label: 'Green-E', color: '#e6194b', live: 2 },
+          { key: 'Green-D', label: 'Green-D', color: '#3cb44b', live: 1 },
+        ],
+      });
+    });
+    mount();
+    expect(sectionNames()).toEqual(['Green Line']);
+    const route = $$('.legend-row').find((row) => row.textContent?.includes('Green-E')) as HTMLElement;
+    act(() => route.click());
+    expect(drillRequest.value).toMatchObject({ group: 'green', route: 'Green-E' });
+    const back = $('.legend-section-head') as HTMLElement;
+    act(() => back.click());
+    expect(drillRequest.value?.group).toBeNull();
   });
 
   it('shows notes as a muted line', () => {

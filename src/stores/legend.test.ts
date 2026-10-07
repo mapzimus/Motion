@@ -13,6 +13,7 @@ import {
   viewportRoutes,
   wantsViewportRoutes,
   setLegendCollapsed,
+  setDrillLegend,
 } from './legend.js';
 import { setVisibleGroupList } from './layers.js';
 import { PALETTE, PALETTE_START } from '../model/palette.js';
@@ -23,6 +24,7 @@ describe('legend store', () => {
   beforeEach(() => {
     setRouteKeyIndex(new Map());
     setLiveKeyCounts(new Map());
+    setDrillLegend(null);
   });
 
   it('ranks operators by route count into palette colors', () => {
@@ -100,6 +102,43 @@ describe('legend store', () => {
     const routes = viewportRoutes.value;
     setViewportRoutes(new Map([['bus', new Map([['1', { ...route }]])]]));
     expect(viewportRoutes.value).toBe(routes);
+  });
+
+  it('shows only the drilled layer in the key', () => {
+    setVisibleGroupList(['bus', 'ferry']);
+    setDrillLegend({
+      group: 'green',
+      route: 'Green-E',
+      operator: null,
+      operatorLabel: null,
+      vehicles: 3,
+      rows: [
+        { key: 'Green-E', label: 'Green-E', color: '#e6194b', live: 2 },
+        { key: 'Green-D', label: 'Green-D', color: '#3cb44b', live: 1 },
+      ],
+    });
+    expect(legendSections.value.map((section) => section.name)).toEqual(['Green Line']);
+    expect(legendSections.value[0].rows.map((row) => row.label)).toEqual(['Green-E', 'Green-D']);
+    setDrillLegend(null);
+    expect(legendSections.value.map((section) => section.group)).toEqual(['bus', 'ferry']);
+  });
+
+  it('keeps a drill route color when the vehicle is painted again', async () => {
+    const { assignRouteColors, clearRouteColors } = await import('../model/routePalette.js');
+    const { paintVehicle, restoreVehicleColors } = await import('./legend.js');
+    try {
+      assignRouteColors([
+        { properties: { group: 'green', route: 'Green-E', shadeKey: 'Green-E' } },
+        { properties: { group: 'green', route: 'Green-D', shadeKey: 'Green-D' } },
+      ], 'green');
+      const first = paintVehicle({ props: { group: 'green', route: 'Green-E', shadeKey: 'Green-E', color: '#00843D' } });
+      expect(first.props.color).not.toBe('#00843D');
+      const again = paintVehicle({ props: { group: 'green', route: 'Green-E', shadeKey: 'Green-E', color: '#00843D' } });
+      expect(again.props.color).toBe(first.props.color);
+      expect(restoreVehicleColors(again.props)?.color).toBe('#00843D');
+    } finally {
+      clearRouteColors();
+    }
   });
 
   it('wants viewport routes only when open and a route group is on', () => {

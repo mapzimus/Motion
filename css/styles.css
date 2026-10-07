@@ -999,6 +999,12 @@ h2 {
   font-weight: 600;
   color: var(--text);
 }
+.legend-section-head.drillable, .legend-row.drillable { cursor: pointer; }
+.legend-section-head.drillable:focus-visible, .legend-row.drillable:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.legend-row.dimmed { opacity: 0.35; }
 .legend-glyph { flex: none; width: 16px; height: 16px; color: var(--text-2); }
 .legend-rows { list-style: none; margin-top: 4px; }
 .legend-row {
