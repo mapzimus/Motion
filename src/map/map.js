@@ -684,13 +684,37 @@ function setupLayers() {
       'circle-opacity': 0.9,
     },
   });
-  // EV charging is dense (~8,000 stations), so it stays hidden below zoom 10.
+  // EV charging is dense (~8,000 stations): zoomed out it draws as a density
+  // heatmap (DC fast counts double), which fades into the stations by zoom 11.
+  map.addLayer({
+    id: 'ev-charging-heat',
+    type: 'heatmap',
+    source: 'reference-places',
+    filter: ['==', ['get', 'group'], 'ev-charging'],
+    maxzoom: 11,
+    layout: { visibility: 'none' },
+    paint: {
+      'heatmap-weight': ['case', ['get', 'fastCharge'], 2, 1],
+      'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 5, 0.08, 8, 0.2, 10, 0.45],
+      'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 5, 6, 8, 14, 10, 22],
+      'heatmap-color': [
+        'interpolate', ['linear'], ['heatmap-density'],
+        0, 'rgba(46, 125, 92, 0)',
+        0.1, 'rgba(46, 125, 92, 0.3)',
+        0.35, 'rgba(78, 185, 130, 0.5)',
+        0.65, 'rgba(110, 231, 168, 0.7)',
+        0.9, 'rgba(198, 249, 222, 0.85)',
+        1, 'rgba(244, 255, 249, 0.9)',
+      ],
+      'heatmap-opacity': ['interpolate', ['linear'], ['zoom'], 9, 0.85, 11, 0],
+    },
+  });
   map.addLayer({
     id: 'ev-charging-points',
     type: 'circle',
     source: 'reference-places',
     filter: ['==', ['get', 'group'], 'ev-charging'],
-    minzoom: 10,
+    minzoom: 9,
     layout: { visibility: 'none' },
     paint: {
       'circle-color': CONFIG.EV_CHARGING_COLOR,
@@ -701,7 +725,8 @@ function setupLayers() {
       ],
       'circle-stroke-color': ['case', ['get', 'fastCharge'], '#f4f6f8', '#151a21'],
       'circle-stroke-width': 1.2,
-      'circle-opacity': 0.88,
+      'circle-opacity': ['interpolate', ['linear'], ['zoom'], 9, 0, 10, 0.88],
+      'circle-stroke-opacity': ['interpolate', ['linear'], ['zoom'], 9, 0, 10, 1],
     },
   });
   map.addLayer({
@@ -2850,6 +2875,7 @@ function applyGroupFilter(groups, statuses) {
     ['heritage-rail-lines', 'heritage-rail'],
     ['heritage-rail-labels', 'heritage-rail'],
     ['park-ride-points', 'park-ride'],
+    ['ev-charging-heat', 'ev-charging'],
     ['ev-charging-points', 'ev-charging'],
     ['drawbridge-points', 'drawbridge'],
     ['drawbridge-labels', 'drawbridge'],

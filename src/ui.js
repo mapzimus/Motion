@@ -80,7 +80,7 @@ function buildGroups(routeInfo, capabilities) {
     { key: 'heritage-rail', name: 'Heritage & scenic railroads', initial: 'HR', section: 'infrastructure', routes: [], color: CONFIG.HERITAGE_RAIL_COLOR, truth: 'operator reference', countAsVehicle: false },
     { key: 'aerialway', name: 'Ski lifts, gondolas & tramways', initial: 'AW', section: 'infrastructure', routes: [], color: CONFIG.AERIALWAY_COLOR, truth: 'OSM reference', countAsVehicle: false },
     { key: 'park-ride', name: 'Park & ride lots', initial: 'PR', section: 'infrastructure', routes: [], color: CONFIG.PARK_RIDE_COLOR, darkText: true, truth: 'state DOT reference', countAsVehicle: false },
-    { key: 'ev-charging', name: 'Public EV charging (zoom in)', initial: 'EV', section: 'infrastructure', routes: [], color: CONFIG.EV_CHARGING_COLOR, darkText: true, truth: 'AFDC reference', countAsVehicle: false },
+    { key: 'ev-charging', name: 'Public EV charging', initial: 'EV', section: 'infrastructure', routes: [], color: CONFIG.EV_CHARGING_COLOR, darkText: true, truth: 'AFDC reference', countAsVehicle: false },
     { key: 'drawbridge', name: 'Drawbridges & movable bridges', initial: 'DB', section: 'infrastructure', routes: [], color: CONFIG.DRAWBRIDGE_COLOR, darkText: true, truth: 'USCG reference', countAsVehicle: false },
   ];
 }

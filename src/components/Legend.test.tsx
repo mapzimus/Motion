@@ -161,6 +161,6 @@ describe('Legend', () => {
   it('shows notes as a muted line', () => {
     act(() => setVisibleGroupList(['ev-charging']));
     mount();
-    expect($('.legend-notes')!.textContent).toBe('White ring = DC fast charging');
+    expect($('.legend-notes')!.textContent).toBe('Zoomed out, brighter = more chargers; white ring = DC fast');
   });
 });

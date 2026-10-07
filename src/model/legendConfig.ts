@@ -155,7 +155,7 @@ export const LEGEND_GROUPS: Record<string, LegendGroup> = {
     notes: ['Chairlifts, gondolas, and aerial tramways. Not live cabins.'],
   },
   'park-ride': { name: 'Park and ride', glyph: 'dot', notes: [] },
-  'ev-charging': { name: 'EV charging', glyph: 'dot', notes: ['White ring = DC fast charging'] },
+  'ev-charging': { name: 'EV charging', glyph: 'dot', notes: ['Zoomed out, brighter = more chargers; white ring = DC fast'] },
   drawbridge: { name: 'Drawbridges', glyph: 'dot', notes: [] },
   weather: {
     name: 'Weather alerts',
