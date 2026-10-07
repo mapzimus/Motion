@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Basemaps
+- Four basemaps: Dark (CARTO Dark Matter, the default), Light (CARTO Positron),
+  Dark without labels, and Satellite (USGS Imagery Only, slightly muted, with
+  place names from Dark Matter). The panel and the legend stay on the bright
+  colors. On Light, map fills darken only until they clear a pale ground, and
+  vehicle casings flip dark. On Satellite, vehicles keep a dark ring outside a
+  light one. An optional `CARTO_API_KEY` (Worker secret or uncommitted
+  `VITE_CARTO_API_KEY`) is sent on the CARTO styles when it is set.
+
 ### Startup
 - The page can no longer hang on "Loading New England…" with no explanation.
   A plain-script watchdog shows the real error and a "Reload a fresh copy"

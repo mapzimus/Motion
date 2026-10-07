@@ -5,5 +5,6 @@
 interface Env {
   AISSTREAM_API_KEY?: string;
   TOMTOM_API_KEY?: string;
+  CARTO_API_KEY?: string;
   SWIFTLY_API_KEY?: string;
 }

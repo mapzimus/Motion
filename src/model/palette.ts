@@ -115,6 +115,13 @@ export function paletteColorFor(
 }
 
 const MAP_BG = '#0b0f14';
+/** Stand-in for Positron's pale land. Fills on the light ground clear 3:1 here. */
+const PALE_LAND = '#e8e4dc';
+
+export type MapGround = 'dark' | 'light' | 'imagery';
+
+const shadeCache = new Map<string, string>();
+const fillCache = new Map<string, string>();
 
 function relativeLuminance(hex: string): number {
   const [r, g, b] = [1, 3, 5].map((i) => {
@@ -126,6 +133,67 @@ function relativeLuminance(hex: string): number {
 
 function contrastOnMap(hex: string): number {
   return (relativeLuminance(hex) + 0.05) / (relativeLuminance(MAP_BG) + 0.05);
+}
+
+function contrastRatio(hex: string, background: string): number {
+  const left = relativeLuminance(hex);
+  const right = relativeLuminance(background);
+  const [hi, lo] = left > right ? [left, right] : [right, left];
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+/**
+ * The fill to paint on a ground. Dark and imagery keep the color, including
+ * Blue Line and commuter purple. Light darkens only until the color clears
+ * 3:1 on pale land, and leaves a brand color that already clears it.
+ */
+export function groundFill(hex: string, ground: MapGround = 'dark'): string {
+  const color = hex.toLowerCase();
+  if (ground !== 'light') return color;
+  const key = `light\0${color}`;
+  const cached = fillCache.get(key);
+  if (cached) return cached;
+  let result = color;
+  if (contrastRatio(color, PALE_LAND) < 3.05) {
+    const [h, s, l] = hexToHsl(color);
+    let light = l;
+    for (let i = 0; i < 80 && contrastRatio(hslToHex(h, s, light), PALE_LAND) < 3.05 && light > 0.05; i++) {
+      light -= 0.01;
+    }
+    result = hslToHex(h, s, light);
+  }
+  fillCache.set(key, result);
+  return result;
+}
+
+export interface LightPaint {
+  mapColor?: string;
+  mapOpColor?: string;
+  mapRouteColor?: string;
+}
+
+/**
+ * Map-only colors for the light ground. `color`, `opColor`, and `routeColor`
+ * stay the bright identity colors the legend paints on the dark panel.
+ */
+export function lightPaint(
+  color: string | undefined,
+  opColor: string | undefined,
+  routeColor: string | undefined,
+  routeId: string,
+  routeCount: number,
+): LightPaint {
+  const out: LightPaint = {};
+  if (color) out.mapColor = groundFill(color, 'light');
+  if (opColor) out.mapOpColor = groundFill(opColor, 'light');
+  const identity = opColor || color;
+  const shaded = Boolean(
+    identity && routeId && routeCount > 1 && routeColor
+    && routeColor.toLowerCase() !== identity.toLowerCase(),
+  );
+  if (shaded && identity) out.mapRouteColor = routeShade(identity, routeId, routeCount, 'light');
+  else if (routeColor || identity) out.mapRouteColor = groundFill((routeColor || identity) as string, 'light');
+  return out;
 }
 
 function hexToHsl(hex: string): [number, number, number] {
@@ -153,16 +221,33 @@ function hslToHex(h: number, s: number, l: number): string {
  * hue shifted within +-14 degrees and lightness within +-10%, both derived
  * from the route id. An operator with one route keeps its color unchanged.
  */
-export function routeShade(operatorHex: string, routeId: string, routeCount = 2): string {
+export function routeShade(
+  operatorHex: string,
+  routeId: string,
+  routeCount = 2,
+  ground: MapGround = 'dark',
+): string {
   if (routeCount <= 1) return operatorHex;
+  const cacheKey = `${ground}\0${routeCount}\0${operatorHex.toLowerCase()}\0${routeId}`;
+  const cached = shadeCache.get(cacheKey);
+  if (cached) return cached;
   const [h, s, l] = hexToHsl(operatorHex);
   const dh = (hashIndex(`${routeId}#h`, 1001) / 1000) * 28 - 14;
   const dl = (hashIndex(`${routeId}#l`, 1001) / 1000) * 0.2 - 0.1;
   const hue = (h + dh + 360) % 360;
   let light = Math.min(0.9, Math.max(0.15, l + dl));
-  // Keep the shade readable on the map: nudge lightness up until it clears 3:1.
-  for (let i = 0; i < 40 && contrastOnMap(hslToHex(hue, s, light)) < 3.05 && light < 0.95; i++) light += 0.01;
-  return hslToHex(hue, s, light);
+  if (ground === 'light') {
+    // Darken instead of lightening, and stop once the shade clears 3:1 on pale land.
+    for (let i = 0; i < 80 && contrastRatio(hslToHex(hue, s, light), PALE_LAND) < 3.05 && light > 0.05; i++) {
+      light -= 0.01;
+    }
+  } else {
+    // Keep the shade readable on the dark map: nudge lightness up until it clears 3:1.
+    for (let i = 0; i < 40 && contrastOnMap(hslToHex(hue, s, light)) < 3.05 && light < 0.95; i++) light += 0.01;
+  }
+  const result = hslToHex(hue, s, light);
+  shadeCache.set(cacheKey, result);
+  return result;
 }
 
 export interface VesselBand { key: string; label: string; color: string; types?: [number, number][] }
