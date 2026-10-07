@@ -159,6 +159,35 @@
     <div id="overlay-text">Loading New England…</div>
   </div>
 
+  <script>
+    // Startup watchdog. A plain script, so it runs even when the app bundle
+    // fails to download, parse, or evaluate (a stale cached page, a browser
+    // too old for the bundle, a blocked request). Without it any of those
+    // leaves "Loading New England…" on screen forever with no clue why.
+    (function () {
+      var firstError = null;
+      function remember(message) { if (!firstError && message) firstError = String(message); }
+      window.addEventListener('error', function (event) {
+        remember(event.message || (event.target && event.target.src && 'Could not load ' + event.target.src));
+      }, true);
+      window.addEventListener('unhandledrejection', function (event) {
+        remember(event.reason && (event.reason.message || event.reason));
+      });
+      setTimeout(function () {
+        if (window.__motionStarted) return; // the app is running; its own errors use the overlay
+        var overlay = document.getElementById('overlay');
+        var text = document.getElementById('overlay-text');
+        if (!overlay || !text) return;
+        overlay.classList.remove('hidden');
+        overlay.classList.add('fatal');
+        text.textContent = 'Motion didn’t start' + (firstError ? ': ' + firstError : '') + '. ';
+        var reload = document.createElement('a');
+        reload.href = location.pathname + '?fresh=' + Date.now() + location.hash;
+        reload.textContent = 'Reload a fresh copy';
+        text.appendChild(reload);
+      }, 30000);
+    })();
+  </script>
   <script type="module" src="src/main.tsx"></script>
 </body>
 </html>

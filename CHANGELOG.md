@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Startup
+- The page can no longer hang on "Loading New England…" with no explanation.
+  A plain-script watchdog shows the real error and a "Reload a fresh copy"
+  link if the app bundle never starts (stale cached page, blocked or failed
+  download, browser too old); the three startup requests now time out after
+  20 seconds and surface through the error overlay, which now names the
+  actual failure instead of always blaming the MBTA feed.
+
 ### More of what moves
 - Peter Pan coaches from the carrier's public tracker. One GPS fix is copied onto many trip rows, so the map keeps one coach per position and drops a fix older than 20 minutes. A parked coach does not get a heading from a zero azimuth.
 - City of Keene public-works trucks from the city's published live share, on the snowplow layer. A fix older than a day is dropped. The Vermont plow file can be empty and the feed still succeeds, and the other way around.

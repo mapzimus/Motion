@@ -689,6 +689,6 @@ export function fatal(err) {
   overlay.classList.remove('hidden');
   overlay.classList.add('fatal');
   el('overlay-text').textContent =
-    `Couldn't reach the MBTA feed (${err.message}). Check your connection and reload.`;
+    `Motion couldn't start (${err.message}). Check your connection and reload.`;
   updateStatus('error', {});
 }
