@@ -38,6 +38,7 @@ export function trainItem(trip, stops, { color = '#ee0034', staleAfterMs = 120_0
     lat: gps ? gps.lat : previous.lat + (next.lat - previous.lat) * progress,
     props: {
       group: 'commuter',
+      route: trip.routeName ?? '',
       dataStatus: gps ? 'live' : 'estimated',
       legendKey: 'metro-north',
       legendLabel: 'Metro-North',

@@ -18,6 +18,7 @@ export function regionalVehicleItem(vehicle, now, { ferryFeeds, busColor, ferryC
     lat: vehicle.lat,
     props: {
       group: isFerry ? 'ferry' : 'bus',
+      route: vehicle.route || vehicle.agency || '',
       dataStatus: 'live',
       legendKey: vehicle.feed,
       legendLabel: vehicle.agency ?? vehicle.feed,

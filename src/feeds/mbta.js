@@ -127,6 +127,7 @@ function apply(vehicles) {
       lat: v.lat,
       props: {
         group,
+        route: v.route,
         dataStatus: 'live',
         legendKey: 'mbta',
         legendLabel: 'MBTA',
