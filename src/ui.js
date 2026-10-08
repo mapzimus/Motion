@@ -276,8 +276,10 @@ export function initPanel(routeInfo, visibleChangeHandler, regionChangeHandler, 
     // (Not for area layers like traffic, where "zoom to it" is meaningless.)
     if (!group.needsKey && group.zoomable !== false) {
       row.classList.add('zoomable');
+      row.tabIndex = 0;
       row.title = `Zoom to ${group.name}`;
-      row.addEventListener('click', async (e) => {
+      row.setAttribute('role', 'button');
+      const zoomHandler = async (e) => {
         if (e.target.closest('.switch') || e.target.closest('a')) return;
         if (!groupState.get(group.key)) {
           manualGroupOverrides.add(group.key);
@@ -289,6 +291,13 @@ export function initPanel(routeInfo, visibleChangeHandler, regionChangeHandler, 
         const flew = await focusGroup(group.key, group.routes);
         if (flew && window.matchMedia('(max-width: 760px)').matches) {
           setPanelOpen(false);
+        }
+      };
+      row.addEventListener('click', zoomHandler);
+      row.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          zoomHandler(e);
         }
       });
     }
