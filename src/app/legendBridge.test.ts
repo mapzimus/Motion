@@ -1,17 +1,22 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-vi.mock('../map/map.js', () => ({ applyRoutePalette: vi.fn(), refreshLegendFeeds: vi.fn() }));
+vi.mock('../map/map.js', () => ({
+  applyRoutePalette: vi.fn(),
+  refreshLegendFeeds: vi.fn(),
+  setDrillDown: vi.fn(),
+}));
 vi.mock('../feeds/fleet.js', () => ({ recolorAllFleets: vi.fn() }));
 
 import { initLegendBridge } from './legendBridge.js';
 import { refreshLegendFeeds } from '../map/map.js';
-import { setLegendCollapsed } from '../stores/legend.js';
+import { drillRequest, setLegendCollapsed } from '../stores/legend.js';
 import { setVisibleGroupList } from '../stores/layers.js';
 
 describe('legend bridge', () => {
   let stop: () => void;
 
   beforeEach(() => {
+    drillRequest.value = null;
     setLegendCollapsed(false);
     setVisibleGroupList(['plane']);
     stop = initLegendBridge();

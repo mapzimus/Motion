@@ -1983,6 +1983,44 @@
     "pass": true
    }
   },
+  "bustins-island-ferry:south-freeport": {
+   "requestSignature": "osm-land-v3|4f127059a3d549582a5e8c3398426207c7b05057f5e3f0a07121a72aa4718c3e",
+   "source": "osm-way:329759736",
+   "repaired": false,
+   "geometryType": "LineString",
+   "coordinates": [
+    [
+     -70.105624,
+     43.820272
+    ],
+    [
+     -70.105782,
+     43.809198
+    ],
+    [
+     -70.105576,
+     43.807895
+    ],
+    [
+     -70.080921,
+     43.796799
+    ],
+    [
+     -70.078637,
+     43.796615
+    ]
+   ],
+   "geometrySha256": "3f82dd2d6d41ea6573c9c63d79364a17611ba2d4cb26151f9bf935ebf4b908bb",
+   "lengthKm": 3.894,
+   "directKm": 3.407,
+   "waterAudit": {
+    "auditVersion": "osm-land-v3",
+    "interiorDryM": 0.0,
+    "endpointDryM": 0.0,
+    "selfIntersects": false,
+    "pass": true
+   }
+  },
   "captain-john:plymouth-provincetown": {
    "requestSignature": "osm-land-v3|347b2963358c27abdb71d4901c737932da733b51a677f30467ac6bae96946649",
    "source": "hand",

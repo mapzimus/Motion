@@ -27,10 +27,11 @@ export async function mbta(path, params, { signal } = {}) {
 // Every route the map can carry: subway/light rail (0,1), commuter rail (2),
 // bus incl. Silver Line (3), ferry (4). One call; colors and names for all.
 export async function fetchRoutes() {
+  // Startup waits on this call, so a stalled request must fail instead of hanging.
   const json = await mbta('/routes', {
     'filter[type]': '0,1,2,3,4',
     'fields[route]': 'color,text_color,long_name,short_name,type,direction_destinations',
-  });
+  }, { signal: AbortSignal.timeout(20_000) });
   return json.data.map((r) => ({
     id: r.id,
     type: r.attributes.type,

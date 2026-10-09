@@ -130,6 +130,12 @@
       "osmWays": [
         17192965
       ]
+    },
+    "bustins-island-ferry:south-freeport": {
+      "note": "Lilly B from the South Freeport terminal to Steamer Dock. Follow OpenStreetMap way 329759736.",
+      "osmWays": [
+        329759736
+      ]
     }
   }
 }

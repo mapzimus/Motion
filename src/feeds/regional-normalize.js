@@ -13,11 +13,13 @@ export function regionalVehicleItem(vehicle, now, { ferryFeeds, busColor, ferryC
       label: vehicle.label ? String(vehicle.label) : '',
       routeName: vehicle.route ?? '',
       agency: vehicle.agency ?? '',
+      ...(vehicle.headsign ? { headsign: String(vehicle.headsign) } : {}),
     },
     lng: vehicle.lng,
     lat: vehicle.lat,
     props: {
       group: isFerry ? 'ferry' : 'bus',
+      route: vehicle.route || vehicle.agency || '',
       dataStatus: 'live',
       legendKey: vehicle.feed,
       legendLabel: vehicle.agency ?? vehicle.feed,
@@ -29,12 +31,18 @@ export function regionalVehicleItem(vehicle, now, { ferryFeeds, busColor, ferryC
       hasBearing: Number.isFinite(vehicle.bearing),
       stale: now - Date.parse(vehicle.updatedAt) > staleAfterMs,
       title: vehicle.route ? `${vehicle.agency} · ${vehicle.route}` : vehicle.agency,
-      dest: vehicle.label ? `Vehicle ${vehicle.label}` : '',
+      dest: vehicle.headsign
+        ? String(vehicle.headsign)
+        : (vehicle.label ? `Vehicle ${vehicle.label}` : ''),
       status: Number.isFinite(vehicle.speedMps)
         ? `${Math.round(vehicle.speedMps * MPS_TO_MPH)} mph`
         : 'In service',
-      meta: `GTFS-RT · ${vehicle.feed}`,
-      provider: `${vehicle.agency} GTFS-Realtime`,
+      meta: vehicle.positionSource
+        ? `${vehicle.positionSource} · ${vehicle.feed}`
+        : `GTFS-RT · ${vehicle.feed}`,
+      provider: vehicle.positionSource
+        ? `${vehicle.agency} · ${vehicle.positionSource}`
+        : `${vehicle.agency} GTFS-Realtime`,
       updatedAt: vehicle.updatedAt,
     },
   };

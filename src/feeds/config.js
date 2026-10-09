@@ -36,6 +36,10 @@ export const CONFIG = {
   AMTRAK_POLL_MS: 90_000, // Amtraker returns every US train (~1 MB) — be kind
   PLANE_POLL_MS: 45_000,
   MNR_POLL_MS: 30_000,
+  COACH_POLL_MS: 30_000,
+  // The public tracker often sits still for a few minutes. Dim after 10,
+  // and the gateway drops a fix after 20.
+  COACH_STALE_AFTER_MS: 10 * 60 * 1000,
 
   // How long markers glide between polled positions.
   ANIMATE_MS: 900,
@@ -43,7 +47,7 @@ export const CONFIG = {
   // interval at constant speed so the locked camera pans continuously instead
   // of lurching once per poll. Everything else keeps the 900 ms snap.
   FOLLOW_POLL_MS: {
-    mbta: 10_000, regional: 20_000, mnr: 30_000, plane: 45_000,
+    mbta: 10_000, regional: 20_000, coaches: 30_000, mnr: 30_000, plane: 45_000,
     amtrak: 90_000, vessel: 2_500, bike: 60_000,
   },
   FOLLOW_GLIDE_FACTOR: 0.9,
@@ -171,6 +175,10 @@ export const CONFIG = {
   // Gateway transit feeds whose vehicles are boats, not buses.
   FERRY_FEEDS: ['casco-bay'],
   CAMERA_COLOR: '#d2d7dd',
+  ROAD_WEATHER_COLOR: '#7ec8e3',
+  MESSAGE_SIGN_COLOR: '#f0c14a',
+  PLOW_COLOR: '#d6e8ff',
+  AERIALWAY_COLOR: '#c4b5fd',
   INCIDENT_COLOR: '#ff5c5c',
   ROAD_COLOR: '#8a949f',
   FREIGHT_COLOR: '#b98b72',
@@ -186,6 +194,9 @@ export const CONFIG = {
   TAXI_COLOR: '#ffe14d',
 
   CAMERA_POLL_MS: 5 * 60_000,
+  ROAD_WEATHER_POLL_MS: 5 * 60_000,
+  MESSAGE_SIGN_POLL_MS: 5 * 60_000,
+  PLOW_POLL_MS: 60_000,
   ROAD_EVENT_POLL_MS: 60_000,
 
   // Conditions: NWS active weather alerts (zone polygons) and FAA airport
@@ -213,6 +224,8 @@ export const CONFIG = {
   TFR_COLORS: { VIP: '#ff4d4d', SECURITY: '#ff4d4d', SPECIAL: '#ff4d4d', HAZARDS: '#ff8a4c', default: '#ffc94d' },
   AIRSPACE_COLORS: { B: '#4f8dff', C: '#d65cd6', D: '#4f8dff', sua: '#ff9a3c' },
   AIRSPACE_URL: `${dataBase}airspace.geojson`,
+  PLOW_ROUTES_URL: `${dataBase}plow-routes.geojson`,
+  AERIALWAYS_URL: `${dataBase}aerialways.geojson`,
 
   TRAFFIC_TILE_TEMPLATE: gatewayBase
     ? `${gatewayBase}/api/traffic/{z}/{x}/{y}.png`
@@ -224,45 +237,21 @@ export const CONFIG = {
   // on: ~400 buses, ~600 bike stations, wall-to-wall traffic color).
   DEFAULT_OFF_GROUPS: [
     'bus', 'bike', 'roadwork', 'traffic', 'incident', 'camera',
+    'road-weather', 'message-sign', 'plow',
     'roads', 'freight', 'walking', 'cycling', 'local', 'airport', 'border', 'air-service',
-    'bikeshare', 'heritage-rail', 'park-ride', 'ev-charging', 'drawbridge', 'taxi',
+    'bikeshare', 'heritage-rail', 'aerialway', 'park-ride', 'ev-charging', 'drawbridge', 'taxi',
     'weather', 'airport-status',
     'airport-weather', 'tfr', 'airspace',
   ],
 
-  // First entry is the default. Every basemap must work with the dark panel
-  // and the light vehicle outlines drawn in map.js.
+  // First entry is the default. The panel stays dark on every basemap.
+  // `ground` picks the casings and fills applied in setupLayers. Satellite's
+  // style document is built at load (USGS imagery plus Dark Matter place names).
   BASEMAPS: [
-    { key: 'dark', label: 'Dark', style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json' },
-    { key: 'dark-plain', label: 'Dark, no labels', style: 'https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json' },
-    {
-      key: 'satellite',
-      label: 'Satellite',
-      style: {
-        version: 8,
-        glyphs: 'https://tiles.basemaps.cartocdn.com/fonts/{fontstack}/{range}.pbf',
-        sources: {
-          imagery: {
-            type: 'raster',
-            tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
-            tileSize: 256,
-            maxzoom: 19,
-            attribution: 'Imagery © Esri, Maxar, Earthstar Geographics, and the GIS User Community',
-          },
-          labels: {
-            type: 'raster',
-            tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}'],
-            tileSize: 256,
-            maxzoom: 19,
-            attribution: 'Labels © Esri, HERE, Garmin, FAO, NOAA, USGS',
-          },
-        },
-        layers: [
-          { id: 'imagery', type: 'raster', source: 'imagery', paint: { 'raster-saturation': -0.2, 'raster-brightness-max': 0.85 } },
-          { id: 'labels', type: 'raster', source: 'labels' },
-        ],
-      },
-    },
+    { key: 'dark', label: 'Dark', ground: 'dark', style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json' },
+    { key: 'light', label: 'Light', ground: 'light', style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json' },
+    { key: 'dark-plain', label: 'Dark, no labels', ground: 'dark', style: 'https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json' },
+    { key: 'satellite', label: 'Satellite', ground: 'imagery' },
   ],
 };
 

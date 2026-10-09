@@ -22,6 +22,8 @@ export interface LegendGroup {
   notes: string[];
   /** Live vehicles fade when stale; the legend shows STALE_NOTE once for these. */
   fades?: boolean;
+  /** Clicking this group in the key or the layer list opens the route drill. */
+  drillable?: boolean;
   fixedRows?: LegendRow[];
 }
 
@@ -88,15 +90,15 @@ const taxiRows: LegendRow[] = [
 ];
 
 export const LEGEND_GROUPS: Record<string, LegendGroup> = {
-  red: { name: 'Red Line', glyph: 'rail', notes: [], fades: true },
-  orange: { name: 'Orange Line', glyph: 'rail', notes: [], fades: true },
-  green: { name: 'Green Line', glyph: 'rail', notes: [], fades: true },
-  blue: { name: 'Blue Line', glyph: 'rail', notes: [], fades: true },
-  silver: { name: 'Silver Line', glyph: 'bus', notes: [], fades: true },
-  mattapan: { name: 'Mattapan Trolley', glyph: 'rail', notes: [], fades: true },
-  commuter: { name: 'Commuter & regional rail (MBTA, Metro-North, CTrail)', glyph: 'rail', notes: [], fades: true },
-  bus: { name: 'Buses, shuttles & coaches', glyph: 'bus', notes: [], fades: true },
-  amtrak: { name: 'Amtrak', glyph: 'rail', notes: [], fades: true },
+  red: { name: 'Red Line', glyph: 'rail', notes: [], fades: true, drillable: true },
+  orange: { name: 'Orange Line', glyph: 'rail', notes: [], fades: true, drillable: true },
+  green: { name: 'Green Line', glyph: 'rail', notes: [], fades: true, drillable: true },
+  blue: { name: 'Blue Line', glyph: 'rail', notes: [], fades: true, drillable: true },
+  silver: { name: 'Silver Line', glyph: 'bus', notes: [], fades: true, drillable: true },
+  mattapan: { name: 'Mattapan Trolley', glyph: 'rail', notes: [], fades: true, drillable: true },
+  commuter: { name: 'Commuter & regional rail (MBTA, Metro-North, CTrail)', glyph: 'rail', notes: [], fades: true, drillable: true },
+  bus: { name: 'Buses, shuttles & coaches', glyph: 'bus', notes: [], fades: true, drillable: true },
+  amtrak: { name: 'Amtrak', glyph: 'rail', notes: [], fades: true, drillable: true },
   // Catalog points, not live positions: they never fade.
   local: { name: 'On-demand & community services', glyph: 'bus', notes: [], fixedRows: localRows },
   taxi: {
@@ -105,7 +107,7 @@ export const LEGEND_GROUPS: Record<string, LegendGroup> = {
     notes: ['Small dot = cab stand, larger = company'],
     fixedRows: taxiRows,
   },
-  ferry: { name: 'Ferries', glyph: 'boat', notes: [], fades: true },
+  ferry: { name: 'Ferries', glyph: 'boat', notes: [], fades: true, drillable: true },
   plane: { name: 'Aircraft', glyph: 'plane', notes: [] },
   'air-service': { name: 'Airline service', glyph: 'line', notes: [] },
   airport: { name: 'Airports', glyph: 'dot', notes: [] },
@@ -126,14 +128,34 @@ export const LEGEND_GROUPS: Record<string, LegendGroup> = {
   roadwork: {
     name: 'Work zones & construction projects',
     glyph: 'dot',
-    notes: ['Dashed lines are work zones. Shaded areas are Connecticut construction projects.'],
+    notes: ['Dashed lines are work zones. Shaded areas are Connecticut construction projects. Dots are CTroads lane closures.'],
   },
   incident: { name: 'Incidents', glyph: 'dot', notes: [] },
   camera: { name: 'Traffic cameras', glyph: 'dot', notes: [] },
+  'road-weather': {
+    name: 'Road weather',
+    glyph: 'dot',
+    notes: ['Click a station for air temperature, wind, and pavement temperature'],
+  },
+  'message-sign': {
+    name: 'Message signs',
+    glyph: 'dot',
+    notes: ['Click a sign for the message it is posting'],
+  },
+  plow: {
+    name: 'Snowplows',
+    glyph: 'dot',
+    notes: ['Vermont trucks when they are reporting. Keene public-works trucks from the city live share. Lines are New Hampshire plow routes.'],
+  },
   roads: { name: 'Roads', glyph: 'line', notes: [] },
   freight: { name: 'Freight rail', glyph: 'line', notes: [] },
   border: { name: 'Border crossings', glyph: 'dot', notes: [] },
   'heritage-rail': { name: 'Heritage rail', glyph: 'rail', notes: [] },
+  aerialway: {
+    name: 'Ski lifts',
+    glyph: 'line',
+    notes: ['Chairlifts, gondolas, and aerial tramways. Not live cabins.'],
+  },
   'park-ride': { name: 'Park and ride', glyph: 'dot', notes: [] },
   'ev-charging': { name: 'EV charging', glyph: 'dot', notes: ['Zoomed out, brighter = more chargers; white ring = DC fast'] },
   drawbridge: { name: 'Drawbridges', glyph: 'dot', notes: [] },

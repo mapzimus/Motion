@@ -8,6 +8,8 @@ export interface VehicleColorProps {
   /** The CONFIG mode color the vehicle falls back to. */
   modeColor?: string;
   color?: string;
+  routeColor?: string;
+  route?: string;
   /** Feed-prefixed route id matching the static route features, '' when unknown. */
   shadeKey?: string;
 }

@@ -1,12 +1,14 @@
 /// <reference types="geojson" />
 
 import { CONFIG } from '../feeds/config.js';
+import { ensureCartoKey } from '../feeds/carto.js';
 import { fetchRoutes } from '../feeds/api.js';
 import { startMbta, onStats, onStatus, groupFor } from '../feeds/mbta.js';
 import { startAmtrak } from '../feeds/amtrak.js';
 import { startPlanes } from '../feeds/planes.js';
 import { startAis } from '../feeds/ais.js';
 import { startRegional } from '../feeds/regional.js';
+import { startCoaches } from '../feeds/coaches.js';
 import { startSharedMobility } from '../feeds/shared-mobility.js';
 import { startRoadwork } from '../feeds/roadwork.js';
 import { startRoadConditions } from '../feeds/road-conditions.js';
@@ -107,6 +109,7 @@ export async function boot(): Promise<void> {
     fetchRoutes(),
     loadRegions(),
     loadGatewayCapabilities(),
+    ensureCartoKey(CONFIG.GATEWAY_BASE),
   ]);
   const routeInfo: Map<string, any> = new Map(routes.map((r: any) => [r.id, r]));
   setSubwayColors(subwayColorsFrom(routeInfo));
@@ -211,6 +214,10 @@ export async function boot(): Promise<void> {
       (counts: Record<string, number>) => updateCounts(counts, 'regional'),
       selectedRegion,
       capabilities.regionalTransit as boolean | undefined,
+    ),
+    startCoaches(
+      (counts: Record<string, number>) => updateCounts(counts, 'coaches'),
+      capabilities.coaches as boolean | undefined,
     ),
     startPlanes(
       (counts: Record<string, number>) => updateCounts(counts, 'planes'),

@@ -324,6 +324,16 @@
       "source": "calendar.txt",
       "url": "https://umb.transloc.com/Secure/Admin/Reports/GTFSDownload.aspx"
     },
+    "wellesley": {
+      "serviceEnd": "2050-12-30",
+      "source": "calendar.txt",
+      "url": "https://wellesleycollege.transloc.com/Secure/Admin/Reports/GTFSDownload.aspx"
+    },
+    "66-galen": {
+      "serviceEnd": "2027-12-31",
+      "source": "calendar.txt",
+      "url": "https://passio3.com/66galen/passioTransit/gtfs/google_transit.zip"
+    },
     "ezride": {
       "serviceEnd": "2027-12-31",
       "source": "calendar.txt",

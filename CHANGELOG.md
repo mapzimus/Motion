@@ -2,10 +2,34 @@
 
 ## Unreleased
 
+### Basemaps
+- Four basemaps: Dark (CARTO Dark Matter, the default), Light (CARTO Positron),
+  Dark without labels, and Satellite (USGS Imagery Only, slightly muted, with
+  place names from Dark Matter). The panel and the legend stay on the bright
+  colors. On Light, map fills darken only until they clear a pale ground, and
+  vehicle casings flip dark. On Satellite, vehicles keep a dark ring outside a
+  light one. An optional `CARTO_API_KEY` (Worker secret or uncommitted
+  `VITE_CARTO_API_KEY`) is sent on the CARTO styles when it is set.
+
+### Startup
+- The page can no longer hang on "Loading New England…" with no explanation.
+  A plain-script watchdog shows the real error and a "Reload a fresh copy"
+  link if the app bundle never starts (stale cached page, blocked or failed
+  download, browser too old); the three startup requests now time out after
+  20 seconds and surface through the error overlay, which now names the
+  actual failure instead of always blaming the MBTA feed.
+- When the app script fails to load, which right after back-to-back merges
+  usually means GitHub's raw-repo publish is live or cached, the page
+  reloads a cache-busted copy by itself (up to three times) before showing
+  the error. The watchdog now sits first in `<head>`, ahead of the bundle tag
+  the build injects there.
+
 ### Presets & scenes
 - Show presets bring their related places with them: Rail adds heritage
-  railroads; Buses adds taxis and park & ride; Water adds drawbridges; Roads
-  adds weather alerts; Bikes becomes **Bike & walk** with marked walking routes.
+  railroads; Buses adds taxis; Water adds drawbridges; Roads
+  adds weather alerts alongside road weather, message signs, and plows; Bikes
+  becomes **Bike & walk** with marked walking routes. Park & ride lots stay
+  on their own reference layer and do not follow the Buses filter.
 - New **Disruptions** preset: incidents, work zones, weather alerts, airport
   delays and flight restrictions together. Like Roads, it is disabled when the
   site has no gateway.
@@ -14,6 +38,18 @@
   of staying blank until zoom 10. The row drops its "(zoom in)" suffix.
 - Three scenes outside Massachusetts: **Providence**, **Portland & Casco Bay**,
   and **CT shoreline rail**.
+
+### More of what moves
+- Peter Pan coaches from the carrier's public tracker. One GPS fix is copied onto many trip rows, so the map keeps one coach per position and drops a fix older than 20 minutes. A parked coach does not get a heading from a zero azimuth.
+- City of Keene public-works trucks from the city's published live share, on the snowplow layer. A fix older than a day is dropped. The Vermont plow file can be empty and the feed still succeeds, and the other way around.
+- Road weather stations from New England 511 (Maine, New Hampshire, Vermont). The map loads locations only; click a station for air temperature, wind, and pavement temperature.
+- Highway message signs from New England 511 and CTroads. Click a sign for the message it is posting.
+- Vermont plow trucks from the VTrans public file. The file is empty outside winter, and an empty file stays a healthy feed. New Hampshire winter plow routes are a reference layer under the same switch.
+- Ski lifts, gondolas, and aerial tramways from OpenStreetMap. These are the lift lines, not live cabins.
+- New England Airlines Westerly–Block Island, OurBus and Lucky Star Boston–New York, and the AMC hiker shuttles (Pinkham Notch–Highland Center and Highland Center–Lincoln via Franconia Notch) as scheduled ribbons.
+- Catalog points for Dolphin Fleet and Cape Ann whale watches, and MBTA The RIDE. The RIDE has no public vehicle positions. The Lilly B crossing to Bustins Island is a shoreline-audited water path; the 2026 off-season table runs through 13 October. There is no vehicle feed.
+- Advance Transit, MOOver, Rural Community Transportation, and Tri-Valley positions from their public Trillium maps. A New Hampshire visit also requests Merrimack Valley, which still draws nothing until Swiftly approves it.
+- Massachusetts snow-route beats on the plow layer, beside the New Hampshire routes. These are beats, not trucks.
 
 ### Roads and vessels
 - RIDOT traffic cameras, with the still image URL on each point, and `ri` on the camera coverage list.

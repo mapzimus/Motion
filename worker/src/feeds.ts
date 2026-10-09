@@ -1,4 +1,4 @@
-import type { RegionId, StateId } from './regions';
+import { insideNewEngland, type RegionId, type StateId } from './regions';
 
 export type TransitFeed = {
   id: string;
@@ -6,14 +6,34 @@ export type TransitFeed = {
   states: StateId[];
   url: string;
   authorization?: 'swiftly';
+  // Keyless vehicle JSON from the agency's public Trillium map. Not a Swiftly call.
+  source?: 'trillium';
   // Service area lies inside the 17-municipality MBTA core, so the feed is also
   // served for the `boston` gateway region.
   mbtaCore?: true;
 };
 
-// Public agency feeds are preferred. Vermont's statewide realtime program,
-// Advance Transit and a few others publish through Swiftly, whose API needs a
-// key that is enabled agency by agency; see SWIFTLY_APPROVED_AGENCIES below.
+export type RegionalVehicle = {
+  id: string;
+  feed: string;
+  agency: string;
+  lng: number;
+  lat: number;
+  route: string;
+  trip: string;
+  label: string;
+  bearing: number | null;
+  speedMps: number | null;
+  updatedAt: string;
+  headsign?: string;
+  positionSource?: string;
+};
+
+// Public agency feeds are preferred. Some Vermont and New Hampshire agencies
+// publish official GTFS-realtime through Swiftly, whose API needs a key that
+// is enabled agency by agency; see SWIFTLY_APPROVED_AGENCIES below. Advance
+// Transit, MOOver, RCT, and Tri-Valley are read from their public Trillium
+// maps instead, which return vehicle JSON with no key.
 export const TRANSIT_FEEDS: TransitFeed[] = [
   {
     id: 'pvta',
@@ -22,9 +42,11 @@ export const TRANSIT_FEEDS: TransitFeed[] = [
     url: 'https://bustracker.pvta.com/infopoint/GTFS-Realtime.ashx?Type=VehiclePosition',
   },
   {
+    // Still Swiftly (`massdot-mvrta`). A New Hampshire visit requests it for the
+    // Plaistow and Salem ribbons; nothing is drawn until that agency is approved.
     id: 'mvrta',
     agency: 'Merrimack Valley Transit',
-    states: ['ma'],
+    states: ['ma', 'nh'],
     url: 'https://api.goswift.ly/real-time/massdot-mvrta/gtfs-rt-vehicle-positions',
     authorization: 'swiftly',
   },
@@ -152,6 +174,14 @@ export const TRANSIT_FEEDS: TransitFeed[] = [
     mbtaCore: true,
   },
   {
+    // Wellesley College Local Motion. Public GTFS and a keyless vehicle feed.
+    // The campus is outside the 17-municipality MBTA core.
+    id: 'wellesley',
+    agency: 'Wellesley College (Local Motion)',
+    states: ['ma'],
+    url: 'https://wellesleycollege.transloc.com/subscriptions/gtfsrt/vehicles.ashx',
+  },
+  {
     id: 'cttransit',
     agency: 'CTtransit',
     states: ['ct'],
@@ -174,6 +204,15 @@ export const TRANSIT_FEEDS: TransitFeed[] = [
     agency: 'River Valley Transit (Middletown / 9 Town Transit)',
     states: ['ct'],
     url: 'https://passio3.com/9town/passioTransit/gtfs/realtime/vehiclePositions',
+  },
+  {
+    // Connecticut Children's hospital shuttle (Passio username ccmc). The
+    // static GTFS zip returns 404, so these buses are drawn from positions
+    // only and do not join a schedule ribbon.
+    id: 'ccmc',
+    agency: "Connecticut Children's",
+    states: ['ct'],
+    url: 'https://passio3.com/ccmc/passioTransit/gtfs/realtime/vehiclePositions',
   },
   {
     id: 'norwalk',
@@ -309,11 +348,13 @@ export const TRANSIT_FEEDS: TransitFeed[] = [
     authorization: 'swiftly',
   },
   {
+    // Public Trillium map. Route ids match the GTFS already drawn. The official
+    // GTFS-RT is Swiftly agency `advance-transit` and is not called.
     id: 'advance-transit',
     agency: 'Advance Transit',
     states: ['nh', 'vt'],
-    url: 'https://api.goswift.ly/real-time/advance-transit/gtfs-rt-vehicle-positions',
-    authorization: 'swiftly',
+    url: 'https://maps.trilliumtransit.com/gtfsmap-realtime/feed/advancetransit-vt-us/vehicles',
+    source: 'trillium',
   },
   {
     id: 'gmt',
@@ -337,25 +378,32 @@ export const TRANSIT_FEEDS: TransitFeed[] = [
     authorization: 'swiftly',
   },
   {
+    // Southeast Vermont Transit / MOOver. Public Trillium map, slug sevt-vt-us.
+    // The official GTFS-RT is Swiftly agency `moover` and is not called.
     id: 'moover',
     agency: 'MOOver!',
     states: ['nh', 'vt'],
-    url: 'https://api.goswift.ly/real-time/moover/gtfs-rt-vehicle-positions',
-    authorization: 'swiftly',
+    url: 'https://maps.trilliumtransit.com/gtfsmap-realtime/feed/sevt-vt-us/vehicles',
+    source: 'trillium',
   },
   {
+    // Public Trillium map. The official GTFS-RT is Swiftly agency `rct` and is not called.
+    // `nh` is here so a New Hampshire visit requests the Greenleaf ribbon.
     id: 'rct',
     agency: 'Rural Community Transportation',
-    states: ['vt'],
-    url: 'https://api.goswift.ly/real-time/rct/gtfs-rt-vehicle-positions',
-    authorization: 'swiftly',
+    states: ['vt', 'nh'],
+    url: 'https://maps.trilliumtransit.com/gtfsmap-realtime/feed/ruralcommunity-vt-us/vehicles',
+    source: 'trillium',
   },
   {
+    // Public Trillium map. The official GTFS-RT is Swiftly agency `trivalleytransit`
+    // and is not called. `nh` covers the 89er South, River Route, Saturday Shopper,
+    // and Bradford Area Circulator ribbons.
     id: 'tri-valley',
     agency: 'Tri-Valley Transit',
-    states: ['vt'],
-    url: 'https://api.goswift.ly/real-time/trivalleytransit/gtfs-rt-vehicle-positions',
-    authorization: 'swiftly',
+    states: ['vt', 'nh'],
+    url: 'https://maps.trilliumtransit.com/gtfsmap-realtime/feed/trivalleytransit-vt-us/vehicles',
+    source: 'trillium',
   },
 ];
 
@@ -380,4 +428,50 @@ export function feedsForRegion(region: RegionId): TransitFeed[] {
   if (region === 'boston') return TRANSIT_FEEDS.filter((feed) => feed.mbtaCore);
   if (region === 'new-england') return TRANSIT_FEEDS;
   return TRANSIT_FEEDS.filter((feed) => feed.states.includes(region));
+}
+
+// The public Trillium map returns `{ status, data: [{ id, lat, lon, route_id, heading, headsign }] }`.
+// Route ids match the static GTFS. There is no timestamp, trip id, or speed.
+export function vehiclesFromTrilliumMap(
+  feed: TransitFeed,
+  payload: unknown,
+  now = new Date(),
+): RegionalVehicle[] {
+  const rows = payload && typeof payload === 'object' && Array.isArray((payload as { data?: unknown }).data)
+    ? (payload as { data: unknown[] }).data
+    : [];
+  const updatedAt = now.toISOString();
+  return rows.flatMap((row) => {
+    if (!row || typeof row !== 'object') return [];
+    const record = row as {
+      id?: unknown;
+      lat?: unknown;
+      lon?: unknown;
+      route_id?: unknown;
+      heading?: unknown;
+      headsign?: unknown;
+    };
+    const lat = typeof record.lat === 'number' ? record.lat : Number(record.lat);
+    const lng = typeof record.lon === 'number' ? record.lon : Number(record.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || !insideNewEngland(lng, lat)) return [];
+    const vehicleId = record.id == null ? '' : String(record.id);
+    if (!vehicleId) return [];
+    const heading = typeof record.heading === 'number' ? record.heading : Number(record.heading);
+    const headsign = record.headsign == null ? '' : String(record.headsign);
+    return [{
+      id: `${feed.id}-${vehicleId}`,
+      feed: feed.id,
+      agency: feed.agency,
+      lng,
+      lat,
+      route: record.route_id == null ? '' : String(record.route_id),
+      trip: '',
+      label: vehicleId,
+      bearing: Number.isFinite(heading) ? heading : null,
+      speedMps: null,
+      updatedAt,
+      ...(headsign ? { headsign } : {}),
+      positionSource: 'Trillium map',
+    }];
+  });
 }

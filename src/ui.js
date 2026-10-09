@@ -1,11 +1,18 @@
 // Panel UI: layer toggles, alert feed, connection status, loading states.
 
+import { effect } from '@preact/signals';
 import { CONFIG } from './feeds/config.js';
-import { focusAlert, focusGroup, getBasemap, setBasemap } from './map/map.js';
+import { focusAlert, focusGroup, getBasemap, getDrillDown, setBasemap, setDrillDown } from './map/map.js';
 import { REGIONS, REGION_GROUPS, busDefaultOn, hasSubway, regionInfo, regionName } from './feeds/regions.js';
 import { SCENES, VEHICLE_PRESETS, resolvePreset } from './model/presets.js';
+import { LEGEND_GROUPS } from './model/legendConfig.js';
+import { drillLegend } from './stores/legend.js';
 
 const el = (id) => document.getElementById(id);
+
+const DRILLABLE_GROUPS = new Set(
+  Object.entries(LEGEND_GROUPS).filter(([, group]) => group.drillable).map(([key]) => key),
+);
 
 let GROUPS = [];
 const groupState = new Map();
@@ -67,14 +74,18 @@ function buildGroups(routeInfo, capabilities) {
     { key: 'walking', name: 'Marked walking & hiking routes', initial: 'W', section: 'shared', routes: [], color: CONFIG.WALK_COLOR, truth: 'OSM routes', countAsVehicle: false, zoomable: false, overlay: true },
     { key: 'cycling', name: 'Marked cycling routes', initial: 'C', section: 'shared', routes: [], color: CONFIG.CYCLE_COLOR, truth: 'OSM routes', countAsVehicle: false, zoomable: false, overlay: true },
     { key: 'traffic', name: 'Live congestion speeds', initial: '≋', section: 'conditions', sectionName: 'Conditions & alerts', routes: [], color: CONFIG.INCIDENT_COLOR, truth: 'live 511', needsKey: !capabilities?.traffic, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false, zoomable: false, overlay: true },
-    { key: 'roadwork', name: 'Work zones & construction projects', initial: '!', section: 'conditions', routes: [], color: CONFIG.ROADWORK_COLOR, truth: 'WZDx lines · CT construction projects', needsKey: !capabilities?.roadwork, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false },
+    { key: 'roadwork', name: 'Work zones & construction projects', initial: '!', section: 'conditions', routes: [], color: CONFIG.ROADWORK_COLOR, truth: 'WZDx lines · CT construction projects · CTroads lane closures', needsKey: !capabilities?.roadwork, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false },
     { key: 'incident', name: 'Traffic incidents', initial: '!', section: 'conditions', routes: [], color: CONFIG.INCIDENT_COLOR, truth: 'live 511', needsKey: !capabilities?.roadEvents, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false },
     { key: 'camera', name: 'Public traffic cameras', initial: '◉', section: 'conditions', routes: [], color: CONFIG.CAMERA_COLOR, truth: 'live / viewer', needsKey: !capabilities?.cameras, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false },
+    { key: 'road-weather', name: 'Road weather stations', initial: 'RW', section: 'conditions', routes: [], color: CONFIG.ROAD_WEATHER_COLOR, darkText: true, truth: 'live', needsKey: !capabilities?.roadWeather, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false },
+    { key: 'message-sign', name: 'Highway message signs', initial: 'MS', section: 'conditions', routes: [], color: CONFIG.MESSAGE_SIGN_COLOR, darkText: true, truth: 'live', needsKey: !capabilities?.messageSigns, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false },
+    { key: 'plow', name: 'Snowplows', initial: 'SP', section: 'conditions', routes: [], color: CONFIG.PLOW_COLOR, truth: 'live + reference', countAsVehicle: false },
     { key: 'weather', name: 'Weather alerts (NWS)', initial: '⚠', section: 'conditions', routes: [], color: CONFIG.WEATHER_COLORS.moderate, darkText: true, truth: 'live', needsKey: !capabilities?.weatherAlerts, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false },
     { key: 'roads', name: 'Major roadways', initial: 'R', section: 'infrastructure', sectionName: 'Movement infrastructure', routes: [], color: CONFIG.ROAD_COLOR, truth: 'reference', countAsVehicle: false },
     { key: 'freight', name: 'Freight rail network', initial: 'FR', section: 'infrastructure', routes: [], color: CONFIG.FREIGHT_COLOR, truth: 'FRA reference', countAsVehicle: false },
     { key: 'border', name: 'Canada border crossings', initial: 'CB', section: 'infrastructure', routes: [], color: CONFIG.BORDER_COLOR, darkText: true, truth: 'CBSA reference', countAsVehicle: false },
     { key: 'heritage-rail', name: 'Heritage & scenic railroads', initial: 'HR', section: 'infrastructure', routes: [], color: CONFIG.HERITAGE_RAIL_COLOR, truth: 'operator reference', countAsVehicle: false },
+    { key: 'aerialway', name: 'Ski lifts, gondolas & tramways', initial: 'AW', section: 'infrastructure', routes: [], color: CONFIG.AERIALWAY_COLOR, truth: 'OSM reference', countAsVehicle: false },
     { key: 'park-ride', name: 'Park & ride lots', initial: 'PR', section: 'infrastructure', routes: [], color: CONFIG.PARK_RIDE_COLOR, darkText: true, truth: 'state DOT reference', countAsVehicle: false },
     { key: 'ev-charging', name: 'Public EV charging', initial: 'EV', section: 'infrastructure', routes: [], color: CONFIG.EV_CHARGING_COLOR, darkText: true, truth: 'AFDC reference', countAsVehicle: false },
     { key: 'drawbridge', name: 'Drawbridges & movable bridges', initial: 'DB', section: 'infrastructure', routes: [], color: CONFIG.DRAWBRIDGE_COLOR, darkText: true, truth: 'USCG reference', countAsVehicle: false },
@@ -120,6 +131,9 @@ function setActivePreset(key) {
 export function applyLayerPreset(preset) {
   const plan = resolvePreset(preset, { region: getRegion(), groups: GROUPS, hasSubway });
   if (!plan) return false;
+  // A preset chooses the layers itself. A drill left in place would keep the
+  // map on the previous layer after the key and the switches had moved on.
+  if (getDrillDown().group) setDrillDown(null);
   if (plan.region && plan.region !== getRegion()) selectRegion(plan.region);
   const region = getRegion();
   if (plan.mode === 'default') {
@@ -223,6 +237,7 @@ export function initPanel(routeInfo, visibleChangeHandler, regionChangeHandler, 
   renderRegionCopy(selectedRegion);
   regionSelect.addEventListener('change', () => {
     setActivePreset(null);
+    if (getDrillDown().group) setDrillDown(null);
     renderRegionCopy(regionSelect.value);
     applyRegionDefaults(regionSelect.value);
     onRegionChange(regionSelect.value);
@@ -271,14 +286,19 @@ export function initPanel(routeInfo, visibleChangeHandler, regionChangeHandler, 
       emitVisible();
     });
 
-    // Clicking the row itself (not the switch) flies the map to wherever this
-    // fleet currently is — and switches the layer on first if it was off.
-    // (Not for area layers like traffic, where "zoom to it" is meaningless.)
+    // Clicking the row itself (not the switch) either drills down into the
+    // group (showing per-route colors) or flies to it. Drillable groups
+    // enter drill-down; non-drillable ones just zoom.
     if (!group.needsKey && group.zoomable !== false) {
       row.classList.add('zoomable');
       row.tabIndex = 0;
-      row.title = `Zoom to ${group.name}`;
       row.setAttribute('role', 'button');
+      if (DRILLABLE_GROUPS.has(group.key)) {
+        row.classList.add('drillable');
+        row.title = `Explore ${group.name} by route`;
+      } else {
+        row.title = `Zoom to ${group.name}`;
+      }
       const zoomHandler = async (e) => {
         if (e.target.closest('.switch') || e.target.closest('a')) return;
         if (!groupState.get(group.key)) {
@@ -288,9 +308,13 @@ export function initPanel(routeInfo, visibleChangeHandler, regionChangeHandler, 
           syncMaster();
           emitVisible();
         }
-        const flew = await focusGroup(group.key, group.routes);
-        if (flew && window.matchMedia('(max-width: 760px)').matches) {
-          setPanelOpen(false);
+        if (DRILLABLE_GROUPS.has(group.key)) {
+          enterDrillDown(group);
+        } else {
+          const flew = await focusGroup(group.key, group.routes);
+          if (flew && window.matchMedia('(max-width: 760px)').matches) {
+            setPanelOpen(false);
+          }
         }
       };
       row.addEventListener('click', zoomHandler);
@@ -350,6 +374,13 @@ export function initPanel(routeInfo, visibleChangeHandler, regionChangeHandler, 
   setInterval(renderStatus, 1000);
   renderRegionAvailability(selectedRegion);
   emitVisible();
+  // The map publishes the open drill (from a layer row or the map key). Draw
+  // the route list in the panel from that, so both controls stay in step.
+  effect(() => {
+    const state = drillLegend.value;
+    if (!state) closeDrillPanel();
+    else paintDrillPanel(state);
+  });
 }
 
 function renderBasemapOptions() {
@@ -514,6 +545,9 @@ function renderCounts() {
     if (secondary) {
       cell.innerHTML = `${live ? `<strong>${live} live</strong>` : ''}<small>${secondary}</small>`;
       cell.title = `${live ?? 0} live vehicle${live === 1 ? '' : 's'} · ${secondary}`;
+    } else if (references && live) {
+      cell.innerHTML = `<strong>${live} live</strong><small>${references} mapped</small>`;
+      cell.title = `${live} live · ${references} mapped reference features`;
     } else if (references) {
       cell.innerHTML = `<strong>${references}</strong><small>mapped</small>`;
       cell.title = `${references} mapped reference feature${references === 1 ? '' : 's'}`;
@@ -669,6 +703,83 @@ export function renderAlerts(alerts) {
   }
 }
 
+// ---- drill-down -----------------------------------------------------------
+
+function enterDrillDown(group) {
+  setDrillDown(group.key);
+}
+
+function paintDrillPanel(state) {
+  const group = GROUPS.find((item) => item.key === state.group);
+  const container = el('drill-down');
+  if (!container || !group) return;
+  const title = state.operatorLabel
+    ? `${state.operatorLabel} · ${state.vehicles} vehicles`
+    : `${group.name} · ${state.vehicles} vehicles`;
+
+  container.innerHTML = '';
+  const header = document.createElement('button');
+  header.type = 'button';
+  header.className = 'drill-header';
+  const back = document.createElement('span');
+  back.className = 'drill-back';
+  back.setAttribute('aria-hidden', 'true');
+  back.textContent = '←';
+  const bullet = document.createElement('span');
+  bullet.className = 'bullet';
+  bullet.style.background = group.color ?? '#39424c';
+  bullet.textContent = group.initial;
+  const titleEl = document.createElement('span');
+  titleEl.className = 'drill-title';
+  titleEl.textContent = title;
+  header.append(back, bullet, titleEl);
+  header.addEventListener('click', () => setDrillDown(null));
+  container.appendChild(header);
+
+  for (const route of state.rows) {
+    const row = document.createElement('div');
+    row.className = 'line-row drill-route zoomable';
+    if (state.route && state.route !== route.key) row.classList.add('dimmed');
+    row.style.setProperty('--line-color', route.color);
+    const mark = document.createElement('span');
+    mark.className = 'bullet';
+    mark.style.background = route.color;
+    mark.textContent = route.label.charAt(0);
+    const nameWrap = document.createElement('span');
+    nameWrap.className = 'line-name';
+    const label = document.createElement('span');
+    label.className = 'line-label';
+    label.textContent = route.label;
+    nameWrap.appendChild(label);
+    const countEl = document.createElement('span');
+    countEl.className = 'count';
+    countEl.textContent = String(route.live);
+    row.append(mark, nameWrap, countEl);
+    row.title = `Filter to ${route.label}`;
+    row.addEventListener('click', () => {
+      setDrillDown(state.group, state.route === route.key ? null : route.key);
+    });
+    container.appendChild(row);
+  }
+
+  el('subway-master')?.closest('.master-row')?.classList.add('drill-hidden');
+  el('layer-rows').classList.add('drill-hidden');
+  el('modal-rows').classList.add('drill-hidden');
+  for (const heading of document.querySelectorAll('.layer-subhead, .modal-divider')) heading.classList.add('drill-hidden');
+  container.hidden = false;
+}
+
+function closeDrillPanel() {
+  const container = el('drill-down');
+  if (!container) return;
+  container.hidden = true;
+  container.innerHTML = '';
+  el('subway-master')?.closest('.master-row')?.classList.remove('drill-hidden');
+  el('layer-rows')?.classList.remove('drill-hidden');
+  el('modal-rows')?.classList.remove('drill-hidden');
+  for (const heading of document.querySelectorAll('.layer-subhead, .modal-divider')) heading.classList.remove('drill-hidden');
+}
+
 // ---- overlay --------------------------------------------------------------
 
 // A message shows in the loading overlay; null lifts it. Counts arriving never
@@ -691,6 +802,6 @@ export function fatal(err) {
   overlay.classList.remove('hidden');
   overlay.classList.add('fatal');
   el('overlay-text').textContent =
-    `Couldn't reach the MBTA feed (${err.message}). Check your connection and reload.`;
+    `Motion couldn't start (${err.message}). Check your connection and reload.`;
   updateStatus('error', {});
 }

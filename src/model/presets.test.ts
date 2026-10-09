@@ -49,9 +49,21 @@ describe('resolvePreset', () => {
 
   it('resolves to no groups when every group needs the gateway', () => {
     const gated = allGroups.map((g) =>
-      (['traffic', 'incident', 'roadwork', 'camera', 'weather'].includes(g.key) ? { ...g, needsKey: true } : g));
+      (['traffic', 'incident', 'roadwork', 'camera', 'road-weather', 'message-sign', 'weather'].includes(g.key) ? { ...g, needsKey: true } : g));
     const plan = resolvePreset('roads', { region: 'ma', groups: gated, hasSubway: subwayRegion });
-    expect(plan?.groups).toEqual([]);
+    // Plow routes are a static file, so the Roads preset still has them.
+    expect(plan?.groups).toEqual(['plow']);
+  });
+});
+
+describe('park & ride stays a reference layer', () => {
+  it('does not turn on with the Buses or Roads show filters', () => {
+    const buses = resolvePreset('buses', { region: 'ma', groups: allGroups, hasSubway: subwayRegion });
+    expect(buses?.groups).toEqual(['bus', 'local', 'taxi']);
+    expect(buses?.groups).not.toContain('park-ride');
+    const roads = resolvePreset('roads', { region: 'ma', groups: allGroups, hasSubway: subwayRegion });
+    expect(roads?.groups).not.toContain('park-ride');
+    expect(GROUP_KEYS).toContain('park-ride');
   });
 });
 

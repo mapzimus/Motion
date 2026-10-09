@@ -4,9 +4,13 @@
 import * as maplibregl from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { CONFIG } from '../feeds/config.js';
+import { withCartoKey } from '../feeds/carto.js';
 import { AIRPORT_STATUS_LABELS } from '../model/legendConfig.js';
 import { lookupFlightRoute } from '../feeds/flight-routes.js';
 import { ageText } from '../feeds/age.js';
+import { assignRouteColors, clearRouteColors, drillKey, drillLabel } from '../model/routePalette.js';
+import { recolorAllFleets } from '../feeds/fleet.js';
+import { displayVehicleColors, restoreVehicleColors, setDrillLegend } from '../stores/legend.ts';
 import { attachStopPredictions } from '../feeds/predictions.js';
 import {
   DEFAULT_REGION,
@@ -20,18 +24,20 @@ import {
   maxZoomForRegion,
   setActiveRegion,
 } from '../feeds/regions.js';
-import { buildRouteKeyIndex, stampRouteColors } from '../model/routeColors.js';
+import { buildRouteKeyIndex, stampRouteColors, stationShadeKey } from '../model/routeColors.js';
 import {
   setRouteKeyIndex,
   paletteAssignment,
+  routeCountFor,
   setLiveKeyCounts,
   setLegendZoom,
   setViewportRoutes,
   wantsViewportRoutes,
 } from '../stores/legend.js';
 import { countLiveKeys, viewportRoutesFromFeatures, VIEWPORT_ZOOM } from '../model/legendRows.js';
-import { PALETTE, VESSEL_BANDS } from '../model/palette.js';
+import { PALETTE, VESSEL_BANDS, groundFill, lightPaint } from '../model/palette.js';
 import { GLYPHS, iconName, parseIconName } from './glyphs.js';
+import { resolveBasemapStyle } from './basemap.js';
 
 const EMPTY_FC = { type: 'FeatureCollection', features: [] };
 
@@ -43,14 +49,18 @@ maplibregl.setWorkerUrl(workerUrl);
 // zoomed in. Subway and Amtrak carry no opColor and keep their baked color.
 const ROUTE_COLOR_EXPR = [
   'interpolate', ['linear'], ['zoom'],
-  12.5, ['coalesce', ['get', 'opColor'], ['get', 'color']],
-  13.5, ['coalesce', ['get', 'routeColor'], ['get', 'color']],
+  12.5, ['coalesce', ['get', 'mapOpColor'], ['get', 'mapColor'], ['get', 'opColor'], ['get', 'color']],
+  13.5, ['coalesce', ['get', 'mapRouteColor'], ['get', 'mapColor'], ['get', 'routeColor'], ['get', 'color']],
+];
+const ROUTE_LINE_WIDTH = [
+  'interpolate', ['linear'], ['zoom'],
+  10, ['match', ['get', 'group'], 'bus', 0.7, 'air-service', 0.8, 1.8],
+  15, ['match', ['get', 'group'], 'bus', 2.2, 'air-service', 2.2, 4.5],
 ];
 const ROUTE_COLOR_LAYERS = {
   'route-halo': 'line-color',
   'route-lines': 'line-color',
   'scheduled-station-halo': 'circle-color',
-  'scheduled-stations': 'circle-color',
   'scheduled-ferry-stops': 'circle-color',
   'scheduled-bus-stops': 'circle-color',
 };
@@ -58,19 +68,29 @@ const ROUTE_COLOR_LAYERS = {
 /** Re-assert the route color expression (a basemap swap rebuilds the layers). */
 export function applyRoutePalette() {
   if (!map || !layersReady) return;
+  const ground = activeGround();
   for (const [layerId, prop] of Object.entries(ROUTE_COLOR_LAYERS)) {
-    if (map.getLayer(layerId)) map.setPaintProperty(layerId, prop, ROUTE_COLOR_EXPR);
+    if (!map.getLayer(layerId)) continue;
+    // Light and imagery replace the same-color blur with a casing. A palette
+    // refresh must not put that blur back.
+    if (layerId === 'route-halo' && ground !== 'dark') {
+      map.setPaintProperty(layerId, 'line-color', routeHaloPaint(ground)['line-color']);
+      continue;
+    }
+    map.setPaintProperty(layerId, prop, ROUTE_COLOR_EXPR);
   }
 }
 
 // Draw order, bottom to top: bike docks under boats under trains under planes.
-const FLEETS = ['bike', 'vessel', 'amtrak', 'regional', 'mnr', 'mbta', 'plane'];
+const FLEETS = ['bike', 'vessel', 'amtrak', 'regional', 'mnr', 'mbta', 'coaches', 'plane'];
 
 // The visual language: SHAPE says what kind of vehicle it is, COLOR says whose
-// service it is. Rail keeps the classic dot + heading chevron; every other
-// mode gets its own silhouette so it reads at first glance.
-const RAIL_GROUPS = ['red', 'orange', 'green', 'blue', 'silver', 'mattapan', 'commuter', 'amtrak'];
-const ICON_GROUPS = ['bus', 'ferry', 'plane', 'vessel', 'bike'];
+// service it is. Subway, commuter rail and Amtrak are a rail silhouette; the
+// Silver Line is a bus, so it wears the bus silhouette. Stations are a quiet
+// square under those vehicles. Bus stops are a faint dot, quieter still.
+const TRAIN_GROUPS = ['red', 'orange', 'green', 'blue', 'mattapan', 'commuter', 'amtrak'];
+const RAIL_GROUPS = [...TRAIN_GROUPS, 'silver'];
+const ICON_GROUPS = ['bus', 'ferry', 'plane', 'vessel', 'bike', 'silver', ...TRAIN_GROUPS];
 // Sprite color for a vehicle that arrives without one; drawn on first use by
 // the missing-image resolver like any other icon-<shape>-<hex6> sprite.
 const FALLBACK_ICON_COLOR = '#8a939c';
@@ -79,15 +99,24 @@ const ICON_SHAPE_EXPR = [
   'match', ['get', 'group'],
   'plane', ['match', ['get', 'planeKind'], 'light', 'plane-light', 'heli', 'plane-heli', 'other', 'plane-other', 'plane'],
   'bus', 'bus',
+  'silver', 'bus',
   'ferry', 'boat',
   'vessel', 'boat',
+  TRAIN_GROUPS, 'train',
   ['match', ['get', 'markerKind'], 'scooter', 'share-scooter', 'bicycle', 'share-bike', 'dock'],
 ];
-// Live rail dots: operator color zoomed out, route shade zoomed in.
-const VEHICLE_COLOR_EXPR = [
-  'interpolate', ['linear'], ['zoom'],
-  12.5, ['get', 'color'],
-  13.5, ['coalesce', ['get', 'routeColor'], ['get', 'color']],
+// Operator color zoomed out, route shade zoomed in. Shared by vehicle sprites
+// and the quieter station square.
+const spriteHex = (colorExpr) => ['slice', ['coalesce', colorExpr, FALLBACK_ICON_COLOR], 1];
+const ZOOM_SPRITE_EXPR = (shapeExpr) => [
+  'step', ['zoom'],
+  ['concat', 'icon-', shapeExpr, '-', spriteHex(['coalesce', ['get', 'mapOpColor'], ['get', 'mapColor'], ['get', 'color']])],
+  13.5, ['concat', 'icon-', shapeExpr, '-', spriteHex(['coalesce', ['get', 'mapRouteColor'], ['get', 'mapColor'], ['get', 'routeColor'], ['get', 'color']])],
+];
+const STATION_ICON_EXPR = [
+  'step', ['zoom'],
+  ['concat', 'icon-station-', spriteHex(['coalesce', ['get', 'mapOpColor'], ['get', 'mapColor'], ['get', 'opColor'], ['get', 'color']])],
+  13.5, ['concat', 'icon-station-', spriteHex(['coalesce', ['get', 'mapRouteColor'], ['get', 'mapColor'], ['get', 'routeColor'], ['get', 'color']])],
 ];
 const STOP_POINT_LAYERS = ['scheduled-stations', 'scheduled-ferry-stops', 'scheduled-bus-stops'];
 const AIRPORT_LAYERS = ['airport-public-points', 'airport-private-points', 'airport-public-marks', 'airport-private-marks', 'airport-labels'];
@@ -105,6 +134,18 @@ let allRoadEventsFC = EMPTY_FC;
 let roadEventsFC = EMPTY_FC;
 let allCamerasFC = EMPTY_FC;
 let camerasFC = EMPTY_FC;
+let allRoadWeatherFC = EMPTY_FC;
+let roadWeatherFC = EMPTY_FC;
+let allMessageSignsFC = EMPTY_FC;
+let messageSignsFC = EMPTY_FC;
+let allPlowsFC = EMPTY_FC;
+let plowsFC = EMPTY_FC;
+let allPlowRoutesFC = EMPTY_FC;
+let plowRoutesFC = EMPTY_FC;
+let plowRoutesPromise = null;
+let allAerialwaysFC = EMPTY_FC;
+let aerialwaysFC = EMPTY_FC;
+let aerialwaysPromise = null;
 let allInfrastructureFC = EMPTY_FC;
 let infrastructureFC = EMPTY_FC;
 let allLocalServicesFC = EMPTY_FC;
@@ -157,6 +198,71 @@ let activeBasemap = null;
 
 const basemapByKey = (key) => CONFIG.BASEMAPS.find((basemap) => basemap.key === key);
 
+function activeGround() {
+  return basemapByKey(getBasemap())?.ground || 'dark';
+}
+
+// Dark keeps the soft same-color halo. Light uses a dark casing. Imagery uses
+// a dark casing only about a pixel wider than the color, and only partly
+// opaque, so a bus ribbon does not turn into a gray road.
+// Zoom may only be the input of a top-level interpolate, so the casing extra
+// is added inside each stop rather than wrapped around ROUTE_LINE_WIDTH.
+function routeCasingWidth(extra) {
+  const at = (bus, air, rail) => ['match', ['get', 'group'], 'bus', bus + extra, 'air-service', air + extra, rail + extra];
+  return ['interpolate', ['linear'], ['zoom'], 10, at(0.7, 0.8, 1.8), 15, at(2.2, 2.2, 4.5)];
+}
+
+function routeHaloPaint(ground) {
+  if (ground === 'imagery') {
+    return {
+      'line-color': '#1c2128',
+      'line-width': routeCasingWidth(1.5),
+      'line-opacity': 0.4,
+      'line-blur': 0,
+    };
+  }
+  if (ground === 'light') {
+    return {
+      'line-color': '#1c2128',
+      'line-width': routeCasingWidth(2.2),
+      'line-opacity': 0.85,
+      'line-blur': 0,
+    };
+  }
+  return {
+    'line-color': ROUTE_COLOR_EXPR,
+    'line-width': ['interpolate', ['linear'], ['zoom'], 10, 6, 15, 14],
+    'line-opacity': 0.18,
+    'line-blur': 4,
+  };
+}
+
+function textPaint(ground, color, haloWidth, halo = '#10151b') {
+  if (ground === 'light') {
+    return { 'text-color': '#1c2128', 'text-halo-color': '#f4f6f8', 'text-halo-width': haloWidth };
+  }
+  return { 'text-color': color, 'text-halo-color': halo, 'text-halo-width': haloWidth };
+}
+
+// Light-ground fills live on map* so the legend can keep the bright identity
+// color. Dark and imagery leave those properties unset.
+function applyGroundColors(properties, routeId, routeCount) {
+  if (!properties) return;
+  if (activeGround() !== 'light') {
+    delete properties.mapColor;
+    delete properties.mapOpColor;
+    delete properties.mapRouteColor;
+    return;
+  }
+  const paint = lightPaint(properties.color, properties.opColor, properties.routeColor, String(routeId ?? ''), routeCount || 0);
+  if (paint.mapColor) properties.mapColor = paint.mapColor;
+  else delete properties.mapColor;
+  if (paint.mapOpColor) properties.mapOpColor = paint.mapOpColor;
+  else delete properties.mapOpColor;
+  if (paint.mapRouteColor) properties.mapRouteColor = paint.mapRouteColor;
+  else delete properties.mapRouteColor;
+}
+
 function initialBasemap() {
   const requested = new URLSearchParams(window.location.search).get('basemap');
   let saved = null;
@@ -189,10 +295,18 @@ export function setBasemap(key) {
   history.replaceState(null, '', url);
   if (!map) return;
   layersReady = false;
-  map.once('style.load', onStyleReady);
+  const requested = key;
   // diff: false forces a full reload; a diffed swap strips our layers
-  // without ever firing style.load.
-  map.setStyle(basemap.style, { diff: false });
+  // without ever firing style.load. The listener is attached only once the
+  // style document is in hand, so a slow satellite fetch cannot be overwritten
+  // by an earlier click.
+  resolveBasemapStyle(basemap).then((style) => {
+    if (!map || activeBasemap !== requested) return;
+    map.once('style.load', onStyleReady);
+    map.setStyle(style, { diff: false });
+  }).catch(() => {
+    if (activeBasemap === requested) layersReady = true;
+  });
 }
 
 function onStyleReady() {
@@ -203,16 +317,24 @@ function onStyleReady() {
   applyRegion(false);
 }
 
-export function initMap() {
+export async function initMap() {
+  let basemap = basemapByKey(getBasemap());
+  let style = await resolveBasemapStyle(basemap);
+  // A click during the satellite fetch should win over the style we started with.
+  while (basemapByKey(getBasemap()) !== basemap) {
+    basemap = basemapByKey(getBasemap());
+    style = await resolveBasemapStyle(basemap);
+  }
   map = new maplibregl.Map({
     container: 'map',
-    style: basemapByKey(getBasemap()).style,
+    style,
     center: CONFIG.MAP_CENTER,
     zoom: CONFIG.MAP_ZOOM,
     minZoom: 5,
     maxZoom: 17.5,
     maxBounds: CONFIG.MAP_BOUNDS,
     attributionControl: false,
+    transformRequest: (url) => ({ url: withCartoKey(url) }),
     // v6 defaults this to 4, which changes vector-tile slicing and
     // queryRenderedFeatures. undefined keeps the 4.x overscale behavior the
     // legend's viewport route list depends on.
@@ -247,35 +369,58 @@ export function initMap() {
   });
 }
 
-// White chevron pointing north; MapLibre rotates it per-feature by bearing.
-function chevronImage(size = 48) {
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = size;
-  const ctx = canvas.getContext('2d');
-  ctx.beginPath();
-  ctx.moveTo(size * 0.5, size * 0.06);
-  ctx.lineTo(size * 0.84, size * 0.64);
-  ctx.lineTo(size * 0.5, size * 0.48);
-  ctx.lineTo(size * 0.16, size * 0.64);
-  ctx.closePath();
-  ctx.fillStyle = '#ffffff';
-  ctx.fill();
-  return ctx.getImageData(0, 0, size, size);
+// Shapes point north; MapLibre rotates vehicle sprites by live bearing.
+// Stations are a quiet square with a dark edge, not the vehicle highlight.
+
+function strokeVehicle(ctx, ground) {
+  ctx.lineJoin = 'round';
+  if (ground === 'imagery') {
+    ctx.strokeStyle = '#1c2128';
+    ctx.lineWidth = 8;
+    ctx.stroke();
+    ctx.strokeStyle = '#f4f6f8';
+    ctx.lineWidth = 4.5;
+    ctx.stroke();
+    return;
+  }
+  ctx.strokeStyle = ground === 'light' ? '#1c2128' : '#f4f6f8';
+  ctx.lineWidth = 4.5;
+  ctx.stroke();
 }
 
-// ---- mode icon sprites -----------------------------------------------------
-// Pre-rendered filled silhouettes wearing the same white outline as the rail
-// dots. Shapes point north; MapLibre rotates them by live bearing.
+function strokeStation(ctx, ground) {
+  ctx.lineJoin = 'miter';
+  if (ground === 'imagery') {
+    ctx.strokeStyle = '#1c2128';
+    ctx.lineWidth = 8.5;
+    ctx.stroke();
+    ctx.strokeStyle = '#f4f6f8';
+    ctx.lineWidth = 5;
+    ctx.stroke();
+    return;
+  }
+  ctx.strokeStyle = ground === 'light' ? '#1c2128' : '#10151b';
+  ctx.lineWidth = 5;
+  ctx.stroke();
+}
 
 function makeIcon(fill, draw, size = 64) {
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = size;
   const ctx = canvas.getContext('2d');
   draw(ctx, size);
-  ctx.lineJoin = 'round';
-  ctx.strokeStyle = '#f4f6f8';
-  ctx.lineWidth = 4.5;
-  ctx.stroke();
+  strokeVehicle(ctx, activeGround());
+  ctx.fillStyle = fill;
+  ctx.fill();
+  return ctx.getImageData(0, 0, size, size);
+}
+
+function makeStationIcon(fill, size = 64) {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  GLYPHS.station(ctx, size);
+  strokeStation(ctx, activeGround());
   ctx.fillStyle = fill;
   ctx.fill();
   return ctx.getImageData(0, 0, size, size);
@@ -287,31 +432,42 @@ function facilityIcon(glyph, size = 64) {
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = size;
   const ctx = canvas.getContext('2d');
-  glyph(ctx, size / 64);
+  glyph(ctx, size / 64, activeGround());
   return ctx.getImageData(0, 0, size, size);
 }
 
-function heliportGlyph(ctx, u) {
+function heliportGlyph(ctx, u, ground) {
+  const disc = ground === 'light' ? groundFill(CONFIG.AIRPORT_COLOR, 'light') : CONFIG.AIRPORT_COLOR;
   ctx.beginPath();
   ctx.arc(32 * u, 32 * u, 24 * u, 0, Math.PI * 2);
-  ctx.fillStyle = CONFIG.AIRPORT_COLOR;
+  ctx.fillStyle = disc;
   ctx.fill();
-  ctx.lineWidth = 4 * u;
-  ctx.strokeStyle = '#f4f6f8';
-  ctx.stroke();
-  ctx.fillStyle = '#10151b';
+  if (ground === 'imagery') {
+    ctx.lineWidth = 6 * u;
+    ctx.strokeStyle = '#1c2128';
+    ctx.stroke();
+    ctx.lineWidth = 3.2 * u;
+    ctx.strokeStyle = '#f4f6f8';
+    ctx.stroke();
+  } else {
+    ctx.lineWidth = 4 * u;
+    ctx.strokeStyle = ground === 'light' ? '#1c2128' : '#f4f6f8';
+    ctx.stroke();
+  }
+  ctx.fillStyle = ground === 'light' ? '#f4f6f8' : '#10151b';
   ctx.fillRect(21 * u, 18 * u, 7 * u, 28 * u);
   ctx.fillRect(36 * u, 18 * u, 7 * u, 28 * u);
   ctx.fillRect(21 * u, 29 * u, 22 * u, 6 * u);
 }
 
-function seaplaneGlyph(ctx, u) {
+function seaplaneGlyph(ctx, u, ground) {
+  const ring = ground === 'light' ? groundFill(CONFIG.AIRPORT_COLOR, 'light') : CONFIG.AIRPORT_COLOR;
   ctx.beginPath();
   ctx.arc(32 * u, 32 * u, 23 * u, 0, Math.PI * 2);
   ctx.fillStyle = '#10151b';
   ctx.fill();
   ctx.lineWidth = 7 * u;
-  ctx.strokeStyle = CONFIG.AIRPORT_COLOR;
+  ctx.strokeStyle = ring;
   ctx.stroke();
   ctx.beginPath();
   ctx.moveTo(17 * u, 33 * u);
@@ -335,13 +491,22 @@ const planeIconSize = (airliner) => [
 // drawn up front; route shades and overflow colors are drawn on first use by
 // the missing-image resolver.
 function registerModeIcons() {
+  const paintOf = (color) => (activeGround() === 'light' ? groundFill(color, 'light') : color);
   const bikeColors = CONFIG.SHARED_MOBILITY_SYSTEMS.map((system) => system.color).filter(Boolean);
+  const railColors = [
+    '#da291c', '#ed8b00', '#003da5', '#00843d', '#7c878e',
+    CONFIG.AMTRAK_COLOR, CONFIG.COMMUTER_COLOR, CONFIG.MNR_COLOR,
+    '#80276c', '#0070c0',
+    ...PALETTE,
+  ];
   const preset = {
     plane: [CONFIG.PLANE_COLOR],
     'plane-light': [CONFIG.PLANE_COLOR],
     'plane-heli': [CONFIG.PLANE_COLOR],
     'plane-other': [CONFIG.PLANE_COLOR],
-    bus: [CONFIG.BUS_COLOR, ...PALETTE],
+    bus: [CONFIG.BUS_COLOR, '#7c878e', ...PALETTE],
+    train: railColors,
+    station: railColors,
     boat: [CONFIG.FERRY_COLOR, ...PALETTE, ...VESSEL_BANDS.map((band) => band.color)],
     dock: [CONFIG.BIKE_COLOR, CONFIG.BIKE_LOW_COLOR, CONFIG.BIKE_EMPTY_COLOR, ...bikeColors],
     'share-bike': [CONFIG.BIKE_FREE_COLOR, ...bikeColors],
@@ -349,7 +514,9 @@ function registerModeIcons() {
   };
   for (const [shape, colors] of Object.entries(preset)) {
     for (const color of new Set(colors)) {
-      addImageOnce(iconName(shape, color), makeIcon(color, GLYPHS[shape]));
+      const painted = paintOf(color);
+      const image = shape === 'station' ? makeStationIcon(painted) : makeIcon(painted, GLYPHS[shape]);
+      addImageOnce(iconName(shape, painted), image);
     }
   }
   addImageOnce('icon-heliport', facilityIcon(heliportGlyph));
@@ -359,7 +526,10 @@ function registerModeIcons() {
 function drawMissingIcon(id) {
   const sprite = parseIconName(id);
   if (!sprite || map.hasImage(id)) return;
-  map.addImage(id, makeIcon(sprite.color, GLYPHS[sprite.shape]), { pixelRatio: 2 });
+  const image = sprite.shape === 'station'
+    ? makeStationIcon(sprite.color)
+    : makeIcon(sprite.color, GLYPHS[sprite.shape]);
+  map.addImage(id, image, { pixelRatio: 2 });
 }
 
 // setStyle() can carry images over from the previous style; re-adding one
@@ -370,8 +540,13 @@ function addImageOnce(name, image) {
 }
 
 function setupLayers() {
-  addImageOnce('nav-chevron', chevronImage());
+  const ground = activeGround();
   registerModeIcons();
+  // Context grays go darker on Positron and stay faint, so they do not match
+  // its roads and do not read as a vehicle.
+  const context = ground === 'light'
+    ? { fill: '#5c656e', line: '#4a5560', lineOpacity: 0.4, road: '#4a5560', roadOpacity: 0.5, roadHalo: 0.1 }
+    : { fill: '#9aa3ad', line: '#c6ccd3', lineOpacity: 0.45, road: CONFIG.ROAD_COLOR, roadOpacity: 0.7, roadHalo: 0.14 };
 
   // Live congestion raster under everything else we draw. The gateway uses
   // the public New England 511 speed service when no optional TomTom key is
@@ -413,7 +588,7 @@ function setupLayers() {
     type: 'fill',
     source: 'region-boundary',
     paint: {
-      'fill-color': '#9aa3ad',
+      'fill-color': context.fill,
       'fill-opacity': 0.025,
     },
   });
@@ -422,8 +597,8 @@ function setupLayers() {
     type: 'line',
     source: 'region-boundary',
     paint: {
-      'line-color': '#c6ccd3',
-      'line-opacity': 0.45,
+      'line-color': context.line,
+      'line-opacity': context.lineOpacity,
       'line-width': ['interpolate', ['linear'], ['zoom'], 5, 0.8, 12, 1.8],
       'line-dasharray': [3, 2],
     },
@@ -437,9 +612,9 @@ function setupLayers() {
     filter: ['==', ['get', 'group'], 'roads'],
     layout: { visibility: 'none', 'line-cap': 'round', 'line-join': 'round' },
     paint: {
-      'line-color': CONFIG.ROAD_COLOR,
+      'line-color': context.road,
       'line-width': ['interpolate', ['linear'], ['zoom'], 5, 2.5, 13, 8],
-      'line-opacity': 0.14,
+      'line-opacity': context.roadHalo,
       'line-blur': 2,
     },
   });
@@ -450,9 +625,9 @@ function setupLayers() {
     filter: ['==', ['get', 'group'], 'roads'],
     layout: { visibility: 'none', 'line-cap': 'round', 'line-join': 'round' },
     paint: {
-      'line-color': CONFIG.ROAD_COLOR,
+      'line-color': context.road,
       'line-width': ['interpolate', ['linear'], ['zoom'], 5, 0.7, 13, 2.5],
-      'line-opacity': 0.7,
+      'line-opacity': context.roadOpacity,
     },
   });
   map.addLayer({
@@ -477,7 +652,7 @@ function setupLayers() {
     paint: {
       'circle-color': ['get', 'color'],
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 3.5, 12, 7],
-      'circle-stroke-color': '#f4f6f8',
+      'circle-stroke-color': ground === 'light' ? '#1c2128' : '#f4f6f8',
       'circle-stroke-width': 1.2,
       'circle-opacity': 0.9,
     },
@@ -513,11 +688,7 @@ function setupLayers() {
       'text-offset': [0, 1.3],
       'text-allow-overlap': false,
     },
-    paint: {
-      'text-color': CONFIG.BIKESHARE_REF_COLOR,
-      'text-halo-color': '#10151b',
-      'text-halo-width': 1.5,
-    },
+    paint: textPaint(ground, CONFIG.BIKESHARE_REF_COLOR, 1.5),
   });
 
   // Airports (and the rare ultralight field or balloonport) are circles;
@@ -530,9 +701,9 @@ function setupLayers() {
     filter: ['all', ['==', ['get', 'facilityUse'], 'public'], AIRPORT_CIRCLE_FILTER],
     layout: { visibility: 'none' },
     paint: {
-      'circle-color': CONFIG.AIRPORT_COLOR,
+      'circle-color': ground === 'light' ? groundFill(CONFIG.AIRPORT_COLOR, 'light') : CONFIG.AIRPORT_COLOR,
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 2.5, 12, 6.5],
-      'circle-stroke-color': '#f4f6f8',
+      'circle-stroke-color': ground === 'light' ? '#1c2128' : '#f4f6f8',
       'circle-stroke-width': 1.1,
       'circle-opacity': 0.85,
     },
@@ -585,11 +756,7 @@ function setupLayers() {
       'text-offset': [0, 1.1],
       'text-allow-overlap': false,
     },
-    paint: {
-      'text-color': CONFIG.AIRPORT_COLOR,
-      'text-halo-color': '#10151b',
-      'text-halo-width': 1.5,
-    },
+    paint: textPaint(ground, CONFIG.AIRPORT_COLOR, 1.5),
   });
 
   map.addSource('border-crossings', { type: 'geojson', data: EMPTY_FC });
@@ -618,11 +785,7 @@ function setupLayers() {
       'text-offset': [0, 1.2],
       'text-allow-overlap': false,
     },
-    paint: {
-      'text-color': CONFIG.BORDER_COLOR,
-      'text-halo-color': '#10151b',
-      'text-halo-width': 1.5,
-    },
+    paint: textPaint(ground, CONFIG.BORDER_COLOR, 1.5),
   });
 
   map.addSource('reference-places', { type: 'geojson', data: EMPTY_FC });
@@ -652,11 +815,7 @@ function setupLayers() {
       'text-size': 10,
       'text-max-angle': 30,
     },
-    paint: {
-      'text-color': CONFIG.HERITAGE_RAIL_COLOR,
-      'text-halo-color': '#10151b',
-      'text-halo-width': 1.5,
-    },
+    paint: textPaint(ground, CONFIG.HERITAGE_RAIL_COLOR, 1.5),
   });
   map.addLayer({
     id: 'park-ride-points',
@@ -711,7 +870,7 @@ function setupLayers() {
         10, ['case', ['get', 'fastCharge'], 4, 2.5],
         14, ['case', ['get', 'fastCharge'], 7, 4.5],
       ],
-      'circle-stroke-color': ['case', ['get', 'fastCharge'], '#f4f6f8', '#151a21'],
+      'circle-stroke-color': ['case', ['get', 'fastCharge'], ground === 'light' ? '#1c2128' : '#f4f6f8', '#151a21'],
       'circle-stroke-width': 1.2,
       'circle-opacity': ['interpolate', ['linear'], ['zoom'], 9, 0, 10, 0.88],
       'circle-stroke-opacity': ['interpolate', ['linear'], ['zoom'], 9, 0, 10, 1],
@@ -744,11 +903,7 @@ function setupLayers() {
       'text-offset': [0, 1.3],
       'text-allow-overlap': false,
     },
-    paint: {
-      'text-color': CONFIG.DRAWBRIDGE_COLOR,
-      'text-halo-color': '#10151b',
-      'text-halo-width': 1.5,
-    },
+    paint: textPaint(ground, CONFIG.DRAWBRIDGE_COLOR, 1.5),
   });
   // Taxi and cab services are a directory: companies sit on their garage or
   // city point, stands (smaller dots) on the curb where cabs queue.
@@ -783,11 +938,7 @@ function setupLayers() {
       'text-offset': [0, 1.2],
       'text-allow-overlap': false,
     },
-    paint: {
-      'text-color': CONFIG.TAXI_COLOR,
-      'text-halo-color': '#10151b',
-      'text-halo-width': 1.5,
-    },
+    paint: textPaint(ground, CONFIG.TAXI_COLOR, 1.5),
   });
 
   map.addSource('road-events', { type: 'geojson', data: EMPTY_FC });
@@ -798,10 +949,95 @@ function setupLayers() {
     paint: {
       'circle-color': CONFIG.INCIDENT_COLOR,
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 6, 4.5, 13, 9],
-      'circle-stroke-color': '#fff',
+      'circle-stroke-color': ground === 'light' ? '#1c2128' : '#fff',
       'circle-stroke-width': 1.5,
       'circle-opacity': 0.92,
     },
+  });
+
+  map.addSource('road-weather', { type: 'geojson', data: EMPTY_FC });
+  map.addLayer({
+    id: 'road-weather-points',
+    type: 'circle',
+    source: 'road-weather',
+    layout: { visibility: 'none' },
+    paint: {
+      'circle-color': CONFIG.ROAD_WEATHER_COLOR,
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 6, 3.2, 13, 6.5],
+      'circle-stroke-color': '#151a21',
+      'circle-stroke-width': 1.4,
+      'circle-opacity': 0.92,
+    },
+  });
+
+  map.addSource('message-signs', { type: 'geojson', data: EMPTY_FC });
+  map.addLayer({
+    id: 'message-sign-points',
+    type: 'circle',
+    source: 'message-signs',
+    layout: { visibility: 'none' },
+    paint: {
+      'circle-color': '#151a21',
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 6, 3, 13, 6],
+      'circle-stroke-color': CONFIG.MESSAGE_SIGN_COLOR,
+      'circle-stroke-width': 1.8,
+      'circle-opacity': 0.92,
+    },
+  });
+
+  map.addSource('plows', { type: 'geojson', data: EMPTY_FC });
+  map.addLayer({
+    id: 'plow-points',
+    type: 'circle',
+    source: 'plows',
+    layout: { visibility: 'none' },
+    paint: {
+      'circle-color': CONFIG.PLOW_COLOR,
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 6, 4, 13, 8],
+      'circle-stroke-color': '#151a21',
+      'circle-stroke-width': 1.6,
+      'circle-opacity': 0.95,
+    },
+  });
+
+  map.addSource('plow-routes', { type: 'geojson', data: EMPTY_FC });
+  map.addLayer({
+    id: 'plow-route-lines',
+    type: 'line',
+    source: 'plow-routes',
+    layout: { visibility: 'none', 'line-cap': 'round', 'line-join': 'round' },
+    paint: {
+      'line-color': CONFIG.PLOW_COLOR,
+      'line-width': ['interpolate', ['linear'], ['zoom'], 6, 0.6, 12, 2.2],
+      'line-opacity': 0.55,
+    },
+  });
+
+  map.addSource('aerialways', { type: 'geojson', data: EMPTY_FC });
+  map.addLayer({
+    id: 'aerialway-lines',
+    type: 'line',
+    source: 'aerialways',
+    layout: { visibility: 'none', 'line-cap': 'round', 'line-join': 'round' },
+    paint: {
+      'line-color': CONFIG.AERIALWAY_COLOR,
+      'line-width': ['interpolate', ['linear'], ['zoom'], 8, 1.2, 14, 3.5],
+      'line-opacity': 0.9,
+    },
+  });
+  map.addLayer({
+    id: 'aerialway-labels',
+    type: 'symbol',
+    source: 'aerialways',
+    minzoom: 12,
+    layout: {
+      visibility: 'none',
+      'text-field': ['get', 'title'],
+      'text-size': 11,
+      'symbol-placement': 'line',
+      'text-allow-overlap': false,
+    },
+    paint: textPaint(ground, CONFIG.AERIALWAY_COLOR, 1.4),
   });
 
   map.addSource('cameras', { type: 'geojson', data: EMPTY_FC });
@@ -872,6 +1108,20 @@ function setupLayers() {
       'line-dasharray': [2, 1],
     },
   });
+  map.addLayer({
+    id: 'roadwork-points',
+    type: 'circle',
+    source: 'roadwork',
+    filter: ['==', ['geometry-type'], 'Point'],
+    layout: { visibility: 'none' },
+    paint: {
+      'circle-color': '#151a21',
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 6, 3.5, 13, 7],
+      'circle-stroke-color': ['get', 'color'],
+      'circle-stroke-width': 2,
+      'circle-opacity': 0.95,
+    },
+  });
 
   map.addSource('route-shapes', { type: 'geojson', data: EMPTY_FC });
 
@@ -880,12 +1130,7 @@ function setupLayers() {
     type: 'line',
     source: 'route-shapes',
     layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: {
-      'line-color': ROUTE_COLOR_EXPR,
-      'line-width': ['interpolate', ['linear'], ['zoom'], 10, 6, 15, 14],
-      'line-opacity': 0.18,
-      'line-blur': 4,
-    },
+    paint: routeHaloPaint(ground),
   });
   map.addLayer({
     id: 'route-lines',
@@ -896,11 +1141,7 @@ function setupLayers() {
       'line-color': ROUTE_COLOR_EXPR,
       // Dense bus ribbons and straight-line air-service references stay subtle
       // so they inform without burying rail and water routes.
-      'line-width': [
-        'interpolate', ['linear'], ['zoom'],
-        10, ['match', ['get', 'group'], 'bus', 0.7, 'air-service', 0.8, 1.8],
-        15, ['match', ['get', 'group'], 'bus', 2.2, 'air-service', 2.2, 4.5],
-      ],
+      'line-width': ROUTE_LINE_WIDTH,
       'line-opacity': ['match', ['get', 'group'], 'bus', 0.45, 'air-service', 0.42, 0.9],
     },
   });
@@ -915,28 +1156,27 @@ function setupLayers() {
     ],
     paint: {
       'circle-color': ROUTE_COLOR_EXPR,
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 5.5, 10, 9, 14, 14],
-      'circle-opacity': 0.16,
-      'circle-blur': 0.55,
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 3.2, 10, 5, 14, 7.5],
+      'circle-opacity': 0.1,
+      'circle-blur': 0.65,
     },
   });
   map.addLayer({
     id: 'scheduled-stations',
-    type: 'circle',
+    type: 'symbol',
     source: 'route-shapes',
     filter: [
       'all',
       ['==', ['get', 'kind'], 'regional-station'],
       ['in', ['get', 'group'], ['literal', RAIL_GROUPS]],
     ],
-    paint: {
-      'circle-color': ROUTE_COLOR_EXPR,
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 3.2, 10, 5.4, 14, 8],
-      'circle-stroke-color': '#f4f6f8',
-      'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 5, 0.7, 14, 1.8],
-      'circle-opacity': 0.9,
-      'circle-stroke-opacity': 0.9,
+    layout: {
+      'icon-image': STATION_ICON_EXPR,
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 7, 0.46, 14, 0.72],
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true,
     },
+    paint: { 'icon-opacity': 0.68 },
   });
   map.addLayer({
     id: 'scheduled-station-labels',
@@ -957,11 +1197,7 @@ function setupLayers() {
       'text-max-width': 12,
       'text-allow-overlap': false,
     },
-    paint: {
-      'text-color': '#e8eaed',
-      'text-halo-color': '#0b0f14',
-      'text-halo-width': 1.6,
-    },
+    paint: textPaint(ground, '#e8eaed', 1.6, '#0b0f14'),
   });
   map.addLayer({
     id: 'scheduled-station-labels-close',
@@ -981,11 +1217,7 @@ function setupLayers() {
       'text-max-width': 12,
       'text-allow-overlap': true,
     },
-    paint: {
-      'text-color': '#f4f6f8',
-      'text-halo-color': '#0b0f14',
-      'text-halo-width': 1.8,
-    },
+    paint: textPaint(ground, '#f4f6f8', 1.8, '#0b0f14'),
   });
   map.addLayer({
     id: 'scheduled-ferry-stops',
@@ -1000,7 +1232,7 @@ function setupLayers() {
     paint: {
       'circle-color': ROUTE_COLOR_EXPR,
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 8.5, 2.5, 14, 5],
-      'circle-stroke-color': '#f4f6f8',
+      'circle-stroke-color': ground === 'light' ? '#1c2128' : '#f4f6f8',
       'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 8.5, 0.7, 14, 1.3],
       'circle-opacity': 0.88,
     },
@@ -1024,11 +1256,7 @@ function setupLayers() {
       'text-allow-overlap': false,
       'text-optional': true,
     },
-    paint: {
-      'text-color': '#bdeef3',
-      'text-halo-color': '#0b0f14',
-      'text-halo-width': 1.4,
-    },
+    paint: textPaint(ground, '#bdeef3', 1.4, '#0b0f14'),
   });
   map.addLayer({
     id: 'scheduled-bus-stops',
@@ -1041,11 +1269,13 @@ function setupLayers() {
       ['==', ['get', 'group'], 'bus'],
     ],
     paint: {
+      // A small soft dot: lighter than a station square, and not a bus or train.
       'circle-color': ROUTE_COLOR_EXPR,
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 12.5, 1.2, 16, 2.6],
-      'circle-stroke-color': '#10151c',
-      'circle-stroke-width': 0.55,
-      'circle-opacity': ['interpolate', ['linear'], ['zoom'], 12.5, 0.42, 15, 0.78],
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 12.5, 1.7, 16, 2.7],
+      'circle-opacity': ['interpolate', ['linear'], ['zoom'], 12.5, 0.34, 16, 0.5],
+      'circle-stroke-color': ground === 'light' ? '#f4f6f8' : '#10151b',
+      'circle-stroke-width': 0.6,
+      'circle-stroke-opacity': ['interpolate', ['linear'], ['zoom'], 12.5, 0.35, 16, 0.5],
     },
   });
   map.addLayer({
@@ -1067,11 +1297,7 @@ function setupLayers() {
       'text-allow-overlap': false,
       'text-optional': true,
     },
-    paint: {
-      'text-color': 'rgba(231, 222, 186, 0.82)',
-      'text-halo-color': 'rgba(11, 15, 20, 0.94)',
-      'text-halo-width': 1.1,
-    },
+    paint: textPaint(ground, 'rgba(231, 222, 186, 0.82)', 1.1, 'rgba(11, 15, 20, 0.94)'),
   });
 
   for (const fleetId of FLEETS) {
@@ -1095,55 +1321,16 @@ function setupLayers() {
       });
     }
     map.addLayer({
-      id: `veh-${fleetId}-dots`,
-      type: 'circle',
-      source: `veh-${fleetId}`,
-      filter: ['in', ['get', 'group'], ['literal', RAIL_GROUPS]],
-      paint: {
-        'circle-color': VEHICLE_COLOR_EXPR,
-        'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 3.5, 12, 6, 15, 10],
-        'circle-stroke-color': '#f4f6f8',
-        'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 9, 1, 15, 2],
-        'circle-opacity': ['case', ['get', 'stale'], 0.35, 1],
-        'circle-stroke-opacity': ['case', ['get', 'stale'], 0.35, 1],
-      },
-    });
-    map.addLayer({
-      id: `veh-${fleetId}-arrows`,
-      type: 'symbol',
-      source: `veh-${fleetId}`,
-      filter: [
-        'all',
-        ['in', ['get', 'group'], ['literal', RAIL_GROUPS]],
-        ['==', ['get', 'hasBearing'], true],
-      ],
-      layout: {
-        'icon-image': 'nav-chevron',
-        'icon-size': ['interpolate', ['linear'], ['zoom'], 9, 0.3, 15, 0.65],
-        'icon-rotate': ['get', 'bearing'],
-        'icon-rotation-alignment': 'map',
-        'icon-allow-overlap': true,
-        'icon-ignore-placement': true,
-        // Sits just ahead of the dot; the offset rotates with the bearing.
-        'icon-offset': [0, -36],
-      },
-      paint: { 'icon-opacity': ['case', ['get', 'stale'], 0.3, 0.95] },
-    });
-    map.addLayer({
       id: `veh-${fleetId}-icons`,
       type: 'symbol',
       source: `veh-${fleetId}`,
       filter: ['in', ['get', 'group'], ['literal', ICON_GROUPS]],
       layout: {
-        'icon-image': [
-          'step', ['zoom'],
-          ['concat', 'icon-', ICON_SHAPE_EXPR, '-', ['slice', ['coalesce', ['get', 'color'], FALLBACK_ICON_COLOR], 1]],
-          13.5, ['concat', 'icon-', ICON_SHAPE_EXPR, '-', ['slice', ['coalesce', ['get', 'routeColor'], ['get', 'color'], FALLBACK_ICON_COLOR], 1]],
-        ],
+        'icon-image': ZOOM_SPRITE_EXPR(ICON_SHAPE_EXPR),
         'icon-size': [
           'interpolate', ['linear'], ['zoom'],
-          9, ['match', ['get', 'group'], 'plane', planeIconSize(0.38), 'bike', 0.2, 0.3],
-          15, ['match', ['get', 'group'], 'plane', planeIconSize(0.8), 'bike', 0.5, 0.7],
+          9, ['match', ['get', 'group'], 'plane', planeIconSize(0.38), 'bike', 0.2, TRAIN_GROUPS, 0.46, 0.3],
+          15, ['match', ['get', 'group'], 'plane', planeIconSize(0.8), 'bike', 0.5, TRAIN_GROUPS, 0.95, 0.7],
         ],
         'icon-rotate': ['case', ['get', 'hasBearing'], ['get', 'bearing'], 0],
         'icon-rotation-alignment': 'map',
@@ -1155,8 +1342,8 @@ function setupLayers() {
   }
   // Operational point layers remain clickable above route ribbons and dense
   // infrastructure without covering moving vehicle symbols.
-  for (const layerId of ['local-service-points', 'bikeshare-points', 'camera-points', 'incident-points']) {
-    map.moveLayer(layerId, 'veh-bike-dots');
+  for (const layerId of ['local-service-points', 'bikeshare-points', 'camera-points', 'incident-points', 'road-weather-points', 'message-sign-points', 'plow-points', 'roadwork-points']) {
+    map.moveLayer(layerId, 'veh-bike-icons');
   }
   setupConditionLayers();
   setupSelectedLayers();
@@ -1189,7 +1376,7 @@ function setupSelectedLayers() {
     paint: {
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 6, 12, 8, 15, 11],
       'circle-color': ['get', 'color'],
-      'circle-stroke-color': '#ffffff',
+      'circle-stroke-color': activeGround() === 'light' ? '#1c2128' : '#ffffff',
       'circle-stroke-width': 3,
       'circle-opacity': ['case', ['get', 'stale'], 0.55, 1],
     },
@@ -1273,7 +1460,7 @@ function setupConditionLayers() {
       'circle-opacity': 0.16,
       'circle-blur': 0.6,
     },
-  }, 'veh-bike-dots');
+  }, 'veh-bike-icons');
   map.addLayer({
     id: 'airport-status-rings',
     type: 'circle',
@@ -1287,7 +1474,7 @@ function setupConditionLayers() {
       'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 5, 2, 12, 3.5],
       'circle-stroke-opacity': 0.95,
     },
-  }, 'veh-bike-dots');
+  }, 'veh-bike-icons');
   map.addLayer({
     id: 'airport-status-labels',
     type: 'symbol',
@@ -1301,11 +1488,11 @@ function setupConditionLayers() {
       'text-allow-overlap': true,
     },
     paint: {
-      'text-color': ['get', 'color'],
-      'text-halo-color': '#10151b',
+      'text-color': activeGround() === 'light' ? '#1c2128' : ['get', 'color'],
+      'text-halo-color': activeGround() === 'light' ? '#f4f6f8' : '#10151b',
       'text-halo-width': 1.6,
     },
-  }, 'veh-bike-dots');
+  }, 'veh-bike-icons');
   setupAviationLayers();
 }
 
@@ -1386,8 +1573,8 @@ function setupAviationLayers() {
       'text-max-angle': 30,
     },
     paint: {
-      'text-color': airspaceColor(),
-      'text-halo-color': '#10151b',
+      'text-color': activeGround() === 'light' ? '#1c2128' : airspaceColor(),
+      'text-halo-color': activeGround() === 'light' ? '#f4f6f8' : '#10151b',
       'text-halo-width': 1.5,
     },
   }, 'major-roads-halo');
@@ -1425,7 +1612,7 @@ function setupAviationLayers() {
       'circle-stroke-width': 1.5,
       'circle-opacity': 0.95,
     },
-  }, 'veh-bike-dots');
+  }, 'veh-bike-icons');
   map.addLayer({
     id: 'airport-weather-labels',
     type: 'symbol',
@@ -1440,11 +1627,11 @@ function setupAviationLayers() {
       'text-allow-overlap': false,
     },
     paint: {
-      'text-color': flightCategoryColor(),
-      'text-halo-color': '#10151b',
+      'text-color': activeGround() === 'light' ? '#1c2128' : flightCategoryColor(),
+      'text-halo-color': activeGround() === 'light' ? '#f4f6f8' : '#10151b',
       'text-halo-width': 1.5,
     },
-  }, 'veh-bike-dots');
+  }, 'veh-bike-icons');
 }
 
 // `label` prefixes the age, e.g. vessels read "Last heard 2 h 5 min ago".
@@ -1464,11 +1651,7 @@ const esc = (s) =>
   );
 
 function wirePopups() {
-  for (const fleetId of FLEETS) {
-    for (const layerId of [`veh-${fleetId}-dots`, `veh-${fleetId}-icons`]) {
-      wirePopupLayer(layerId, fleetId);
-    }
-  }
+  for (const fleetId of FLEETS) wirePopupLayer(`veh-${fleetId}-icons`, fleetId);
   wireRoutePopups();
   for (const layerId of STOP_POINT_LAYERS) wireInformationPopup(layerId);
   wireRoadworkPopups();
@@ -1488,6 +1671,11 @@ function wirePopups() {
   wireInformationPopup('drawbridge-points');
   wireInformationPopup('taxi-points');
   wireCameraPopups();
+  wireRoadDetailPopups('road-weather-points');
+  wireRoadDetailPopups('message-sign-points');
+  wireInformationPopup('plow-points');
+  wireInformationPopup('plow-route-lines');
+  wireInformationPopup('aerialway-lines');
   wireConditionPopups();
 }
 
@@ -1843,6 +2031,45 @@ function wireCameraPopups() {
   map.on('mouseleave', 'camera-points', () => { map.getCanvas().style.cursor = ''; });
 }
 
+function wireRoadDetailPopups(layerId) {
+  map.on('click', layerId, (event) => {
+    const feature = event.features[0];
+    const p = feature.properties;
+    const popup = new maplibregl.Popup({ offset: 12, maxWidth: '330px' })
+      .setLngLat(feature.geometry.coordinates)
+      .setHTML(informationPopupHtml(p, p.providerKey ? '<div class="popup-route-note">Loading the latest report…</div>' : ''))
+      .addTo(map);
+    if (!p.providerKey || !p.itemId || !p.catalog || !CONFIG.GATEWAY_BASE) return;
+    const query = new URLSearchParams({ catalog: p.catalog, provider: p.providerKey, id: p.itemId });
+    fetch(`${CONFIG.GATEWAY_BASE}/api/road-detail?${query}`, {
+      signal: AbortSignal.timeout(10_000),
+    })
+      .then((response) => {
+        if (!response.ok) throw new Error(`road detail ${response.status}`);
+        return response.json();
+      })
+      .then((detail) => {
+        if (!popup.isOpen()) return;
+        popup.setHTML(informationPopupHtml({
+          ...p,
+          title: detail.title || p.title,
+          status: detail.status || p.status,
+          details: detail.details || p.details,
+          provider: detail.provider || p.provider,
+          sourceUrl: detail.sourceUrl || p.sourceUrl,
+          updatedAt: detail.updatedAt || p.updatedAt,
+        }));
+      })
+      .catch(() => {
+        if (popup.isOpen()) {
+          popup.setHTML(informationPopupHtml(p, '<div class="popup-route-note">Latest report unavailable.</div>'));
+        }
+      });
+  });
+  map.on('mouseenter', layerId, () => { map.getCanvas().style.cursor = 'pointer'; });
+  map.on('mouseleave', layerId, () => { map.getCanvas().style.cursor = ''; });
+}
+
 // Only bike-share docks still open this popup: every other vehicle click is
 // taken by follow mode, whose trip card shows a plane's scheduled route.
 function wirePopupLayer(layerId, fleetId) {
@@ -1945,6 +2172,14 @@ function roadworkPopupHtml(p) {
       <div class="popup-meta"><span class="popup-data-status reference">reference</span> · ${esc(p.provider ?? 'CTDOT construction projects')}</div>
       ${sourceLink}`;
   }
+  if (p.kind === 'lane-closure') {
+    return `
+      <div class="popup-title" style="color:${esc(p.color)}">${esc(p.title)}</div>
+      <div class="popup-dest">Lane closure</div>
+      ${p.details ? `<div class="popup-status popup-details">${esc(p.details)}</div>` : ''}
+      <div class="popup-meta"><span class="popup-data-status live">live</span> · ${esc(p.provider ?? 'CTroads lane closures')} · ${relativeAge(p.updatedAt)}</div>
+      ${sourceLink}`;
+  }
   const timing = [readableTime(p.startAt), readableTime(p.endAt)].filter(Boolean).join(' – ');
   return `
     <div class="popup-title" style="color:${esc(p.color)}">${esc(p.title)}</div>
@@ -1958,7 +2193,7 @@ function roadworkPopupHtml(p) {
 }
 
 function wireRoadworkPopups() {
-  for (const layerId of ['roadwork-lines', 'roadwork-areas']) {
+  for (const layerId of ['roadwork-lines', 'roadwork-areas', 'roadwork-points']) {
     map.on('click', layerId, (event) => {
       const p = event.features[0].properties;
       new maplibregl.Popup({ offset: 10, maxWidth: '310px' })
@@ -1994,6 +2229,11 @@ function colorRouteFeatures(features) {
   const index = buildRouteKeyIndex(features);
   setRouteKeyIndex(index);
   stampRouteColors(features, paletteAssignment.peek(), index);
+  for (const { properties: p } of features) {
+    const routeId = p.kind === 'regional-station' ? stationShadeKey(p.routeIds?.[0]) : p.route;
+    const count = index.get(p.group)?.get(p.legendKey)?.routes ?? 0;
+    applyGroundColors(p, routeId, count);
+  }
 }
 
 export function setRoadworkData(featureCollection) {
@@ -2036,6 +2276,96 @@ export function cameraCountForRegion() {
 function renderCameras() {
   camerasFC = filterSpatialFeatureCollection(allCamerasFC, activeRegion);
   map?.getSource('cameras')?.setData(camerasFC);
+}
+
+export function setRoadWeatherData(featureCollection) {
+  allRoadWeatherFC = featureCollection?.features ? featureCollection : EMPTY_FC;
+  renderRoadWeather();
+}
+
+export function roadWeatherCountForRegion() {
+  return filterSpatialFeatureCollection(allRoadWeatherFC, activeRegion).features.length;
+}
+
+function renderRoadWeather() {
+  roadWeatherFC = filterSpatialFeatureCollection(allRoadWeatherFC, activeRegion);
+  map?.getSource('road-weather')?.setData(roadWeatherFC);
+}
+
+export function setMessageSignData(featureCollection) {
+  allMessageSignsFC = featureCollection?.features ? featureCollection : EMPTY_FC;
+  renderMessageSigns();
+}
+
+export function messageSignCountForRegion() {
+  return filterSpatialFeatureCollection(allMessageSignsFC, activeRegion).features.length;
+}
+
+function renderMessageSigns() {
+  messageSignsFC = filterSpatialFeatureCollection(allMessageSignsFC, activeRegion);
+  map?.getSource('message-signs')?.setData(messageSignsFC);
+}
+
+export function setPlowData(featureCollection) {
+  allPlowsFC = featureCollection?.features ? featureCollection : EMPTY_FC;
+  renderPlows();
+}
+
+export function plowCountForRegion() {
+  return filterSpatialFeatureCollection(allPlowsFC, activeRegion).features.length;
+}
+
+function renderPlows() {
+  plowsFC = filterSpatialFeatureCollection(allPlowsFC, activeRegion);
+  map?.getSource('plows')?.setData(plowsFC);
+}
+
+function renderPlowRoutes() {
+  plowRoutesFC = filterSpatialFeatureCollection(allPlowRoutesFC, activeRegion);
+  map?.getSource('plow-routes')?.setData(plowRoutesFC);
+}
+
+async function ensurePlowRoutes() {
+  if (plowRoutesPromise) return plowRoutesPromise;
+  plowRoutesPromise = fetch(CONFIG.PLOW_ROUTES_URL)
+    .then((response) => {
+      if (!response.ok) throw new Error(`plow routes ${response.status}`);
+      return response.json();
+    })
+    .then((collection) => {
+      allPlowRoutesFC = collection?.features ? collection : EMPTY_FC;
+      renderPlowRoutes();
+      notifyReferenceData();
+    })
+    .catch((error) => {
+      plowRoutesPromise = null;
+      console.warn('Plow routes unavailable:', error);
+    });
+  return plowRoutesPromise;
+}
+
+function renderAerialways() {
+  aerialwaysFC = filterSpatialFeatureCollection(allAerialwaysFC, activeRegion);
+  map?.getSource('aerialways')?.setData(aerialwaysFC);
+}
+
+async function ensureAerialways() {
+  if (aerialwaysPromise) return aerialwaysPromise;
+  aerialwaysPromise = fetch(CONFIG.AERIALWAYS_URL)
+    .then((response) => {
+      if (!response.ok) throw new Error(`aerialways ${response.status}`);
+      return response.json();
+    })
+    .then((collection) => {
+      allAerialwaysFC = collection?.features ? collection : EMPTY_FC;
+      renderAerialways();
+      notifyReferenceData();
+    })
+    .catch((error) => {
+      aerialwaysPromise = null;
+      console.warn('Aerialway reference unavailable:', error);
+    });
+  return aerialwaysPromise;
 }
 
 // ---- conditions data -------------------------------------------------------
@@ -2387,6 +2717,8 @@ export function referenceCountsForRegion() {
     }
   }
   if (airspaceFC.features.length) counts.airspace = airspaceFC.features.length;
+  if (plowRoutesFC.features.length) counts.plow = plowRoutesFC.features.length;
+  if (aerialwaysFC.features.length) counts.aerialway = aerialwaysFC.features.length;
   return counts;
 }
 
@@ -2405,6 +2737,14 @@ const fleetFilterOptions = fleetBoundaryOptions;
 function renderFleetData(fleetId) {
   const collection = rawFleetData.get(fleetId) ?? EMPTY_FC;
   const filtered = filterFeatureCollection(collection, activeRegion, fleetFilterOptions(fleetId));
+  const light = activeGround() === 'light';
+  for (const feature of filtered.features) {
+    const props = feature.properties;
+    if (!props) continue;
+    if (!light && props.mapColor == null && props.mapOpColor == null && props.mapRouteColor == null) continue;
+    const count = light && props.group && props.legendKey ? routeCountFor(props.group, props.legendKey) : 0;
+    applyGroundColors(props, light ? (props.shadeKey || props.route || '') : '', count);
+  }
   fleetData.set(fleetId, filtered);
   map?.getSource(`veh-${fleetId}`)?.setData(filtered);
   scheduleLiveKeyCounts();
@@ -2433,7 +2773,7 @@ function scheduleViewportRoutes() {
     viewportTimer = null;
     // Zoomed out, collapsed, or no route group on: the legend shows no route list.
     if (!layersReady || map.getZoom() < VIEWPORT_ZOOM || !wantsViewportRoutes()) return;
-    const layers = ['route-lines', ...FLEETS.flatMap((id) => [`veh-${id}-icons`, `veh-${id}-dots`])]
+    const layers = ['route-lines', ...FLEETS.map((id) => `veh-${id}-icons`)]
       .filter((id) => map.getLayer(id));
     setViewportRoutes(viewportRoutesFromFeatures(map.queryRenderedFeatures({ layers })));
   }, LEGEND_THROTTLE_MS);
@@ -2460,6 +2800,35 @@ let pendingFilters = null;
 let layersReady = false;
 let activeRegion = DEFAULT_REGION;
 
+// Drill-down: when set, the map shows only one group's vehicles colored by
+// individual route. drillRoute further narrows to a single route within that group.
+// drillOperator narrows a multi-operator group (a row in the map key) first.
+let drillGroup = null;
+let drillRoute = null;
+let drillOperator = null;
+let drillOperatorLabel = null;
+let drillRouteColorMap = null;
+// Camera from just before the drill. Restored with easeTo so panel padding
+// does not zoom the view out on the way back.
+let preDrillView = null;
+
+function drillFeatures(group, operator) {
+  const items = [];
+  for (const collection of fleetData.values()) {
+    for (const feature of collection?.features ?? []) {
+      const props = feature?.properties;
+      if (!props || props.group !== group) continue;
+      if (operator && props.legendKey !== operator) continue;
+      items.push(feature);
+    }
+  }
+  return items;
+}
+
+function finiteCoord(coord) {
+  return Array.isArray(coord) && Number.isFinite(coord[0]) && Number.isFinite(coord[1]);
+}
+
 export function setVisibleGroups(groups, statuses = ['live', 'estimated', 'scheduled', 'reference']) {
   pendingFilters = { groups, statuses };
   if (groups.some((group) => ['roads', 'freight', 'local', 'bikeshare', 'airport', 'border', 'airport-status'].includes(group))) {
@@ -2469,7 +2838,114 @@ export function setVisibleGroups(groups, statuses = ['live', 'estimated', 'sched
     ensureReferencePlaces();
   }
   if (groups.includes('airspace')) ensureAirspace();
+  if (groups.includes('plow')) ensurePlowRoutes();
+  if (groups.includes('aerialway')) ensureAerialways();
   if (layersReady) applyGroupFilter(groups, statuses);
+}
+
+/**
+ * @param {string | null} group
+ * @param {string | null} [route]
+ * @param {string | null} [operator]
+ * @param {string | null} [operatorLabel]
+ */
+export function setDrillDown(group, route = null, operator = undefined, operatorLabel = undefined) {
+  const entering = Boolean(group) && !drillGroup;
+  if (entering && map) {
+    try {
+      preDrillView = { center: map.getCenter(), zoom: map.getZoom() };
+    } catch {
+      preDrillView = null;
+    }
+  }
+  if (group && group === drillGroup) {
+    if (operator === undefined) operator = drillOperator;
+    if (operatorLabel === undefined) operatorLabel = drillOperatorLabel;
+  } else if (!group) {
+    operator = null;
+    operatorLabel = null;
+  } else {
+    if (operator === undefined) operator = null;
+    if (operatorLabel === undefined) operatorLabel = null;
+  }
+  drillGroup = group;
+  drillRoute = route;
+  drillOperator = operator;
+  drillOperatorLabel = operatorLabel;
+  if (group) {
+    const features = drillFeatures(group, operator);
+    drillRouteColorMap = assignRouteColors(features, group, operator);
+    recolorAllFleets(displayVehicleColors);
+    const counts = new Map();
+    const labels = new Map();
+    for (const feature of features) {
+      const key = drillKey(feature);
+      if (!key) continue;
+      counts.set(key, (counts.get(key) || 0) + 1);
+      if (!labels.has(key)) labels.set(key, drillLabel(feature));
+    }
+    const rows = [...counts.entries()]
+      .sort((a, b) => b[1] - a[1] || String(labels.get(a[0])).localeCompare(String(labels.get(b[0]))))
+      .map(([key, live]) => ({
+        key,
+        label: labels.get(key) || key,
+        color: drillRouteColorMap.get(key) || '#888888',
+        live,
+      }));
+    setDrillLegend({
+      group,
+      route,
+      operator,
+      operatorLabel,
+      vehicles: features.length,
+      rows,
+    });
+    if (map) frameDrill(features, route);
+  } else {
+    drillRouteColorMap = null;
+    clearRouteColors();
+    recolorAllFleets(restoreVehicleColors);
+    setDrillLegend(null);
+    if (preDrillView && map) {
+      map.easeTo({ center: preDrillView.center, zoom: preDrillView.zoom, duration: 600 });
+      preDrillView = null;
+    }
+  }
+  if (pendingFilters && layersReady) applyGroupFilter(pendingFilters.groups, pendingFilters.statuses);
+}
+
+function frameDrill(features, route) {
+  const coords = [];
+  for (const feature of features) {
+    if (route && drillKey(feature) !== route && feature.properties?.route !== route) continue;
+    const coord = feature.geometry?.coordinates;
+    if (finiteCoord(coord)) coords.push(coord);
+  }
+  if (coords.length === 1) {
+    map.easeTo({ center: coords[0], zoom: Math.max(map.getZoom(), 13), duration: 800 });
+    return;
+  }
+  if (coords.length < 2) return;
+  const lngs = coords.map((coord) => coord[0]);
+  const lats = coords.map((coord) => coord[1]);
+  map.fitBounds(
+    [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
+    { padding: fitPadding(), maxZoom: 14, duration: 800 },
+  );
+}
+
+export function getDrillDown() {
+  return {
+    group: drillGroup,
+    route: drillRoute,
+    operator: drillOperator,
+    operatorLabel: drillOperatorLabel,
+    routeColors: drillRouteColorMap,
+  };
+}
+
+export function getDrillDownItems(group) {
+  return drillFeatures(group, drillGroup === group ? drillOperator : null);
 }
 
 export function setRegion(regionKey, { fit = true } = {}) {
@@ -2484,6 +2960,7 @@ export function fleetCountsForRegion() {
     vessel: 'ais',
     amtrak: 'amtrak',
     regional: 'regional',
+    coaches: 'coaches',
     mnr: 'mnr',
     mbta: 'mbta',
     plane: 'planes',
@@ -2507,6 +2984,11 @@ function applyRegion(fit) {
   renderRoadwork();
   renderRoadEvents();
   renderCameras();
+  renderRoadWeather();
+  renderMessageSigns();
+  renderPlows();
+  renderPlowRoutes();
+  renderAerialways();
   renderReferenceData();
   renderWeatherAlerts();
   renderAviationConditions();
@@ -2526,22 +3008,33 @@ function applyRegion(fit) {
 
 function applyGroupFilter(groups, statuses) {
   scheduleViewportRoutes();
-  const visible = ['in', ['get', 'group'], ['literal', groups]];
+  const effectiveGroups = drillGroup ? [drillGroup] : groups;
+  const visible = ['in', ['get', 'group'], ['literal', effectiveGroups]];
   const statusVisible = [
     'in',
     ['coalesce', ['get', 'dataStatus'], 'live'],
     ['literal', statuses],
   ];
-  const visibleByStatus = ['all', visible, statusVisible];
-  const railVisible = ['all', visibleByStatus, ['in', ['get', 'group'], ['literal', RAIL_GROUPS]]];
-  const iconVisible = ['all', visibleByStatus, ['in', ['get', 'group'], ['literal', ICON_GROUPS]]];
+  let visibleByStatus = ['all', visible, statusVisible];
+  if (drillOperator) {
+    visibleByStatus = ['all', visibleByStatus, ['==', ['get', 'legendKey'], drillOperator]];
+  }
+  if (drillRoute) {
+    // Vehicles carry shadeKey (feed:route); ribbons carry the same id on route.
+    visibleByStatus = ['all', visibleByStatus, ['any',
+      ['==', ['get', 'route'], drillRoute],
+      ['==', ['get', 'shadeKey'], drillRoute],
+    ]];
+  }
 
-  // Bus ribbons and conceptual air corridors skip the halo pass.
-  map.setFilter('route-halo', [
-    'all',
-    visibleByStatus,
-    ['!', ['in', ['get', 'group'], ['literal', ['bus', 'air-service']]]],
-  ]);
+  const iconVisible = visibleByStatus;
+
+  // The dark map's soft halo stays off bus ribbons and air corridors. Light and
+  // imagery use this layer as a casing, and those lines need it too.
+  const haloFilter = activeGround() === 'dark'
+    ? ['all', visibleByStatus, ['!', ['in', ['get', 'group'], ['literal', ['bus', 'air-service']]]]]
+    : visibleByStatus;
+  map.setFilter('route-halo', haloFilter);
   map.setFilter('route-lines', visibleByStatus);
   map.setFilter('scheduled-stations', [
     'all',
@@ -2574,12 +3067,6 @@ function applyGroupFilter(groups, statuses) {
     ]);
   }
   for (const fleetId of FLEETS) {
-    map.setFilter(`veh-${fleetId}-dots`, railVisible);
-    map.setFilter(`veh-${fleetId}-arrows`, [
-      'all',
-      railVisible,
-      ['==', ['get', 'hasBearing'], true],
-    ]);
     map.setFilter(`veh-${fleetId}-icons`, iconVisible);
   }
   // The traffic layer is raster tiles, not features — toggle its visibility.
@@ -2590,7 +3077,7 @@ function applyGroupFilter(groups, statuses) {
       groups.includes('traffic') && statuses.includes('live') ? 'visible' : 'none',
     );
   }
-  for (const layerId of ['roadwork-halo', 'roadwork-lines', 'roadwork-areas', 'roadwork-area-outline']) {
+  for (const layerId of ['roadwork-halo', 'roadwork-lines', 'roadwork-areas', 'roadwork-area-outline', 'roadwork-points']) {
     map.setLayoutProperty(
       layerId,
       'visibility',
@@ -2599,12 +3086,17 @@ function applyGroupFilter(groups, statuses) {
   }
   const lineWork = ['all', statusVisible, ['in', ['geometry-type'], ['literal', ['LineString', 'MultiLineString']]]];
   const areaWork = ['all', statusVisible, ['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]]];
+  const pointWork = ['all', statusVisible, ['==', ['geometry-type'], 'Point']];
   map.setFilter('roadwork-lines', lineWork);
   map.setFilter('roadwork-halo', lineWork);
   map.setFilter('roadwork-areas', areaWork);
   map.setFilter('roadwork-area-outline', areaWork);
+  map.setFilter('roadwork-points', pointWork);
   map.setFilter('incident-points', ['all', ['==', ['get', 'group'], 'incident'], statusVisible]);
   map.setFilter('camera-points', ['all', ['==', ['get', 'group'], 'camera'], statusVisible]);
+  map.setFilter('road-weather-points', ['all', ['==', ['get', 'group'], 'road-weather'], statusVisible]);
+  map.setFilter('message-sign-points', ['all', ['==', ['get', 'group'], 'message-sign'], statusVisible]);
+  map.setFilter('plow-points', ['all', ['==', ['get', 'group'], 'plow'], statusVisible]);
   map.setFilter('local-service-points', ['all', ['==', ['get', 'group'], 'local'], statusVisible]);
   for (const layerId of ['bikeshare-points', 'bikeshare-labels']) {
     map.setFilter(layerId, ['all', ['==', ['get', 'group'], 'bikeshare'], statusVisible]);
@@ -2655,6 +3147,12 @@ function applyGroupFilter(groups, statuses) {
   for (const [layerId, group, status] of [
     ['incident-points', 'incident', 'live'],
     ['camera-points', 'camera', 'live'],
+    ['road-weather-points', 'road-weather', 'live'],
+    ['message-sign-points', 'message-sign', 'live'],
+    ['plow-points', 'plow', 'live'],
+    ['plow-route-lines', 'plow', 'reference'],
+    ['aerialway-lines', 'aerialway', 'reference'],
+    ['aerialway-labels', 'aerialway', 'reference'],
     ['local-service-points', 'local', null],
     ['bikeshare-points', 'bikeshare', 'reference'],
     ['bikeshare-labels', 'bikeshare', 'reference'],
@@ -2749,6 +3247,8 @@ export async function focusGroup(groupKey, routeIds = []) {
     await ensureReferencePlaces();
   }
   if (groupKey === 'airspace') await ensureAirspace();
+  if (groupKey === 'plow') await ensurePlowRoutes();
+  if (groupKey === 'aerialway') await ensureAerialways();
   let coords = [...fleetData.values()]
     .flatMap((fc) => fc.features)
     .filter((f) => f.properties.group === groupKey)
@@ -2764,7 +3264,7 @@ export async function focusGroup(groupKey, routeIds = []) {
       .flatMap(lineCoordinates);
   }
   if (!coords.length) {
-    coords = [roadworkFC, roadEventsFC, camerasFC, infrastructureFC, localServicesFC, bikeshareFC, airportsFC, borderCrossingsFC, referencePlacesFC, weatherFC, airportStatusFC]
+    coords = [roadworkFC, roadEventsFC, camerasFC, roadWeatherFC, messageSignsFC, plowsFC, plowRoutesFC, aerialwaysFC, infrastructureFC, localServicesFC, bikeshareFC, airportsFC, borderCrossingsFC, referencePlacesFC, weatherFC, airportStatusFC]
       .flatMap((collection) => collection.features)
       .filter((feature) => feature.properties.group === groupKey)
       .flatMap((feature) => feature.geometry.type === 'Point'

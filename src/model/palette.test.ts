@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CONFIG } from '../feeds/config.js';
 import {
   OFFICIAL_COLORS, PALETTE, PALETTE_DIM, PALETTE_GROUPS, PLANE_BANDS, VESSEL_BANDS,
-  PALETTE_START, assignPalette, hashIndex, paletteColorFor, planeBand, routeShade, vesselBand,
+  PALETTE_START, assignPalette, groundFill, hashIndex, lightPaint, paletteColorFor, planeBand, routeShade, vesselBand,
 } from './palette.js';
 
 const BG = '#0b0f14';
@@ -163,6 +163,55 @@ describe('routeShade', () => {
   it('gives different routes different shades', () => {
     const shades = new Set(['1', '2', '3', '4', '5', '6'].map((id) => routeShade('#4d9fec', id, 6)));
     expect(shades.size).toBeGreaterThan(2);
+  });
+  it('darkens a light-ground shade to 3:1 on pale land and does not lighten it back', () => {
+    const pale = '#e8e4dc';
+    for (const base of ['#f2b84b', '#9be1ff', '#ed8b00', ...PALETTE_DIM]) {
+      for (const id of ['1', '66', 'CT1', 'x']) {
+        const shade = routeShade(base, id, 5, 'light');
+        expect(contrast(shade, pale), `${base} ${id}`).toBeGreaterThanOrEqual(3);
+        expect(lightness(shade), `${base} ${id}`).toBeLessThanOrEqual(lightness(base) + 0.11);
+      }
+    }
+    for (const id of ['1', '66', 'CT1']) {
+      expect(lightness(routeShade('#f2b84b', id, 5, 'light'))).toBeLessThan(lightness('#f2b84b'));
+    }
+    expect(routeShade('#f2b84b', '1', 1, 'light')).toBe('#f2b84b');
+  });
+});
+
+describe('groundFill', () => {
+  const pale = '#e8e4dc';
+  const brands = ['#003da5', '#80276c', '#ee0034', '#0070c0', '#da291c', '#00843d'];
+
+  it('keeps dark and imagery fills, including brands that the light casing carries', () => {
+    for (const color of [...PALETTE, ...brands, '#9be1ff']) {
+      expect(groundFill(color, 'dark')).toBe(color);
+      expect(groundFill(color, 'imagery')).toBe(color);
+    }
+  });
+
+  it('darkens only the fills that miss 3:1 on pale land', () => {
+    for (const color of brands) {
+      expect(contrast(color, pale), color).toBeGreaterThanOrEqual(3);
+      expect(groundFill(color, 'light')).toBe(color);
+    }
+    for (const color of ['#f2b84b', '#ed8b00', '#9be1ff']) {
+      const filled = groundFill(color, 'light');
+      expect(contrast(color, pale), color).toBeLessThan(3);
+      expect(contrast(filled, pale), color).toBeGreaterThanOrEqual(3);
+      expect(lightness(filled)).toBeLessThan(lightness(color));
+    }
+  });
+
+  it('paints a light-ground route without replacing the bright identity color', () => {
+    const paint = lightPaint('#f2b84b', '#f2b84b', '#e0a030', '66', 4);
+    expect(paint.mapColor).not.toBe('#f2b84b');
+    expect(contrast(paint.mapColor!, pale)).toBeGreaterThanOrEqual(3);
+    expect(contrast(paint.mapRouteColor!, pale)).toBeGreaterThanOrEqual(3);
+    expect(paint.mapRouteColor).not.toBe(paint.mapColor);
+    const blue = lightPaint('#003da5', undefined, undefined, '', 0);
+    expect(blue).toEqual({ mapColor: '#003da5', mapRouteColor: '#003da5' });
   });
 });
 
