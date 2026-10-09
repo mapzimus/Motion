@@ -256,6 +256,16 @@ export async function boot(): Promise<void> {
   // The map and live feeds are up; route ribbons fill in behind the lifted overlay.
   setLoading(null);
 
+  const gatewayDown = CONFIG.GATEWAY_BASE && !capabilities.regionalTransit;
+  const aircraftDown = CONFIG.AIRCRAFT_GATEWAY_BASE && capabilities.aircraft === false;
+  if (gatewayDown && aircraftDown) {
+    showToast('Data gateway and aircraft feeds unavailable — some layers may be empty', 8000);
+  } else if (gatewayDown) {
+    showToast('Data gateway unavailable — some layers may be empty', 8000);
+  } else if (aircraftDown) {
+    showToast('Aircraft feed unavailable', 6000);
+  }
+
   // Route ribbons load after polling kicks off; vehicles shouldn't wait on
   // them. Every route gets a ribbon.
   const routeFeatureSets: GeoJSON.Feature[][] = [[], []];

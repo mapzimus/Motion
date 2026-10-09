@@ -291,13 +291,15 @@ export function initPanel(routeInfo, visibleChangeHandler, regionChangeHandler, 
     // enter drill-down; non-drillable ones just zoom.
     if (!group.needsKey && group.zoomable !== false) {
       row.classList.add('zoomable');
+      row.tabIndex = 0;
+      row.setAttribute('role', 'button');
       if (DRILLABLE_GROUPS.has(group.key)) {
         row.classList.add('drillable');
         row.title = `Explore ${group.name} by route`;
       } else {
         row.title = `Zoom to ${group.name}`;
       }
-      row.addEventListener('click', async (e) => {
+      const zoomHandler = async (e) => {
         if (e.target.closest('.switch') || e.target.closest('a')) return;
         if (!groupState.get(group.key)) {
           manualGroupOverrides.add(group.key);
@@ -313,6 +315,13 @@ export function initPanel(routeInfo, visibleChangeHandler, regionChangeHandler, 
           if (flew && window.matchMedia('(max-width: 760px)').matches) {
             setPanelOpen(false);
           }
+        }
+      };
+      row.addEventListener('click', zoomHandler);
+      row.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          zoomHandler(e);
         }
       });
     }
