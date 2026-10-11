@@ -88,93 +88,57 @@
   <a href="#map" class="skip-link">Skip to map</a>
   <div id="map"></div>
 
-  <aside id="panel">
+  <aside id="panel" aria-label="Motion controls">
+    <button type="button" id="sheet-grip" class="sheet-grip" aria-label="Resize the control sheet" aria-expanded="false"><span></span></button>
     <header class="panel-head">
-      <p class="eyebrow" id="region-eyebrow">Live map · New England</p>
-      <h1>Motion</h1>
-      <p class="tagline" id="region-tagline">Transit, ferries, aircraft and road conditions across New England, live. Choose a metro area, region or state.</p>
+      <div class="title-row">
+        <h1>Motion <span class="title-sep" aria-hidden="true">·</span> <span id="region-title" class="title-region">New England</span></h1>
+        <button type="button" id="about-toggle" class="about-toggle" aria-label="About this map" aria-expanded="false" aria-controls="panel-about">i</button>
+      </div>
+      <div id="panel-about" class="panel-about" hidden>
+        <p>Transit, ferries, aircraft and road conditions across New England, live. Choose a metro area, region or state.</p>
+        <p id="region-about"></p>
+        <p>Stop names appear as you zoom in: rail first, then ferry landings, then bus stops.</p>
+      </div>
+      <div class="search-wrap">
+        <input
+          id="search-input"
+          class="search-input"
+          type="search"
+          role="combobox"
+          autocomplete="off"
+          spellcheck="false"
+          placeholder="Train number, route, stop, or town…"
+          aria-label="Search live vehicles, stops, stations, routes, towns, and geographies"
+          aria-autocomplete="list"
+          aria-controls="search-results"
+          aria-expanded="false"
+          aria-haspopup="listbox">
+        <ul id="search-results" class="search-results" role="listbox" aria-label="Search results" hidden></ul>
+      </div>
+      <div id="search-status" class="search-status" aria-live="polite"></div>
+      <div id="vehicle-presets" class="preset-chips mode-chips" role="group" aria-label="Show one kind of movement"></div>
     </header>
 
     <div class="panel-scroll">
-      <section class="panel-section search-section">
-        <label for="search-input"><h2>Find</h2></label>
-        <div class="search-wrap">
-          <input
-            id="search-input"
-            class="search-input"
-            type="search"
-            role="combobox"
-            autocomplete="off"
-            spellcheck="false"
-            placeholder="Train number, route, stop, or town…"
-            aria-label="Search live vehicles, stops, stations, routes, towns, and geographies"
-            aria-autocomplete="list"
-            aria-controls="search-results"
-            aria-expanded="false"
-            aria-haspopup="listbox">
-          <ul id="search-results" class="search-results" role="listbox" aria-label="Search results" hidden></ul>
-        </div>
-        <div id="search-status" class="search-status" aria-live="polite"></div>
-      </section>
-
       <section class="panel-section region-section">
-        <label for="region-select"><h2>Geography</h2></label>
-        <select id="region-select" class="region-select" aria-label="Choose map geography"></select>
-        <p class="region-note">Live points are clipped to Census boundaries.</p>
-        <p id="map-stats" class="stats-line" aria-label="Map coverage statistics" aria-live="polite">
-          <span><strong id="stat-live">0</strong> live</span>
-          <span><strong id="stat-routes">0</strong> routes</span>
-          <span><strong id="stat-stations">0</strong> stops</span>
-          <span><strong id="stat-reference">0</strong> places</span>
-        </p>
+        <div class="section-title-row">
+          <label for="region-select"><h2>Geography</h2></label>
+          <label class="switch-inline" for="live-only">
+            <span>Live only</span>
+            <span class="switch"><input type="checkbox" id="live-only" aria-label="Show only live positions"><span class="knob"></span></span>
+          </label>
+        </div>
+        <select id="region-select" class="region-select" aria-label="Choose map geography or a scene"></select>
         <div class="basemap-row">
           <span class="filter-caption">Basemap</span>
           <div id="basemap-options" class="preset-chips" role="group" aria-label="Basemap"></div>
         </div>
       </section>
 
-      <section class="panel-section">
-        <div class="section-title-row">
-          <h2>Layers</h2>
-          <div class="layer-presets" aria-label="Layer presets">
-            <button type="button" data-layer-preset="default">Default</button>
-            <button type="button" data-layer-preset="routes">Routes</button>
-            <button type="button" data-layer-preset="clear">Clear</button>
-          </div>
-        </div>
-        <div class="preset-rows">
-          <div class="preset-row">
-            <span class="filter-caption">Show</span>
-            <div id="vehicle-presets" class="preset-chips" aria-label="Show one kind of vehicle"></div>
-          </div>
-          <div class="preset-row">
-            <span class="filter-caption">Scenes</span>
-            <div id="scene-presets" class="preset-chips" aria-label="Scenes: a region and its layers in one tap"></div>
-          </div>
-        </div>
-        <div class="data-status-wrap">
-          <div class="filter-caption">Include</div>
-          <div id="data-status-filters" class="data-status-filters" aria-label="Filter by data status">
-            <label><input type="checkbox" value="live" checked><span class="live">Live</span></label>
-            <label><input type="checkbox" value="estimated" checked><span class="estimated">Estimated</span></label>
-            <label><input type="checkbox" value="scheduled" checked><span class="scheduled">Scheduled</span></label>
-            <label><input type="checkbox" value="reference" checked><span class="reference">Reference</span></label>
-          </div>
-        </div>
-        <p class="layer-note">Stop names appear as you zoom in: rail first, then ferry landings, then bus stops.</p>
-        <div class="master-row line-row">
-          <span class="bullet bullet-t">T</span>
-          <span class="line-name">Subway</span>
-          <label class="switch">
-            <input type="checkbox" id="subway-master" checked aria-label="Toggle all subway lines">
-            <span class="knob"></span>
-          </label>
-        </div>
-        <div id="layer-rows"></div>
-
-        <div class="modal-divider"></div>
-        <div id="modal-rows"></div>
-        <div id="drill-down" hidden></div>
+      <section class="panel-section layers-section">
+        <h2>Layers</h2>
+        <div id="layers-root"></div>
       </section>
 
       <section class="panel-section">
@@ -219,10 +183,8 @@
     <footer class="trip-foot"></footer>
   </section>
 
-  <div id="legend-root"></div>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <button id="panel-toggle" aria-label="Toggle control panel" aria-controls="panel" aria-expanded="false"><span class="when-closed">Layers</span><span class="when-open">Close</span></button>
 
   <div id="overlay">
     <div class="loader-bar" aria-hidden="true"></div>

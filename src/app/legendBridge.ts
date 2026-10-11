@@ -3,7 +3,9 @@
 // expression re-asserted; live vehicles have their color props rewritten.
 import { effect } from '@preact/signals';
 import { paletteAssignment, displayVehicleColors, viewportWanted, drillRequest } from '../stores/legend.js';
-import { applyRoutePalette, refreshLegendFeeds, setDrillDown } from '../map/map.js';
+import { applyRoutePalette, focusGroup, refreshLegendFeeds, setDrillDown } from '../map/map.js';
+import { groups, zoomRequest } from '../stores/layers.js';
+import { closePanelOnMobile } from '../ui.js';
 import { recolorAllFleets } from '../feeds/fleet.js';
 
 export function initLegendBridge(): () => void {
@@ -28,5 +30,12 @@ export function initLegendBridge(): () => void {
       setDrillDown(null);
     }
   });
-  return () => { stopPalette(); stopRefresh(); stopDrill(); };
+  // A row name click on a non-drillable group flies the map to that layer.
+  const stopZoom = effect(() => {
+    const request = zoomRequest.value;
+    if (!request) return;
+    const routes = groups.peek().find((group) => group.key === request.group)?.routes ?? [];
+    void focusGroup(request.group, routes).then((flew) => { if (flew) closePanelOnMobile(); });
+  });
+  return () => { stopPalette(); stopRefresh(); stopDrill(); stopZoom(); };
 }

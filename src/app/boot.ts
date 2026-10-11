@@ -51,7 +51,9 @@ import {
   updateStatus,
   setRegion as setRegionStore,
 } from '../stores/index.js';
-import { setVisibleGroupList, setVisibleStatusList } from '../stores/layers.js';
+import { effect } from '@preact/signals';
+import { setGroups, visibleGroups, visibleStatuses } from '../stores/layers.js';
+import { buildGroups } from '../model/groups.js';
 import { setSubwayColors } from '../stores/legend.js';
 import { SUBWAY_GROUPS } from '../model/presets.js';
 import { loadShapeFeatures, loadRegionalRouteFeatures } from './shapes.js';
@@ -105,14 +107,11 @@ function subwayColorsFrom(routeInfo: Map<string, any>): Map<string, string> {
 
 export async function boot(): Promise<void> {
   setLoading('Loading New England…');
-  const [routes, , capabilities] = await Promise.all([
-    fetchRoutes(),
-    loadRegions(),
-    loadGatewayCapabilities(),
-    ensureCartoKey(CONFIG.GATEWAY_BASE),
-  ]);
-  const routeInfo: Map<string, any> = new Map(routes.map((r: any) => [r.id, r]));
-  setSubwayColors(subwayColorsFrom(routeInfo));
+  // Regions and the basemap key first: the permalink needs regions to
+  // validate `r`, and the map's first camera comes from the permalink. Then
+  // the map draws while the route index and the gateway health check (5 s
+  // timeout) are still in flight.
+  await Promise.all([loadRegions(), ensureCartoKey(CONFIG.GATEWAY_BASE)]);
 
   // A shared link (#r=...&c=...&z=...) wins over ?region= and the remembered region.
   const permalink: any = readPermalink();
@@ -121,6 +120,18 @@ export async function boot(): Promise<void> {
     CONFIG.MAP_CENTER = permalink.center;
     if (permalink.zoom !== undefined) CONFIG.MAP_ZOOM = permalink.zoom;
   }
+  setRegionStore(selectedRegion);
+
+  const mapReady = initMap().then((instance) => {
+    // The basemap is on screen: lift the overlay now. Feeds, ribbons and
+    // reference data keep filling in behind it.
+    instance.once('render', () => setLoading(null));
+    setLoading('Finding what’s moving…');
+    return instance;
+  });
+  const [routes, capabilities] = await Promise.all([fetchRoutes(), loadGatewayCapabilities()]);
+  const routeInfo: Map<string, any> = new Map(routes.map((r: any) => [r.id, r]));
+  setSubwayColors(subwayColorsFrom(routeInfo));
 
   const regionalControllers: Array<{ setRegion: (r: string) => void }> = [];
 
@@ -143,33 +154,23 @@ export async function boot(): Promise<void> {
     schedulePermalinkUpdate();
   };
 
-  // DOM-only init: still goes through ui.js directly (B1 bridge).
-  ui.initPanel(
-    routeInfo,
-    (groups: string[], statuses: string[]) => {
-      setVisibleGroups(groups, statuses);
-      setVisibleGroupList(groups);
-      setVisibleStatusList(statuses);
-      schedulePermalinkUpdate();
-    },
-    changeRegion,
-    selectedRegion,
-    capabilities,
-  );
+  // The layer list renders from the store; the DOM chrome wires itself around it.
+  setGroups(buildGroups(routeInfo, capabilities));
+  ui.initPanel(changeRegion, selectedRegion);
   if (permalink.on || permalink.off || permalink.statuses) ui.applyVisibleState(permalink);
-  setVisibleGroupList(ui.getVisibleGroups());
-  setVisibleStatusList(ui.getVisibleStatuses());
-  // The panel's rows exist now, so store changes (counts, status, alerts) can
-  // reach it from here on instead of waiting for the route shapes below.
+  // Every switch, chip, scene or shared link ends up here: the map filters
+  // follow the store, and the address bar follows the map.
+  effect(() => {
+    setVisibleGroups(visibleGroups.value, visibleStatuses.value);
+    schedulePermalinkUpdate();
+  });
+  // The panel exists now, so store changes (status, alerts) can reach it.
   initLegacyBridge();
   configureGateway(capabilities);
 
-  setLoading('Drawing the map…');
-  await initMap();
+  await mapReady;
   // A permalink already positioned the camera; only fit the region otherwise.
-  setRegionStore(selectedRegion);
   setRegion(selectedRegion, { fit: !permalink.center });
-  setVisibleGroups(ui.getVisibleGroups(), ui.getVisibleStatuses());
   initPermalink({
     map,
     getRegion: ui.getRegion,
@@ -253,8 +254,18 @@ export async function boot(): Promise<void> {
   );
   startSharedMobility((counts: Record<string, number>) => updateCounts(counts, 'shared-mobility'));
   regionalControllers.push(startAlertPolling(routeInfo, updateAlertSource('mbta')));
-  // The map and live feeds are up; route ribbons fill in behind the lifted overlay.
-  setLoading(null);
+  // A new hash on the same page (a pasted link, the back button) applies
+  // like a cold load would; the app's own writes use replaceState and never
+  // fire this.
+  window.addEventListener('hashchange', () => {
+    const next: any = readPermalink();
+    if (next.region) ui.selectRegion(next.region);
+    if (next.on || next.off || next.statuses) ui.applyVisibleState(next);
+    if (next.center) {
+      map.easeTo({ center: next.center, zoom: next.zoom ?? map.getZoom(), duration: 800 });
+    }
+    if (next.follow) follow(next.follow.fleetId, next.follow.id, { mode: 'following' });
+  });
 
   const gatewayDown = CONFIG.GATEWAY_BASE && !capabilities.regionalTransit;
   const aircraftDown = CONFIG.AIRCRAFT_GATEWAY_BASE && capabilities.aircraft === false;

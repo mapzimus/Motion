@@ -10,9 +10,9 @@ import {
   resolvePreset,
 } from '../../src/model/presets.js';
 import regionConfig from '../../scripts/regions-config.json';
-import uiSource from '../../src/ui.js?raw';
+import groupSource from '../../src/model/groups.ts?raw';
 
-// Mirrors the truth tags and needsKey flags js/ui.js buildGroups() sets when
+// Mirrors the truth tags and needsKey flags src/model/groups.ts buildGroups() sets when
 // every gateway provider is available.
 const LIVE_GROUPS = new Set([
   'commuter', 'bus', 'amtrak', 'ferry', 'plane', 'vessel', 'bike',
@@ -40,8 +40,9 @@ describe('layer presets and scenes', () => {
     for (const key of ['airport-status', 'airport-weather', 'tfr', 'airspace']) expect(plan.groups).toContain(key);
   });
 
-  it('matches the groups js/ui.js builds, in panel order', () => {
-    const built = [...uiSource.matchAll(/\{ key: '([a-z-]+)', name: /g)].map((match) => match[1]);
+  it('matches the groups src/model/groups.ts builds, in panel order', () => {
+    // Group rows carry a `section:`; the SECTIONS table does not.
+    const built = [...groupSource.matchAll(/\{ key: '([a-z-]+)', name: '[^']*', section: /g)].map((match) => match[1]);
     expect(built).toEqual(GROUP_KEYS);
   });
 

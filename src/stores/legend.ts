@@ -170,34 +170,9 @@ export function setLegendNotes(group: string, notes: readonly string[]) {
   legendNotes.value = { ...legendNotes.peek(), [group]: notes };
 }
 
-const COLLAPSED_KEY = 'motion-legend';
-
-function readCollapsed(): boolean {
-  try {
-    const saved = localStorage.getItem(COLLAPSED_KEY);
-    if (saved) return saved === 'collapsed';
-  } catch {
-    // Storage blocked: fall through to the screen-size default.
-  }
-  return typeof window !== 'undefined' && typeof window.matchMedia === 'function'
-    && window.matchMedia('(max-width: 760px)').matches;
-}
-
-/** Whether the legend panel is collapsed; remembered in localStorage('motion-legend'). */
-export const legendCollapsed = signal(readCollapsed());
-
-export function setLegendCollapsed(collapsed: boolean) {
-  legendCollapsed.value = collapsed;
-  try {
-    localStorage.setItem(COLLAPSED_KEY, collapsed ? 'collapsed' : 'open');
-  } catch {
-    // Private mode: the choice lasts for this visit.
-  }
-}
-
-/** True while the legend is open and a route group is on, i.e. a route list can show. */
+/** True while a route group is on, i.e. the layer list can show routes in view. */
 export const viewportWanted = computed(() =>
-  !legendCollapsed.value && visibleGroups.value.some((group) => VIEWPORT_GROUPS.includes(group)));
+  visibleGroups.value.some((group) => VIEWPORT_GROUPS.includes(group)));
 
 /** Whether the map should bother querying the routes in view (reads without subscribing). */
 export function wantsViewportRoutes(): boolean {
