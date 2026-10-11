@@ -1,161 +1,170 @@
-// Panel UI: layer toggles, alert feed, connection status, loading states.
+// Panel chrome that is still plain DOM: header, region picker (with scenes),
+// basemap chips, mode chips, the Live-only switch, alert feed, connection
+// status, loading states, and the mobile bottom sheet. The layer list itself
+// is the LayerPanel Preact component; every group read/write goes through
+// the layers store.
 
 import { effect } from '@preact/signals';
 import { CONFIG } from './feeds/config.js';
-import { focusAlert, focusGroup, getBasemap, getDrillDown, setBasemap, setDrillDown } from './map/map.js';
-import { REGIONS, REGION_GROUPS, busDefaultOn, hasSubway, regionInfo, regionName } from './feeds/regions.js';
+import { focusAlert, getBasemap, getDrillDown, setBasemap, setDrillDown } from './map/map.js';
+import { REGIONS, REGION_GROUPS, hasSubway, regionInfo, regionName } from './feeds/regions.js';
 import { SCENES, VEHICLE_PRESETS, resolvePreset } from './model/presets.js';
-import { LEGEND_GROUPS } from './model/legendConfig.js';
-import { drillLegend } from './stores/legend.js';
+import { groupStartsOn } from './model/groups.js';
+import {
+  groups as groupDefs,
+  groupOn,
+  manualOverrides,
+  visibleGroups,
+  visibleStatuses,
+  liveOnly,
+  activePreset,
+  setGroupOn,
+  setGroupsOn,
+  setManualOverrides,
+  clearManualOverrides,
+  setVisibleStatusList,
+  setLiveOnly,
+  setActivePreset,
+  setAlertBadges,
+} from './stores/layers.js';
+import { countsBySource } from './stores/counts.js';
 
 const el = (id) => document.getElementById(id);
+const MOBILE = '(max-width: 760px)';
+const isMobile = () => window.matchMedia(MOBILE).matches;
 
-const DRILLABLE_GROUPS = new Set(
-  Object.entries(LEGEND_GROUPS).filter(([, group]) => group.drillable).map(([key]) => key),
-);
-
-let GROUPS = [];
-const groupState = new Map();
-const countsBySource = new Map(); // source -> Map(group key, count)
-const manualGroupOverrides = new Set();
-const statusState = new Map([
-  ['live', true],
-  ['estimated', true],
-  ['scheduled', true],
-  ['reference', true],
-]);
-let scheduledCounts = new Map();
-let stationCounts = new Map();
-let referenceCounts = new Map();
-let onVisibleChange = () => {};
 let onRegionChange = () => {};
 let status = { state: 'connecting', lastUpdate: null, retryAtMs: null, message: '' };
 
-function setPanelOpen(open) {
-  document.body.classList.toggle('panel-open', open);
-  el('panel-toggle')?.setAttribute('aria-expanded', String(open));
+const GROUPS = () => groupDefs.value;
+const findGroup = (key) => GROUPS().find((group) => group.key === key);
+
+// ---- bottom sheet (phones) -------------------------------------------------
+
+const SHEET_STATES = ['peek', 'half', 'full'];
+
+export function getSheet() {
+  return document.body.dataset.sheet ?? 'peek';
 }
 
-// Layer groups are built at init because route membership and colors come from
-// the API (e.g. "every type-3 route that isn't Silver Line" = the bus group).
-function buildGroups(routeInfo, capabilities) {
-  const routesOfType = (t) =>
-    [...routeInfo.values()].filter((r) => r.type === t).map((r) => r.id);
-  const colorOf = (routeId) => routeInfo.get(routeId)?.color;
-
-  return [
-    // Subway lines (the master switch governs these). Green's four branches
-    // toggle as one because that's how riders think of them. Mattapan is
-    // branded Red but is its own light-rail trolley, so it keeps its own row.
-    { key: 'red', name: 'Red Line', initial: 'R', section: 'subway', routes: ['Red'], color: colorOf('Red') },
-    { key: 'orange', name: 'Orange Line', initial: 'O', section: 'subway', routes: ['Orange'], color: colorOf('Orange') },
-    { key: 'green', name: 'Green Line', initial: 'G', section: 'subway', routes: ['Green-B', 'Green-C', 'Green-D', 'Green-E'], color: colorOf('Green-B') },
-    { key: 'blue', name: 'Blue Line', initial: 'B', section: 'subway', routes: ['Blue'], color: colorOf('Blue') },
-    { key: 'silver', name: 'Silver Line', initial: 'SL', section: 'subway', routes: [...CONFIG.SILVER_ROUTES], color: colorOf('741') },
-    { key: 'mattapan', name: 'Mattapan Trolley', initial: 'M', section: 'subway', routes: ['Mattapan'], color: colorOf('Mattapan') },
-    // The wider fleet.
-    { key: 'commuter', name: 'Commuter & regional rail (MBTA, Metro-North, CTrail)', initial: 'CR', section: 'ground', sectionName: 'Ground & rail', routes: routesOfType(2), color: CONFIG.COMMUTER_COLOR, truth: 'live + schedule' },
-    { key: 'bus', name: 'Buses, shuttles & coaches', initial: 'B', section: 'ground', routes: routesOfType(3).filter((id) => !CONFIG.SILVER_ROUTES.includes(id)), color: CONFIG.BUS_COLOR, darkText: true, truth: 'live + schedule' },
-    { key: 'amtrak', name: 'Amtrak', initial: 'A', section: 'ground', routes: [], color: CONFIG.AMTRAK_COLOR, truth: 'live + schedule' },
-    { key: 'local', name: 'On-demand & community services', initial: 'L', section: 'ground', routes: [], color: CONFIG.LOCAL_COLOR, darkText: true, truth: 'catalog', countAsVehicle: false },
-    { key: 'taxi', name: 'Taxi & cab services', initial: 'TX', section: 'ground', routes: [], color: CONFIG.TAXI_COLOR, darkText: true, truth: 'directory', countAsVehicle: false },
-    { key: 'ferry', name: 'Ferries & passenger boats', initial: 'F', section: 'airwater', sectionName: 'Air & water', routes: routesOfType(4), color: CONFIG.FERRY_COLOR, truth: 'live + schedule' },
-    { key: 'plane', name: 'Live aircraft', initial: '✈', section: 'airwater', routes: [], color: CONFIG.PLANE_COLOR, truth: 'live', needsKey: !capabilities?.aircraft, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'setup' },
-    { key: 'air-service', name: 'Island & regional air services', initial: 'AS', section: 'airwater', routes: [], color: CONFIG.PLANE_COLOR, truth: 'schedule/catalog', countAsVehicle: false },
-    { key: 'airport', name: 'Airports & landing facilities', initial: 'AP', section: 'airwater', routes: [], color: CONFIG.AIRPORT_COLOR, truth: 'FAA reference', countAsVehicle: false },
-    { key: 'airport-status', name: 'Airport delays (FAA)', initial: '✈', section: 'airwater', routes: [], color: CONFIG.AIRPORT_STATUS_COLORS['ground-delay'], truth: 'live', needsKey: !capabilities?.airportStatus, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false },
-    // Aviation conditions: METAR flight categories, TFRs, and charted airspace.
-    { key: 'airport-weather', name: 'Airport weather (METAR)', initial: 'WX', section: 'airwater', routes: [], color: CONFIG.FLIGHT_CATEGORY_COLORS.VFR, darkText: true, truth: 'live', needsKey: !capabilities?.airportWeather, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false },
-    { key: 'tfr', name: 'Temporary flight restrictions (FAA)', initial: 'TFR', section: 'airwater', routes: [], color: CONFIG.TFR_COLORS.SECURITY, truth: 'live', needsKey: !capabilities?.tfrs, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false },
-    { key: 'airspace', name: 'Airspace (Class B/C/D & special use)', initial: '◇', section: 'airwater', routes: [], color: CONFIG.AIRSPACE_COLORS.B, truth: 'FAA reference', countAsVehicle: false },
-    { key: 'vessel', name: 'Live vessels (AIS)', initial: '⚓', section: 'airwater', routes: [], color: CONFIG.VESSEL_COLOR, truth: 'live', needsKey: !capabilities?.ais, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'AIS key' },
-    { key: 'bike', name: 'Public bike & scooter share', initial: 'b', section: 'shared', sectionName: 'Shared & active travel', routes: [], color: CONFIG.BIKE_COLOR, truth: 'live' },
-    { key: 'bikeshare', name: 'Other bike-share systems (no live feed)', initial: 'BS', section: 'shared', routes: [], color: CONFIG.BIKESHARE_REF_COLOR, darkText: true, truth: 'operator reference', countAsVehicle: false },
-    { key: 'walking', name: 'Marked walking & hiking routes', initial: 'W', section: 'shared', routes: [], color: CONFIG.WALK_COLOR, truth: 'OSM routes', countAsVehicle: false, zoomable: false, overlay: true },
-    { key: 'cycling', name: 'Marked cycling routes', initial: 'C', section: 'shared', routes: [], color: CONFIG.CYCLE_COLOR, truth: 'OSM routes', countAsVehicle: false, zoomable: false, overlay: true },
-    { key: 'traffic', name: 'Live congestion speeds', initial: '≋', section: 'conditions', sectionName: 'Conditions & alerts', routes: [], color: CONFIG.INCIDENT_COLOR, truth: 'live 511', needsKey: !capabilities?.traffic, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false, zoomable: false, overlay: true },
-    { key: 'roadwork', name: 'Work zones & construction projects', initial: '!', section: 'conditions', routes: [], color: CONFIG.ROADWORK_COLOR, truth: 'WZDx lines · CT construction projects · CTroads lane closures', needsKey: !capabilities?.roadwork, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false },
-    { key: 'incident', name: 'Traffic incidents', initial: '!', section: 'conditions', routes: [], color: CONFIG.INCIDENT_COLOR, truth: 'live 511', needsKey: !capabilities?.roadEvents, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false },
-    { key: 'camera', name: 'Public traffic cameras', initial: '◉', section: 'conditions', routes: [], color: CONFIG.CAMERA_COLOR, truth: 'live / viewer', needsKey: !capabilities?.cameras, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false },
-    { key: 'road-weather', name: 'Road weather stations', initial: 'RW', section: 'conditions', routes: [], color: CONFIG.ROAD_WEATHER_COLOR, darkText: true, truth: 'live', needsKey: !capabilities?.roadWeather, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false },
-    { key: 'message-sign', name: 'Highway message signs', initial: 'MS', section: 'conditions', routes: [], color: CONFIG.MESSAGE_SIGN_COLOR, darkText: true, truth: 'live', needsKey: !capabilities?.messageSigns, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false },
-    { key: 'plow', name: 'Snowplows', initial: 'SP', section: 'conditions', routes: [], color: CONFIG.PLOW_COLOR, truth: 'live + reference', countAsVehicle: false },
-    { key: 'weather', name: 'Weather alerts (NWS)', initial: '⚠', section: 'conditions', routes: [], color: CONFIG.WEATHER_COLORS.moderate, darkText: true, truth: 'live', needsKey: !capabilities?.weatherAlerts, keyUrl: 'https://github.com/mapzimus/Motion#gateway-setup', setupText: 'gateway', countAsVehicle: false },
-    { key: 'roads', name: 'Major roadways', initial: 'R', section: 'infrastructure', sectionName: 'Movement infrastructure', routes: [], color: CONFIG.ROAD_COLOR, truth: 'reference', countAsVehicle: false },
-    { key: 'freight', name: 'Freight rail network', initial: 'FR', section: 'infrastructure', routes: [], color: CONFIG.FREIGHT_COLOR, truth: 'FRA reference', countAsVehicle: false },
-    { key: 'border', name: 'Canada border crossings', initial: 'CB', section: 'infrastructure', routes: [], color: CONFIG.BORDER_COLOR, darkText: true, truth: 'CBSA reference', countAsVehicle: false },
-    { key: 'heritage-rail', name: 'Heritage & scenic railroads', initial: 'HR', section: 'infrastructure', routes: [], color: CONFIG.HERITAGE_RAIL_COLOR, truth: 'operator reference', countAsVehicle: false },
-    { key: 'aerialway', name: 'Ski lifts, gondolas & tramways', initial: 'AW', section: 'infrastructure', routes: [], color: CONFIG.AERIALWAY_COLOR, truth: 'OSM reference', countAsVehicle: false },
-    { key: 'park-ride', name: 'Park & ride lots', initial: 'PR', section: 'infrastructure', routes: [], color: CONFIG.PARK_RIDE_COLOR, darkText: true, truth: 'state DOT reference', countAsVehicle: false },
-    { key: 'ev-charging', name: 'Public EV charging', initial: 'EV', section: 'infrastructure', routes: [], color: CONFIG.EV_CHARGING_COLOR, darkText: true, truth: 'AFDC reference', countAsVehicle: false },
-    { key: 'drawbridge', name: 'Drawbridges & movable bridges', initial: 'DB', section: 'infrastructure', routes: [], color: CONFIG.DRAWBRIDGE_COLOR, darkText: true, truth: 'USCG reference', countAsVehicle: false },
-  ];
+export function setSheet(state) {
+  if (!SHEET_STATES.includes(state)) return;
+  document.body.dataset.sheet = state;
+  el('sheet-grip')?.setAttribute('aria-expanded', String(state !== 'peek'));
+  window.dispatchEvent(new CustomEvent('motion:sheet', { detail: { state } }));
 }
 
-function groupStartsOn(group, region) {
-  if (group.needsKey) return false;
-  if (group.key === 'bus' && busDefaultOn(region)) return true;
-  return !CONFIG.DEFAULT_OFF_GROUPS.includes(group.key);
+function cycleSheet() {
+  const index = SHEET_STATES.indexOf(getSheet());
+  setSheet(SHEET_STATES[(index + 1) % SHEET_STATES.length]);
 }
+
+// Drag the grip: the sheet follows the pointer, then snaps to the nearest
+// state on release. A short tap cycles instead.
+function wireSheetGrip() {
+  const grip = el('sheet-grip');
+  const panel = el('panel');
+  if (!grip || !panel) return;
+  let startY = 0;
+  let startHeight = 0;
+  let dragging = false;
+  let moved = false;
+
+  const heightFor = (state) => {
+    const probe = document.body.dataset.sheet;
+    document.body.dataset.sheet = state;
+    const height = panel.getBoundingClientRect().height;
+    document.body.dataset.sheet = probe;
+    return height;
+  };
+
+  grip.addEventListener('pointerdown', (event) => {
+    if (!isMobile()) return;
+    dragging = true;
+    moved = false;
+    startY = event.clientY;
+    startHeight = panel.getBoundingClientRect().height;
+    grip.setPointerCapture(event.pointerId);
+    panel.classList.add('dragging');
+  });
+  grip.addEventListener('pointermove', (event) => {
+    if (!dragging) return;
+    const delta = startY - event.clientY;
+    if (Math.abs(delta) > 6) moved = true;
+    const height = Math.max(80, Math.min(window.innerHeight - 12, startHeight + delta));
+    panel.style.height = `${height}px`;
+  });
+  const finish = (event) => {
+    if (!dragging) return;
+    dragging = false;
+    const height = panel.getBoundingClientRect().height;
+    panel.style.height = '';
+    if (!moved) {
+      panel.classList.remove('dragging');
+      cycleSheet();
+      return;
+    }
+    // Measure the snap heights while `.dragging` still disables the height
+    // transition, or every probe reads the mid-transition height.
+    const snaps = SHEET_STATES.map((state) => ({ state, h: heightFor(state) }));
+    panel.classList.remove('dragging');
+    snaps.sort((a, b) => Math.abs(a.h - height) - Math.abs(b.h - height));
+    setSheet(snaps[0].state);
+    event.preventDefault?.();
+  };
+  grip.addEventListener('pointerup', finish);
+  grip.addEventListener('pointercancel', finish);
+  grip.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      cycleSheet();
+    }
+  });
+}
+
+/** On a phone, drop the sheet to its peek strip so the map is visible. */
+export function closePanelOnMobile() {
+  if (isMobile()) setSheet('peek');
+}
+
+// ---- region defaults and presets -------------------------------------------
 
 function applyRegionDefaults(region) {
-  const bus = GROUPS.find((group) => group.key === 'bus');
-  if (!bus || manualGroupOverrides.has(bus.key)) return;
-  const startOn = groupStartsOn(bus, region);
-  groupState.set(bus.key, startOn);
-  rowInput(bus.key).checked = startOn;
-  syncMaster();
-  emitVisible();
+  const bus = findGroup('bus');
+  if (!bus || manualOverrides.value.has(bus.key)) return;
+  setGroupOn(bus.key, groupStartsOn(bus, region));
 }
 
-function setGroupChecked(group, checked, manual = false) {
-  if (!group || group.needsKey) return;
-  groupState.set(group.key, checked);
-  const input = rowInput(group.key);
-  if (input) input.checked = checked;
-  if (manual) manualGroupOverrides.add(group.key);
-}
-
-// The preset whose result is still on screen; any manual change clears it.
-function setActivePreset(key) {
-  for (const button of document.querySelectorAll('[data-layer-preset]')) {
-    button.setAttribute('aria-pressed', String(button.dataset.layerPreset === key));
-  }
-}
-
-// Every preset — Default/Routes/Clear, the vehicle presets and the scenes —
-// runs through here. A scene switches region first (which, like any region
-// change, ends following), then applies its layers. Only groups a preset
-// moves away from their region default count as manual overrides, so a later
-// region change can still apply that region's bus default.
+// Every preset (the mode chips and the scenes) runs through here. A scene
+// switches region first (which, like any region change, ends following),
+// then applies its layers. Only groups a preset moves away from their region
+// default count as manual overrides, so a later region change can still
+// apply that region's bus default.
 export function applyLayerPreset(preset) {
-  const plan = resolvePreset(preset, { region: getRegion(), groups: GROUPS, hasSubway });
+  const plan = resolvePreset(preset, { region: getRegion(), groups: GROUPS(), hasSubway });
   if (!plan) return false;
   // A preset chooses the layers itself. A drill left in place would keep the
   // map on the previous layer after the key and the switches had moved on.
   if (getDrillDown().group) setDrillDown(null);
   if (plan.region && plan.region !== getRegion()) selectRegion(plan.region);
   const region = getRegion();
+  const next = new Map();
+  const overrides = new Set(manualOverrides.value);
   if (plan.mode === 'default') {
-    manualGroupOverrides.clear();
-    for (const group of GROUPS) setGroupChecked(group, groupStartsOn(group, region));
+    overrides.clear();
+    for (const group of GROUPS()) next.set(group.key, groupStartsOn(group, region));
   } else {
     const on = new Set(plan.groups);
-    for (const group of GROUPS) {
-      const checked = on.has(group.key);
-      const differsFromDefault = checked !== groupStartsOn(group, region);
-      setGroupChecked(group, checked, differsFromDefault);
-      if (!differsFromDefault) manualGroupOverrides.delete(group.key);
+    for (const group of GROUPS()) {
+      const checked = group.needsKey ? false : on.has(group.key);
+      next.set(group.key, checked);
+      if (checked !== groupStartsOn(group, region)) overrides.add(group.key);
+      else overrides.delete(group.key);
     }
   }
-  if (plan.statuses) {
-    for (const [key] of statusState) statusState.set(key, plan.statuses.includes(key));
-  }
-  for (const input of document.querySelectorAll('#data-status-filters input')) {
-    input.checked = statusState.get(input.value);
-  }
-  syncMaster();
-  emitVisible();
+  groupOn.value = next;
+  setManualOverrides(overrides);
+  if (plan.statuses) setVisibleStatusList(plan.statuses);
   setActivePreset(preset);
   return true;
 }
@@ -163,6 +172,7 @@ export function applyLayerPreset(preset) {
 function renderPresetButtons(containerId, presets) {
   const container = el(containerId);
   if (!container) return;
+  container.innerHTML = '';
   for (const preset of presets) {
     const button = document.createElement('button');
     button.type = 'button';
@@ -171,16 +181,35 @@ function renderPresetButtons(containerId, presets) {
     button.setAttribute('aria-pressed', 'false');
     if (preset.region) button.title = `${regionName(preset.region)}: ${preset.label}`;
     // A preset whose every group needs the gateway would act like "Clear".
-    const plan = resolvePreset(preset.key, { region: getRegion(), groups: GROUPS, hasSubway });
+    const plan = resolvePreset(preset.key, { region: getRegion(), groups: GROUPS(), hasSubway });
     if (plan && preset.groups !== 'live' && preset.groups.length && !plan.groups.length) {
       button.disabled = true;
       button.title = 'Needs the Motion gateway';
     }
+    button.addEventListener('click', () => applyLayerPreset(preset.key));
     container.appendChild(button);
   }
 }
 
+function syncPresetButtons() {
+  const active = activePreset.value;
+  for (const button of document.querySelectorAll('[data-layer-preset]')) {
+    button.setAttribute('aria-pressed', String(button.dataset.layerPreset === active));
+  }
+}
+
+// ---- region picker (with scenes) -------------------------------------------
+
 function renderRegionOptions(select) {
+  const scenes = document.createElement('optgroup');
+  scenes.label = 'Scenes';
+  for (const scene of SCENES) {
+    const option = document.createElement('option');
+    option.value = `scene:${scene.key}`;
+    option.textContent = `${scene.label} · ${regionName(scene.region)}`;
+    scenes.appendChild(option);
+  }
+  select.appendChild(scenes);
   for (const group of REGION_GROUPS) {
     const regions = REGIONS.filter((region) => region.group === group.key);
     if (!regions.length) continue;
@@ -208,6 +237,42 @@ export function selectRegion(key) {
   return true;
 }
 
+function onRegionPick(select) {
+  const value = select.value;
+  if (value.startsWith('scene:')) {
+    const scene = value.slice('scene:'.length);
+    // Applying the scene selects its region, which sets the picker back to a region.
+    applyLayerPreset(scene);
+    select.value = getRegion();
+    closePanelOnMobile();
+    return;
+  }
+  setActivePreset(null);
+  if (getDrillDown().group) setDrillDown(null);
+  renderRegionCopy(value);
+  applyRegionDefaults(value);
+  onRegionChange(value);
+  closePanelOnMobile();
+}
+
+function renderRegionCopy(key) {
+  const region = regionInfo(key);
+  const name = region?.name ?? regionName(key);
+  const title = el('region-title');
+  if (title) title.textContent = name;
+  const about = el('region-about');
+  if (about) {
+    const definition = region?.definition ? `${region.definition}. ` : '';
+    about.textContent = `${definition}Live points outside this boundary are hidden; they are clipped to Census boundaries.`;
+  }
+}
+
+export function getRegion() {
+  const value = el('region-select')?.value ?? '';
+  return value.startsWith('scene:') ? lastRegion : value;
+}
+let lastRegion = '';
+
 // Rider-facing wording for the three raw MBTA vehicle states. INCOMING_AT
 // fires about a stop early, so it reads "Approaching" rather than "Arriving";
 // IN_TRANSIT_TO reads "Heading to" so it never implies the train is there.
@@ -226,160 +291,69 @@ export function formatVehicleStatus(v) {
   }
 }
 
-export function initPanel(routeInfo, visibleChangeHandler, regionChangeHandler, selectedRegion, capabilities) {
-  GROUPS = buildGroups(routeInfo, capabilities);
-  onVisibleChange = visibleChangeHandler;
+// ---- init -----------------------------------------------------------------
+
+/**
+ * Wire the DOM panel. The group definitions must already be in the layers
+ * store (boot calls setGroups first). Starts every group at its region
+ * default; a permalink may override that right after.
+ */
+export function initPanel(regionChangeHandler, selectedRegion) {
   onRegionChange = regionChangeHandler;
+  lastRegion = selectedRegion;
 
   const regionSelect = el('region-select');
   renderRegionOptions(regionSelect);
   regionSelect.value = selectedRegion;
   renderRegionCopy(selectedRegion);
   regionSelect.addEventListener('change', () => {
-    setActivePreset(null);
-    if (getDrillDown().group) setDrillDown(null);
-    renderRegionCopy(regionSelect.value);
-    applyRegionDefaults(regionSelect.value);
-    onRegionChange(regionSelect.value);
-    if (window.matchMedia('(max-width: 760px)').matches) {
-      setPanelOpen(false);
-    }
+    onRegionPick(regionSelect);
+    if (!regionSelect.value.startsWith('scene:')) lastRegion = regionSelect.value;
+  });
+
+  el('about-toggle')?.addEventListener('click', () => {
+    const open = el('panel-about').hidden;
+    el('panel-about').hidden = !open;
+    el('about-toggle').setAttribute('aria-expanded', String(open));
   });
 
   renderBasemapOptions();
 
-  for (const input of document.querySelectorAll('#data-status-filters input')) {
-    statusState.set(input.value, input.checked);
-    input.addEventListener('change', () => {
-      statusState.set(input.value, input.checked);
-      setActivePreset(null);
-      emitVisible();
-    });
-  }
+  groupOn.value = new Map(GROUPS().map((group) => [group.key, groupStartsOn(group, selectedRegion)]));
+  clearManualOverrides();
 
-  let lastSection = '';
-  for (const group of GROUPS) {
-    const startOn = groupStartsOn(group, selectedRegion);
-    groupState.set(group.key, startOn);
+  // "Everything" is the region's default layer set: the undo-my-filters chip.
+  renderPresetButtons('vehicle-presets', [...VEHICLE_PRESETS, { key: 'default', label: 'Everything', groups: [] }]);
+  effect(syncPresetButtons);
 
-    const row = document.createElement('div');
-    row.className = 'line-row';
-    row.dataset.key = group.key;
-    row.style.setProperty('--line-color', group.color ?? '#39424c');
-    if (group.needsKey) row.classList.add('needs-key');
-    row.innerHTML = `
-      <span class="bullet${group.darkText ? ' dark-text' : ''}">${group.initial}</span>
-      <span class="line-name"><span class="line-label">${group.name}</span><span class="badge" hidden></span>
-        ${group.truth ? `<span class="truth-tag">${group.truth}</span>` : ''}
-        ${group.needsKey ? `<a class="get-key" href="${group.keyUrl}" target="_blank" rel="noopener" title="This layer needs the Motion gateway — see the README">${group.setupText ?? 'setup'}</a>` : ''}
-      </span>
-      <span class="count" data-count>–</span>
-      <label class="switch">
-        <input type="checkbox" ${startOn ? 'checked' : ''} ${group.needsKey ? 'disabled' : ''} aria-label="Toggle ${group.name}">
-        <span class="knob"></span>
-      </label>`;
-    row.querySelector('input').addEventListener('change', (e) => {
-      manualGroupOverrides.add(group.key);
-      groupState.set(group.key, e.target.checked);
-      setActivePreset(null);
-      syncMaster();
-      emitVisible();
-    });
-
-    // Clicking the row itself (not the switch) either drills down into the
-    // group (showing per-route colors) or flies to it. Drillable groups
-    // enter drill-down; non-drillable ones just zoom.
-    if (!group.needsKey && group.zoomable !== false) {
-      row.classList.add('zoomable');
-      row.tabIndex = 0;
-      row.setAttribute('role', 'button');
-      if (DRILLABLE_GROUPS.has(group.key)) {
-        row.classList.add('drillable');
-        row.title = `Explore ${group.name} by route`;
-      } else {
-        row.title = `Zoom to ${group.name}`;
-      }
-      const zoomHandler = async (e) => {
-        if (e.target.closest('.switch') || e.target.closest('a')) return;
-        if (!groupState.get(group.key)) {
-          manualGroupOverrides.add(group.key);
-          groupState.set(group.key, true);
-          row.querySelector('input').checked = true;
-          syncMaster();
-          emitVisible();
-        }
-        if (DRILLABLE_GROUPS.has(group.key)) {
-          enterDrillDown(group);
-        } else {
-          const flew = await focusGroup(group.key, group.routes);
-          if (flew && window.matchMedia('(max-width: 760px)').matches) {
-            setPanelOpen(false);
-          }
-        }
-      };
-      row.addEventListener('click', zoomHandler);
-      row.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          zoomHandler(e);
-        }
-      });
-    }
-    const container = el(group.section === 'subway' ? 'layer-rows' : 'modal-rows');
-    if (group.section !== 'subway' && group.section !== lastSection) {
-      const heading = document.createElement('button');
-      heading.type = 'button';
-      heading.className = 'layer-subhead';
-      heading.dataset.section = group.section;
-      heading.setAttribute('aria-expanded', 'true');
-      heading.innerHTML = `<span>${group.sectionName ?? group.section}</span><span class="section-chevron" aria-hidden="true">⌄</span>`;
-      heading.addEventListener('click', () => {
-        const expanded = heading.getAttribute('aria-expanded') === 'true';
-        heading.setAttribute('aria-expanded', String(!expanded));
-        for (const sectionRow of container.querySelectorAll(`.line-row[data-section="${group.section}"]`)) {
-          sectionRow.hidden = expanded;
-        }
-      });
-      container.appendChild(heading);
-      lastSection = group.section;
-    }
-    row.dataset.section = group.section;
-    container.appendChild(row);
-  }
-
-  renderPresetButtons('vehicle-presets', VEHICLE_PRESETS);
-  renderPresetButtons('scene-presets', SCENES);
-  for (const button of document.querySelectorAll('[data-layer-preset]')) {
-    button.addEventListener('click', () => {
-      applyLayerPreset(button.dataset.layerPreset);
-      // A scene sets the whole view, like picking a region, so get the panel out
-      // of the way; layer presets stay open for further tuning.
-      if (SCENES.some((scene) => scene.key === button.dataset.layerPreset)) closePanelOnMobile();
-    });
-  }
-
-  el('subway-master').addEventListener('change', (e) => {
-    for (const group of GROUPS.filter((g) => g.section === 'subway')) {
-      groupState.set(group.key, e.target.checked);
-      rowInput(group.key).checked = e.target.checked;
-    }
+  const liveSwitch = el('live-only');
+  liveSwitch?.addEventListener('change', () => {
+    setLiveOnly(liveSwitch.checked);
     setActivePreset(null);
-    emitVisible();
+  });
+  effect(() => {
+    if (liveSwitch) liveSwitch.checked = liveOnly.value;
   });
 
-  el('panel-toggle').addEventListener('click', () => {
-    setPanelOpen(!document.body.classList.contains('panel-open'));
+  wireSheetGrip();
+  // Publish the sheet's height so the zoom buttons, toasts and the map's
+  // fit padding can stay clear of it whatever it holds.
+  const panel = el('panel');
+  if (panel && typeof ResizeObserver === 'function') {
+    new ResizeObserver(() => {
+      document.body.style.setProperty('--sheet-h', `${Math.round(panel.getBoundingClientRect().height)}px`);
+    }).observe(panel);
+  }
+  if (isMobile()) setSheet('peek');
+  window.matchMedia(MOBILE).addEventListener('change', (event) => {
+    if (event.matches) setSheet('peek');
+    else delete document.body.dataset.sheet;
   });
 
   setInterval(renderStatus, 1000);
-  renderRegionAvailability(selectedRegion);
-  emitVisible();
-  // The map publishes the open drill (from a layer row or the map key). Draw
-  // the route list in the panel from that, so both controls stay in step.
   effect(() => {
-    const state = drillLegend.value;
-    if (!state) closeDrillPanel();
-    else paintDrillPanel(state);
+    void countsBySource.value;
+    renderStatus();
   });
 }
 
@@ -410,163 +384,52 @@ function renderBasemapOptions() {
   sync();
 }
 
-function renderRegionCopy(key) {
-  const region = regionInfo(key);
-  const name = region?.name ?? regionName(key);
-  el('region-eyebrow').textContent = `Live map · ${name}`;
-  const definition = region?.definition ? `${region.definition}. ` : '';
-  el('region-tagline').textContent =
-    `${definition}Live points outside this boundary are hidden.`;
-  renderRegionAvailability(key);
-}
-
-function renderRegionAvailability(key) {
-  const showSubway = hasSubway(key);
-  el('subway-master')?.closest('.master-row')?.classList.toggle('region-hidden', !showSubway);
-  for (const group of GROUPS.filter((item) => item.section === 'subway')) {
-    document.querySelector(`.line-row[data-key="${group.key}"]`)?.classList.toggle('region-hidden', !showSubway);
-  }
-}
-
-export function getRegion() {
-  return el('region-select').value;
-}
-
-const rowInput = (key) =>
-  document.querySelector(`.line-row[data-key="${key}"] input`);
-
-function syncMaster() {
-  el('subway-master').checked = GROUPS.filter((g) => g.section === 'subway').some(
-    (g) => groupState.get(g.key),
-  );
-}
+// ---- visible state ----------------------------------------------------------
 
 export function getVisibleGroups() {
-  return GROUPS.filter((g) => groupState.get(g.key)).map((g) => g.key);
+  return visibleGroups.value;
 }
 
 export function getVisibleStatuses() {
-  return [...statusState.entries()].filter(([, visible]) => visible).map(([key]) => key);
+  return visibleStatuses.value;
 }
 
 // Which groups start switched on for a region — permalinks store only the
 // difference from this set.
 export function getDefaultGroups(region = getRegion()) {
-  return GROUPS.filter((group) => groupStartsOn(group, region)).map((group) => group.key);
+  return GROUPS().filter((group) => groupStartsOn(group, region)).map((group) => group.key);
 }
 
 // Restore a shared view: `on`/`off` are group keys to force, `statuses` (when
 // given) is the full list of data-truth filters that should be checked.
 export function applyVisibleState({ on = [], off = [], statuses = null } = {}) {
-  for (const key of on) setGroupChecked(GROUPS.find((group) => group.key === key), true, true);
-  for (const key of off) setGroupChecked(GROUPS.find((group) => group.key === key), false, true);
-  if (Array.isArray(statuses)) {
-    for (const [key] of statusState) statusState.set(key, statuses.includes(key));
-    for (const input of document.querySelectorAll('#data-status-filters input')) {
-      input.checked = statusState.get(input.value);
-    }
-  }
-  syncMaster();
-  emitVisible();
-}
-
-function emitVisible() {
-  onVisibleChange(getVisibleGroups(), getVisibleStatuses());
+  const usable = (keys) => keys.filter((key) => findGroup(key) && !findGroup(key).needsKey);
+  setGroupsOn(usable(on), true, true);
+  setGroupsOn(usable(off), false, true);
+  if (Array.isArray(statuses)) setVisibleStatusList(statuses);
 }
 
 // Follow mode switches a vehicle's layer (and its data-truth filter) back on
 // if the rider hid it, through the same path a shared link uses.
 export function ensureGroupVisible(key, dataStatus) {
-  const group = GROUPS.find((candidate) => candidate.key === key);
-  const needsGroup = Boolean(group) && !groupState.get(key);
-  const needsStatus = Boolean(dataStatus) && statusState.has(dataStatus) && !statusState.get(dataStatus);
+  const group = findGroup(key);
+  const needsGroup = Boolean(group) && !groupOn.value.get(key);
+  const current = visibleStatuses.value;
+  const needsStatus = Boolean(dataStatus) && !current.includes(dataStatus)
+    && ['live', 'estimated', 'scheduled', 'reference'].includes(dataStatus);
   if (!needsGroup && !needsStatus) return;
   applyVisibleState({
     on: needsGroup ? [key] : [],
-    statuses: needsStatus ? [...getVisibleStatuses(), dataStatus] : null,
+    statuses: needsStatus ? [...current, dataStatus] : null,
   });
 }
 
-export function closePanelOnMobile() {
-  if (window.matchMedia('(max-width: 760px)').matches) setPanelOpen(false);
-}
-
-// ---- live counts / connection status --------------------------------------
-
-// Every fleet reports its own group counts; they merge here.
-export function updateCounts(partialByGroup, source = 'default') {
-  if (!countsBySource.has(source)) countsBySource.set(source, new Map());
-  const sourceCounts = countsBySource.get(source);
-  for (const [group, n] of Object.entries(partialByGroup)) sourceCounts.set(group, n);
-  renderCounts();
-}
-
-export function replaceCounts(partialByGroup, source) {
-  countsBySource.set(source, new Map(Object.entries(partialByGroup)));
-  renderCounts();
-}
-
-export function setScheduledCounts(partialByGroup) {
-  scheduledCounts = new Map(Object.entries(partialByGroup));
-  renderCounts();
-}
-
-export function setStationCounts(partialByGroup) {
-  stationCounts = new Map(Object.entries(partialByGroup));
-  renderCounts();
-}
-
-export function setReferenceCounts(partialByGroup) {
-  referenceCounts = new Map(Object.entries(partialByGroup));
-  renderCounts();
-}
-
-function liveCountForGroup(key) {
-  const values = [...countsBySource.values()]
-    .map((sourceMap) => sourceMap.get(key))
-    .filter((value) => value !== null && value !== undefined);
-  return values.length ? values.reduce((sum, value) => sum + value, 0) : null;
-}
-
-function renderCounts() {
-  for (const group of GROUPS) {
-    const cell = document.querySelector(
-      `.line-row[data-key="${group.key}"] [data-count]`,
-    );
-    if (!cell) continue;
-    const live = liveCountForGroup(group.key);
-    const scheduled = scheduledCounts.get(group.key) ?? 0;
-    const stations = stationCounts.get(group.key) ?? 0;
-    const references = referenceCounts.get(group.key) ?? 0;
-    const secondary = [
-      scheduled ? `${scheduled} route${scheduled === 1 ? '' : 's'}` : '',
-      stations ? `${stations} stop${stations === 1 ? '' : 's'}` : '',
-    ].filter(Boolean).join(' · ');
-    if (secondary) {
-      cell.innerHTML = `${live ? `<strong>${live} live</strong>` : ''}<small>${secondary}</small>`;
-      cell.title = `${live ?? 0} live vehicle${live === 1 ? '' : 's'} · ${secondary}`;
-    } else if (references && live) {
-      cell.innerHTML = `<strong>${live} live</strong><small>${references} mapped</small>`;
-      cell.title = `${live} live · ${references} mapped reference features`;
-    } else if (references) {
-      cell.innerHTML = `<strong>${references}</strong><small>mapped</small>`;
-      cell.title = `${references} mapped reference feature${references === 1 ? '' : 's'}`;
-    } else if (group.overlay) {
-      cell.textContent = 'overlay';
-      cell.title = 'Map overlay; it has no feature count';
-    } else {
-      cell.textContent = live ?? '–';
-      cell.removeAttribute('title');
-    }
-  }
-  renderStatus();
-  renderOverviewStats();
-}
+// ---- connection status ------------------------------------------------------
 
 // The MBTA poller is the app's heartbeat: it stamps lastUpdate.
-export function updateStats({ byGroup, lastUpdate }) {
+export function updateStats({ lastUpdate }) {
   status.lastUpdate = lastUpdate;
-  updateCounts(byGroup, 'mbta');
+  renderStatus();
 }
 
 export function updateStatus(state, detail = {}) {
@@ -577,26 +440,18 @@ export function updateStatus(state, detail = {}) {
 }
 
 function totalCount() {
-  return GROUPS.filter((group) => group.countAsVehicle !== false).reduce((total, group) => {
-    const groupTotal = [...countsBySource.values()].reduce(
-      (sum, sourceMap) => sum + (sourceMap.get(group.key) ?? 0),
-      0,
-    );
+  const sources = countsBySource.value;
+  return GROUPS().filter((group) => group.countAsVehicle !== false).reduce((total, group) => {
+    let groupTotal = 0;
+    for (const sourceMap of sources.values()) groupTotal += sourceMap.get(group.key) ?? 0;
     return total + groupTotal;
   }, 0);
-}
-
-function renderOverviewStats() {
-  const set = (id, value) => { if (el(id)) el(id).textContent = value.toLocaleString(); };
-  set('stat-live', totalCount());
-  set('stat-routes', [...scheduledCounts.values()].reduce((sum, value) => sum + value, 0));
-  set('stat-stations', [...stationCounts.values()].reduce((sum, value) => sum + value, 0));
-  set('stat-reference', [...referenceCounts.values()].reduce((sum, value) => sum + value, 0));
 }
 
 function renderStatus() {
   const dot = el('status-dot');
   const text = el('status-text');
+  if (!dot || !text) return;
   const age = status.lastUpdate
     ? Math.max(0, Math.round((Date.now() - status.lastUpdate) / 1000))
     : null;
@@ -635,7 +490,8 @@ export function renderAlerts(alerts) {
   el('alerts-count').textContent = alerts.length;
 
   // Worst severity per group drives the badge next to the group name.
-  for (const group of GROUPS) {
+  const badges = new Map();
+  for (const group of GROUPS()) {
     if (!group.routes.length) continue;
     const worst = Math.max(
       0,
@@ -643,13 +499,10 @@ export function renderAlerts(alerts) {
         .filter((a) => a.routes.some((r) => group.routes.includes(r)))
         .map((a) => a.severity),
     );
-    const badge = document.querySelector(
-      `.line-row[data-key="${group.key}"] .badge`,
-    );
-    if (!badge) continue;
-    badge.hidden = worst < CONFIG.ALERT_LEVELS.minor;
-    badge.className = `badge ${worst >= CONFIG.ALERT_LEVELS.major ? 'major' : 'minor'}`;
+    if (worst >= CONFIG.ALERT_LEVELS.major) badges.set(group.key, 'major');
+    else if (worst >= CONFIG.ALERT_LEVELS.minor) badges.set(group.key, 'minor');
   }
+  setAlertBadges(badges);
 
   const list = el('alerts-list');
   list.innerHTML = '';
@@ -689,95 +542,14 @@ export function renderAlerts(alerts) {
       button.type = 'button';
       button.append(effect, text);
       li.appendChild(button);
-      const go = () => {
-        const flew = focusAlert(a);
-        if (flew && window.matchMedia('(max-width: 760px)').matches) {
-          setPanelOpen(false);
-        }
-      };
-      button.addEventListener('click', go);
+      button.addEventListener('click', () => {
+        if (focusAlert(a)) closePanelOnMobile();
+      });
     } else {
       li.append(effect, text);
     }
     list.appendChild(li);
   }
-}
-
-// ---- drill-down -----------------------------------------------------------
-
-function enterDrillDown(group) {
-  setDrillDown(group.key);
-}
-
-function paintDrillPanel(state) {
-  const group = GROUPS.find((item) => item.key === state.group);
-  const container = el('drill-down');
-  if (!container || !group) return;
-  const title = state.operatorLabel
-    ? `${state.operatorLabel} · ${state.vehicles} vehicles`
-    : `${group.name} · ${state.vehicles} vehicles`;
-
-  container.innerHTML = '';
-  const header = document.createElement('button');
-  header.type = 'button';
-  header.className = 'drill-header';
-  const back = document.createElement('span');
-  back.className = 'drill-back';
-  back.setAttribute('aria-hidden', 'true');
-  back.textContent = '←';
-  const bullet = document.createElement('span');
-  bullet.className = 'bullet';
-  bullet.style.background = group.color ?? '#39424c';
-  bullet.textContent = group.initial;
-  const titleEl = document.createElement('span');
-  titleEl.className = 'drill-title';
-  titleEl.textContent = title;
-  header.append(back, bullet, titleEl);
-  header.addEventListener('click', () => setDrillDown(null));
-  container.appendChild(header);
-
-  for (const route of state.rows) {
-    const row = document.createElement('div');
-    row.className = 'line-row drill-route zoomable';
-    if (state.route && state.route !== route.key) row.classList.add('dimmed');
-    row.style.setProperty('--line-color', route.color);
-    const mark = document.createElement('span');
-    mark.className = 'bullet';
-    mark.style.background = route.color;
-    mark.textContent = route.label.charAt(0);
-    const nameWrap = document.createElement('span');
-    nameWrap.className = 'line-name';
-    const label = document.createElement('span');
-    label.className = 'line-label';
-    label.textContent = route.label;
-    nameWrap.appendChild(label);
-    const countEl = document.createElement('span');
-    countEl.className = 'count';
-    countEl.textContent = String(route.live);
-    row.append(mark, nameWrap, countEl);
-    row.title = `Filter to ${route.label}`;
-    row.addEventListener('click', () => {
-      setDrillDown(state.group, state.route === route.key ? null : route.key);
-    });
-    container.appendChild(row);
-  }
-
-  el('subway-master')?.closest('.master-row')?.classList.add('drill-hidden');
-  el('layer-rows').classList.add('drill-hidden');
-  el('modal-rows').classList.add('drill-hidden');
-  for (const heading of document.querySelectorAll('.layer-subhead, .modal-divider')) heading.classList.add('drill-hidden');
-  container.hidden = false;
-}
-
-function closeDrillPanel() {
-  const container = el('drill-down');
-  if (!container) return;
-  container.hidden = true;
-  container.innerHTML = '';
-  el('subway-master')?.closest('.master-row')?.classList.remove('drill-hidden');
-  el('layer-rows')?.classList.remove('drill-hidden');
-  el('modal-rows')?.classList.remove('drill-hidden');
-  for (const heading of document.querySelectorAll('.layer-subhead, .modal-divider')) heading.classList.remove('drill-hidden');
 }
 
 // ---- overlay --------------------------------------------------------------
@@ -786,14 +558,10 @@ function closeDrillPanel() {
 // lift it on their own, so the panel can fill in behind the overlay.
 export function setLoading(message) {
   if (message === null) {
-    hideOverlay();
+    el('overlay').classList.add('hidden');
     return;
   }
   el('overlay-text').textContent = message;
-}
-
-function hideOverlay() {
-  el('overlay').classList.add('hidden');
 }
 
 export function fatal(err) {

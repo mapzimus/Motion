@@ -12,7 +12,6 @@ import {
   liveKeyCounts,
   viewportRoutes,
   wantsViewportRoutes,
-  setLegendCollapsed,
   setDrillLegend,
 } from './legend.js';
 import { setVisibleGroupList } from './layers.js';
@@ -141,14 +140,10 @@ describe('legend store', () => {
     }
   });
 
-  it('wants viewport routes only when open and a route group is on', () => {
-    setLegendCollapsed(false);
+  it('wants viewport routes only when a route group is on', () => {
     setVisibleGroupList(['plane']);
     expect(wantsViewportRoutes()).toBe(false);
     setVisibleGroupList(['bus']);
     expect(wantsViewportRoutes()).toBe(true);
-    setLegendCollapsed(true);
-    expect(wantsViewportRoutes()).toBe(false);
-    setLegendCollapsed(false);
   });
 });

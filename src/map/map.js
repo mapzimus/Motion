@@ -3189,8 +3189,12 @@ function applyGroupFilter(groups, statuses) {
 export function fitPadding() {
   // On mobile the panel closes. On desktop keep targets clear of it, measured
   // from the panel itself so the camera cannot drift from the stylesheet.
-  if (window.innerWidth <= 760) return { top: 60, right: 40, bottom: 60, left: 40 };
   const panel = document.getElementById('panel');
+  if (window.innerWidth <= 760) {
+    // The bottom sheet: keep targets above whatever height it is showing at.
+    const sheet = panel && document.body.dataset.sheet !== 'full' ? panel.getBoundingClientRect().height : 0;
+    return { top: 60, right: 40, bottom: Math.min(60 + sheet, window.innerHeight * 0.6), left: 40 };
+  }
   const left = panel ? panel.offsetLeft + panel.offsetWidth + 24 : 40;
   return { top: 70, right: 70, bottom: 70, left };
 }

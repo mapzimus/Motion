@@ -2,7 +2,7 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { render } from 'preact';
 import { boot } from './app/boot.js';
-import { Legend } from './components/Legend.js';
+import { LayerPanel } from './components/LayerPanel.js';
 import { initLegacyBridge } from './legacyBridge.js';
 import { initLegendBridge } from './app/legendBridge.js';
 import { setFatal } from './stores/index.js';
@@ -19,7 +19,7 @@ import { setFatal } from './stores/index.js';
   }
 }
 
-render(<Legend />, document.getElementById('legend-root')!);
+render(<LayerPanel />, document.getElementById('layers-root')!);
 
 // A legend setup error is logged, not shown as a boot failure: the map still works.
 function startLegend() {

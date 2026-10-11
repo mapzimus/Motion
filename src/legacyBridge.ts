@@ -6,10 +6,6 @@ import { effect } from '@preact/signals';
 import {
   loadingMessage,
   fatalError,
-  countsBySource,
-  scheduledCounts,
-  stationCounts,
-  referenceCounts,
   status,
 } from './stores/index.js';
 import { sortedAlerts } from './stores/alerts.js';
@@ -39,33 +35,6 @@ export function initLegacyBridge(): void {
     if (err) ui.fatal(err);
   });
 
-  // Per-source vehicle counts. On every change, push a full replaceCounts for
-  // each source so ui.js stays in sync.
-  effect(() => {
-    const sources = countsBySource.value;
-    for (const [source, groupCounts] of sources.entries()) {
-      ui.replaceCounts(Object.fromEntries(groupCounts), source);
-    }
-  });
-
-  // Scheduled route counts
-  effect(() => {
-    const counts = scheduledCounts.value;
-    ui.setScheduledCounts(Object.fromEntries(counts));
-  });
-
-  // Station counts
-  effect(() => {
-    const counts = stationCounts.value;
-    ui.setStationCounts(Object.fromEntries(counts));
-  });
-
-  // Reference counts
-  effect(() => {
-    const counts = referenceCounts.value;
-    ui.setReferenceCounts(Object.fromEntries(counts));
-  });
-
   // Sorted alerts
   effect(() => {
     const alerts = sortedAlerts.value;
@@ -86,7 +55,7 @@ export function initLegacyBridge(): void {
   effect(() => {
     const s = status.value;
     if (s.lastUpdate !== null) {
-      ui.updateStats({ byGroup: {}, lastUpdate: s.lastUpdate });
+      ui.updateStats({ lastUpdate: s.lastUpdate });
     }
   });
 }

@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+### Panel
+- One layer list instead of two. The map key folds into the layer list:
+  each row carries the swatch the map draws, its live and route counts, and
+  its switch, and a switched-on group's key (operators, routes in view,
+  fixed color rows, notes) nests under its row behind a chevron. The
+  right-hand Key panel is gone. Every section has a master switch, not just
+  Subway. Group definitions moved from `ui.js` to `src/model/groups.ts`; the
+  list itself is the `LayerPanel` Preact component, and the layers store is
+  the single source of truth for what is on.
+- Two filter controls instead of four. The mode chips (Rail, Buses, Water,
+  Air, Roads, Bike & walk, Disruptions, All live) gain an "Everything" chip
+  that restores the region's defaults; the Default/Routes/Clear buttons are
+  gone. Scenes moved into the Geography picker as its first group. The four
+  Include checkboxes became one "Live only" switch (`s=live` in links still
+  reads and writes the same way).
+- The header is one line, "Motion · <region>", with the tagline and the
+  Census clipping note behind an (i) button. Search sits directly under it.
+  The stats line is gone; the footer already carries the live count.
+- Phones get a bottom sheet with three heights (peek, half, full) instead of
+  the off-canvas drawer and the floating Key. Tap the grip to cycle, drag it
+  to snap. The sheet hides while a trip card is open.
+
+### Startup
+- The map draws before the route index and gateway health check finish, and
+  the overlay lifts on the basemap's first frame instead of after the live
+  feeds start. Counts show "…" until their first feed reports.
+- Changing the URL hash on an open page (pasting a link, the back button)
+  now moves the map and applies the region, layers and follow target.
+
 ### Basemaps
 - Four basemaps: Dark (CARTO Dark Matter, the default), Light (CARTO Positron),
   Dark without labels, and Satellite (USGS Imagery Only, slightly muted, with
