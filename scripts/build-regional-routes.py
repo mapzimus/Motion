@@ -18,6 +18,7 @@ import math
 import re
 import sys
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 import zipfile
@@ -89,12 +90,25 @@ GROUP_COLORS = {"amtrak": "#5b9bd5", "nyc-subway": "#9aa0a6"}
 HEX_COLOR = re.compile(r"^[0-9a-fA-F]{6}$")
 
 
+DOWNLOAD_ATTEMPTS = 3
+
+
 def download(url: str, user_agent: str | None = None) -> bytes:
     """Fetch a feed. Some agency CDNs reject non-browser agents, so a feed may
-    carry its own `user_agent` in regional-feeds.json."""
+    carry its own `user_agent` in regional-feeds.json. A dropped connection is
+    retried, so one reset (AVCOG's host does this) does not erase a feed's
+    routes from the snapshot."""
     request = urllib.request.Request(url, headers={"User-Agent": user_agent or "Motion route builder/1.0"})
-    with urllib.request.urlopen(request, timeout=120) as response:
-        payload = response.read(80 * 1024 * 1024 + 1)
+    for attempt in range(1, DOWNLOAD_ATTEMPTS + 1):
+        try:
+            with urllib.request.urlopen(request, timeout=120) as response:
+                payload = response.read(80 * 1024 * 1024 + 1)
+            break
+        except (urllib.error.URLError, ConnectionError, TimeoutError) as error:
+            if attempt == DOWNLOAD_ATTEMPTS or isinstance(error, urllib.error.HTTPError):
+                raise
+            print(f"     download failed ({error}); retrying in {5 * attempt}s", flush=True)
+            time.sleep(5 * attempt)
     if len(payload) > 80 * 1024 * 1024:
         raise ValueError("feed exceeds the 80 MB safety limit")
     return payload
@@ -364,7 +378,13 @@ def perpendicular_distance(point, start, end) -> float:
     return math.dist(point, projection)
 
 
-def simplify(points, tolerance=TOLERANCE):
+# Rail and ferry paths keep a vertex at least this often even where the track is
+# dead straight (the Adirondack's Quebec approach), so a long chord always
+# means a provider gap, which scripts/check-route-geometry.mjs rejects.
+MAX_RAIL_CHORD_KM = 20.0
+
+
+def simplify(points, tolerance=TOLERANCE, max_chord_km=MAX_RAIL_CHORD_KM):
     if len(points) <= 2:
         return points
     start, end = points[0], points[-1]
@@ -372,10 +392,10 @@ def simplify(points, tolerance=TOLERANCE):
         ((i, perpendicular_distance(point, start, end)) for i, point in enumerate(points[1:-1], 1)),
         key=lambda pair: pair[1],
     )
-    if distance <= tolerance:
+    if distance <= tolerance and haversine_km(start, end) <= max_chord_km:
         return [start, end]
-    left = simplify(points[: index + 1], tolerance)
-    right = simplify(points[index:], tolerance)
+    left = simplify(points[: index + 1], tolerance, max_chord_km)
+    right = simplify(points[index:], tolerance, max_chord_km)
     return left[:-1] + right
 
 

@@ -246,9 +246,12 @@ const vermontAmtrakNames = new Set(
     .filter((feature) => feature.properties?.regions?.includes('vt'))
     .map((feature) => feature.properties.name),
 );
+// The Adirondack is also tagged for Vermont: its Lake Champlain shore track
+// touches the generalized state boundary that runs through the lake.
 const requiredVermontAmtrak = ['Ethan Allen Express', 'Vermonter'];
-if (vermontAmtrakNames.size !== requiredVermontAmtrak.length
-    || requiredVermontAmtrak.some((name) => !vermontAmtrakNames.has(name))) {
+const allowedVermontAmtrak = new Set([...requiredVermontAmtrak, 'Adirondack']);
+if (requiredVermontAmtrak.some((name) => !vermontAmtrakNames.has(name))
+    || [...vermontAmtrakNames].some((name) => !allowedVermontAmtrak.has(name))) {
   throw new Error('Vermont must contain scheduled Vermonter and Ethan Allen Express route geometry.');
 }
 
