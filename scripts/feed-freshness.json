@@ -580,6 +580,142 @@
       "serviceEnd": "2099-12-31",
       "source": "calendar.txt",
       "url": "https://files.mobilitydatabase.org/mdb-3115/latest.zip"
+    },
+    "mta-bus-bronx": {
+      "serviceEnd": "2027-01-02",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-528/latest.zip"
+    },
+    "mta-bus-brooklyn": {
+      "serviceEnd": "2027-01-02",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-512/latest.zip"
+    },
+    "mta-bus-manhattan": {
+      "serviceEnd": "2027-01-02",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-513/latest.zip"
+    },
+    "mta-bus-queens": {
+      "serviceEnd": "2027-01-02",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-520/latest.zip"
+    },
+    "mta-bus-staten-island": {
+      "serviceEnd": "2027-01-02",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-514/latest.zip"
+    },
+    "mta-bus-company": {
+      "serviceEnd": "2027-01-02",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-510/latest.zip"
+    },
+    "nice": {
+      "serviceEnd": "2027-01-09",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-521/latest.zip"
+    },
+    "bee-line": {
+      "serviceEnd": "2025-08-31",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-2353/latest.zip",
+      "exempt": "Westchester has not republished Bee-Line GTFS since the 2025 schedule (service_end 2025-08-31); the Mobility Database carries no newer file. Remove this exemption once one appears."
+    },
+    "long-beach": {
+      "serviceEnd": "2026-12-31",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-916/latest.zip"
+    },
+    "glen-cove": {
+      "serviceEnd": "2026-12-31",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/tld-5787/latest.zip"
+    },
+    "huntington-hart": {
+      "serviceEnd": "2027-01-02",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-905/latest.zip"
+    },
+    "rockland-tor": {
+      "serviceEnd": "2026-10-31",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/tld-3368/latest.zip"
+    },
+    "clarkstown": {
+      "serviceEnd": "2026-12-31",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-911/latest.zip"
+    },
+    "hudson-link": {
+      "serviceEnd": "2027-04-01",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-2312/latest.zip"
+    },
+    "putnam-part": {
+      "serviceEnd": "2026-12-31",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-928/latest.zip"
+    },
+    "dutchess": {
+      "serviceEnd": "2051-09-30",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-457/latest.zip"
+    },
+    "ucat": {
+      "serviceEnd": "2028-05-31",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-526/latest.zip"
+    },
+    "broome": {
+      "serviceEnd": "2027-12-31",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-2079/latest.zip"
+    },
+    "centro": {
+      "serviceEnd": "2027-02-28",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-534/latest.zip"
+    },
+    "rts": {
+      "serviceEnd": "2027-01-03",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-533/latest.zip"
+    },
+    "nfta": {
+      "serviceEnd": "2026-12-05",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/tld-401/latest.zip"
+    },
+    "ccpt": {
+      "serviceEnd": "2027-01-24",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-544/latest.zip"
+    },
+    "njt-bus": {
+      "serviceEnd": "2027-03-13",
+      "source": "calendar_dates.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-508/latest.zip"
+    },
+    "academy": {
+      "serviceEnd": "2026-12-31",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/ntd-20122/latest.zip"
+    },
+    "coach-usa": {
+      "serviceEnd": "2027-05-01",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/tld-5741/latest.zip"
+    },
+    "megabus": {
+      "serviceEnd": "2027-05-01",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-2321/latest.zip"
+    },
+    "statue-liberty-ferry": {
+      "serviceEnd": "2026-11-20",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/tld-6909/latest.zip"
     }
   }
 }
