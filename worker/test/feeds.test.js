@@ -3,7 +3,8 @@ import { SWIFTLY_APPROVED_AGENCIES, TRANSIT_FEEDS, feedsForRegion, swiftlyAgency
 import staticFeeds from '../../scripts/regional-feeds.json';
 
 const MAP_STATES = new Set(['ct', 'ma', 'me', 'nh', 'ri', 'vt', 'ny', 'nj']);
-const staticIds = new Set(staticFeeds.map((feed) => feed.id));
+// A static feed may name the live feed its routes join (`realtime_feed`).
+const staticIds = new Set(staticFeeds.flatMap((feed) => [feed.id, feed.realtime_feed].filter(Boolean)));
 
 describe('realtime transit feed registry', () => {
   it('uses unique ids and only map-area state keys', () => {
@@ -17,8 +18,7 @@ describe('realtime transit feed registry', () => {
 
   it('keys every realtime feed to a static schedule feed so route ids can join', () => {
     // Connecticut Children's publishes positions only; its GTFS zip is 404.
-    // The MTA bus schedules are six borough zips the static build does not carry yet.
-    const liveWithoutStaticGtfs = new Set(['ccmc', 'nyct-bus']);
+    const liveWithoutStaticGtfs = new Set(['ccmc']);
     const orphans = TRANSIT_FEEDS.map((feed) => feed.id).filter((id) => !staticIds.has(id));
     expect(orphans.sort()).toEqual([...liveWithoutStaticGtfs].sort());
   });

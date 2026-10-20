@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### New York and New Jersey buses and coaches
+- Schedule snapshot: the six MTA bus borough feeds (joined to the live Bus
+  Time positions through a shared `nyct-bus` route prefix, so live buses
+  take their route ribbons and legend rows), NICE, Bee-Line, Long Beach,
+  Glen Cove, Huntington HART, Transport of Rockland, Clarkstown Mini-Trans,
+  Hudson Link, Putnam PART, Dutchess, UCAT, Broome County, Centro, RTS,
+  NFTA Metro, Clinton County, NJ Transit bus, Academy, Coach USA, Megabus
+  and the Statue of Liberty ferries. The builder streams the largest GTFS
+  members (NJ Transit's 125 MB shapes file, the MTA's 155 MB stop_times)
+  instead of loading them whole.
+
 ### 3D view
 - A **3D** chip beside the basemaps: the map pitches, CARTO building
   footprints rise to their OpenStreetMap heights as fill extrusions, and
