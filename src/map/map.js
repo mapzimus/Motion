@@ -25,6 +25,7 @@ import {
   maxZoomForRegion,
   setActiveRegion,
 } from '../feeds/regions.js';
+import { createThreeD, initialThreeD } from './three-d.js';
 import { buildRouteKeyIndex, stampRouteColors, stationShadeKey } from '../model/routeColors.js';
 import {
   setRouteKeyIndex,
@@ -316,6 +317,20 @@ function onStyleReady() {
   applyRoutePalette();
   if (pendingFilters) applyGroupFilter(pendingFilters.groups, pendingFilters.statuses);
   applyRegion(false);
+  // The style swap dropped the 3D layers with everything else.
+  threeD?.reattach();
+}
+
+// ---- 3D mode -----------------------------------------------------------------
+// Building extrusions plus Three.js vehicle meshes (src/map/three-d.js).
+let threeD = null;
+
+export function getThreeD() {
+  return threeD ? threeD.isEnabled() : initialThreeD();
+}
+
+export function setThreeD(enabled) {
+  threeD?.setEnabled(enabled);
 }
 
 export async function initMap() {
@@ -342,6 +357,8 @@ export async function initMap() {
     zoomLevelsToOverscale: undefined,
   });
   window.__map = map; // console/debug access
+  threeD = createThreeD(map, { fleetIds: FLEETS, activeGround });
+  window.__threeD = threeD; // console/debug access
 
   map.addControl(
     new maplibregl.AttributionControl({
@@ -358,6 +375,9 @@ export async function initMap() {
     // would also wait on the basemap's sprite and first tiles.
     map.once('style.load', () => {
       onStyleReady();
+      // A saved or linked 3D view starts pitched with the extrusions up, once
+      // the first region fit has settled so the pitch is not fought over.
+      if (initialThreeD()) map.once('idle', () => threeD.setEnabled(true));
       // Layer click/hover listeners live on the map, not the style, so they
       // survive basemap swaps and are wired once.
       wirePopups();
@@ -2748,6 +2768,7 @@ function renderFleetData(fleetId) {
   }
   fleetData.set(fleetId, filtered);
   map?.getSource(`veh-${fleetId}`)?.setData(filtered);
+  threeD?.updateFleet(fleetId, filtered);
   scheduleLiveKeyCounts();
   scheduleViewportRoutes();
 }

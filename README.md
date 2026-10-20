@@ -170,6 +170,20 @@ Sub-regions ask the gateway for their parent state (the Upper Valley asks for
 `new-england`) and clip the results in the browser, so the gateway still only
 knows the eleven IDs listed under [Gateway API](#gateway-api).
 
+### 3D view
+
+The **3D** chip beside the basemaps pitches the map, raises every building in
+the CARTO basemap tiles to its recorded height (`render_height` from
+OpenStreetMap), and draws the live vehicles as [three.js](https://threejs.org/)
+meshes in a MapLibre custom layer that shares the map camera and depth
+buffer, so a bus passes behind a tower instead of over it. Trains, buses,
+boats, bikes and aircraft each have their own shape; aircraft fly at their
+reported altitude (capped at 3,000 m so cruising jets stay in frame); colors
+and staleness match the 2D icons. Meshes are life-size at street zoom and
+grow as you zoom out. The 2D vehicle icons are hidden while 3D is on, so
+clicking a vehicle for its card is a 2D-mode action for now. three.js loads
+only when the chip is first switched on. `?3d=1` opens a link in 3D.
+
 ### Presets and scenes
 
 Above the layer list, **Default**, **Routes** and **Clear** work as before.

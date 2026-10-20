@@ -55,6 +55,8 @@ export function startPlanes(onCounts, initialRegion, enabled = true) {
             bearing: a.bearing ?? 0,
             hasBearing: Number.isFinite(a.bearing),
             stale: a.onGround, // taxiing aircraft render dimmed
+            // Feet above sea level, for the 3D view.
+            altitudeFeet: Number.isFinite(a.altitudeFeet) ? a.altitudeFeet : null,
             title: generic ? 'Helicopter' : a.callsign || a.id.toUpperCase(),
             callsign: generic ? '' : a.callsign || '',
             dest: a.aircraftType ?? '',

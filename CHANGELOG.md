@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### 3D view
+- A **3D** chip beside the basemaps: the map pitches, CARTO building
+  footprints rise to their OpenStreetMap heights as fill extrusions, and
+  every live vehicle is drawn as a three.js mesh (train, bus, boat, bike,
+  aircraft at altitude) in a MapLibre custom layer sharing the map's camera
+  and depth buffer. Meshes keep the 2D colors and stale dimming; the 2D icons
+  hide while 3D is on. `?3d=1` in a link opens the view in 3D. three.js is
+  code-split and loads on first use.
+
 ### New York and New Jersey
 - Two new states in the region picker, with New York City, Long Island, the
   Hudson Valley, the Capital District and North Jersey as named regions, and

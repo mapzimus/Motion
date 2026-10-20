@@ -6,7 +6,7 @@
 
 import { effect } from '@preact/signals';
 import { CONFIG } from './feeds/config.js';
-import { focusAlert, getBasemap, getDrillDown, setBasemap, setDrillDown } from './map/map.js';
+import { focusAlert, getBasemap, getDrillDown, getThreeD, setBasemap, setDrillDown, setThreeD } from './map/map.js';
 import { REGIONS, REGION_GROUPS, hasSubway, regionInfo, regionName } from './feeds/regions.js';
 import { SCENES, VEHICLE_PRESETS, resolvePreset } from './model/presets.js';
 import { groupStartsOn } from './model/groups.js';
@@ -382,6 +382,19 @@ function renderBasemapOptions() {
     });
   }
   sync();
+  // 3D: building extrusions and vehicle meshes over any basemap.
+  const threeD = document.createElement('button');
+  threeD.type = 'button';
+  threeD.className = 'three-d-toggle';
+  threeD.textContent = '3D';
+  threeD.title = 'Raise buildings to their heights and draw vehicles as 3D shapes';
+  threeD.setAttribute('aria-pressed', String(getThreeD()));
+  threeD.addEventListener('click', () => {
+    const next = threeD.getAttribute('aria-pressed') !== 'true';
+    setThreeD(next);
+    threeD.setAttribute('aria-pressed', String(next));
+  });
+  container.appendChild(threeD);
 }
 
 // ---- visible state ----------------------------------------------------------
