@@ -48,7 +48,7 @@ BORROWED_SHAPE_NOTE = (
 )
 BORROWED_SHAPE_MAX_SNAP_KM = 0.6
 
-NE_BOUNDS = (-79.8, 38.9, -65.0, 48.5)  # New England, New York and New Jersey (Cape May to Jamestown NY)
+NE_BOUNDS = (-79.3, 38.9, -65.0, 48.5)  # New England, New York and New Jersey (Cape May to Jamestown NY; Toronto and Washington stops drop out)
 TOLERANCE = 0.00022  # roughly 18–25 m in New England
 MAX_BUS_CHORD_KM = 20.0
 OSRM_BASE_URL = "https://router.project-osrm.org"

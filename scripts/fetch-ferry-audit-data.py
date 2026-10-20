@@ -12,7 +12,7 @@ Three local files are written to ``.codex-research/water-audit/`` (gitignored):
     behind a coastline closure (hurricane barriers, river mouths) as land, so
     these polygons are subtracted from the land polygons.
 ``osm-ferry-ways.json``
-    Raw Overpass ``route=ferry`` ways in the New England ferry bbox. These are
+    Raw Overpass ``route=ferry`` ways in the New England and New York Harbor ferry bbox. These are
     matched to our terminals as a geometry source.
 
 The ~925 MB land-polygon zip is downloaded once and reused; pass
@@ -45,8 +45,8 @@ OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 USER_AGENT = "New England in Motion ferry geometry builder (+https://github.com/mapzimus/Motion)"
 
 # west, south, east, north
-LAND_BBOX = (-74.2, 40.7, -65.8, 47.8)
-FERRY_WAY_BBOX = (-74.0, 40.9, -66.0, 47.5)
+LAND_BBOX = (-74.4, 40.4, -65.8, 47.8)  # New England plus New York Harbor, Raritan Bay and the lower Hudson
+FERRY_WAY_BBOX = (-74.3, 40.4, -66.0, 47.5)
 WATER_TILE = 0.1
 CORRIDOR_BUFFER = 0.02
 TILES_PER_QUERY = 8
