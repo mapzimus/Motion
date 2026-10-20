@@ -1,6 +1,6 @@
 import { signal } from '@preact/signals';
 
-export const loadingMessage = signal<string | null>('Loading New England…');
+export const loadingMessage = signal<string | null>('Loading the map…');
 export const fatalError = signal<Error | null>(null);
 
 export function setLoading(message: string | null) {

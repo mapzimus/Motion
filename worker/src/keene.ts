@@ -4,7 +4,7 @@
 // by that host; it is not a user credential. Driver names are not requested.
 
 import type { RoadPointFeature } from './road-extras';
-import { insideNewEngland } from './regions';
+import { insideMapArea } from './regions';
 
 export const KEENE_SOURCE_URL = 'https://keenenh.gov/news/snow-plow-tracking/';
 export const KEENE_VIEWER_URL = 'https://cloud.samsara.com/o/10007013/fleet/viewer/9UjyA9zT0itLijnVB1po';
@@ -83,7 +83,7 @@ export function parseKeeneViewer(payload: unknown, nowMs: number): RoadPointFeat
     const lat = numberAt(location.latitude);
     const lng = numberAt(location.longitude);
     const updatedMs = epochMs(location.time);
-    if (lat === null || lng === null || updatedMs === null || !insideNewEngland(lng, lat)) continue;
+    if (lat === null || lng === null || updatedMs === null || !insideMapArea(lng, lat)) continue;
     if (updatedMs > nowMs + 5 * 60 * 1000 || nowMs - updatedMs > KEENE_MAX_AGE_MS) continue;
     const id = String(record.id ?? record.name ?? features.length + 1);
     const name = typeof record.name === 'string' && record.name.trim() ? record.name.trim() : `Keene truck ${id}`;

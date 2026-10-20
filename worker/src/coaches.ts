@@ -5,7 +5,7 @@
 
 import https from 'node:https';
 
-import { insideNewEngland } from './regions';
+import { insideMapArea } from './regions';
 
 export const PETER_PAN_CONFIG_URL = 'https://bustracker.peterpanbus.com/configs/global.js?v=3';
 export const PETER_PAN_SOURCE_URL = 'https://bustracker.peterpanbus.com/';
@@ -35,8 +35,8 @@ export const PETER_PAN_STOPS = [
   '6773', // Woods Hole
 ] as const;
 
-// New York is polled so a through coach still in New England is not missed.
-// Positions outside New England are dropped. This does not add New York coverage.
+// New York is polled so a through coach is not missed. Positions outside the
+// map area (New England, New York, New Jersey) are dropped.
 export const CJ_STOPS = [
   '955', // Dover
   '949', // Portsmouth
@@ -180,7 +180,7 @@ function coachFromDeparture(
   const lat = numberAt(position.current_wgs84_latitude_degrees);
   const lng = numberAt(position.current_wgs84_longitude_degrees);
   const updatedSec = numberAt(position.last_update_time_unix);
-  if (lat === null || lng === null || updatedSec === null || !insideNewEngland(lng, lat)) return null;
+  if (lat === null || lng === null || updatedSec === null || !insideMapArea(lng, lat)) return null;
   const updatedMs = updatedSec * 1000;
   if (updatedMs > nowMs + 5 * 60 * 1000 || nowMs - updatedMs > COACH_MAX_AGE_MS) return null;
 

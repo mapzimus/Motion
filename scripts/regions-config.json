@@ -6,7 +6,7 @@
     "counties": 0.002,
     "state": 0.003
   },
-  "maxBytes": 1500000,
+  "maxBytes": 2000000,
   "groups": [
     {
       "key": "boston-area",
@@ -37,8 +37,20 @@
       "label": "Maine"
     },
     {
+      "key": "ny",
+      "label": "New York"
+    },
+    {
+      "key": "nj",
+      "label": "New Jersey"
+    },
+    {
       "key": "new-england",
       "label": "New England"
+    },
+    {
+      "key": "northeast",
+      "label": "Northeast"
     }
   ],
   "ring": {
@@ -834,6 +846,139 @@
       "definition": "Windsor and Orange counties (Vermont) plus Grafton and Sullivan counties (New Hampshire)",
       "hasSubway": false,
       "busDefaultOn": true
+    },
+    {
+      "key": "ny",
+      "name": "New York",
+      "group": "ny",
+      "parent": "northeast",
+      "kind": "state",
+      "definition": "All of New York State",
+      "hasSubway": false,
+      "busDefaultOn": false,
+      "geoid": "36",
+      "stusab": "NY"
+    },
+    {
+      "key": "nyc",
+      "name": "New York City",
+      "group": "ny",
+      "parent": "ny",
+      "kind": "counties",
+      "members": [
+        "New York, NY",
+        "Kings, NY",
+        "Queens, NY",
+        "Bronx, NY",
+        "Richmond, NY"
+      ],
+      "memberCount": 5,
+      "definition": "The five boroughs: Manhattan, Brooklyn, Queens, the Bronx and Staten Island",
+      "hasSubway": false,
+      "busDefaultOn": false
+    },
+    {
+      "key": "long-island",
+      "name": "Long Island",
+      "group": "ny",
+      "parent": "ny",
+      "kind": "counties",
+      "members": [
+        "Nassau, NY",
+        "Suffolk, NY"
+      ],
+      "memberCount": 2,
+      "definition": "Nassau and Suffolk counties",
+      "hasSubway": false,
+      "busDefaultOn": true
+    },
+    {
+      "key": "hudson-valley",
+      "name": "Hudson Valley",
+      "group": "ny",
+      "parent": "ny",
+      "kind": "counties",
+      "members": [
+        "Westchester, NY",
+        "Rockland, NY",
+        "Putnam, NY",
+        "Orange, NY",
+        "Dutchess, NY",
+        "Ulster, NY"
+      ],
+      "memberCount": 6,
+      "definition": "Westchester, Rockland, Putnam, Orange, Dutchess and Ulster counties",
+      "hasSubway": false,
+      "busDefaultOn": true
+    },
+    {
+      "key": "capital-district",
+      "name": "Capital District",
+      "group": "ny",
+      "parent": "ny",
+      "kind": "counties",
+      "members": [
+        "Albany, NY",
+        "Rensselaer, NY",
+        "Saratoga, NY",
+        "Schenectady, NY"
+      ],
+      "memberCount": 4,
+      "definition": "Albany, Rensselaer, Saratoga and Schenectady counties",
+      "hasSubway": false,
+      "busDefaultOn": true
+    },
+    {
+      "key": "nj",
+      "name": "New Jersey",
+      "group": "nj",
+      "parent": "northeast",
+      "kind": "state",
+      "definition": "All of New Jersey",
+      "hasSubway": false,
+      "busDefaultOn": false,
+      "geoid": "34",
+      "stusab": "NJ"
+    },
+    {
+      "key": "north-jersey",
+      "name": "North Jersey",
+      "group": "nj",
+      "parent": "nj",
+      "kind": "counties",
+      "members": [
+        "Bergen, NJ",
+        "Hudson, NJ",
+        "Essex, NJ",
+        "Passaic, NJ",
+        "Union, NJ",
+        "Morris, NJ"
+      ],
+      "memberCount": 6,
+      "definition": "Bergen, Hudson, Essex, Passaic, Union and Morris counties",
+      "hasSubway": false,
+      "busDefaultOn": true
+    },
+    {
+      "key": "northeast",
+      "name": "All Northeast",
+      "group": "northeast",
+      "parent": null,
+      "kind": "union",
+      "members": [
+        "ct",
+        "ma",
+        "me",
+        "nh",
+        "ri",
+        "vt",
+        "ny",
+        "nj"
+      ],
+      "memberCount": 8,
+      "definition": "The six New England states plus New York and New Jersey",
+      "hasSubway": true,
+      "busDefaultOn": false
     }
   ]
 }

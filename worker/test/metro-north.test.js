@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MNR_GPS_MAX_AGE_SECONDS, metroNorthTrips } from '../src/metro-north';
+import { LIRR_ROUTES, MNR_GPS_MAX_AGE_SECONDS, lirrTrips, metroNorthTrips } from '../src/metro-north';
 import { trainItem } from '../../src/feeds/metro-north-normalize.js';
 
 const NOW = 1_791_137_786;
@@ -52,10 +52,58 @@ describe('Metro-North trips', () => {
     expect(trips[0]).toMatchObject({ positioning: 'gps', previousStopId: '', nextStopId: '116', routeName: 'Danbury' });
   });
 
-  it('drops finished trips and lines outside Connecticut service', () => {
+  it('drops finished trips and unknown routes, and keeps the Hudson and Harlem lines', () => {
     const finished = entity({ tripUpdate: { trip: { routeId: '3' }, stopTimeUpdate: [stop('1', -900), stop('149', -60)] } });
-    const hudson = entity({ tripUpdate: { trip: { routeId: '1' }, stopTimeUpdate: [stop('1', -60), stop('4', 600)] } });
-    expect(metroNorthTrips([finished, hudson], NOW)).toEqual([]);
+    const unknown = entity({ tripUpdate: { trip: { routeId: '9' }, stopTimeUpdate: [stop('1', -60), stop('4', 600)] } });
+    const hudson = entity({ id: '800', tripUpdate: { trip: { routeId: '1', tripId: '800' }, stopTimeUpdate: [stop('1', -60), stop('4', 600)] } });
+    const trips = metroNorthTrips([finished, unknown, hudson], NOW);
+    expect(trips.map((trip) => trip.id)).toEqual(['800']);
+    expect(trips[0]).toMatchObject({ routeName: 'Hudson', color: '#009b3a' });
+  });
+});
+
+describe('Long Island Rail Road trips', () => {
+  it('joins a separate GPS vehicle entity to its trip update by trip id', () => {
+    const update = {
+      id: 'GO202_26_809_T',
+      tripUpdate: {
+        trip: { routeId: '6', tripId: 'GO202_26_809' },
+        stopTimeUpdate: [stop('113', -600), stop('99', -60), stop('155', 240), stop('225', 900)],
+      },
+    };
+    const vehicle = {
+      id: 'GO202_26_809_V',
+      vehicle: {
+        trip: { tripId: 'GO202_26_809' },
+        position: { latitude: 40.7551, longitude: -73.9754 },
+        timestamp: NOW - 15,
+        vehicle: { id: '7615_809', label: '7615' },
+      },
+    };
+    const [trip] = lirrTrips([update, vehicle], NOW);
+    expect(trip).toMatchObject({
+      id: 'GO202_26_809_T',
+      tripId: 'GO202_26_809',
+      label: '7615',
+      routeName: 'Long Beach',
+      color: LIRR_ROUTES['6'].color,
+      positioning: 'gps',
+      previousStopId: '99',
+      nextStopId: '155',
+      destinationStopId: '225',
+    });
+    expect(trip.position).toMatchObject({ lat: 40.7551, lng: -73.9754 });
+    // The vehicle entity on its own is not a second train.
+    expect(lirrTrips([update, vehicle], NOW)).toHaveLength(1);
+  });
+
+  it('estimates a train between stations when no vehicle entity matches', () => {
+    const update = {
+      id: 'T1',
+      tripUpdate: { trip: { routeId: '9', tripId: 'T1' }, stopTimeUpdate: [stop('a', -300), stop('b', 300)] },
+    };
+    const [trip] = lirrTrips([update], NOW);
+    expect(trip).toMatchObject({ routeName: 'Port Washington', positioning: 'estimated', progress: 0.5 });
   });
 });
 

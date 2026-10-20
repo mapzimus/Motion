@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """Build public/data/regions.geojson from scripts/regions-config.json.
 
-Every map region (the six states, the MBTA core, Greater Boston inside I-495,
-and the named sub-state regions) is defined in the config file. This script
+Every map region (the six New England states plus New York and New Jersey,
+the MBTA core, Greater Boston inside I-495, and the named sub-state regions)
+is defined in the config file. This script
 fetches the matching Census TIGERweb boundaries, dissolves each region's
 members into one generalized polygon, and writes one feature per region with
 all of the config properties attached, in config order. The virtual
-``new-england`` region (the union of the six states) is described in the
-collection metadata rather than stored as a geometry.
+union regions (``new-england``, the six states; ``northeast``, those plus New
+York and New Jersey) are described in the collection metadata rather than
+stored as geometries.
 
 Checks that fail the build:
   * a configured town or county is missing from TIGERweb (or extra ones match)
@@ -44,7 +46,7 @@ TIGERWEB = "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb"
 STATES_QUERY = f"{TIGERWEB}/State_County/MapServer/0/query"
 COUNTIES_QUERY = f"{TIGERWEB}/State_County/MapServer/1/query"
 COUSUB_QUERY = f"{TIGERWEB}/Places_CouSub_ConCity_SubMCD/MapServer/1/query"
-STATE_FIPS = {"CT": "09", "MA": "25", "ME": "23", "NH": "33", "RI": "44", "VT": "50"}
+STATE_FIPS = {"CT": "09", "MA": "25", "ME": "23", "NH": "33", "RI": "44", "VT": "50", "NY": "36", "NJ": "34"}
 PAGE_SIZE = 200
 COORDINATE_DIGITS = 5  # about 1 m; plenty for boundaries generalized to 10+ m
 
@@ -220,15 +222,15 @@ def feature_properties(region, members):
 # Vessels sit on the water, just past the generalized land/state boundary, so
 # the vessel layer filters against each region grown by a coastal buffer.
 # About 0.2 degrees (~20 km, roughly the 12 nm territorial sea) for states and
-# New England, and a tighter 0.06 degrees for the MBTA core. Everything is
-# clipped to the New England AIS box the gateway subscribes to.
-STATE_KEYS = ("ct", "ma", "me", "nh", "ri", "vt")
+# the unions, and a tighter 0.06 degrees for the MBTA core. Everything is
+# clipped to the Northeast AIS box the gateway understands.
+STATE_KEYS = ("ct", "ma", "me", "nh", "ri", "vt", "ny", "nj")
 MARINE_BUFFER_DEG = 0.2
 MARINE_BUFFER_OVERRIDES = {"boston": 0.06}
 # Sub-state regions get a narrower margin (~10 km) so a small coastal region
 # does not pull in harbors that belong to its neighbours.
 MARINE_SUBREGION_BUFFER_DEG = 0.1
-MARINE_CLIP = box(-74.0, 40.8, -66.0, 47.7)  # AIS [[40.8,-74.0],[47.7,-66.0]]
+MARINE_CLIP = box(-80.0, 38.8, -66.0, 47.7)  # AIS [[38.8,-80.0],[47.7,-66.0]]
 MARINE_SIMPLIFY_DEG = 0.004
 
 
@@ -244,12 +246,12 @@ def build_marine(regions_fc):
     """Return a FeatureCollection of buffered, clipped region geometry.
 
     Takes the land/state region collection (data/regions.geojson) and returns
-    one feature per region key, plus a 'new-england' feature that is the union
-    of the six buffered states. Self-contained so the regions build can call
-    it for any set of regions.
+    one feature per region key, plus one feature per virtual union region
+    (``new-england``, ``northeast``) built from its buffered member states.
+    Self-contained so the regions build can call it for any set of regions.
     """
     features = []
-    buffered_states = []
+    buffered_states = {}
     # State polygons already include each state's own bays and harbors, so a
     # region's coastal margin must not reach into a neighbouring state's
     # waters (e.g. Portsmouth Harbor showing up in the Massachusetts view).
@@ -276,10 +278,15 @@ def build_marine(regions_fc):
         if neighbours:
             geometry = geometry.difference(unary_union(neighbours))
         if key in STATE_KEYS:
-            buffered_states.append(geometry)
+            buffered_states[key] = geometry
         features.append((key, distance, geometry))
-    if len(buffered_states) == len(STATE_KEYS):
-        features.append(("new-england", MARINE_BUFFER_DEG, unary_union(buffered_states)))
+    unions = regions_fc.get("metadata", {}).get("virtualRegions") or [
+        {"key": "new-england", "members": ["ct", "ma", "me", "nh", "ri", "vt"]},
+    ]
+    for union in unions:
+        members = [buffered_states[key] for key in union.get("members", []) if key in buffered_states]
+        if members and len(members) == len(union.get("members", [])):
+            features.append((union["key"], MARINE_BUFFER_DEG, unary_union(members)))
     out = []
     for key, distance, geometry in features:
         geometry = geometry.simplify(MARINE_SIMPLIFY_DEG, preserve_topology=True)
@@ -293,7 +300,7 @@ def build_marine(regions_fc):
         "type": "FeatureCollection",
         "metadata": {
             "source": "data/regions.geojson grown by a coastal buffer for the vessel layer",
-            "clip": [[40.8, -74.0], [47.7, -66.0]],
+            "clip": [[38.8, -80.0], [47.7, -66.0]],
         },
         "features": out,
     }

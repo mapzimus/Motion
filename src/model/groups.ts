@@ -62,6 +62,8 @@ export function buildGroups(routeInfo: Map<string, RouteLike>, capabilities: Cap
     { key: 'mattapan', name: 'Mattapan Trolley', section: 'subway', routes: ['Mattapan'], color: colorOf('Mattapan') },
     // The wider fleet.
     { key: 'commuter', name: 'Commuter & regional rail', section: 'ground', routes: routesOfType(2), color: c.COMMUTER_COLOR, truth: 'live + schedule' },
+    // Trains wear the official line colors; the MTA feeds carry no GPS, so every position is an estimate.
+    { key: 'nyc-subway', name: 'New York City Subway & SIR', section: 'ground', routes: [], color: c.NYC_SUBWAY_COLOR, truth: 'estimated + schedule' },
     { key: 'bus', name: 'Buses, shuttles & coaches', section: 'ground', routes: routesOfType(3).filter((id) => !c.SILVER_ROUTES.includes(id)), color: c.BUS_COLOR, truth: 'live + schedule' },
     { key: 'amtrak', name: 'Amtrak', section: 'ground', routes: [], color: c.AMTRAK_COLOR, truth: 'live + schedule' },
     { key: 'local', name: 'On-demand & community services', section: 'ground', routes: [], color: c.LOCAL_COLOR, truth: 'catalog', countAsVehicle: false },

@@ -1,6 +1,6 @@
 // MassDOT Highway Division roadway events (the ERS feed behind mass511.com).
 // Pure parsing only: index.ts owns the fetch, caching and provider health.
-import { insideNewEngland } from './regions';
+import { insideMapArea } from './regions';
 
 // Plain http on purpose: the https endpoint on this host times out (no working
 // TLS listener), while http answers in well under a second. Workers can fetch
@@ -94,7 +94,7 @@ export function parseErsEvents(xml: string, now: Date = new Date()): MassDotEven
     if (!latText || !lngText) continue;
     const lat = Number(latText);
     const lng = Number(lngText);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng) || !insideNewEngland(lng, lat)) continue;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || !insideMapArea(lng, lat)) continue;
 
     const road = [tag(event, 'RoadwayName'), tag(event, 'Direction')].filter(Boolean).join(' ');
     const kind = tag(event, 'EventSubType') || tag(event, 'EventType');

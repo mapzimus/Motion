@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+### New York and New Jersey
+- Two new states in the region picker, with New York City, Long Island, the
+  Hudson Valley, the Capital District and North Jersey as named regions, and
+  an "All Northeast" union above All New England. Boundaries come from
+  TIGERweb like the others; the marine (vessel) boundaries now clip to the
+  wider Northeast box.
+- Live New York transit through the gateway: every Metro-North line (Hudson
+  and Harlem join New Haven), the Long Island Rail Road (`/api/lirr`), the
+  New York City Subway and Staten Island Railway (`/api/nyc-subway`, placed
+  between stations from the trip updates because the feeds carry no GPS,
+  always labelled estimated), MTA Bus Time, NYC Ferry, NY Waterway, TCAT,
+  CDTA and Suffolk County Transit. A new "New York City Subway & SIR" layer
+  group under Ground & rail wears the official line colors.
+- Schedule snapshot: LIRR, the subway, NJ Transit rail and light rail, PATH,
+  NYC Ferry, NY Waterway, TCAT, CDTA, Suffolk, every Metro-North line, and
+  the Amtrak services through New York and New Jersey. Feeds that opt in
+  (`use_route_colors`) draw ribbons in the operator's own route colors.
+- Citi Bike docks on the bike-share layer; NWS alerts, FAA airport status,
+  METARs and TFRs for the two new states; aircraft probes for `ny`, `nj`
+  and `northeast`.
+- Every "inside New England" check in the gateway now means the whole map
+  area (New England, New York, New Jersey).
+
 ### Panel
 - One layer list instead of two. The map key folds into the layer list:
   each row carries the swatch the map draws, its live and route counts, and

@@ -23,6 +23,21 @@ const PLANE_PROBES = {
     { lat: 44.25, lon: -72.0, radius: 150 },
     { lat: 45.5, lon: -68.8, radius: 180 },
   ],
+  ny: [
+    { lat: 40.9, lon: -73.6, radius: 90 },
+    { lat: 42.4, lon: -74.4, radius: 130 },
+    { lat: 43.1, lon: -76.9, radius: 150 },
+    { lat: 44.3, lon: -74.5, radius: 120 },
+  ],
+  nj: [{ lat: 40.2, lon: -74.5, radius: 90 }],
+  northeast: [
+    { lat: 40.7, lon: -74.0, radius: 110 },
+    { lat: 41.75, lon: -72.5, radius: 120 },
+    { lat: 42.8, lon: -71.3, radius: 125 },
+    { lat: 43.0, lon: -75.8, radius: 150 },
+    { lat: 44.25, lon: -72.0, radius: 150 },
+    { lat: 45.5, lon: -68.8, radius: 180 },
+  ],
 } as const;
 
 type RegionId = keyof typeof PLANE_PROBES;

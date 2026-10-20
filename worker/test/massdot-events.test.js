@@ -38,7 +38,7 @@ const FEED = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
     ${event({ EventId: '2', EventStatus: 'Closed' })}
     ${event({ EventId: '3', EventCategory: 'Planned Event' })}
     ${event({ EventId: '4', PrimaryLatitude: '', PrimaryLongitude: '' })}
-    ${event({ EventId: '5', PrimaryLatitude: '40.71', PrimaryLongitude: '-74.01' })}
+    ${event({ EventId: '5', PrimaryLatitude: '38.71', PrimaryLongitude: '-77.01' })}
     ${event({ EventId: '6', LocationType: 'Segment' })}
     ${event({
       EventId: '7',
@@ -57,7 +57,7 @@ describe('MassDOT roadway events', () => {
     expect(MASSDOT_EVENTS_URL).toBe('http://events.massdot.evbg.net/');
   });
 
-  it('keeps only open, unplanned point events inside New England', () => {
+  it('keeps only open, unplanned point events inside the map', () => {
     const features = parseErsEvents(FEED);
     expect(features.map((feature) => feature.id)).toEqual(['ma-2754793634310369', 'ma-7']);
   });

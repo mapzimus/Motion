@@ -69,7 +69,7 @@ describe('Peter Pan coaches', () => {
     expect(coaches[0].lng).toBe(-70.279301);
   });
 
-  it('drops coaches with no GPS, a stale fix, or a position outside New England', () => {
+  it('drops coaches with no GPS, a stale fix, or a position outside the map', () => {
     const coaches = coachesFromStopFeeds([{
       stops: [{ chronological_departures: [
       departure({ tracking: { has_no_gps: true } }),
@@ -85,8 +85,8 @@ describe('Peter Pan coaches', () => {
       departure({
         trip: { short_name: 'NY 1', route_id: 'NY1', departure_location_name: 'New York, NY', arrival_location_name: 'Philadelphia, PA' },
         active_vehicle: {
-          current_wgs84_latitude_degrees: 40.10543,
-          current_wgs84_longitude_degrees: -74.97334,
+          current_wgs84_latitude_degrees: 38.50543,
+          current_wgs84_longitude_degrees: -77.03334,
           current_speed_mph: 0,
           current_forward_azimuth_degrees: 0,
           last_update_time_unix: FRESH,
@@ -107,7 +107,7 @@ describe('Peter Pan coaches', () => {
     expect(coaches.map((coach) => coach.route)).toEqual(['BZ200']);
   });
 
-  it('reads the C&J tracker and drops a coach that is outside New England', () => {
+  it('reads the C&J tracker and drops a coach that is outside the map', () => {
     expect(parseUtrackConfig(`
       API_URL: 'https://cj.origin.utrack.com/api',
       API_KEY: 'PUBLICEXAMPLEKEY123',
@@ -140,7 +140,7 @@ describe('Peter Pan coaches', () => {
             arrival_location_name: 'Dover, NH',
           },
           active_vehicle: {
-            current_wgs84_latitude_degrees: 40.75695,
+            current_wgs84_latitude_degrees: 38.75695,
             current_wgs84_longitude_degrees: -73.9905,
             current_speed_mph: 10,
             current_forward_azimuth_degrees: 0,

@@ -1,11 +1,18 @@
 # Motion
 
 One live map of transportation moving across Connecticut, Maine,
-Massachusetts, New Hampshire, Rhode Island, and Vermont. Start with Greater
-Boston (the 128 cities and towns inside I-495), narrow to the 17-municipality
-MBTA core, pick one of 28 named regions such as the North Shore, Cape Cod &
-Islands, the Pioneer Valley, the Northeast Kingdom or Midcoast Maine, switch to a single state, or zoom out to all
-New England.
+Massachusetts, New Hampshire, Rhode Island, Vermont, New York, and New Jersey.
+Start with Greater Boston (the 128 cities and towns inside I-495), narrow to
+the 17-municipality MBTA core, pick one of 33 named regions such as the North
+Shore, Cape Cod & Islands, the Pioneer Valley, the Northeast Kingdom, Midcoast
+Maine, New York City, Long Island, the Hudson Valley or North Jersey, switch
+to a single state, zoom out to all New England, or to the whole Northeast.
+
+New York and New Jersey are new and cover transit first: MTA subway, Metro-North,
+LIRR, buses and ferries live, with NJ Transit rail, PATH and NY Waterway
+schedules. The road, aviation-reference, infrastructure and place layers
+below are still built for the six New England states only (see
+[Remaining data gaps](#remaining-data-gaps)).
 
 The map combines live and scheduled public transportation, aircraft, boats,
 shared mobility, traffic, road events, public traffic cameras, major roads,
@@ -23,15 +30,17 @@ Every feature is labeled **live**, **estimated**, **scheduled**, or
 | MBTA subway, Silver Line, buses, commuter rail, ferries | [MBTA V3 API](https://www.mbta.com/developers/v3-api) | 10 s |
 | Regional buses | Agency GTFS-realtime feeds, plus public Trillium map JSON for Advance Transit, MOOver, RCT, and Tri-Valley, normalized by the gateway | 20 s |
 | Peter Pan coaches | [Peter Pan public tracker](https://bustracker.peterpanbus.com/). One dot per GPS fix; a fix older than 20 minutes is dropped | 30 s |
-| Metro-North New Haven branches | [MTA GTFS-Realtime](https://www.mta.info/developers) train GPS positions, trip predictions, and alerts; a train with no fresh GPS fix is estimated between stations and labeled so | 30 s |
-| Scheduled/reference bus, rail, ferry, boat, and air-service routes and stops | 104 GTFS sources plus 81 official-service corridors, including Amtrak, Metro-North, Shore Line East, regional coaches, university shuttles, 94 ferry routes, municipal water shuttles, small-island lifelines, island air taxis, and 38,000+ scheduled stops | built snapshot |
+| Metro-North (Hudson, Harlem, New Haven and branches) and the Long Island Rail Road | [MTA GTFS-Realtime](https://www.mta.info/developers) train GPS positions, trip predictions, and alerts; a train with no fresh GPS fix is estimated between stations and labeled so | 30 s |
+| New York City Subway and Staten Island Railway | The eight MTA GTFS-Realtime subway feeds plus alerts. The feeds carry no GPS: each train is placed between the station it reports and the previous one on its line using typical scheduled segment times, wears its official line color, and is always labeled **estimated** | 20 s |
+| New York buses and ferries | MTA Bus Time vehicle positions for every NYCT and MTA Bus route (positions only; the borough schedules are not in the route snapshot yet), NYC Ferry, NY Waterway (Hudson crossings to New Jersey), TCAT Ithaca, CDTA and Suffolk County Transit GTFS-realtime | 20 s |
+| Scheduled/reference bus, rail, ferry, boat, and air-service routes and stops | 114 GTFS sources plus 81 official-service corridors, including Amtrak (now with the Empire, Keystone, Adirondack, Maple Leaf and long-distance services through New York and New Jersey), Metro-North, LIRR, the NYC Subway, NJ Transit rail and light rail, PATH, Shore Line East, regional coaches, university shuttles, ferry routes, municipal water shuttles, small-island lifelines, island air taxis, and scheduled stops | built snapshot |
 | Small-town, county, flex, volunteer, microtransit, and on-demand water-service catalog | 55 official-directory service markers across all six states, including MBTA The RIDE and Provincetown and Cape Ann whale watches | built snapshot |
 | Taxi and cab services | 106 licensed cab companies, dispatch associations, and official airport and station taxi stands from state and municipal licensing lists, airport ground-transportation pages, and operator sites, plus 30 [OpenStreetMap](https://www.openstreetmap.org/copyright) taxi stands. A directory, not live cab positions | built snapshot |
 | Amtrak | [Amtrak official static GTFS](https://content.amtrak.com/content/gtfs/GTFS.zip) for scheduled routes/stations; [Amtraker](https://amtraker.com) community API for live trains | built snapshot + 90 s |
 | Aircraft and air services | [ADSB.lol](https://api.adsb.lol/) with [adsb.fi](https://adsb.fi/) failover; 19 optional official Cape Air, Tradewind, New England Airlines, and Penobscot Island Air corridors | 45 s + built snapshot |
 | Airports and landing facilities | 778 open airports, heliports, seaplane bases, and other facilities from the [FAA NASR subscription](https://www.faa.gov/air_traffic/flight_info/aeronav/aero_data/NASR_Subscription/) | 28-day built snapshot |
 | Harbor/coastal vessels and identifiable passenger ferries | [AISStream](https://aisstream.io) when `AISSTREAM_API_KEY` is set; otherwise keyless [Open Waters AIS](https://openwaters.io/ais/) on the same gateway relay. Each Open Waters vessel carries its source credit (AISHub, aisstream, Open Waters AIS, and the Norwegian and Finnish lines when those sources appear) | streaming |
-| Bike and scooter share | GBFS feeds for Bluebikes across 13 Greater Boston municipalities, Veo Hartford, Veo New Haven, and Spin Providence | 60 s |
+| Bike and scooter share | GBFS feeds for Bluebikes across 13 Greater Boston municipalities, Citi Bike (New York City, Jersey City and Hoboken), Veo Hartford, Veo New Haven, and Spin Providence | 60 s |
 | Other bike-share systems | 50 reference markers for ValleyBike Share, Rideable Nashua, Portland Bike Share, Port Bikeshare, Minuteman Bikeshare, CATMA's Bird e-bikes, CargoB, Metro Mobility, the Community Pedal Power library, Coast Provincetown, and Sandy Pedals — systems with no usable public GBFS feed | built snapshot |
 | Work zones and construction projects | MassDOT WZDx plus the multi-state New England 511 WZDx feed for Maine, New Hampshire, and Vermont (work-zone lines). Connecticut adds CTroads lane-closure dots and CTDOT capital-project areas in the construction phase, labeled construction projects | 5 min |
 | Traffic incidents | New England 511 (Maine, New Hampshire, Vermont), CTroads incidents and closures, and MassDOT Highway Division roadway events (crashes, disabled vehicles, weather closures) | 60 s |
@@ -41,9 +50,9 @@ Every feature is labeled **live**, **estimated**, **scheduled**, or
 | Snowplows | VTrans live trucks when the public file lists them (empty outside winter), City of Keene public-works trucks from the [city's published live share](https://keenenh.gov/news/snow-plow-tracking/) (a fix older than a day is dropped), plus NHDOT winter plow-route lines and MassDOT snow-route beats. The lines are beats, not trucks | 60 s trucks · built snapshot routes |
 | Ski lifts, gondolas, and tramways | OpenStreetMap chairlifts, gondolas, and aerial tramways. Lift lines, not live cabins | built snapshot |
 | Live congestion speeds | Public 511 traffic-flow tiles through the gateway; TomTom remains an optional configured fallback | live tiles |
-| Weather alerts | [NWS active alerts](https://api.weather.gov/) for the six states, drawn as severity-colored forecast-zone polygons; Extreme/Severe alerts also join the service-alert panel | 120 s (60 s edge cache) |
-| Airport delays | [FAA NAS airport status](https://nasstatus.faa.gov/) ground stops, ground-delay programs, arrival/departure delays, and closures, drawn as rings on the FAA airport markers | 120 s (60 s edge cache) |
-| Airport weather (METAR) | [AviationWeather.gov](https://aviationweather.gov/) observations for about 64 New England weather stations, colored by flight category (VFR green, MVFR blue, IFR red, LIFR magenta); a station's TAF forecast loads when you click it | 5 min (5 min edge cache; TAF 30 min) |
+| Weather alerts | [NWS active alerts](https://api.weather.gov/) for all eight states, drawn as severity-colored forecast-zone polygons; Extreme/Severe alerts also join the service-alert panel | 120 s (60 s edge cache) |
+| Airport delays | [FAA NAS airport status](https://nasstatus.faa.gov/) ground stops, ground-delay programs, arrival/departure delays, and closures, drawn as rings on the FAA airport markers; JFK, LaGuardia, Newark and the other New York and New Jersey airports are in the allowlist | 120 s (60 s edge cache) |
+| Airport weather (METAR) | [AviationWeather.gov](https://aviationweather.gov/) observations for the weather stations in all eight states, colored by flight category (VFR green, MVFR blue, IFR red, LIFR magenta); a station's TAF forecast loads when you click it | 5 min (5 min edge cache; TAF 30 min) |
 | Temporary flight restrictions | [FAA TFR](https://tfr.faa.gov/) polygons inside New England, joined to the FAA TFR list for type and facility; altitudes and effective times load from the FAA notice when you click one | 5 min (5 min edge cache) |
 | Airspace | FAA ADDS Class B, C, and D airspace and special-use airspace (MOAs, restricted, warning, prohibited areas): 69 shapes, reference only | 28-day built snapshot |
 | Major roads and freight rail | U.S. Census TIGERweb primary roads and the FRA North American Rail Network | built snapshot |
@@ -96,7 +105,7 @@ registration or hex. Nothing on the map singles out military or LADD aircraft.
 The checked-in route snapshot contains more than 1,200 bus, commuter-rail,
 Amtrak, ferry, passenger-boat, and air-service route features plus more than
 38,000 scheduled bus stops, ferry landings, T stops, and rail stations,
-assembled from 104 GTFS sources and 81 official-service corridors. Scheduled
+assembled from 114 GTFS sources and 81 official-service corridors. Scheduled
 routes remain visible when an operator publishes no live positions. Every view
 except the MBTA core, Greater Boston, the North Shore, statewide Massachusetts
 and All New England starts with the scheduled bus layer on,
@@ -145,14 +154,21 @@ there. The picker groups regions by state:
   covered.
 - **Maine:** Portland & Southern Maine, Midcoast Maine, Downeast & Acadia,
   Central & Western Maine, Bangor & the North.
+- **New York:** New York City (the five boroughs), Long Island (Nassau and
+  Suffolk), Hudson Valley (Westchester, Rockland, Putnam, Orange, Dutchess,
+  Ulster), Capital District (Albany, Rensselaer, Saratoga, Schenectady).
+- **New Jersey:** North Jersey (Bergen, Hudson, Essex, Passaic, Union,
+  Morris).
 - **New England:** All New England and the Upper Valley (Windsor and Orange,
   VT; Grafton and Sullivan, NH).
+- **Northeast:** All Northeast, the six New England states plus New York and
+  New Jersey.
 
 Old links still open where they did: `?region=boston`, a saved MBTA core
 selection, and a shared hash with a camera but no `r=` all open the MBTA core.
 Sub-regions ask the gateway for their parent state (the Upper Valley asks for
 `new-england`) and clip the results in the browser, so the gateway still only
-knows the eight IDs listed under [Gateway API](#gateway-api).
+knows the eleven IDs listed under [Gateway API](#gateway-api).
 
 ### Presets and scenes
 
@@ -774,7 +790,9 @@ npx vercel --prod --yes
 | `GET /api/planes?region=ma` | Deduplicated, normalized ADS-B aircraft: position, callsign, type, track, altitude, speed, plus `category`, `squawk`, `emergency`, `registration` (null for PIA/LADD aircraft and rotorcraft), `verticalRateFpm` and `dbFlags` (Vercel relay only; the Worker no longer serves this path) |
 | `GET /api/route?callsign=AAL108` | Best-effort aircraft origin and destination; 404 when unknown, 502 JSON when the route catalog is unreachable (Vercel relay) |
 | `GET /api/transit?region=ct` | Normalized GTFS-realtime bus positions and per-feed health |
-| `GET /api/mnr` | Metro-North active trip segments and service alerts from official MTA GTFS-Realtime |
+| `GET /api/mnr` | Metro-North active trip segments (every line) and service alerts from official MTA GTFS-Realtime |
+| `GET /api/lirr` | Long Island Rail Road trips and alerts in the same shape as `/api/mnr`; the LIRR publishes GPS as separate vehicle entities, joined by trip id |
+| `GET /api/nyc-subway` | Subway and Staten Island Railway trains from the eight NYCT feeds: the station each train is at or heading to, its status, next arrival and destination, plus service alerts. No GPS; the browser places trains with `public/data/nyc-subway-stops.json` |
 | `GET /api/roadwork` | Active/upcoming MassDOT and northern New England WZDx lines, plus CTDOT construction-project polygons (phase `05_Construction` only) |
 | `GET /api/road-events` | Official New England 511 incidents, CTroads incidents and closures, and MassDOT roadway events (planned MassDOT closures are left to `/api/roadwork`) |
 | `GET /api/cameras` | Public camera locations from 511, CTroads, MassDOT, and RIDOT. RIDOT stills are on the feature (`imageUrl`); 511 images still use `/api/camera-detail` |
@@ -788,9 +806,9 @@ npx vercel --prod --yes
 | `GET /api/tfr-detail?id=6/7153` | Altitudes, effective times, and reason parsed from one FAA TFR notice (30 min edge cache) |
 | `GET /api/ais?region=new-england` with WebSocket upgrade | Shared vessel relay: a `Snapshot` frame of known vessels in the region, then live frames for that region. AISStream when `AISSTREAM_API_KEY` is set; otherwise Open Waters AIS. The browser stays on this gateway |
 
-Supported region IDs are `boston`, `ma`, `ct`, `ri`, `nh`, `vt`, `me`, and
-`new-england`; the browser maps each named sub-region to its parent before
-calling the gateway. Browser origins are allowlisted. Provider responses are cached
+Supported region IDs are `boston`, `ma`, `ct`, `ri`, `nh`, `vt`, `me`, `ny`,
+`nj`, `new-england` (the six states), and `northeast` (all eight); the browser
+maps each named sub-region to its parent before calling the gateway. Browser origins are allowlisted. Provider responses are cached
 briefly at the edge to avoid multiplying load.
 
 ## Architecture
@@ -836,6 +854,24 @@ documented `freshness_exempt`), and commit the refreshed `feed-freshness.json`.
 
 ## Remaining data gaps
 
+- New York and New Jersey are transit-first. The road layers (511, work
+  zones, cameras, message signs, plows, congestion tiles), the park-and-ride,
+  EV-charging, airport, airspace, taxi, local-service, border-crossing,
+  infrastructure and heritage-rail reference files are still built for the
+  six New England states only; the build scripts need their state lists and
+  sources extended (511NY needs an API key; NJ has no WZDx feed). The AIS hub
+  still subscribes to the New England box, so live vessels stop at about
+  74°W; New York Harbor needs a look at Durable Object memory before the box
+  grows.
+- NJ Transit publishes GTFS-realtime only behind a developer token that must
+  be refreshed daily, so its trains and buses are schedule ribbons only
+  (rail and light rail are in the snapshot; the 49 MB bus schedule is not
+  yet). PATH has no public GTFS-realtime. MTA buses are live from Bus Time
+  but their six borough schedules are not in the snapshot, so they draw from
+  positions only. CDTA and Suffolk County Transit publish GTFS-realtime on
+  port 8080, which the build sandbox could not reach; they are listed and
+  will report `error` in `/api/transit?region=ny` until verified from the
+  deployed gateway.
 - Many rural agencies publish schedules but no open live vehicle positions.
   A September 2026 survey of the remaining regional operators found: SRTA
   (Clever Devices BusTime) and UNH Wildcat Transit (Umo IQ) require a

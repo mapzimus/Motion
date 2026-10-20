@@ -96,7 +96,14 @@ export const LEGEND_GROUPS: Record<string, LegendGroup> = {
   blue: { name: 'Blue Line', glyph: 'rail', notes: [], fades: true, drillable: true },
   silver: { name: 'Silver Line', glyph: 'bus', notes: [], fades: true, drillable: true },
   mattapan: { name: 'Mattapan Trolley', glyph: 'rail', notes: [], fades: true, drillable: true },
-  commuter: { name: 'Commuter & regional rail (MBTA, Metro-North, CTrail)', glyph: 'rail', notes: [], fades: true, drillable: true },
+  commuter: { name: 'Commuter & regional rail (MBTA, Metro-North, LIRR, NJ Transit, CTrail)', glyph: 'rail', notes: [], fades: true, drillable: true },
+  'nyc-subway': {
+    name: 'New York City Subway',
+    glyph: 'rail',
+    notes: ['Trains wear their line color. Positions are estimated from MTA trip updates; the subway feeds carry no GPS.'],
+    fades: true,
+    drillable: true,
+  },
   bus: { name: 'Buses, shuttles & coaches', glyph: 'bus', notes: [], fades: true, drillable: true },
   amtrak: { name: 'Amtrak', glyph: 'rail', notes: [], fades: true, drillable: true },
   // Catalog points, not live positions: they never fade.

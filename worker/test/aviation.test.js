@@ -43,24 +43,25 @@ const METAR_FEATURES = [
     wdir: 310, wspd: 6, ceil: null, cover: null, fltcat: null, visib: null,
     rawOb: 'METAR KHIE 060056Z AUTO 31006KT 08/01 A2995 RMK AO2',
   }, [-71.5445, 44.3676]),
-  // Inside the query box but outside New England: dropped.
+  // Inside the query box but outside the map (Quebec): dropped.
   metar({
     id: 'CWFQ', site: 'Frelighsburg, QC, CA', obsTime: '2026-10-06T01:00:00.000Z', fltcat: null,
     rawOb: 'METAR CWFQ 060100Z AUTO 31006KT 08/01 RMK AO1',
   }, [-72.85, 45.05]),
+  // New York is part of the map: kept.
   metar({ id: 'KPLB', site: 'Plattsburgh Intl, NY, US', obsTime: '2026-10-06T00:56:00.000Z', fltcat: 'VFR' }, [-73.4681, 44.6509]),
   // An older observation for a station already seen is dropped.
   metar({ id: 'KBOS', site: 'Boston/Logan Intl, MA, US', obsTime: '2026-10-05T23:54:00.000Z', fltcat: 'IFR', rawOb: 'old' }, [-71.0098, 42.3606]),
-  // Unusable rows: bad id, no geometry, outside New England.
+  // Unusable rows: bad id, no geometry, outside the map.
   metar({ id: 'bad id', obsTime: '2026-10-06T00:54:00.000Z' }, [-71, 42]),
   { type: 'Feature', properties: { id: 'KPVD' }, geometry: null },
   metar({ id: 'KORD', obsTime: '2026-10-06T00:54:00.000Z' }, [-87.9, 41.98]),
 ];
 
 describe('METAR normalizer', () => {
-  it('keeps one compact point per New England station', () => {
+  it('keeps one compact point per map-area station', () => {
     const { updatedAt, features } = normalizeMetars(METAR_FEATURES);
-    expect(features.map((feature) => feature.id)).toEqual(['KBOS', 'KMWN', 'KBTV', 'KHIE']);
+    expect(features.map((feature) => feature.id)).toEqual(['KBOS', 'KMWN', 'KBTV', 'KHIE', 'KPLB']);
     expect(updatedAt).toBe('2026-10-06T00:56:00.000Z');
     const bos = features[0];
     expect(bos.geometry).toEqual({ type: 'Point', coordinates: [-71.0098, 42.3606] });

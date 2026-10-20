@@ -16,10 +16,12 @@ export const DEFAULT_REGION = 'greater-boston';
 // Boston existed: the MBTA core, which keeps the `boston` key.
 export const LEGACY_DEFAULT_REGION = 'boston';
 
-export const STATE_KEYS = ['ct', 'me', 'ma', 'nh', 'ri', 'vt'];
+// The six New England states, then New York and New Jersey.
+export const NEW_ENGLAND_KEYS = ['ct', 'me', 'ma', 'nh', 'ri', 'vt'];
+export const STATE_KEYS = [...NEW_ENGLAND_KEYS, 'ny', 'nj'];
 // Region ids the Motion gateway and aircraft relay understand. Sub-regions ask
 // the gateway for their parent and are clipped to their own boundary here.
-const GATEWAY_KEYS = new Set(['boston', ...STATE_KEYS, 'new-england']);
+const GATEWAY_KEYS = new Set(['boston', ...STATE_KEYS, 'new-england', 'northeast']);
 const EMPTY_FC = { type: 'FeatureCollection', features: [] };
 const featureByKey = new Map();
 const regionByKey = new Map();
@@ -38,15 +40,20 @@ export const hasSubway = (key) => Boolean(regionByKey.get(key)?.hasSubway);
 export const busDefaultOn = (key) => Boolean(regionByKey.get(key)?.busDefaultOn);
 
 // The region id to send to the gateway: sub-regions resolve to their parent
-// (a state, or `new-england` for regions that cross a state line).
+// (a state, or a union such as `new-england` for regions that cross a state
+// line). Anything unknown gets the whole map.
 export function gatewayRegion(key) {
   let current = key;
   for (let depth = 0; depth < 5 && current; depth += 1) {
     if (GATEWAY_KEYS.has(current)) return current;
     current = regionByKey.get(current)?.parent;
   }
-  return 'new-england';
+  return 'northeast';
 }
+
+// True for a union region (All New England, All Northeast), whose view keeps
+// every map-area feature instead of clipping to one boundary.
+export const isUnionRegion = (key) => regionByKey.get(key)?.kind === 'union';
 
 // Turn a loaded region collection into the registry. Exported for tests.
 export function registerRegions(collection, marineCollection = null) {
@@ -70,7 +77,7 @@ export function registerRegions(collection, marineCollection = null) {
   }
   const virtual = metadata.virtualRegions?.length
     ? metadata.virtualRegions
-    : [{ key: 'new-england', name: 'All New England', group: 'new-england', kind: 'union', members: STATE_KEYS, hasSubway: true }];
+    : [{ key: 'new-england', name: 'All New England', group: 'new-england', kind: 'union', members: NEW_ENGLAND_KEYS, hasSubway: true }];
   for (const region of virtual) entries.set(region.key, region);
   const order = metadata.order?.length ? metadata.order : [...entries.keys()];
   for (const key of order) {
@@ -79,7 +86,7 @@ export function registerRegions(collection, marineCollection = null) {
     const region = {
       key,
       name: properties.name ?? key,
-      group: properties.group ?? 'new-england',
+      group: properties.group ?? 'northeast',
       parent: properties.parent ?? null,
       kind: properties.kind ?? 'counties',
       members: properties.members ?? [],
@@ -174,12 +181,13 @@ function pointInGeometry(point, geometry) {
   return false;
 }
 
-// Keys whose boundaries make up a region: the six states for `new-england`
-// (or any other union), otherwise the region itself.
+// Keys whose boundaries make up a region: the member states for a union
+// (`new-england`, `northeast`), otherwise the region itself.
 function boundaryKeys(key) {
   const region = regionByKey.get(key);
   if (region?.kind === 'union') return region.members;
-  if (key === 'new-england') return STATE_KEYS;
+  if (key === 'new-england') return NEW_ENGLAND_KEYS;
+  if (key === 'northeast') return STATE_KEYS;
   return [key];
 }
 
@@ -212,7 +220,7 @@ export function stateAt(point) {
 }
 
 // The smallest region (by bounding-box area) that contains the point. Unions
-// such as All New England contain everything, so they are skipped.
+// such as All New England and All Northeast contain everything, so they are skipped.
 export function smallestRegionAt(point) {
   let best = null;
   let bestArea = Infinity;

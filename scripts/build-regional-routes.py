@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Build a compact, checked-in GeoJSON of scheduled New England transit routes.
+"""Build a compact, checked-in GeoJSON of scheduled transit routes across New
+England, New York and New Jersey.
 
 The browser never downloads GTFS zips. This script is run by maintainers (and CI)
 to turn agency schedule feeds into simplified route ribbons that remain visible
@@ -41,14 +42,13 @@ BOUNDARIES_PATH = ROOT / "public" / "data" / "regions.geojson"
 # region its geometry touches.
 REGION_ORDER: list[str] = []
 OUTPUT_PATH = ROOT / "public" / "data" / "regional-routes.geojson"
-MNR_STOPS_PATH = ROOT / "public" / "data" / "mnr-stops.json"
 FRESHNESS_PATH = ROOT / "scripts" / "feed-freshness.json"
 BORROWED_SHAPE_NOTE = (
     "Track path follows published shapes of other trains on the same corridor between this service's stations."
 )
 BORROWED_SHAPE_MAX_SNAP_KM = 0.6
 
-NE_BOUNDS = (-75.0, 40.0, -65.0, 48.5)
+NE_BOUNDS = (-79.8, 38.9, -65.0, 48.5)  # New England, New York and New Jersey (Cape May to Jamestown NY)
 TOLERANCE = 0.00022  # roughly 18–25 m in New England
 MAX_BUS_CHORD_KM = 20.0
 OSRM_BASE_URL = "https://router.project-osrm.org"
@@ -84,8 +84,9 @@ RESTRICTED_BUS_REF_PATTERN = re.compile(r"(?:^|[;,\s])CT[- ]?15(?:$|[;,\s])", re
 # Route types 0/1 are included for station-only feeds (notably the MBTA rapid
 # transit network); per-route station mappings assign their branded line group.
 GROUP_BY_ROUTE_TYPE = {0: "commuter", 1: "commuter", 2: "commuter", 3: "bus", 4: "ferry"}
-MODE_COLORS = {2: "#a58add", 3: "#f2b84b", 4: "#2eb7c5"}
-GROUP_COLORS = {"amtrak": "#5b9bd5"}
+MODE_COLORS = {0: "#a58add", 1: "#a58add", 2: "#a58add", 3: "#f2b84b", 4: "#2eb7c5"}
+GROUP_COLORS = {"amtrak": "#5b9bd5", "nyc-subway": "#9aa0a6"}
+HEX_COLOR = re.compile(r"^[0-9a-fA-F]{6}$")
 
 
 def download(url: str, user_agent: str | None = None) -> bytes:
@@ -260,7 +261,77 @@ def snap_stops_to_donor_shapes(points, donor_shapes):
     return result, changed
 
 
-def write_mnr_stops(archive: zipfile.ZipFile) -> None:
+def gtfs_seconds(value: str) -> int | None:
+    """"HH:MM:SS" (hours may pass 24) to seconds, or None."""
+    parts = (value or "").strip().split(":")
+    if len(parts) != 3:
+        return None
+    try:
+        hours, minutes, seconds = (int(part) for part in parts)
+    except ValueError:
+        return None
+    return hours * 3600 + minutes * 60 + seconds
+
+
+def stream_rows(archive: zipfile.ZipFile, wanted: str):
+    """Row-by-row CSV reader for large members (subway stop_times is 36 MB)."""
+    name = member_name(archive, wanted)
+    if not name:
+        return
+    with archive.open(name) as raw:
+        text = io.TextIOWrapper(raw, encoding="utf-8-sig", newline="")
+        for row in csv.DictReader(text):
+            yield {key.strip(): (value or "").strip() for key, value in row.items() if key}
+
+
+def realtime_segments(archive: zipfile.ZipFile) -> dict:
+    """Typical seconds between consecutive scheduled stops, per route.
+
+    ``{route_id: {to_stop_id: {from_stop_id: median_seconds}}}`` so the browser
+    can place a train that only reports the station it is heading to (the New
+    York City Subway feeds carry no GPS) between that station and the one
+    before it on its route.
+    """
+    trip_route = {}
+    for row in stream_rows(archive, "trips.txt"):
+        if row.get("trip_id") and row.get("route_id"):
+            trip_route[row["trip_id"]] = row["route_id"]
+    by_trip = defaultdict(list)
+    for row in stream_rows(archive, "stop_times.txt"):
+        trip_id = row.get("trip_id")
+        if trip_id not in trip_route:
+            continue
+        try:
+            sequence = int(row.get("stop_sequence") or "")
+        except ValueError:
+            continue
+        by_trip[trip_id].append((
+            sequence,
+            row.get("stop_id") or "",
+            gtfs_seconds(row.get("arrival_time")),
+            gtfs_seconds(row.get("departure_time")),
+        ))
+    samples = defaultdict(list)
+    for trip_id, stops in by_trip.items():
+        route_id = trip_route[trip_id]
+        stops.sort()
+        for (_, prev_stop, _, prev_departure), (_, next_stop, next_arrival, _) in zip(stops, stops[1:]):
+            if not prev_stop or not next_stop or prev_departure is None or next_arrival is None:
+                continue
+            delta = next_arrival - prev_departure
+            if 0 < delta <= 3600:
+                samples[(route_id, next_stop, prev_stop)].append(delta)
+    segments = {}
+    for (route_id, next_stop, prev_stop), values in samples.items():
+        values.sort()
+        segments.setdefault(route_id, {}).setdefault(next_stop, {})[prev_stop] = values[len(values) // 2]
+    return segments
+
+
+def write_realtime_stops(feed, archive: zipfile.ZipFile) -> None:
+    """Write ``public/data/<realtime_stops>``: every stop's name and position,
+    for placing the feed's realtime trains, plus typical segment times when the
+    feed asks for ``realtime_segments``."""
     stops = {}
     for row in read_rows(archive, "stops.txt"):
         try:
@@ -273,11 +344,14 @@ def write_mnr_stops(archive: zipfile.ZipFile) -> None:
         except (KeyError, TypeError, ValueError):
             continue
     payload = {
-        "source": "MTA Metro-North static GTFS",
-        "sourceUrl": "https://rrgtfsfeeds.s3.amazonaws.com/gtfsmnr.zip",
+        "source": feed.get("provider") or f"{feed['agency']} static GTFS",
+        "sourceUrl": feed["url"],
         "stops": stops,
     }
-    MNR_STOPS_PATH.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
+    if feed.get("realtime_segments"):
+        payload["segments"] = realtime_segments(archive)
+    output = ROOT / "public" / "data" / feed["realtime_stops"]
+    output.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
 
 
 def perpendicular_distance(point, start, end) -> float:
@@ -828,7 +902,14 @@ def feature_group(feed, route_type):
     return feed.get("group_override") or GROUP_BY_ROUTE_TYPE[route_type]
 
 
-def feature_color(feed, route_type):
+def feature_color(feed, route_type, route=None):
+    """The ribbon color: the operator's own ``route_color`` when the feed opts in
+    (``use_route_colors``: MTA lines, NJ Transit, PATH), else the feed, group
+    or mode color."""
+    if route is not None and feed.get("use_route_colors"):
+        own = (route.get("route_color") or "").strip().lstrip("#")
+        if HEX_COLOR.match(own):
+            return f"#{own.lower()}"
     group = feature_group(feed, route_type)
     return feed.get("group_color") or GROUP_COLORS.get(group) or mode_color(route_type)
 
@@ -996,7 +1077,7 @@ def station_features(
                 or feed.get("group_color")
                 or GROUP_COLORS.get(group, "#8a949f")
             )
-            place_kind = "landing" if group == "ferry" else "station" if group in {"commuter", "amtrak", "red", "orange", "blue", "green", "mattapan", "silver"} else "stop"
+            place_kind = "landing" if group == "ferry" else "station" if group in {"commuter", "amtrak", "nyc-subway", "red", "orange", "blue", "green", "mattapan", "silver"} else "stop"
             features.append({
                 "type": "Feature",
                 "geometry": {"type": "Point", "coordinates": [round(point[0], 6), round(point[1], 6)]},
@@ -1445,8 +1526,8 @@ def process_feed(
     payload = download(feed["url"], feed.get("user_agent"))
     archive = zipfile.ZipFile(io.BytesIO(payload))
     freshness = freshness_record(feed, archive)
-    if feed["id"] == "metro-north":
-        write_mnr_stops(archive)
+    if feed.get("realtime_stops"):
+        write_realtime_stops(feed, archive)
     routes = {row.get("route_id"): row for row in read_rows(archive, "routes.txt") if row.get("route_id")}
     pattern = re.compile(feed["route_name_pattern"], re.I) if feed.get("route_name_pattern") else None
     route_id_pattern = re.compile(feed["route_id_pattern"], re.I) if feed.get("route_id_pattern") else None
@@ -1637,7 +1718,7 @@ def process_feed(
         properties = {
             "route": public_route_id(feed, route_id),
             "group": feature_group(feed, route_type),
-            "color": feature_color(feed, route_type),
+            "color": feature_color(feed, route_type, route),
             "agency": feed.get("agency_names", {}).get(route.get("agency_id"), feed["agency"]),
             "name": feed.get("route_name_map", {}).get(route_id) or route_label(route),
             "kind": "regional-static",

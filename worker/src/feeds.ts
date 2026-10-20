@@ -1,4 +1,4 @@
-import { insideNewEngland, type RegionId, type StateId } from './regions';
+import { NEW_ENGLAND_STATE_IDS, insideMapArea, type RegionId, type StateId } from './regions';
 
 export type TransitFeed = {
   id: string;
@@ -29,7 +29,8 @@ export type RegionalVehicle = {
   positionSource?: string;
 };
 
-// Public agency feeds are preferred. Some Vermont and New Hampshire agencies
+// Public agency feeds are preferred. New York feeds are listed at the end.
+// Some Vermont and New Hampshire agencies
 // publish official GTFS-realtime through Swiftly, whose API needs a key that
 // is enabled agency by agency; see SWIFTLY_APPROVED_AGENCIES below. Advance
 // Transit, MOOver, RCT, and Tri-Valley are read from their public Trillium
@@ -405,6 +406,56 @@ export const TRANSIT_FEEDS: TransitFeed[] = [
     url: 'https://maps.trilliumtransit.com/gtfsmap-realtime/feed/trivalleytransit-vt-us/vehicles',
     source: 'trillium',
   },
+
+  // ---- New York ---------------------------------------------------------------
+  {
+    // MTA Bus Time GTFS-realtime vehicle positions for every NYCT and MTA Bus
+    // route (about 2,500 buses at midday). Keyless since 2024; live-verified
+    // 2026-10-20. Route ids (M4, Q3, BX8, S78) match the MTA bus GTFS, which
+    // the static build does not carry yet, so these draw from positions only.
+    id: 'nyct-bus',
+    agency: 'MTA New York City Bus',
+    states: ['ny'],
+    url: 'https://gtfsrt.prod.obanyc.com/vehiclePositions',
+  },
+  {
+    // Live-verified 2026-10-20: 18 boats. Trip ids join the mdb-515 static feed.
+    id: 'nyc-ferry',
+    agency: 'NYC Ferry',
+    states: ['ny'],
+    url: 'http://nycferry.connexionz.net/rtt/public/utility/gtfsrealtime.aspx/vehicleposition',
+  },
+  {
+    // Hudson River and harbor commuter ferries between New Jersey and
+    // Manhattan. Live-verified 2026-10-20: six boats.
+    id: 'ny-waterway',
+    agency: 'NY Waterway',
+    states: ['ny', 'nj'],
+    url: 'https://nywaterway.connexionz.net/rtt/public/utility/gtfsrealtime.aspx/vehicleposition',
+  },
+  {
+    // Ithaca. Avail InfoPoint producer, same as Island Explorer. Live-verified
+    // 2026-10-20: 24 buses.
+    id: 'tcat',
+    agency: 'Tompkins Consolidated Area Transit',
+    states: ['ny'],
+    url: 'https://realtimetcatbus.availtec.com/InfoPoint/GTFS-Realtime.ashx?&Type=VehiclePosition&serverid=0',
+  },
+  {
+    // Albany, Schenectady, Troy and Saratoga. Official CDTA producer on port
+    // 8080; not reachable from the build sandbox, so unverified here.
+    id: 'cdta',
+    agency: 'Capital District Transportation Authority',
+    states: ['ny'],
+    url: 'http://gtfs.cdta.org:8080/gtfsrealtime/VehiclePositions',
+  },
+  {
+    // Official Suffolk County producer on port 8080; unverified from the build sandbox.
+    id: 'suffolk',
+    agency: 'Suffolk County Transit',
+    states: ['ny'],
+    url: 'http://gtfsrealtime.suffolkcountyny.gov:8080/gtfsrealtime/VehiclePositions',
+  },
 ];
 
 // Swiftly issues one key but switches it on per agency, and only for agencies
@@ -426,7 +477,10 @@ export function swiftlyApproved(feed: TransitFeed): boolean {
 
 export function feedsForRegion(region: RegionId): TransitFeed[] {
   if (region === 'boston') return TRANSIT_FEEDS.filter((feed) => feed.mbtaCore);
-  if (region === 'new-england') return TRANSIT_FEEDS;
+  if (region === 'northeast') return TRANSIT_FEEDS;
+  if (region === 'new-england') {
+    return TRANSIT_FEEDS.filter((feed) => feed.states.some((state) => NEW_ENGLAND_STATE_IDS.includes(state)));
+  }
   return TRANSIT_FEEDS.filter((feed) => feed.states.includes(region));
 }
 
@@ -453,7 +507,7 @@ export function vehiclesFromTrilliumMap(
     };
     const lat = typeof record.lat === 'number' ? record.lat : Number(record.lat);
     const lng = typeof record.lon === 'number' ? record.lon : Number(record.lon);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng) || !insideNewEngland(lng, lat)) return [];
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || !insideMapArea(lng, lat)) return [];
     const vehicleId = record.id == null ? '' : String(record.id);
     if (!vehicleId) return [];
     const heading = typeof record.heading === 'number' ? record.heading : Number(record.heading);

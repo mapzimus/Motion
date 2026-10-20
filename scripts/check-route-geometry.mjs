@@ -777,7 +777,7 @@ for (const [group, minimum] of Object.entries(REFERENCE_PLACE_MINIMUMS)) {
   const AIRSPACE_MINIMUMS = { B: 1, C: 5, D: 10, sua: 10 };
   // Offshore warning areas reach south of Long Island (~39.6° N); this box
   // only catches swapped or garbage coordinates.
-  const [west, south, east, north] = [-75.0, 38.5, -65.0, 48.5];
+  const [west, south, east, north] = [-80.0, 38.5, -65.0, 48.5];
   const closedRing = (ring) => Array.isArray(ring) && ring.length >= 4
     && ring.every((point) => Number.isFinite(point?.[0]) && Number.isFinite(point?.[1])
       && point[0] >= west && point[0] <= east && point[1] >= south && point[1] <= north)

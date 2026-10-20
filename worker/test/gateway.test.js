@@ -213,7 +213,7 @@ describe('keyless road and camera feeds', () => {
       [
         { itemId: '63063', location: [41.39, -73.07] },
         { itemId: 'nope', location: [41.39, -73.07] },
-        { itemId: '1', location: [40.7, -74.0] },
+        { itemId: '1', location: [38.5, -77.0] },
       ],
       {
         63063: '<table><tr><td colspan="2">Seymour, RT 8 SB, right lane closed</td></tr><tr><th>Start Time</th><td>Oct 1, 2026</td></tr></table>',

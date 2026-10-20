@@ -1,7 +1,8 @@
 import { transit_realtime } from 'gtfs-realtime-bindings';
 import { feedsForRegion, swiftlyApproved, vehiclesFromTrilliumMap, type TransitFeed } from './feeds';
-import { MNR_ROUTES, metroNorthTrips } from './metro-north';
-import { insideNewEngland, isRegionId, type RegionId } from './regions';
+import { LIRR_ROUTES, MNR_ROUTES, railTrips, type RailRoute } from './metro-north';
+import { SUBWAY_ROUTES, subwayTrains } from './nyc-subway';
+import { insideMapArea, isRegionId, type RegionId } from './regions';
 import { MASSDOT_EVENTS_URL, parseErsEvents } from './massdot-events';
 import { HUB_NAME } from './ais-hub';
 import {
@@ -62,10 +63,18 @@ const IBI_511_SOURCES = [
     provider: 'CTroads · Connecticut DOT',
   },
 ] as const;
-const MNR_TRIP_UPDATES_URL = 'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/mnr%2Fgtfs-mnr';
-const MNR_ALERTS_URL = 'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/camsys%2Fmnr-alerts';
+// MTA GTFS-realtime feeds. Keyless since 2024.
+const MTA_FEEDS = 'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds';
+const MNR_TRIP_UPDATES_URL = `${MTA_FEEDS}/mnr%2Fgtfs-mnr`;
+const MNR_ALERTS_URL = `${MTA_FEEDS}/camsys%2Fmnr-alerts`;
+const LIRR_TRIP_UPDATES_URL = `${MTA_FEEDS}/lirr%2Fgtfs-lirr`;
+const LIRR_ALERTS_URL = `${MTA_FEEDS}/camsys%2Flirr-alerts`;
+// One feed per subway trunk, plus the Staten Island Railway.
+const SUBWAY_FEED_URLS = ['', '-ace', '-bdfm', '-g', '-jz', '-nqrw', '-l', '-si']
+  .map((suffix) => `${MTA_FEEDS}/nyct%2Fgtfs${suffix}`);
+const SUBWAY_ALERTS_URL = `${MTA_FEEDS}/camsys%2Fsubway-alerts`;
 const FAA_AIRPORT_STATUS_URL = 'https://nasstatus.faa.gov/api/airport-status-information';
-const NWS_ALERTS_URL = 'https://api.weather.gov/alerts/active?area=MA,CT,RI,NH,VT,ME';
+const NWS_ALERTS_URL = 'https://api.weather.gov/alerts/active?area=MA,CT,RI,NH,VT,ME,NY,NJ';
 // api.weather.gov rejects requests without an identifying User-Agent.
 const NWS_USER_AGENT = 'motion-map (github.com/mapzimus/Motion)';
 // Most NWS alerts carry no inline polygon, only forecast-zone references. Zone
@@ -77,7 +86,7 @@ const NWS_ZONE_CACHE_TTL_SECONDS = 7 * 24 * 60 * 60;
 // AviationWeather.gov data API: 100 requests/min, 400 entries per query, and a
 // custom User-Agent requested. One bbox query covers every New England METAR.
 // (bbox order is lat0,lon0,lat1,lon1.)
-const AWC_METAR_URL = 'https://aviationweather.gov/api/data/metar?bbox=40.9,-73.8,47.5,-66.9&format=geojson';
+const AWC_METAR_URL = 'https://aviationweather.gov/api/data/metar?bbox=38.9,-79.8,47.5,-66.9&format=geojson';
 const AWC_TAF_URL = 'https://aviationweather.gov/api/data/taf';
 const AWC_USER_AGENT = 'motion-map (github.com/mapzimus/Motion)';
 const AIRPORT_WEATHER_CACHE_SECONDS = 5 * 60;
@@ -85,7 +94,7 @@ const AIRPORT_TAF_CACHE_SECONDS = 30 * 60;
 // FAA TFR site: undocumented JSON + GeoServer WFS, served no-cache, so the
 // gateway holds each answer for 5 minutes. WFS bbox is lon,lat order.
 const TFR_LIST_URL = 'https://tfr.faa.gov/tfrapi/exportTfrList';
-const TFR_WFS_URL = 'https://tfr.faa.gov/geoserver/TFR/ows?service=WFS&version=1.1.0&request=GetFeature&typeName=TFR:V_TFR_LOC&outputFormat=application/json&srsname=EPSG:4326&bbox=-73.8,40.9,-66.9,47.5,EPSG:4326';
+const TFR_WFS_URL = 'https://tfr.faa.gov/geoserver/TFR/ows?service=WFS&version=1.1.0&request=GetFeature&typeName=TFR:V_TFR_LOC&outputFormat=application/json&srsname=EPSG:4326&bbox=-79.8,38.9,-66.9,47.5,EPSG:4326';
 const TFR_DETAIL_URL = 'https://tfr.faa.gov/tfrapi/getWebText';
 const TFR_CACHE_SECONDS = 5 * 60;
 const TFR_DETAIL_CACHE_SECONDS = 30 * 60;
@@ -204,6 +213,7 @@ function regionFrom(url: URL): RegionId | null {
 // Swiftly feed shares one cached copy of its protobuf for this long.
 const SWIFTLY_CACHE_SECONDS = 30;
 const TRANSIT_ACCEPT = 'application/x-protobuf, application/octet-stream;q=0.9, */*;q=0.8';
+const TRANSIT_FEED_TIMEOUT_MS = 8_000;
 
 async function swiftlyFeedBytes(feed: TransitFeed, key: string, ctx: ExecutionContext): Promise<Uint8Array> {
   const cacheKey = new Request(`https://swiftly-cache.motion.invalid/${feed.id}`);
@@ -223,6 +233,7 @@ async function readTransitFeed(feed: TransitFeed, env: Env, ctx: ExecutionContex
   if (feed.source === 'trillium') {
     const upstream = await fetch(feed.url, {
       headers: { accept: 'application/json' },
+      signal: AbortSignal.timeout(TRANSIT_FEED_TIMEOUT_MS),
       cf: { cacheEverything: true, cacheTtl: 15 },
     });
     if (!upstream.ok) throw new Error(`${feed.id} ${upstream.status}`);
@@ -244,8 +255,11 @@ async function readTransitFeed(feed: TransitFeed, env: Env, ctx: ExecutionContex
   } else {
     // Cadavl producers (Greater Portland, WRTA, GATRA) answer 406 to a bare
     // application/x-protobuf Accept header; they serve application/octet-stream.
+    // One slow or unreachable producer (CDTA and Suffolk answer on port 8080)
+    // must not hold the whole region's answer.
     const upstream = await fetch(feed.url, {
       headers: { accept: TRANSIT_ACCEPT },
+      signal: AbortSignal.timeout(TRANSIT_FEED_TIMEOUT_MS),
       cf: { cacheEverything: true, cacheTtl: 15 },
     });
     if (!upstream.ok) throw new Error(`${feed.id} ${upstream.status}`);
@@ -259,7 +273,7 @@ async function readTransitFeed(feed: TransitFeed, env: Env, ctx: ExecutionContex
     const position = vehicle?.position;
     const lat = numberValue(position?.latitude);
     const lng = numberValue(position?.longitude);
-    if (lat === null || lng === null || !insideNewEngland(lng, lat)) return [];
+    if (lat === null || lng === null || !insideMapArea(lng, lat)) return [];
 
     const timestamp = numberValue(vehicle?.timestamp) ?? headerTimestamp;
     const vehicleId = vehicle?.vehicle?.id || vehicle?.vehicle?.label || entity.id;
@@ -316,71 +330,140 @@ function mnrAlertSeverity(text: string): number {
   return 4;
 }
 
-async function metroNorth(request: Request, ctx: ExecutionContext): Promise<Response> {
-  return cachedJson(request, ctx, 15, async () => {
-    const [tripsResponse, alertsResponse] = await Promise.all([
-      fetch(MNR_TRIP_UPDATES_URL, {
-        headers: { accept: 'application/x-protobuf' },
-        cf: { cacheEverything: true, cacheTtl: 15 },
-      }),
-      fetch(MNR_ALERTS_URL, {
-        headers: { accept: 'application/x-protobuf' },
-        cf: { cacheEverything: true, cacheTtl: 30 },
-      }),
-    ]);
-    if (!tripsResponse.ok) return json({ error: `MTA Metro-North trip updates ${tripsResponse.status}` }, 502);
-    if (!alertsResponse.ok) return json({ error: `MTA Metro-North alerts ${alertsResponse.status}` }, 502);
-    markProvider('metroNorth', true);
+async function fetchFeedMessage(url: string, cacheTtl: number) {
+  const response = await fetch(url, {
+    headers: { accept: 'application/x-protobuf' },
+    cf: { cacheEverything: true, cacheTtl },
+  });
+  if (!response.ok) return { status: response.status, message: null };
+  const message = transit_realtime.FeedMessage.decode(new Uint8Array(await response.arrayBuffer()));
+  return { status: response.status, message };
+}
 
-    const tripMessage = transit_realtime.FeedMessage.decode(
-      new Uint8Array(await tripsResponse.arrayBuffer()),
-    );
-    const alertMessage = transit_realtime.FeedMessage.decode(
-      new Uint8Array(await alertsResponse.arrayBuffer()),
-    );
-    const feedTimestamp = numberValue(tripMessage.header.timestamp) ?? Math.floor(Date.now() / 1000);
+type FeedMessage = ReturnType<typeof transit_realtime.FeedMessage.decode>;
 
-    const trips = metroNorthTrips(tripMessage.entity, feedTimestamp);
-
-    const alertNow = numberValue(alertMessage.header.timestamp) ?? feedTimestamp;
-    const alerts = alertMessage.entity.flatMap((entity) => {
-      const alert = entity.alert;
-      if (!alert) return [];
-      const activePeriods = alert.activePeriod ?? [];
-      const informedEntities = alert.informedEntity ?? [];
-      const active = !activePeriods.length || activePeriods.some((period) => {
-        const start = numberValue(period.start) ?? 0;
-        const end = numberValue(period.end);
-        return start <= alertNow && (end === null || end >= alertNow);
-      });
-      if (!active) return [];
-      const allRouteIds = [...new Set(
-        informedEntities.map((item) => item.routeId).filter((routeId): routeId is string => Boolean(routeId)),
-      )];
-      const routeIds = allRouteIds.filter((routeId) => Boolean(MNR_ROUTES[routeId]));
-      if (allRouteIds.length && !routeIds.length) return [];
-      const header = translatedText(alert.headerText);
-      if (!header) return [];
-      return [{
-        id: entity.id,
-        effect: 'Metro-North',
-        severity: mnrAlertSeverity(header),
-        header,
-        description: translatedText(alert.descriptionText),
-        routes: routeIds.map((routeId) => `metro-north:${routeId}`),
-        stopIds: [...new Set(
-          informedEntities.map((item) => item.stopId).filter((stopId): stopId is string => Boolean(stopId)),
-        )],
-      }];
+// MTA service alerts for the routes in `routePrefix` scope: active now, with an
+// English header, keyed to the frontend's `<prefix>:<routeId>` route ids.
+function mtaAlerts(
+  alertMessage: FeedMessage,
+  feedTimestamp: number,
+  routes: Record<string, unknown>,
+  routePrefix: string,
+  effect: string,
+) {
+  const alertNow = numberValue(alertMessage.header.timestamp) ?? feedTimestamp;
+  return alertMessage.entity.flatMap((entity) => {
+    const alert = entity.alert;
+    if (!alert) return [];
+    const activePeriods = alert.activePeriod ?? [];
+    const informedEntities = alert.informedEntity ?? [];
+    const active = !activePeriods.length || activePeriods.some((period) => {
+      const start = numberValue(period.start) ?? 0;
+      const end = numberValue(period.end);
+      return start <= alertNow && (end === null || end >= alertNow);
     });
+    if (!active) return [];
+    const allRouteIds = [...new Set(
+      informedEntities.map((item) => item.routeId).filter((routeId): routeId is string => Boolean(routeId)),
+    )];
+    const routeIds = allRouteIds.filter((routeId) => Boolean(routes[routeId]));
+    if (allRouteIds.length && !routeIds.length) return [];
+    const header = translatedText(alert.headerText);
+    if (!header) return [];
+    return [{
+      id: entity.id,
+      effect,
+      severity: mnrAlertSeverity(header),
+      header,
+      description: translatedText(alert.descriptionText),
+      routes: routeIds.map((routeId) => `${routePrefix}:${routeId}`),
+      stopIds: [...new Set(
+        informedEntities.map((item) => item.stopId).filter((stopId): stopId is string => Boolean(stopId)),
+      )],
+    }];
+  });
+}
 
+type MtaRailFeed = {
+  tripUpdatesUrl: string;
+  alertsUrl: string;
+  routes: Record<string, RailRoute>;
+  routePrefix: string;
+  name: string;
+  providerKey: string;
+};
+
+const METRO_NORTH_FEED: MtaRailFeed = {
+  tripUpdatesUrl: MNR_TRIP_UPDATES_URL,
+  alertsUrl: MNR_ALERTS_URL,
+  routes: MNR_ROUTES,
+  routePrefix: 'metro-north',
+  name: 'Metro-North',
+  providerKey: 'metroNorth',
+};
+
+const LIRR_FEED: MtaRailFeed = {
+  tripUpdatesUrl: LIRR_TRIP_UPDATES_URL,
+  alertsUrl: LIRR_ALERTS_URL,
+  routes: LIRR_ROUTES,
+  routePrefix: 'lirr',
+  name: 'Long Island Rail Road',
+  providerKey: 'lirr',
+};
+
+// Metro-North and LIRR trains with GPS where the MTA reports it, else placed
+// between stations from the trip update.
+async function mtaRail(request: Request, ctx: ExecutionContext, feed: MtaRailFeed): Promise<Response> {
+  return cachedJson(request, ctx, 15, async () => {
+    const [trips, alerts] = await Promise.all([
+      fetchFeedMessage(feed.tripUpdatesUrl, 15),
+      fetchFeedMessage(feed.alertsUrl, 30),
+    ]);
+    if (!trips.message) return json({ error: `MTA ${feed.name} trip updates ${trips.status}` }, 502);
+    if (!alerts.message) return json({ error: `MTA ${feed.name} alerts ${alerts.status}` }, 502);
+    markProvider(feed.providerKey, true);
+
+    const feedTimestamp = numberValue(trips.message.header.timestamp) ?? Math.floor(Date.now() / 1000);
     return json({
-      provider: 'MTA Metro-North GTFS-Realtime',
+      provider: `MTA ${feed.name} GTFS-Realtime`,
       // Per trip: 'gps' when the MTA reports a fresh train position, else 'estimated'.
       positioning: 'gps-with-station-estimates',
       updatedAt: new Date(feedTimestamp * 1000).toISOString(),
-      trips,
-      alerts,
+      trips: railTrips(trips.message.entity, feedTimestamp, feed.routes),
+      alerts: mtaAlerts(alerts.message, feedTimestamp, feed.routes, feed.routePrefix, feed.name),
+    });
+  });
+}
+
+// Subway and Staten Island Railway trains from the eight NYCT feeds. No GPS:
+// each train names the station it is at or approaching; the frontend places it.
+async function nycSubway(request: Request, ctx: ExecutionContext): Promise<Response> {
+  return cachedJson(request, ctx, 15, async () => {
+    const [alerts, ...feeds] = await Promise.all([
+      fetchFeedMessage(SUBWAY_ALERTS_URL, 30),
+      ...SUBWAY_FEED_URLS.map((url) => fetchFeedMessage(url, 15).catch(() => ({ status: 0, message: null }))),
+    ]);
+    const answered = feeds.filter((feed) => feed.message);
+    if (!answered.length) return json({ error: 'MTA subway feeds unavailable' }, 502);
+    markProvider('nycSubway', true);
+
+    const feedTimestamp = Math.max(
+      ...answered.map((feed) => numberValue(feed.message!.header.timestamp) ?? 0),
+      Math.floor(Date.now() / 1000) - 60,
+    );
+    const trains = answered.flatMap((feed) => (
+      subwayTrains(feed.message!.entity, numberValue(feed.message!.header.timestamp) ?? feedTimestamp)
+    ));
+    return json({
+      provider: 'MTA New York City Transit GTFS-Realtime',
+      // Every train is placed from its reported station and the trip update.
+      positioning: 'station-estimates',
+      updatedAt: new Date(feedTimestamp * 1000).toISOString(),
+      feeds: feeds.map((feed, index) => ({ url: SUBWAY_FEED_URLS[index], ok: Boolean(feed.message) })),
+      trains,
+      alerts: alerts.message
+        ? mtaAlerts(alerts.message, feedTimestamp, SUBWAY_ROUTES, 'nyc-subway', 'Subway')
+        : [],
     });
   });
 }
@@ -643,7 +726,7 @@ export function laneClosureFeatures(
     if (!/^\d+$/.test(id) || !location || location.length !== 2) return [];
     const lng = Number(location[1]);
     const lat = Number(location[0]);
-    if (!Number.isFinite(lng) || !Number.isFinite(lat) || !insideNewEngland(lng, lat)) return [];
+    if (!Number.isFinite(lng) || !Number.isFinite(lat) || !insideMapArea(lng, lat)) return [];
     const html = htmlById[id] ?? '';
     const descriptionMatch = html.match(/<td[^>]*colspan=["']?2["']?[^>]*>([\s\S]*?)<\/td>/i);
     const description = descriptionMatch ? decodeHtml(descriptionMatch[1]) : '';
@@ -1341,6 +1424,8 @@ export default {
         providers: {
           regionalTransit: providerHealthy('regionalTransit'),
           metroNorth: providerHealthy('metroNorth'),
+          lirr: providerHealthy('lirr'),
+          nycSubway: providerHealthy('nycSubway'),
           roadwork: providerHealthy('roadwork'),
           roadEvents: providerHealthy('roadEvents'),
           cameras: providerHealthy('cameras'),
@@ -1362,7 +1447,11 @@ export default {
     } else if (url.pathname === '/api/transit') {
       response = await transit(request, url, env, ctx);
     } else if (url.pathname === '/api/mnr') {
-      response = await metroNorth(request, ctx);
+      response = await mtaRail(request, ctx, METRO_NORTH_FEED);
+    } else if (url.pathname === '/api/lirr') {
+      response = await mtaRail(request, ctx, LIRR_FEED);
+    } else if (url.pathname === '/api/nyc-subway') {
+      response = await nycSubway(request, ctx);
     } else if (url.pathname === '/api/roadwork') {
       response = await roadwork(request, ctx);
     } else if (url.pathname === '/api/road-events') {
