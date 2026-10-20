@@ -28,22 +28,24 @@ const FAA_XML = `<AIRPORT_STATUS_INFORMATION><Update_Time>Sat Sep 26 23:47:12 20
 </Airport_Closure_List></Delay_type></AIRPORT_STATUS_INFORMATION>`;
 
 describe('FAA airport status parser', () => {
-  it('extracts New England airports across every delay type', () => {
+  it('extracts map-area airports across every delay type', () => {
     const { updatedAt, airports } = parseFaaAirportStatus(FAA_XML);
     expect(updatedAt).toBe('2026-09-26T23:47:12.000Z');
-    expect(airports.map((a) => `${a.iata}:${a.type}`)).toEqual([
+    expect(airports.map((a) => `${a.iata}:${a.type}`).filter((entry) => !/^(EWR|JFK):/.test(entry))).toEqual([
       'PVD:ground-stop',
       'BOS:ground-delay',
       'BOS:departure-delay',
       'BDL:arrival-delay',
       'BOS:closure',
     ]);
+    // New York and New Jersey airports are in the allowlist too.
+    expect(airports.map((a) => a.iata)).toEqual(expect.arrayContaining(['EWR', 'JFK']));
   });
 
   it('drops airports outside the allowlist and keeps delay details', () => {
     const { airports } = parseFaaAirportStatus(FAA_XML);
-    expect(airports.some((a) => ['EWR', 'JFK', 'LAX'].includes(a.iata))).toBe(false);
-    expect(airports.find((a) => a.type === 'ground-stop')).toMatchObject({
+    expect(airports.some((a) => a.iata === 'LAX')).toBe(false);
+    expect(airports.find((a) => a.type === 'ground-stop' && a.iata === 'PVD')).toMatchObject({
       iata: 'PVD',
       name: 'Rhode Island T.F. Green Intl',
       reason: 'thunderstorms',

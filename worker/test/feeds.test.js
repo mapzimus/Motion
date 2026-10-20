@@ -2,22 +2,23 @@ import { describe, expect, it } from 'vitest';
 import { SWIFTLY_APPROVED_AGENCIES, TRANSIT_FEEDS, feedsForRegion, swiftlyAgencyKey, swiftlyApproved, vehiclesFromTrilliumMap } from '../src/feeds';
 import staticFeeds from '../../scripts/regional-feeds.json';
 
-const NEW_ENGLAND_STATES = new Set(['ct', 'ma', 'me', 'nh', 'ri', 'vt']);
+const MAP_STATES = new Set(['ct', 'ma', 'me', 'nh', 'ri', 'vt', 'ny', 'nj']);
 const staticIds = new Set(staticFeeds.map((feed) => feed.id));
 
 describe('realtime transit feed registry', () => {
-  it('uses unique ids and only New England state keys', () => {
+  it('uses unique ids and only map-area state keys', () => {
     const ids = TRANSIT_FEEDS.map((feed) => feed.id);
     expect(new Set(ids).size).toBe(ids.length);
     for (const feed of TRANSIT_FEEDS) {
       expect(feed.states.length, feed.id).toBeGreaterThan(0);
-      for (const state of feed.states) expect(NEW_ENGLAND_STATES.has(state), `${feed.id}:${state}`).toBe(true);
+      for (const state of feed.states) expect(MAP_STATES.has(state), `${feed.id}:${state}`).toBe(true);
     }
   });
 
   it('keys every realtime feed to a static schedule feed so route ids can join', () => {
     // Connecticut Children's publishes positions only; its GTFS zip is 404.
-    const liveWithoutStaticGtfs = new Set(['ccmc']);
+    // The MTA bus schedules are six borough zips the static build does not carry yet.
+    const liveWithoutStaticGtfs = new Set(['ccmc', 'nyct-bus']);
     const orphans = TRANSIT_FEEDS.map((feed) => feed.id).filter((id) => !staticIds.has(id));
     expect(orphans.sort()).toEqual([...liveWithoutStaticGtfs].sort());
   });
@@ -35,6 +36,16 @@ describe('realtime transit feed registry', () => {
     expect(ids('ct')).toEqual(expect.arrayContaining(['quinnipiac', 'uhartford', 'unewhaven', 'harbor-point', 'ccmc']));
     expect(ids('me')).toEqual(expect.arrayContaining(['bangor', 'citylink']));
     expect(ids('ma')).toEqual(expect.arrayContaining(['lrta', 'ezride', 'longwood', 'mgb', 'lexpress', 'nantucket-wave', 'bu', 'bc', 'umb', 'wellesley']));
+  });
+
+  it('serves New York feeds only to New York, New Jersey and the Northeast union', () => {
+    const ids = (region) => feedsForRegion(region).map((feed) => feed.id);
+    expect(ids('ny')).toEqual(expect.arrayContaining(['nyct-bus', 'nyc-ferry', 'ny-waterway', 'tcat', 'cdta', 'suffolk']));
+    expect(ids('nj')).toEqual(['ny-waterway']);
+    expect(ids('new-england')).not.toContain('nyct-bus');
+    expect(ids('new-england')).toContain('cttransit');
+    expect(ids('northeast')).toEqual(TRANSIT_FEEDS.map((feed) => feed.id));
+    expect(ids('ct')).not.toContain('nyct-bus');
   });
 
   it('serves only MBTA-core shuttles for the legacy boston region', () => {
@@ -87,7 +98,7 @@ describe('realtime transit feed registry', () => {
       status: 'success',
       data: [
         { id: '2254', lat: 43.6958955, lon: -72.279929, route_id: '7130', heading: 335.8893, headsign: 'To Hanover' },
-        { id: '9', lat: 40.7, lon: -74.1, route_id: '1', heading: 10, headsign: 'Out of area' },
+        { id: '9', lat: 38.7, lon: -77.1, route_id: '1', heading: 10, headsign: 'Out of area' },
         { lat: 43.7, lon: -72.2, route_id: '1' },
       ],
     }, new Date('2026-10-07T18:00:00Z'));

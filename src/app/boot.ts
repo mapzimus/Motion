@@ -13,7 +13,8 @@ import { startSharedMobility } from '../feeds/shared-mobility.js';
 import { startRoadwork } from '../feeds/roadwork.js';
 import { startRoadConditions } from '../feeds/road-conditions.js';
 import { startConditions } from '../feeds/conditions.js';
-import { startMetroNorth } from '../feeds/metro-north.js';
+import { startLirr, startMetroNorth } from '../feeds/metro-north.js';
+import { startNycSubway } from '../feeds/nyc-subway.js';
 import { startAlertPolling } from '../feeds/alerts.js';
 import { initialRegion, loadRegions } from '../feeds/regions.js';
 import { initPermalink, readPermalink, schedulePermalinkUpdate } from '../feeds/permalink.js';
@@ -106,7 +107,7 @@ function subwayColorsFrom(routeInfo: Map<string, any>): Map<string, string> {
 // ---------------------------------------------------------------------------
 
 export async function boot(): Promise<void> {
-  setLoading('Loading New England…');
+  setLoading('Loading the map…');
   // Regions and the basemap key first: the permalink needs regions to
   // validate `r`, and the map's first camera comes from the permalink. Then
   // the map draws while the route index and the gateway health check (5 s
@@ -244,6 +245,18 @@ export async function boot(): Promise<void> {
       updateAlertSource('mnr'),
       selectedRegion,
       capabilities.metroNorth as boolean | undefined,
+    ),
+    startLirr(
+      (counts: Record<string, number>) => updateCounts(counts, 'lirr'),
+      updateAlertSource('lirr'),
+      selectedRegion,
+      capabilities.lirr as boolean | undefined,
+    ),
+    startNycSubway(
+      (counts: Record<string, number>) => updateCounts(counts, 'nyc-subway'),
+      updateAlertSource('nyc-subway'),
+      selectedRegion,
+      capabilities.nycSubway as boolean | undefined,
     ),
     startConditions(
       (counts: Record<string, number>) => updateCounts(counts, 'conditions'),

@@ -49,7 +49,7 @@ describe('Keene public-works trucks', () => {
     expect(JSON.stringify(features)).not.toMatch(/mph|driver/i);
   });
 
-  it('drops a fix older than a day and a truck outside New England', () => {
+  it('drops a fix older than a day and a truck outside the map', () => {
     const features = parseKeeneViewer({
       data: {
         fleetViewerToken: {
@@ -63,8 +63,8 @@ describe('Keene public-works trucks', () => {
             }),
             device('AWAY', 'away', {
               time: NOW - 1000,
-              latitude: 40.1,
-              longitude: -74.97,
+              latitude: 38.5,
+              longitude: -77.0,
               speed: 0,
               formatted: 'Somewhere else',
             }),

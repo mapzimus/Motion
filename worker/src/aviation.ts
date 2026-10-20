@@ -3,12 +3,14 @@
 // flight restrictions (TFR list + GeoServer polygons + per-NOTAM web text).
 // Kept free of fetch() so they can be unit-tested with inline fixtures.
 
-import { insideNewEngland } from './regions';
+import { insideMapArea } from './regions';
 
 const AWC_SITE = 'https://aviationweather.gov/';
 const TFR_SITE = 'https://tfr.faa.gov/';
 
-export const NEW_ENGLAND_STATES = ['MA', 'CT', 'RI', 'NH', 'VT', 'ME'];
+// States inside the map: New England plus New York and New Jersey.
+export const NEW_ENGLAND_STATES = ['MA', 'CT', 'RI', 'NH', 'VT', 'ME', 'NY', 'NJ'];
+export const MAP_STATES = NEW_ENGLAND_STATES;
 
 // ---- shared ----------------------------------------------------------------
 
@@ -119,8 +121,8 @@ function siteParts(site: string): { name: string; state: string; country: string
 }
 
 // Normalizes the AWC METAR GeoJSON (bbox query) into one compact point per
-// New England station; the box also catches Quebec, New Brunswick and New York
-// stations the map never shows. AWC reports `ceil` in hundreds of feet
+// map-area station; the box also catches Quebec, Ontario, New Brunswick and
+// Pennsylvania stations the map never shows. AWC reports `ceil` in hundreds of feet
 // (OVC060 → 60).
 export function normalizeMetars(
   features: MetarFeature[],
@@ -134,7 +136,7 @@ export function normalizeMetars(
     if (!validStationId(station) || !Array.isArray(coordinates)) continue;
     const lng = finiteNumber(coordinates[0]);
     const lat = finiteNumber(coordinates[1]);
-    if (lng === null || lat === null || !insideNewEngland(lng, lat)) continue;
+    if (lng === null || lat === null || !insideMapArea(lng, lat)) continue;
     const { name, state, country } = siteParts(String(p.site ?? p.name ?? ''));
     // An unparseable site is kept; the browser clips points to the region anyway.
     if (state && !NEW_ENGLAND_STATES.includes(state)) continue;

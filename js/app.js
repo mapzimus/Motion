@@ -66,7 +66,7 @@ async function loadGatewayCapabilities() {
 }
 
 async function main() {
-  ui.setLoading('LOADING NEW ENGLAND…');
+  ui.setLoading('LOADING THE MAP…');
   const [routes, , capabilities] = await Promise.all([
     fetchRoutes(),
     loadRegions(),

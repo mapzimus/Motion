@@ -24,9 +24,10 @@ export type AirportStatus = {
   endTime?: string;
 };
 
-// FAA LIDs for New England airports that appear in the NAS status feed. The
+// FAA LIDs for map-area airports that appear in the NAS status feed. The
 // LID equals the IATA code for every airport here, and matches `faaId` in
-// data/airports.geojson.
+// data/airports.geojson (New York and New Jersey airports are listed for the
+// status feed even before that file covers them).
 export const NEW_ENGLAND_AIRPORTS: Record<string, string> = {
   BOS: 'Boston Logan Intl',
   BDL: 'Bradley Intl',
@@ -55,6 +56,25 @@ export const NEW_ENGLAND_AIRPORTS: Record<string, string> = {
   PQI: 'Presque Isle Intl',
   BID: 'Block Island State',
   WST: 'Westerly State',
+  // New York
+  JFK: 'John F. Kennedy Intl',
+  LGA: 'LaGuardia',
+  ISP: 'Long Island MacArthur',
+  HPN: 'Westchester County',
+  SWF: 'New York Stewart Intl',
+  ALB: 'Albany Intl',
+  SYR: 'Syracuse Hancock Intl',
+  ROC: 'Frederick Douglass Greater Rochester Intl',
+  BUF: 'Buffalo Niagara Intl',
+  ITH: 'Ithaca Tompkins Intl',
+  BGM: 'Greater Binghamton',
+  ELM: 'Elmira Corning Regional',
+  PBG: 'Plattsburgh Intl',
+  // New Jersey
+  EWR: 'Newark Liberty Intl',
+  TTN: 'Trenton-Mercer',
+  ACY: 'Atlantic City Intl',
+  TEB: 'Teterboro',
 };
 
 const XML_ENTITIES: Record<string, string> = {
@@ -187,7 +207,10 @@ export const REGION_STATES: Record<RegionId, string[]> = {
   nh: ['NH'],
   vt: ['VT'],
   me: ['ME'],
+  ny: ['NY'],
+  nj: ['NJ'],
   'new-england': ['MA', 'CT', 'RI', 'NH', 'VT', 'ME'],
+  northeast: ['MA', 'CT', 'RI', 'NH', 'VT', 'ME', 'NY', 'NJ'],
 };
 
 export type NwsGeometry = {

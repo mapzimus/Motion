@@ -12,7 +12,7 @@ export const SUBWAY_GROUPS = ['red', 'orange', 'green', 'blue', 'silver', 'matta
 // Every layer group key, in panel order. Tests check presets against this.
 export const GROUP_KEYS = [
   ...SUBWAY_GROUPS,
-  'commuter', 'bus', 'amtrak', 'local', 'taxi',
+  'commuter', 'nyc-subway', 'bus', 'amtrak', 'local', 'taxi',
   'ferry', 'plane', 'air-service', 'airport', 'airport-status', 'airport-weather', 'tfr', 'airspace', 'vessel',
   'bike', 'bikeshare', 'walking', 'cycling',
   'traffic', 'roadwork', 'incident', 'camera', 'road-weather', 'message-sign', 'plow', 'weather',
@@ -21,12 +21,12 @@ export const GROUP_KEYS = [
 
 // The Routes preset: scheduled ribbons for every mode, subway lines only where
 // the region has a subway, and reference places hidden.
-export const ROUTE_GROUPS = ['commuter', 'bus', 'amtrak', 'ferry'];
+export const ROUTE_GROUPS = ['commuter', 'nyc-subway', 'bus', 'amtrak', 'ferry'];
 
 // "Show" row: vehicle presets grouped like the redesign's mode chips.
 // `groups: 'live'` means every group whose truth tag says it is live.
 export const VEHICLE_PRESETS = [
-  { key: 'rail', label: 'Rail', groups: [...SUBWAY_GROUPS, 'commuter', 'amtrak', 'heritage-rail'] },
+  { key: 'rail', label: 'Rail', groups: [...SUBWAY_GROUPS, 'commuter', 'nyc-subway', 'amtrak', 'heritage-rail'] },
   // Park & ride lots stay on their own reference layer. They are not buses.
   { key: 'buses', label: 'Buses', groups: ['bus', 'local', 'taxi'] },
   { key: 'water', label: 'Water', groups: ['ferry', 'vessel', 'drawbridge'] },
@@ -48,6 +48,12 @@ export const SCENES = [
   },
   { key: 'harbor-watch', label: 'Harbor watch', region: 'boston', groups: ['ferry', 'vessel'] },
   {
+    key: 'new-york-city',
+    label: 'New York City',
+    region: 'nyc',
+    groups: ['nyc-subway', 'commuter', 'bus', 'ferry', 'amtrak'],
+  },
+  {
     key: 'islands',
     label: 'Islands by sea & air',
     region: 'cape-islands',
@@ -56,7 +62,7 @@ export const SCENES = [
   {
     key: 'road-trip',
     label: 'Road trip',
-    region: 'new-england',
+    region: 'northeast',
     groups: ['traffic', 'incident', 'roadwork', 'camera', 'road-weather', 'message-sign', 'plow'],
   },
   { key: 'maine-islands', label: 'Maine islands', region: 'midcoast', groups: ['ferry', 'vessel'] },

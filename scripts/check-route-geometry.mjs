@@ -227,19 +227,31 @@ const requiredNewEnglandAmtrak = [
   'Acela', 'Amtrak Hartford Line', 'Downeaster', 'Ethan Allen Express',
   'Lake Shore Limited', 'Northeast Regional', 'Valley Flyer', 'Vermonter',
 ];
+// Services through New York and New Jersey (Penn Station, the Empire Corridor
+// and the Keystone Corridor), clipped to the map by the region match.
+const requiredNewYorkAmtrak = [
+  'Adirondack', 'Cardinal', 'Carolinian', 'Crescent', 'Empire Service', 'Keystone Service',
+  'Maple Leaf', 'Palmetto', 'Pennsylvanian', 'Silver Meteor',
+];
+const requiredAmtrak = [...requiredNewEnglandAmtrak, ...requiredNewYorkAmtrak];
 const amtrakNames = new Set(amtrakRoutes.map((feature) => feature.properties.name));
-if (amtrakNames.size !== requiredNewEnglandAmtrak.length
-    || requiredNewEnglandAmtrak.some((name) => !amtrakNames.has(name))) {
+if (requiredNewEnglandAmtrak.some((name) => !amtrakNames.has(name))) {
   throw new Error('Official scheduled Amtrak coverage is missing a New England route.');
+}
+if (amtrakNames.size !== requiredAmtrak.length || requiredNewYorkAmtrak.some((name) => !amtrakNames.has(name))) {
+  throw new Error(`Official scheduled Amtrak coverage differs from the expected ${requiredAmtrak.length} routes: ${[...amtrakNames].sort().join(', ')}`);
 }
 const vermontAmtrakNames = new Set(
   amtrakRoutes
     .filter((feature) => feature.properties?.regions?.includes('vt'))
     .map((feature) => feature.properties.name),
 );
+// The Adirondack is also tagged for Vermont: its Lake Champlain shore track
+// touches the generalized state boundary that runs through the lake.
 const requiredVermontAmtrak = ['Ethan Allen Express', 'Vermonter'];
-if (vermontAmtrakNames.size !== requiredVermontAmtrak.length
-    || requiredVermontAmtrak.some((name) => !vermontAmtrakNames.has(name))) {
+const allowedVermontAmtrak = new Set([...requiredVermontAmtrak, 'Adirondack']);
+if (requiredVermontAmtrak.some((name) => !vermontAmtrakNames.has(name))
+    || [...vermontAmtrakNames].some((name) => !allowedVermontAmtrak.has(name))) {
   throw new Error('Vermont must contain scheduled Vermonter and Ethan Allen Express route geometry.');
 }
 
@@ -777,7 +789,7 @@ for (const [group, minimum] of Object.entries(REFERENCE_PLACE_MINIMUMS)) {
   const AIRSPACE_MINIMUMS = { B: 1, C: 5, D: 10, sua: 10 };
   // Offshore warning areas reach south of Long Island (~39.6° N); this box
   // only catches swapped or garbage coordinates.
-  const [west, south, east, north] = [-75.0, 38.5, -65.0, 48.5];
+  const [west, south, east, north] = [-80.0, 38.5, -65.0, 48.5];
   const closedRing = (ring) => Array.isArray(ring) && ring.length >= 4
     && ring.every((point) => Number.isFinite(point?.[0]) && Number.isFinite(point?.[1])
       && point[0] >= west && point[0] <= east && point[1] >= south && point[1] <= north)

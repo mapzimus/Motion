@@ -18,7 +18,7 @@ beforeAll(() => {
 
 describe('legacy bridge started before the map is ready', () => {
   it('shows the current loading message straight away', () => {
-    expect(text('overlay-text')).toBe('Loading New England…');
+    expect(text('overlay-text')).toBe('Loading the map…');
   });
 
   it('fills the panel from store changes without lifting the overlay', () => {

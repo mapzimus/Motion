@@ -30,9 +30,9 @@ const subwayRegions = new Set(
 const hasSubway = (key) => subwayRegions.has(key);
 
 describe('layer presets and scenes', () => {
-  it('lists 40 unique layer groups', () => {
-    expect(GROUP_KEYS).toHaveLength(40);
-    expect(new Set(GROUP_KEYS).size).toBe(40);
+  it('lists 41 unique layer groups', () => {
+    expect(GROUP_KEYS).toHaveLength(41);
+    expect(new Set(GROUP_KEYS).size).toBe(41);
   });
 
   it('puts the aviation conditions in the Air preset', () => {
@@ -69,7 +69,7 @@ describe('layer presets and scenes', () => {
 
   it('marks exactly the regions with MBTA subway stations as having a subway', () => {
     // North Shore reaches the Blue Line at Wonderland, Revere Beach and Beachmont.
-    expect([...subwayRegions].sort()).toEqual(['boston', 'greater-boston', 'ma', 'new-england', 'north-shore']);
+    expect([...subwayRegions].sort()).toEqual(['boston', 'greater-boston', 'ma', 'new-england', 'north-shore', 'northeast']);
   });
 });
 
@@ -78,7 +78,7 @@ describe('resolvePreset', () => {
     const plan = resolvePreset('routes', { region: 'ct', groups, hasSubway });
     expect(plan.mode).toBe('exact');
     expect(plan.region).toBeNull();
-    expect([...plan.groups].sort()).toEqual(['amtrak', 'bus', 'commuter', 'ferry']);
+    expect([...plan.groups].sort()).toEqual(['amtrak', 'bus', 'commuter', 'ferry', 'nyc-subway']);
     expect(plan.statuses).toEqual(['live', 'estimated', 'scheduled']);
   });
 
@@ -111,9 +111,9 @@ describe('resolvePreset', () => {
   });
 
   it('drops subway lines from Rail outside subway regions', () => {
-    expect(resolvePreset('rail', { region: 'ct', groups, hasSubway }).groups).toEqual(['commuter', 'amtrak', 'heritage-rail']);
+    expect(resolvePreset('rail', { region: 'ct', groups, hasSubway }).groups).toEqual(['commuter', 'nyc-subway', 'amtrak', 'heritage-rail']);
     expect(resolvePreset('rail', { region: 'boston', groups, hasSubway }).groups).toEqual([
-      ...SUBWAY_GROUPS, 'commuter', 'amtrak', 'heritage-rail',
+      ...SUBWAY_GROUPS, 'commuter', 'nyc-subway', 'amtrak', 'heritage-rail',
     ]);
   });
 

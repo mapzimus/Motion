@@ -21,6 +21,7 @@ import {
   fleetBoundaryOptions,
   filterFeatureCollection,
   filterSpatialFeatureCollection,
+  isUnionRegion,
   maxZoomForRegion,
   setActiveRegion,
 } from '../feeds/regions.js';
@@ -82,13 +83,13 @@ export function applyRoutePalette() {
 }
 
 // Draw order, bottom to top: bike docks under boats under trains under planes.
-const FLEETS = ['bike', 'vessel', 'amtrak', 'regional', 'mnr', 'mbta', 'coaches', 'plane'];
+const FLEETS = ['bike', 'vessel', 'amtrak', 'regional', 'mnr', 'lirr', 'nyc-subway', 'mbta', 'coaches', 'plane'];
 
 // The visual language: SHAPE says what kind of vehicle it is, COLOR says whose
 // service it is. Subway, commuter rail and Amtrak are a rail silhouette; the
 // Silver Line is a bus, so it wears the bus silhouette. Stations are a quiet
 // square under those vehicles. Bus stops are a faint dot, quieter still.
-const TRAIN_GROUPS = ['red', 'orange', 'green', 'blue', 'mattapan', 'commuter', 'amtrak'];
+const TRAIN_GROUPS = ['red', 'orange', 'green', 'blue', 'mattapan', 'commuter', 'amtrak', 'nyc-subway'];
 const RAIL_GROUPS = [...TRAIN_GROUPS, 'silver'];
 const ICON_GROUPS = ['bus', 'ferry', 'plane', 'vessel', 'bike', 'silver', ...TRAIN_GROUPS];
 // Sprite color for a vehicle that arrives without one; drawn on first use by
@@ -2210,7 +2211,7 @@ function renderRouteShapes() {
   routeShapesFC = {
     type: 'FeatureCollection',
     features: allRouteShapesFC.features.filter((feature) => {
-      if (activeRegion === 'new-england') return true;
+      if (isUnionRegion(activeRegion)) return true;
       if (['regional-static', 'regional-station'].includes(feature.properties.kind)) {
         return feature.properties.regions?.includes(activeRegion);
       }
@@ -2526,10 +2527,10 @@ function renderTfrs() {
   map?.getSource('tfrs')?.setData(tfrFC);
 }
 
-// The file is already New England-scoped; offshore warning areas have no
-// vertex on land, so the whole-region view keeps everything.
+// The file is already map-scoped; offshore warning areas have no vertex on
+// land, so a union-region view keeps everything.
 function renderAirspace() {
-  airspaceFC = activeRegion === 'new-england'
+  airspaceFC = isUnionRegion(activeRegion)
     ? allAirspaceFC
     : filterSpatialFeatureCollection(allAirspaceFC, activeRegion);
   map?.getSource('airspace')?.setData(airspaceFC);
@@ -2612,7 +2613,7 @@ function renderReferenceData() {
   airportsFC = filterSpatialFeatureCollection(allAirportsFC, activeRegion);
   borderCrossingsFC = {
     ...allBorderCrossingsFC,
-    features: activeRegion === 'new-england'
+    features: isUnionRegion(activeRegion)
       ? (allBorderCrossingsFC.features ?? [])
       : (allBorderCrossingsFC.features ?? []).filter((feature) => crossingInRegion(feature, activeRegion)),
   };
@@ -2962,6 +2963,8 @@ export function fleetCountsForRegion() {
     regional: 'regional',
     coaches: 'coaches',
     mnr: 'mnr',
+    lirr: 'lirr',
+    'nyc-subway': 'nyc-subway',
     mbta: 'mbta',
     plane: 'planes',
   };

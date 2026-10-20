@@ -72,9 +72,9 @@ export const CONFIG = {
 
   MAP_CENTER: [-71.0589, 42.335],
   MAP_ZOOM: 11.5,
-  // Navigation guardrail with enough margin for a wide screen to fit all six
-  // states at once (a tight New England box forces MapLibre to over-zoom).
-  MAP_BOUNDS: [[-80, 38], [-61, 50.5]],
+  // Navigation guardrail with enough margin for a wide screen to fit all eight
+  // states at once (a tight box forces MapLibre to over-zoom).
+  MAP_BOUNDS: [[-84, 36.5], [-61, 50.5]],
 
   // The Silver Line is GTFS route_type 3 ("bus") but belongs with rapid
   // transit — these six route IDs get their own layer group.
@@ -99,11 +99,19 @@ export const CONFIG = {
   MNR_STOPS_URL: `${dataBase}mnr-stops.json`,
   MNR_COLOR: '#ee0034',
   MNR_STALE_MS: 2 * 60_000,
+  // Long Island Rail Road: same gateway shape as Metro-North, own stop file.
+  LIRR_STOPS_URL: `${dataBase}lirr-stops.json`,
+  LIRR_COLOR: '#0039a6',
+  // New York City Subway and Staten Island Railway: stations plus typical
+  // segment times, because the MTA subway feeds carry no GPS.
+  NYC_SUBWAY_STOPS_URL: `${dataBase}nyc-subway-stops.json`,
+  NYC_SUBWAY_COLOR: '#9aa0a6',
+  NYC_SUBWAY_POLL_MS: 20_000,
 
   // Amtrak via the community Amtraker API (CORS-open, no key). Exact region
   // clipping is handled by the shared Census boundary filter.
   AMTRAK_URL: 'https://api-v3.amtraker.com/v3/trains',
-  AMTRAK_BBOX: { latMin: 40.7, latMax: 47.75, lonMin: -74.1, lonMax: -65.8 },
+  AMTRAK_BBOX: { latMin: 38.8, latMax: 47.75, lonMin: -80.0, lonMax: -65.8 },
   AMTRAK_COLOR: '#5b9bd5',
   AMTRAK_STALE_MS: 5 * 60_000,
 
@@ -126,7 +134,7 @@ export const CONFIG = {
   AIS_MAX_AGE_MS: 6 * 60 * 60_000, // never show a position older than 6 h
   VESSEL_COLOR: '#63d8c8',
 
-  // Keyless GBFS systems currently cataloged in New England. Discovery feeds
+  // Keyless GBFS systems currently cataloged in the map area. Discovery feeds
   // choose their own station/free-vehicle endpoints, so provider URL changes
   // do not require an app release.
   SHARED_MOBILITY_SYSTEMS: [
@@ -135,6 +143,13 @@ export const CONFIG = {
       name: 'Bluebikes · 13 Greater Boston municipalities',
       discoveryUrl: 'https://gbfs.bluebikes.com/gbfs/gbfs.json',
       color: '#4d9fec',
+      stationOnly: true,
+    },
+    {
+      id: 'citibike',
+      name: 'Citi Bike · New York City, Jersey City & Hoboken',
+      discoveryUrl: 'https://gbfs.citibikenyc.com/gbfs/gbfs.json',
+      color: '#2d6cdf',
       stationOnly: true,
     },
     {
@@ -173,7 +188,7 @@ export const CONFIG = {
   BUS_COLOR: '#f2b84b',
   FERRY_COLOR: '#2eb7c5',
   // Gateway transit feeds whose vehicles are boats, not buses.
-  FERRY_FEEDS: ['casco-bay'],
+  FERRY_FEEDS: ['casco-bay', 'nyc-ferry', 'ny-waterway'],
   CAMERA_COLOR: '#d2d7dd',
   ROAD_WEATHER_COLOR: '#7ec8e3',
   MESSAGE_SIGN_COLOR: '#f0c14a',
