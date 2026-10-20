@@ -227,10 +227,19 @@ const requiredNewEnglandAmtrak = [
   'Acela', 'Amtrak Hartford Line', 'Downeaster', 'Ethan Allen Express',
   'Lake Shore Limited', 'Northeast Regional', 'Valley Flyer', 'Vermonter',
 ];
+// Services through New York and New Jersey (Penn Station, the Empire Corridor
+// and the Keystone Corridor), clipped to the map by the region match.
+const requiredNewYorkAmtrak = [
+  'Adirondack', 'Cardinal', 'Carolinian', 'Crescent', 'Empire Service', 'Keystone Service',
+  'Maple Leaf', 'Palmetto', 'Pennsylvanian', 'Silver Meteor',
+];
+const requiredAmtrak = [...requiredNewEnglandAmtrak, ...requiredNewYorkAmtrak];
 const amtrakNames = new Set(amtrakRoutes.map((feature) => feature.properties.name));
-if (amtrakNames.size !== requiredNewEnglandAmtrak.length
-    || requiredNewEnglandAmtrak.some((name) => !amtrakNames.has(name))) {
+if (requiredNewEnglandAmtrak.some((name) => !amtrakNames.has(name))) {
   throw new Error('Official scheduled Amtrak coverage is missing a New England route.');
+}
+if (amtrakNames.size !== requiredAmtrak.length || requiredNewYorkAmtrak.some((name) => !amtrakNames.has(name))) {
+  throw new Error(`Official scheduled Amtrak coverage differs from the expected ${requiredAmtrak.length} routes: ${[...amtrakNames].sort().join(', ')}`);
 }
 const vermontAmtrakNames = new Set(
   amtrakRoutes

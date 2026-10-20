@@ -872,6 +872,13 @@ documented `freshness_exempt`), and commit the refreshed `feed-freshness.json`.
   port 8080, which the build sandbox could not reach; they are listed and
   will report `error` in `/api/transit?region=ny` until verified from the
   deployed gateway.
+- Two NY Waterway routes are left out of the schedule snapshot: 45 (Liberty
+  Harbor marina to Pier 11) and 50 (Haverstraw to Ossining on the upper
+  Hudson). Their water geometry needs the OpenStreetMap inland-water model,
+  which `scripts/fetch-ferry-audit-data.py` could not fetch because Overpass
+  was unreachable from the build sandbox; the land-polygon part of the model
+  was widened to New York Harbor and every other NYC Ferry and NY Waterway
+  route passed the water audit against it.
 - Many rural agencies publish schedules but no open live vehicle positions.
   A September 2026 survey of the remaining regional operators found: SRTA
   (Clever Devices BusTime) and UNH Wildcat Transit (Umo IQ) require a
