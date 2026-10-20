@@ -32,7 +32,7 @@ Every feature is labeled **live**, **estimated**, **scheduled**, or
 | Peter Pan coaches | [Peter Pan public tracker](https://bustracker.peterpanbus.com/). One dot per GPS fix; a fix older than 20 minutes is dropped | 30 s |
 | Metro-North (Hudson, Harlem, New Haven and branches) and the Long Island Rail Road | [MTA GTFS-Realtime](https://www.mta.info/developers) train GPS positions, trip predictions, and alerts; a train with no fresh GPS fix is estimated between stations and labeled so | 30 s |
 | New York City Subway and Staten Island Railway | The eight MTA GTFS-Realtime subway feeds plus alerts. The feeds carry no GPS: each train is placed between the station it reports and the previous one on its line using typical scheduled segment times, wears its official line color, and is always labeled **estimated** | 20 s |
-| New York buses and ferries | MTA Bus Time vehicle positions for every NYCT and MTA Bus route (positions only; the borough schedules are not in the route snapshot yet), NYC Ferry, NY Waterway (Hudson crossings to New Jersey), TCAT Ithaca, CDTA and Suffolk County Transit GTFS-realtime | 20 s |
+| New York buses and ferries | MTA Bus Time vehicle positions for every NYCT and MTA Bus route, joined to the six borough schedules, NYC Ferry, NY Waterway (Hudson crossings to New Jersey), TCAT Ithaca, CDTA and Suffolk County Transit GTFS-realtime | 20 s |
 | Scheduled/reference bus, rail, ferry, boat, and air-service routes and stops | 114 GTFS sources plus 81 official-service corridors, including Amtrak (now with the Empire, Keystone, Adirondack, Maple Leaf and long-distance services through New York and New Jersey), Metro-North, LIRR, the NYC Subway, NJ Transit rail and light rail, PATH, Shore Line East, regional coaches, university shuttles, ferry routes, municipal water shuttles, small-island lifelines, island air taxis, and scheduled stops | built snapshot |
 | Small-town, county, flex, volunteer, microtransit, and on-demand water-service catalog | 55 official-directory service markers across all six states, including MBTA The RIDE and Provincetown and Cape Ann whale watches | built snapshot |
 | Taxi and cab services | 106 licensed cab companies, dispatch associations, and official airport and station taxi stands from state and municipal licensing lists, airport ground-transportation pages, and operator sites, plus 30 [OpenStreetMap](https://www.openstreetmap.org/copyright) taxi stands. A directory, not live cab positions | built snapshot |
@@ -878,11 +878,11 @@ documented `freshness_exempt`), and commit the refreshed `feed-freshness.json`.
   74°W; New York Harbor needs a look at Durable Object memory before the box
   grows.
 - NJ Transit publishes GTFS-realtime only behind a developer token that must
-  be refreshed daily, so its trains and buses are schedule ribbons only
-  (rail and light rail are in the snapshot; the 49 MB bus schedule is not
-  yet). PATH has no public GTFS-realtime. MTA buses are live from Bus Time
-  but their six borough schedules are not in the snapshot, so they draw from
-  positions only. CDTA and Suffolk County Transit publish GTFS-realtime on
+  be refreshed daily, so its trains and buses are schedule ribbons only.
+  PATH has no public GTFS-realtime. NICE, Bee-Line, NFTA, RTS, Centro and
+  the other New York county systems publish schedules but no open vehicle
+  positions (RTS and NICE run vendor trackers behind keys), so they are
+  ribbons only too. CDTA and Suffolk County Transit publish GTFS-realtime on
   port 8080, which the build sandbox could not reach; they are listed and
   will report `error` in `/api/transit?region=ny` until verified from the
   deployed gateway.

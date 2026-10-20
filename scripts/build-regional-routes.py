@@ -885,10 +885,17 @@ def point_in_geometry(point, geometry):
     return any(point_in_ring(point, polygon[0]) and not any(point_in_ring(point, hole) for hole in polygon[1:]) for polygon in polygons)
 
 
+def route_prefix(feed):
+    """The feed id live vehicles carry. Several static feeds may share one
+    live feed (the MTA's six borough bus schedules all join Bus Time), so a
+    static feed can name that feed with ``realtime_feed``."""
+    return feed.get("realtime_feed") or feed["id"]
+
+
 def public_route_id(feed, route_id):
     """Feed-scoped route id; ``route_id_map`` keeps ids stable for permalinks
     when a hand-drawn corridor is replaced by the operator's GTFS."""
-    return f"{feed['id']}:{feed.get('route_id_map', {}).get(route_id, route_id)}"
+    return f"{route_prefix(feed)}:{feed.get('route_id_map', {}).get(route_id, route_id)}"
 
 
 LETTER_CODE_SHORT_NAME = re.compile(r"[A-Z]{1,4}")
@@ -995,7 +1002,7 @@ def coordinates_from_stops(archive, selected_trip_ids):
         if row.get("stop_id") and row.get("stop_lon") and row.get("stop_lat")
     }
     sequences = defaultdict(list)
-    for row in read_rows(archive, "stop_times.txt"):
+    for row in stream_rows(archive, "stop_times.txt"):
         trip_id = row.get("trip_id")
         stop_id = row.get("stop_id")
         if trip_id in selected_trip_ids and stop_id in stops:
@@ -1032,7 +1039,7 @@ def station_features(
     skip_non_boarding = bool(feed.get("skip_non_boarding_stops"))
     boarding_stops = set()
     routes_by_stop = defaultdict(set)
-    for row in read_rows(archive, "stop_times.txt"):
+    for row in stream_rows(archive, "stop_times.txt"):
         route_id = route_by_trip.get(row.get("trip_id"))
         stop_id = row.get("stop_id")
         if route_id and stop_id:
@@ -1604,7 +1611,7 @@ def process_feed(
             fallback_trip_by_route_direction.setdefault(fallback_key(feed, trip), trip.get("trip_id"))
 
     shape_points = defaultdict(list)
-    for row in read_rows(archive, "shapes.txt"):
+    for row in stream_rows(archive, "shapes.txt"):
         shape_id = row.get("shape_id")
         if shape_id not in shape_to_route and shape_id not in donor_shape_ids:
             continue
