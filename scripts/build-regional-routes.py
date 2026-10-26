@@ -140,7 +140,9 @@ def read_rows(archive: zipfile.ZipFile, wanted: str) -> list[dict[str, str]]:
     if not name:
         return []
     raw = archive.read(name).decode("utf-8-sig", errors="replace")
-    return list(csv.DictReader(io.StringIO(raw)))
+    # skipinitialspace: Metra writes "service_id, monday, ..." with a space
+    # after every comma, in headers and values alike.
+    return list(csv.DictReader(io.StringIO(raw), skipinitialspace=True))
 
 
 GTFS_DATE_PATTERNS = (
@@ -307,7 +309,7 @@ def stream_rows(archive: zipfile.ZipFile, wanted: str):
         return
     with archive.open(name) as raw:
         text = io.TextIOWrapper(raw, encoding="utf-8-sig", newline="")
-        for row in csv.DictReader(text):
+        for row in csv.DictReader(text, skipinitialspace=True):
             yield {key.strip(): (value or "").strip() for key, value in row.items() if key}
 
 
