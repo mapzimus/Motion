@@ -250,13 +250,15 @@ const requiredNewYorkAmtrak = [
 // clipped to each metro by the region match. Floridian replaced the Capitol
 // Limited in 2024, so both names are allowed but neither is required.
 const requiredMetroAmtrak = [
-  'Hiawatha', 'Lincoln Service', 'Wolverine', 'Empire Builder', 'California Zephyr',
-  'Capitol Corridor', 'San Joaquins', 'Coast Starlight', 'Silver Star',
+  'Hiawatha Service', 'Lincoln Service', 'Wolverine', 'Empire Builder', 'California Zephyr',
+  'Capitol Corridor', 'Coast Starlight',
 ];
+// The San Joaquins come from the SJJPA feed (san-joaquins), drawn in the Amtrak group.
 const allowedMetroAmtrak = new Set([
   ...requiredMetroAmtrak, 'Auto Train', 'Capitol Limited', 'Floridian', 'Borealis', 'Blue Water',
-  'Pere Marquette', 'Lincoln Service Missouri River Runner', 'Illini', 'Saluki', 'Illinois Zephyr',
-  'Carl Sandburg', 'City of New Orleans', 'Southwest Chief', 'Texas Eagle',
+  'Pere Marquette', 'Lincoln Service Missouri River Runner', 'Missouri River Runner', 'Illini', 'Saluki',
+  'Illinois Zephyr', 'Carl Sandburg', 'City of New Orleans', 'Southwest Chief', 'Texas Eagle',
+  'San Joaquins', 'San Joaquins Bus', 'Amtrak San Joaquins',
 ]);
 const requiredAmtrak = [...requiredNewEnglandAmtrak, ...requiredNewYorkAmtrak, ...requiredMetroAmtrak];
 const allowedAmtrak = new Set([...requiredAmtrak, ...allowedMetroAmtrak]);
