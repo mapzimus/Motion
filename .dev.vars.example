@@ -8,3 +8,11 @@ TOMTOM_API_KEY=replace-with-tomtom-key
 CARTO_API_KEY=replace-with-carto-key
 # Optional. Swiftly expects the complete Authorization header value.
 SWIFTLY_API_KEY=replace-with-swiftly-authorization-value
+# Optional metro keys; each is free (docs/api-keys.md). Unset = that feed
+# reports needs-key and its schedule ribbons still draw.
+WMATA_API_KEY=replace-with-wmata-key
+CTA_TRAIN_API_KEY=replace-with-cta-train-tracker-key
+CTA_BUS_API_KEY=replace-with-cta-bus-tracker-key
+METRA_ACCESS_KEY=replace-with-metra-access-key
+METRA_SECRET_KEY=replace-with-metra-secret-key
+BAY_511_API_KEY=replace-with-511-sf-bay-token

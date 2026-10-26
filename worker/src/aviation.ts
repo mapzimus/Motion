@@ -9,7 +9,7 @@ const AWC_SITE = 'https://aviationweather.gov/';
 const TFR_SITE = 'https://tfr.faa.gov/';
 
 // States inside the map: New England plus New York and New Jersey.
-export const NEW_ENGLAND_STATES = ['MA', 'CT', 'RI', 'NH', 'VT', 'ME', 'NY', 'NJ'];
+export const NEW_ENGLAND_STATES = ['MA', 'CT', 'RI', 'NH', 'VT', 'ME', 'NY', 'NJ', 'PA', 'DE', 'DC', 'MD', 'VA', 'IL', 'IN', 'CA'];
 export const MAP_STATES = NEW_ENGLAND_STATES;
 
 // ---- shared ----------------------------------------------------------------

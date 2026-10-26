@@ -75,6 +75,17 @@ export const NEW_ENGLAND_AIRPORTS: Record<string, string> = {
   TTN: 'Trenton-Mercer',
   ACY: 'Atlantic City Intl',
   TEB: 'Teterboro',
+  // Philadelphia, Washington, Chicago, Bay Area
+  PHL: 'Philadelphia Intl',
+  PNE: 'Northeast Philadelphia',
+  DCA: 'Reagan Washington National',
+  IAD: 'Washington Dulles Intl',
+  BWI: 'Baltimore/Washington Intl',
+  ORD: "Chicago O'Hare Intl",
+  MDW: 'Chicago Midway Intl',
+  SFO: 'San Francisco Intl',
+  OAK: 'Oakland Intl',
+  SJC: 'San Jose Mineta Intl',
 };
 
 const XML_ENTITIES: Record<string, string> = {
@@ -211,6 +222,10 @@ export const REGION_STATES: Record<RegionId, string[]> = {
   nj: ['NJ'],
   'new-england': ['MA', 'CT', 'RI', 'NH', 'VT', 'ME'],
   northeast: ['MA', 'CT', 'RI', 'NH', 'VT', 'ME', 'NY', 'NJ'],
+  philadelphia: ['PA', 'NJ', 'DE'],
+  washington: ['DC', 'MD', 'VA'],
+  chicago: ['IL', 'IN'],
+  'bay-area': ['CA'],
 };
 
 export type NwsGeometry = {

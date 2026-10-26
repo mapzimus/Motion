@@ -4,9 +4,11 @@
 
 const MPS_TO_MPH = 2.23694;
 
-export function regionalVehicleItem(vehicle, now, { ferryFeeds, busColor, ferryColor, staleAfterMs }) {
+export function regionalVehicleItem(vehicle, now, { ferryFeeds, railFeeds = [], busColor, ferryColor, railColor = busColor, staleAfterMs }) {
   const isFerry = ferryFeeds.includes(vehicle.feed);
-  const modeColor = isFerry ? ferryColor : busColor;
+  const isRail = !isFerry && railFeeds.includes(vehicle.feed);
+  // A feed-supplied line color (CTA 'L' lines) wins over the mode color.
+  const modeColor = vehicle.color || (isFerry ? ferryColor : isRail ? railColor : busColor);
   return {
     id: `regional-${vehicle.id}`,
     detail: {
@@ -18,7 +20,7 @@ export function regionalVehicleItem(vehicle, now, { ferryFeeds, busColor, ferryC
     lng: vehicle.lng,
     lat: vehicle.lat,
     props: {
-      group: isFerry ? 'ferry' : 'bus',
+      group: isFerry ? 'ferry' : isRail ? 'commuter' : 'bus',
       route: vehicle.route || vehicle.agency || '',
       dataStatus: 'live',
       legendKey: vehicle.feed,

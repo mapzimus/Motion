@@ -14,6 +14,8 @@ const POLL_MS = 20_000;
 export const operatorFerryNames = new Set();
 const NORMALIZE_OPTS = {
   ferryFeeds: CONFIG.FERRY_FEEDS,
+  railFeeds: CONFIG.RAIL_FEEDS,
+  railColor: CONFIG.COMMUTER_COLOR,
   busColor: CONFIG.BUS_COLOR,
   ferryColor: CONFIG.FERRY_COLOR,
   staleAfterMs: CONFIG.STALE_AFTER_MS,
@@ -56,7 +58,8 @@ export function startRegional(onCounts, initialRegion, enabled = true) {
       });
       const visible = fleet.update(items);
       const ferries = visible.filter((item) => item.props.group === 'ferry').length;
-      onCounts({ bus: visible.length - ferries, ferry: ferries });
+      const trains = visible.filter((item) => item.props.group === 'commuter').length;
+      onCounts({ bus: visible.length - ferries - trains, ferry: ferries });
 
       const unavailable = (payload.feeds ?? []).filter((feed) => feed.state !== 'live');
       if (unavailable.length) {

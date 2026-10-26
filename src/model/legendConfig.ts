@@ -96,7 +96,7 @@ export const LEGEND_GROUPS: Record<string, LegendGroup> = {
   blue: { name: 'Blue Line', glyph: 'rail', notes: [], fades: true, drillable: true },
   silver: { name: 'Silver Line', glyph: 'bus', notes: [], fades: true, drillable: true },
   mattapan: { name: 'Mattapan Trolley', glyph: 'rail', notes: [], fades: true, drillable: true },
-  commuter: { name: 'Commuter & regional rail (MBTA, Metro-North, LIRR, NJ Transit, CTrail)', glyph: 'rail', notes: [], fades: true, drillable: true },
+  commuter: { name: 'Commuter & regional rail (MBTA, Metro-North, LIRR, NJ Transit, CTrail, SEPTA, MARC, VRE, Metra, Caltrain)', glyph: 'rail', notes: [], fades: true, drillable: true },
   'nyc-subway': {
     name: 'New York City Subway',
     glyph: 'rail',

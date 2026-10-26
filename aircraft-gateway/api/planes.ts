@@ -39,6 +39,10 @@ const PLANE_PROBES = {
     { lat: 44.25, lon: -72.0, radius: 150 },
     { lat: 45.5, lon: -68.8, radius: 180 },
   ],
+  philadelphia: [{ lat: 40.0, lon: -75.15, radius: 80 }],
+  washington: [{ lat: 38.9, lon: -77.1, radius: 90 }],
+  chicago: [{ lat: 41.85, lon: -87.8, radius: 100 }],
+  'bay-area': [{ lat: 37.75, lon: -122.2, radius: 100 }],
 } as const;
 
 type RegionId = keyof typeof PLANE_PROBES;

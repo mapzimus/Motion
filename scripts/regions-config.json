@@ -6,7 +6,7 @@
     "counties": 0.002,
     "state": 0.003
   },
-  "maxBytes": 2000000,
+  "maxBytes": 2500000,
   "groups": [
     {
       "key": "boston-area",
@@ -43,6 +43,18 @@
     {
       "key": "nj",
       "label": "New Jersey"
+    },
+    {
+      "key": "mid-atlantic",
+      "label": "Mid-Atlantic"
+    },
+    {
+      "key": "midwest",
+      "label": "Midwest"
+    },
+    {
+      "key": "west",
+      "label": "West"
     },
     {
       "key": "new-england",
@@ -958,6 +970,90 @@
       "definition": "Bergen, Hudson, Essex, Passaic, Union and Morris counties",
       "hasSubway": false,
       "busDefaultOn": true
+    },
+    {
+      "key": "philadelphia",
+      "name": "Philadelphia",
+      "group": "mid-atlantic",
+      "parent": null,
+      "kind": "counties",
+      "members": [
+        "Philadelphia, PA",
+        "Montgomery, PA",
+        "Delaware, PA",
+        "Bucks, PA",
+        "Chester, PA",
+        "Camden, NJ",
+        "Burlington, NJ",
+        "Gloucester, NJ"
+      ],
+      "memberCount": 8,
+      "definition": "Philadelphia and its four Pennsylvania suburban counties plus Camden, Burlington and Gloucester counties in New Jersey",
+      "hasSubway": false,
+      "busDefaultOn": false
+    },
+    {
+      "key": "washington",
+      "name": "Washington, DC",
+      "group": "mid-atlantic",
+      "parent": null,
+      "kind": "counties",
+      "members": [
+        "District of Columbia, DC",
+        "Montgomery, MD",
+        "Prince George's, MD",
+        "Arlington, VA",
+        "Fairfax County, VA",
+        "Fairfax city, VA",
+        "Alexandria, VA",
+        "Loudoun, VA",
+        "Prince William, VA"
+      ],
+      "memberCount": 9,
+      "definition": "The District plus Montgomery and Prince George's counties in Maryland and Arlington, Fairfax, Alexandria, Loudoun and Prince William in Virginia",
+      "hasSubway": false,
+      "busDefaultOn": false
+    },
+    {
+      "key": "chicago",
+      "name": "Chicago",
+      "group": "midwest",
+      "parent": null,
+      "kind": "counties",
+      "members": [
+        "Cook, IL",
+        "DuPage, IL",
+        "Lake, IL",
+        "Will, IL",
+        "Kane, IL",
+        "McHenry, IL",
+        "Lake, IN"
+      ],
+      "memberCount": 7,
+      "definition": "Cook, DuPage, Lake, Will, Kane and McHenry counties in Illinois plus Lake County, Indiana",
+      "hasSubway": false,
+      "busDefaultOn": false
+    },
+    {
+      "key": "bay-area",
+      "name": "San Francisco Bay Area",
+      "group": "west",
+      "parent": null,
+      "kind": "counties",
+      "members": [
+        "San Francisco, CA",
+        "San Mateo, CA",
+        "Santa Clara, CA",
+        "Alameda, CA",
+        "Contra Costa, CA",
+        "Marin, CA",
+        "Solano, CA",
+        "Sonoma, CA"
+      ],
+      "memberCount": 8,
+      "definition": "The nine-county Bay Area minus Napa: San Francisco, San Mateo, Santa Clara, Alameda, Contra Costa, Marin, Solano and Sonoma",
+      "hasSubway": false,
+      "busDefaultOn": false
     },
     {
       "key": "northeast",

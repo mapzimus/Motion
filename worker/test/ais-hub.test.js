@@ -5,7 +5,7 @@ import {
   runInDurableObject,
 } from 'cloudflare:test';
 import { describe, expect, it, vi } from 'vitest';
-import { OPEN_WATERS_URL, openWatersCredit, openWatersEventToAisstream } from '../src/ais-hub';
+import { OPEN_WATERS_URL, SUBSCRIBED_REGIONS, openWatersCredit, openWatersEventToAisstream } from '../src/ais-hub';
 import { AIS_BOUNDS } from '../src/regions';
 
 // A fake AISStream socket: the hub never touches the network in tests.
@@ -141,7 +141,7 @@ describe('AisHub', () => {
     for (const socket of [boston, maine, all]) socket.ws.close(1000, 'done');
   });
 
-  it('shares one upstream subscribed to the New England box across viewers', async () => {
+  it('shares one upstream subscribed to the New England and metro boxes across viewers', async () => {
     const stub = await freshHub();
     const sockets = [];
     for (let i = 0; i < 4; i += 1) sockets.push(await connect(stub, 'boston'));
@@ -153,7 +153,8 @@ describe('AisHub', () => {
     expect(upstream.url).toBe('wss://stream.aisstream.io/v0/stream');
     const subscription = JSON.parse(upstream.sent[0]);
     expect(subscription.APIKey).toBe('test-key');
-    expect(subscription.BoundingBoxes).toEqual([AIS_BOUNDS['new-england']]);
+    expect(SUBSCRIBED_REGIONS).toEqual(['new-england', 'philadelphia', 'washington', 'chicago', 'bay-area']);
+    expect(subscription.BoundingBoxes).toEqual(SUBSCRIBED_REGIONS.map((region) => AIS_BOUNDS[region]));
     expect(subscription.FilterMessageTypes).toContain('ShipStaticData');
     for (const socket of sockets) socket.ws.close(1000, 'done');
   });
@@ -165,12 +166,14 @@ describe('AisHub', () => {
       hub.upstream.open();
       return { created: hub.upstreamCreated, url: hub.upstream.url, sent: hub.upstream.sent };
     });
-    const [[south, west], [north, east]] = AIS_BOUNDS['new-england'];
     expect(upstream.created).toBe(1);
     expect(upstream.url).toBe(OPEN_WATERS_URL);
     expect(JSON.parse(upstream.sent[0])).toEqual({
       type: 'subscribe',
-      bbox: [[south, west, north, east]],
+      bbox: SUBSCRIBED_REGIONS.map((region) => {
+        const [[south, west], [north, east]] = AIS_BOUNDS[region];
+        return [south, west, north, east];
+      }),
       snapshot: true,
     });
     expect(JSON.parse(upstream.sent[0]).APIKey).toBeUndefined();

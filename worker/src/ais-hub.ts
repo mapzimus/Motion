@@ -30,7 +30,7 @@
 
 import { DurableObject } from 'cloudflare:workers';
 import { aisFrameToText } from './ais-frames';
-import { AIS_BOUNDS, REGION_IDS, isRegionId, type RegionId } from './regions';
+import { AIS_BOUNDS, METRO_IDS, REGION_IDS, isRegionId, type RegionId } from './regions';
 
 export const AISSTREAM_URL = 'wss://stream.aisstream.io/v0/stream';
 export const OPEN_WATERS_URL = 'wss://ais.openwaters.io/v1/stream';
@@ -89,6 +89,10 @@ export function openWatersEventToAisstream(event: {
 }
 
 export const HUB_NAME = 'new-england';
+// Boxes the single upstream socket subscribes to: New England (about 55
+// square degrees) plus the four metro harbors (about 10 more), inside the
+// anonymous Open Waters cap of 100 square degrees. All Northeast would be 125.
+export const SUBSCRIBED_REGIONS: readonly RegionId[] = [HUB_NAME, ...METRO_IDS];
 export const AIS_MESSAGE_TYPES = [
   'PositionReport',
   'StandardClassBPositionReport',
@@ -361,13 +365,15 @@ export class AisHub extends DurableObject<Env> {
       this.upstreamOpen = true;
       this.startListening();
       if (openWaters) {
-        // One anonymous socket for the New England box (about 55 square degrees,
-        // inside the anonymous 100 square degree cap). snapshot fills the map
-        // before the next live report. The browser never connects here itself.
-        const [[south, west], [north, east]] = AIS_BOUNDS[HUB_NAME];
+        // One anonymous socket for New England plus the metro harbors (see
+        // SUBSCRIBED_REGIONS). snapshot fills the map before the next live
+        // report. The browser never connects here itself.
         socket.send(JSON.stringify({
           type: 'subscribe',
-          bbox: [[south, west, north, east]],
+          bbox: SUBSCRIBED_REGIONS.map((region) => {
+            const [[south, west], [north, east]] = AIS_BOUNDS[region];
+            return [south, west, north, east];
+          }),
           snapshot: true,
         }));
         void this.refreshCredits();
@@ -376,7 +382,7 @@ export class AisHub extends DurableObject<Env> {
       // AISStream closes a connection that has not subscribed within 3 s.
       socket.send(JSON.stringify({
         APIKey: key,
-        BoundingBoxes: [AIS_BOUNDS[HUB_NAME]],
+        BoundingBoxes: SUBSCRIBED_REGIONS.map((region) => AIS_BOUNDS[region]),
         FilterMessageTypes: AIS_MESSAGE_TYPES,
       }));
     });

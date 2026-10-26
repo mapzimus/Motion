@@ -74,7 +74,8 @@ export const CONFIG = {
   MAP_ZOOM: 11.5,
   // Navigation guardrail with enough margin for a wide screen to fit all eight
   // states at once (a tight box forces MapLibre to over-zoom).
-  MAP_BOUNDS: [[-84, 36.5], [-61, 50.5]],
+  // The continental United States: New England through the Bay Area.
+  MAP_BOUNDS: [[-126, 23.5], [-61, 50.5]],
 
   // The Silver Line is GTFS route_type 3 ("bus") but belongs with rapid
   // transit — these six route IDs get their own layer group.
@@ -114,7 +115,7 @@ export const CONFIG = {
   // Amtrak via the community Amtraker API (CORS-open, no key). Exact region
   // clipping is handled by the shared Census boundary filter.
   AMTRAK_URL: 'https://api-v3.amtraker.com/v3/trains',
-  AMTRAK_BBOX: { latMin: 38.8, latMax: 47.75, lonMin: -80.0, lonMax: -65.8 },
+  AMTRAK_BBOX: { latMin: 24.0, latMax: 50.0, lonMin: -125.0, lonMax: -65.8 },
   AMTRAK_COLOR: '#5b9bd5',
   AMTRAK_STALE_MS: 5 * 60_000,
 
@@ -156,6 +157,34 @@ export const CONFIG = {
       stationOnly: true,
     },
     {
+      id: 'indego',
+      name: 'Indego · Philadelphia',
+      discoveryUrl: 'https://gbfs.bcycle.com/bcycle_indego/gbfs.json',
+      color: '#2c9ad9',
+      stationOnly: true,
+    },
+    {
+      id: 'capital-bikeshare',
+      name: 'Capital Bikeshare · Washington, DC region',
+      discoveryUrl: 'https://gbfs.lyft.com/gbfs/2.3/dca-cabi/gbfs.json',
+      color: '#d4342c',
+      stationOnly: true,
+    },
+    {
+      id: 'divvy',
+      name: 'Divvy · Chicago & Evanston',
+      discoveryUrl: 'https://gbfs.divvybikes.com/gbfs/gbfs.json',
+      color: '#3db7e4',
+      stationOnly: true,
+    },
+    {
+      id: 'bay-wheels',
+      name: 'Bay Wheels · San Francisco, Oakland & San Jose',
+      discoveryUrl: 'https://gbfs.baywheels.com/gbfs/gbfs.json',
+      color: '#f05a8e',
+      stationOnly: true,
+    },
+    {
       id: 'veo-hartford',
       name: 'Veo · Hartford',
       discoveryUrl: 'https://cluster-prod.veoride.com/api/shares/name/hrt/gbfs',
@@ -191,7 +220,9 @@ export const CONFIG = {
   BUS_COLOR: '#f2b84b',
   FERRY_COLOR: '#2eb7c5',
   // Gateway transit feeds whose vehicles are boats, not buses.
-  FERRY_FEEDS: ['casco-bay', 'nyc-ferry', 'ny-waterway'],
+  FERRY_FEEDS: ['casco-bay', 'nyc-ferry', 'ny-waterway', 'sf-bay-ferry', 'golden-gate-ferry'],
+  // Regional live feeds that are trains, drawn in the commuter-rail group.
+  RAIL_FEEDS: ['septa-rail', 'wmata-rail', 'marc', 'vre', 'cta-train', 'metra', 'bart', 'caltrain', 'smart'],
   CAMERA_COLOR: '#d2d7dd',
   ROAD_WEATHER_COLOR: '#7ec8e3',
   MESSAGE_SIGN_COLOR: '#f0c14a',

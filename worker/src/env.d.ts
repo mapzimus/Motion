@@ -7,4 +7,11 @@ interface Env {
   TOMTOM_API_KEY?: string;
   CARTO_API_KEY?: string;
   SWIFTLY_API_KEY?: string;
+  // Metro feeds behind free developer registrations (docs/api-keys.md).
+  WMATA_API_KEY?: string;
+  CTA_TRAIN_API_KEY?: string;
+  CTA_BUS_API_KEY?: string;
+  METRA_ACCESS_KEY?: string;
+  METRA_SECRET_KEY?: string;
+  BAY_511_API_KEY?: string;
 }

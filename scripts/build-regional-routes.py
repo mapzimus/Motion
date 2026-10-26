@@ -51,7 +51,18 @@ BORROWED_SHAPE_NOTE = (
 )
 BORROWED_SHAPE_MAX_SNAP_KM = 0.6
 
-NE_BOUNDS = (-79.3, 38.9, -65.0, 48.5)  # New England, New York and New Jersey (Cape May to Jamestown NY; Toronto and Washington stops drop out)
+# Build envelopes: New England, New York and New Jersey (Cape May to Jamestown
+# NY; Toronto and Montreal stops drop out) plus one box per metro area. A stop
+# outside every box is dropped and the path splits there, so a coach that runs
+# Boston to Orlando keeps only the parts inside the areas the map covers.
+NE_BOUNDS = (-79.3, 38.9, -65.0, 48.5)
+AREA_BOUNDS = [
+    NE_BOUNDS,
+    (-75.9, 39.6, -74.4, 40.6),  # Philadelphia
+    (-77.9, 38.3, -76.3, 39.5),  # Washington
+    (-88.7, 41.2, -86.8, 42.6),  # Chicago
+    (-123.3, 36.9, -121.4, 38.9),  # San Francisco Bay Area
+]
 TOLERANCE = 0.00022  # roughly 18–25 m in New England
 MAX_BUS_CHORD_KM = 20.0
 OSRM_BASE_URL = "https://router.project-osrm.org"
@@ -402,8 +413,7 @@ def simplify(points, tolerance=TOLERANCE, max_chord_km=MAX_RAIL_CHORD_KM):
 
 
 def valid_point(lon: float, lat: float) -> bool:
-    west, south, east, north = NE_BOUNDS
-    return west <= lon <= east and south <= lat <= north
+    return any(west <= lon <= east and south <= lat <= north for west, south, east, north in AREA_BOUNDS)
 
 
 def contiguous_valid_runs(points):

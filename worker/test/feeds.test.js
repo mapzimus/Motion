@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { SWIFTLY_APPROVED_AGENCIES, TRANSIT_FEEDS, feedsForRegion, swiftlyAgencyKey, swiftlyApproved, vehiclesFromTrilliumMap } from '../src/feeds';
 import staticFeeds from '../../scripts/regional-feeds.json';
 
-const MAP_STATES = new Set(['ct', 'ma', 'me', 'nh', 'ri', 'vt', 'ny', 'nj']);
+const MAP_STATES = new Set(['ct', 'ma', 'me', 'nh', 'ri', 'vt', 'ny', 'nj', 'philadelphia', 'washington', 'chicago', 'bay-area']);
+const NORTHEAST_IDS = TRANSIT_FEEDS.filter((feed) => feed.states.some((state) => !['philadelphia', 'washington', 'chicago', 'bay-area'].includes(state))).map((feed) => feed.id);
 // A static feed may name the live feed its routes join (`realtime_feed`).
 const staticIds = new Set(staticFeeds.flatMap((feed) => [feed.id, feed.realtime_feed].filter(Boolean)));
 
@@ -44,8 +45,31 @@ describe('realtime transit feed registry', () => {
     expect(ids('nj')).toEqual(['ny-waterway']);
     expect(ids('new-england')).not.toContain('nyct-bus');
     expect(ids('new-england')).toContain('cttransit');
-    expect(ids('northeast')).toEqual(TRANSIT_FEEDS.map((feed) => feed.id));
+    expect(ids('northeast')).toEqual(NORTHEAST_IDS);
+    expect(ids('northeast')).not.toContain('septa-bus');
     expect(ids('ct')).not.toContain('nyct-bus');
+  });
+
+  it('serves each metro its own feeds and nothing from the Northeast', () => {
+    const ids = (region) => feedsForRegion(region).map((feed) => feed.id);
+    expect(ids('philadelphia')).toEqual(['septa-bus', 'septa-rail', 'pottstown-part']);
+    expect(ids('washington')).toEqual(['wmata-rail', 'wmata-bus', 'marc', 'vre', 'fairfax-connector', 'dash']);
+    expect(ids('chicago')).toEqual(['cta-train', 'cta-bus', 'metra']);
+    expect(ids('bay-area')).toEqual(expect.arrayContaining(['muni', 'bart', 'caltrain', 'ac-transit', 'sc-vta', 'sf-bay-ferry', 'emery-go-round']));
+    for (const metro of ['philadelphia', 'washington', 'chicago', 'bay-area']) {
+      expect(ids(metro)).not.toContain('nyct-bus');
+      expect(ids(metro)).not.toContain('pvta');
+    }
+  });
+
+  it('flags trains and boats so the browser draws them in their own groups', () => {
+    const rail = TRANSIT_FEEDS.filter((feed) => feed.rail).map((feed) => feed.id);
+    expect(rail).toEqual(expect.arrayContaining(['septa-rail', 'wmata-rail', 'marc', 'vre', 'cta-train', 'metra', 'bart', 'caltrain', 'smart']));
+    expect(TRANSIT_FEEDS.filter((feed) => feed.ferry).map((feed) => feed.id)).toEqual(['sf-bay-ferry', 'golden-gate-ferry']);
+    // Every keyed feed names how its key travels.
+    for (const feed of TRANSIT_FEEDS.filter((feed) => /wmata\.com|metrarr\.com|511\.org/.test(feed.url))) {
+      expect(feed.authorization, feed.id).toBeTruthy();
+    }
   });
 
   it('serves only MBTA-core shuttles for the legacy boston region', () => {
@@ -98,7 +122,7 @@ describe('realtime transit feed registry', () => {
       status: 'success',
       data: [
         { id: '2254', lat: 43.6958955, lon: -72.279929, route_id: '7130', heading: 335.8893, headsign: 'To Hanover' },
-        { id: '9', lat: 38.7, lon: -77.1, route_id: '1', heading: 10, headsign: 'Out of area' },
+        { id: '9', lat: 21.3, lon: -157.86, route_id: '1', heading: 10, headsign: 'Out of area' },
         { lat: 43.7, lon: -72.2, route_id: '1' },
       ],
     }, new Date('2026-10-07T18:00:00Z'));

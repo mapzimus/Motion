@@ -1,13 +1,22 @@
-import { NEW_ENGLAND_STATE_IDS, insideMapArea, type RegionId, type StateId } from './regions';
+import { NEW_ENGLAND_STATE_IDS, NORTHEAST_AREA_IDS, insideMapArea, type AreaId, type RegionId } from './regions';
 
 export type TransitFeed = {
   id: string;
   agency: string;
-  states: StateId[];
+  // The areas (states or metros) whose gateway region serves this feed.
+  states: AreaId[];
   url: string;
-  authorization?: 'swiftly';
-  // Keyless vehicle JSON from the agency's public Trillium map. Not a Swiftly call.
-  source?: 'trillium';
+  // How the key, if any, is sent: Swiftly wants the whole Authorization header
+  // value; WMATA an `api_key` header; Metra HTTP basic auth; 511 SF Bay an
+  // `api_key` query parameter. Keyless feeds leave it unset.
+  authorization?: 'swiftly' | 'wmata' | 'metra' | 'bay511';
+  // Keyless vehicle JSON from the agency's public Trillium map, or the CTA
+  // Train Tracker / Bus Tracker JSON APIs (worker/src/cta.ts). Not GTFS-realtime.
+  source?: 'trillium' | 'cta-train' | 'cta-bus';
+  // Trains: the browser draws these in the commuter-rail group.
+  rail?: true;
+  // Boats: drawn in the ferry group.
+  ferry?: true;
   // Service area lies inside the 17-municipality MBTA core, so the feed is also
   // served for the `boston` gateway region.
   mbtaCore?: true;
@@ -27,6 +36,8 @@ export type RegionalVehicle = {
   updatedAt: string;
   headsign?: string;
   positionSource?: string;
+  // Official line color when the feed carries one (CTA 'L' lines).
+  color?: string;
 };
 
 // Public agency feeds are preferred. New York feeds are listed at the end.
@@ -456,7 +467,193 @@ export const TRANSIT_FEEDS: TransitFeed[] = [
     states: ['ny'],
     url: 'http://gtfsrealtime.suffolkcountyny.gov:8080/gtfsrealtime/VehiclePositions',
   },
+  // ---- Philadelphia ---------------------------------------------------------
+  {
+    // Official SEPTA producer, keyless. Live-verified 2026-10-26.
+    id: 'septa-bus',
+    agency: 'SEPTA',
+    states: ['philadelphia'],
+    url: 'https://www3.septa.org/gtfsrt/septa-pa-us/Vehicle/rtVehiclePosition.pb',
+  },
+  {
+    id: 'septa-rail',
+    agency: 'SEPTA Regional Rail',
+    states: ['philadelphia'],
+    url: 'https://www3.septa.org/gtfsrt/septarail-pa-us/Vehicle/rtVehiclePosition.pb',
+    rail: true,
+  },
+  {
+    // Avail InfoPoint producer (same as Island Explorer). Live-verified 2026-10-26.
+    id: 'pottstown-part',
+    agency: 'Pottstown Area Rapid Transit',
+    states: ['philadelphia'],
+    url: 'https://part.rideralerts.com/InfoPoint/GTFS-Realtime.ashx?Type=VehiclePosition',
+  },
+  // ---- Washington -----------------------------------------------------------
+  {
+    // WMATA GTFS-realtime behind a free developer key sent as the api_key header.
+    id: 'wmata-rail',
+    agency: 'Metrorail',
+    states: ['washington'],
+    url: 'https://api.wmata.com/gtfs/rail-gtfsrt-vehiclepositions.pb',
+    authorization: 'wmata',
+    rail: true,
+  },
+  {
+    id: 'wmata-bus',
+    agency: 'Metrobus',
+    states: ['washington'],
+    url: 'https://api.wmata.com/gtfs/bus-gtfsrt-vehiclepositions.pb',
+    authorization: 'wmata',
+  },
+  {
+    // MDOT MTA publishes MARC positions on S3, keyless. Live-verified 2026-10-26
+    // (empty overnight; MARC runs weekday service plus limited weekends).
+    id: 'marc',
+    agency: 'MARC Train',
+    states: ['washington'],
+    url: 'https://mdotmta-gtfs-rt.s3.amazonaws.com/MARC%20RT/marc-vp.pb',
+    rail: true,
+  },
+  {
+    // Keyless VRE producer on gtfs.vre.org (the www.vre.org host answers 403).
+    id: 'vre',
+    agency: 'Virginia Railway Express',
+    states: ['washington'],
+    url: 'https://gtfs.vre.org/containercdngtfsupload/VehiclePositionFeed',
+    rail: true,
+  },
+  {
+    // Fairfax County's own producer. Live-verified 2026-10-26.
+    id: 'fairfax-connector',
+    agency: 'Fairfax Connector',
+    states: ['washington'],
+    url: 'https://www.fairfaxcounty.gov/gtfsrt/vehicles',
+  },
+  {
+    // DASH publishes a keyless OneBusAway feed besides its Swiftly one. Live-verified 2026-10-26.
+    id: 'dash',
+    agency: 'Alexandria DASH',
+    states: ['washington'],
+    url: 'https://realtime.prod.dash.obaweb.org/agency/71/vehiclePositions',
+  },
+  // ---- Chicago --------------------------------------------------------------
+  {
+    // CTA publishes no GTFS-realtime; Train Tracker JSON behind a free key.
+    id: 'cta-train',
+    agency: 'CTA',
+    states: ['chicago'],
+    url: 'https://lapi.transitchicago.com/api/1.0/ttpositions.aspx',
+    source: 'cta-train',
+    rail: true,
+  },
+  {
+    id: 'cta-bus',
+    agency: 'CTA',
+    states: ['chicago'],
+    url: 'https://www.ctabustracker.com/bustime/api/v2/getvehicles',
+    source: 'cta-bus',
+  },
+  {
+    // Metra's GTFS API serves the realtime entities as JSON behind HTTP basic auth.
+    id: 'metra',
+    agency: 'Metra',
+    states: ['chicago'],
+    url: 'https://gtfsapi.metrarr.com/gtfs/positions',
+    authorization: 'metra',
+    rail: true,
+  },
+  // ---- San Francisco Bay Area ----------------------------------------------
+  // One 511 SF Bay key serves every MTC operator; each operator is its own
+  // vehicle-positions call. The default allowance is 60 calls an hour per key,
+  // so BAY511_CACHE_SECONDS keeps a region at or under that until 511 raises it.
+  {
+    id: 'muni',
+    agency: 'Muni',
+    states: ['bay-area'],
+    url: 'https://api.511.org/transit/vehiclepositions?agency=SF',
+    authorization: 'bay511',
+  },
+  {
+    id: 'bart',
+    agency: 'BART',
+    states: ['bay-area'],
+    url: 'https://api.511.org/transit/vehiclepositions?agency=BA',
+    authorization: 'bay511',
+    rail: true,
+  },
+  {
+    id: 'caltrain',
+    agency: 'Caltrain',
+    states: ['bay-area'],
+    url: 'https://api.511.org/transit/vehiclepositions?agency=CT',
+    authorization: 'bay511',
+    rail: true,
+  },
+  {
+    id: 'ac-transit',
+    agency: 'AC Transit',
+    states: ['bay-area'],
+    url: 'https://api.511.org/transit/vehiclepositions?agency=AC',
+    authorization: 'bay511',
+  },
+  {
+    id: 'samtrans',
+    agency: 'SamTrans',
+    states: ['bay-area'],
+    url: 'https://api.511.org/transit/vehiclepositions?agency=SM',
+    authorization: 'bay511',
+  },
+  {
+    id: 'sc-vta',
+    agency: 'VTA (Santa Clara)',
+    states: ['bay-area'],
+    url: 'https://api.511.org/transit/vehiclepositions?agency=SC',
+    authorization: 'bay511',
+  },
+  {
+    id: 'golden-gate-transit',
+    agency: 'Golden Gate Transit',
+    states: ['bay-area'],
+    url: 'https://api.511.org/transit/vehiclepositions?agency=GG',
+    authorization: 'bay511',
+  },
+  {
+    id: 'sf-bay-ferry',
+    agency: 'San Francisco Bay Ferry',
+    states: ['bay-area'],
+    url: 'https://api.511.org/transit/vehiclepositions?agency=SB',
+    authorization: 'bay511',
+    ferry: true,
+  },
+  {
+    id: 'golden-gate-ferry',
+    agency: 'Golden Gate Ferry',
+    states: ['bay-area'],
+    url: 'https://api.511.org/transit/vehiclepositions?agency=GF',
+    authorization: 'bay511',
+    ferry: true,
+  },
+  {
+    id: 'smart',
+    agency: 'SMART',
+    states: ['bay-area'],
+    url: 'https://api.511.org/transit/vehiclepositions?agency=SA',
+    authorization: 'bay511',
+    rail: true,
+  },
+  {
+    // TripShot producer, keyless. Live-verified 2026-10-26.
+    id: 'emery-go-round',
+    agency: 'Emery Go-Round',
+    states: ['bay-area'],
+    url: 'https://emerygoround.tripshot.com/v1/gtfs/realtime/feed/egr?types=VehiclePosition',
+  },
 ];
+
+// Live feeds the browser draws as trains or boats instead of buses.
+export const RAIL_FEED_IDS: string[] = TRANSIT_FEEDS.filter((feed) => feed.rail).map((feed) => feed.id);
+export const FERRY_FEED_IDS: string[] = TRANSIT_FEEDS.filter((feed) => feed.ferry).map((feed) => feed.id);
 
 // Swiftly issues one key but switches it on per agency, and only for agencies
 // that pre-approve third-party sharing or approve in writing (Swiftly support
@@ -477,7 +674,9 @@ export function swiftlyApproved(feed: TransitFeed): boolean {
 
 export function feedsForRegion(region: RegionId): TransitFeed[] {
   if (region === 'boston') return TRANSIT_FEEDS.filter((feed) => feed.mbtaCore);
-  if (region === 'northeast') return TRANSIT_FEEDS;
+  if (region === 'northeast') {
+    return TRANSIT_FEEDS.filter((feed) => feed.states.some((state) => NORTHEAST_AREA_IDS.includes(state)));
+  }
   if (region === 'new-england') {
     return TRANSIT_FEEDS.filter((feed) => feed.states.some((state) => NEW_ENGLAND_STATE_IDS.includes(state)));
   }
