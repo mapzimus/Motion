@@ -253,12 +253,13 @@ const requiredMetroAmtrak = [
   'Hiawatha Service', 'Lincoln Service', 'Wolverine', 'Empire Builder', 'California Zephyr',
   'Capitol Corridor', 'Coast Starlight',
 ];
-// The San Joaquins come from the SJJPA feed (san-joaquins), drawn in the Amtrak group.
+// The San Joaquins come from the SJJPA feed (san-joaquins), drawn in the Amtrak
+// group under their 2025 name, Gold Runner.
 const allowedMetroAmtrak = new Set([
   ...requiredMetroAmtrak, 'Auto Train', 'Capitol Limited', 'Floridian', 'Borealis', 'Blue Water',
   'Pere Marquette', 'Lincoln Service Missouri River Runner', 'Missouri River Runner', 'Illini', 'Saluki',
   'Illinois Zephyr', 'Carl Sandburg', 'City of New Orleans', 'Southwest Chief', 'Texas Eagle',
-  'San Joaquins', 'San Joaquins Bus', 'Amtrak San Joaquins',
+  'San Joaquins', 'Gold Runner',
 ]);
 const requiredAmtrak = [...requiredNewEnglandAmtrak, ...requiredNewYorkAmtrak, ...requiredMetroAmtrak];
 const allowedAmtrak = new Set([...requiredAmtrak, ...allowedMetroAmtrak]);
