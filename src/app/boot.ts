@@ -16,7 +16,7 @@ import { startConditions } from '../feeds/conditions.js';
 import { startLirr, startMetroNorth } from '../feeds/metro-north.js';
 import { startNycSubway } from '../feeds/nyc-subway.js';
 import { startAlertPolling } from '../feeds/alerts.js';
-import { initialRegion, loadRegions } from '../feeds/regions.js';
+import { areaKeysForRegion, initialRegion, loadRegions } from '../feeds/regions.js';
 import { initPermalink, readPermalink, schedulePermalinkUpdate } from '../feeds/permalink.js';
 import { initSearch, setSearchFeatures } from '../feeds/search.js';
 import { fleetLabel } from '../feeds/trip-data.js';
@@ -57,7 +57,7 @@ import { setGroups, visibleGroups, visibleStatuses } from '../stores/layers.js';
 import { buildGroups } from '../model/groups.js';
 import { setSubwayColors } from '../stores/legend.js';
 import { SUBWAY_GROUPS } from '../model/presets.js';
-import { loadShapeFeatures, loadRegionalRouteFeatures } from './shapes.js';
+import { loadShapeFeatures, createRegionalRouteLoader } from './shapes.js';
 
 // ---------------------------------------------------------------------------
 // Gateway health check
@@ -145,6 +145,9 @@ export async function boot(): Promise<void> {
   const changeRegion = (region: string) => {
     setRegionStore(region);
     setRegion(region);
+    // A region in an area whose schedules are not loaded yet pulls them in
+    // and republishes once they arrive (no-op when already loaded).
+    void loadRegionalRoutesFor(region);
     setScheduledCounts(scheduledRouteCountsForRegion());
     setStationCounts(scheduledStationCountsForRegion());
     setReferenceCounts(referenceCountsForRegion());
@@ -293,6 +296,7 @@ export async function boot(): Promise<void> {
   // Route ribbons load after polling kicks off; vehicles shouldn't wait on
   // them. Every route gets a ribbon.
   const routeFeatureSets: GeoJSON.Feature[][] = [[], []];
+  regionalRouteLoader = createRegionalRouteLoader();
   const publishRouteFeatures = () => {
     const features = routeFeatureSets.flat();
     setRouteShapes({ type: 'FeatureCollection', features });
@@ -306,9 +310,21 @@ export async function boot(): Promise<void> {
       routeFeatureSets[0] = features;
       publishRouteFeatures();
     }),
-    loadRegionalRouteFeatures().then((features) => {
+    regionalRouteLoader.ensure(areaKeysForRegion(selectedRegion)).then((features) => {
       routeFeatureSets[1] = features;
       publishRouteFeatures();
     }),
   ]);
+  loadRegionalRoutesFor = async (region: string) => {
+    const before = routeFeatureSets[1].length;
+    const features = await regionalRouteLoader.ensure(areaKeysForRegion(region));
+    if (features.length === before) return;
+    routeFeatureSets[1] = features;
+    publishRouteFeatures();
+  };
 }
+
+// Set once the snapshot loader exists; region changes before that are
+// covered by the initial load.
+let regionalRouteLoader: ReturnType<typeof createRegionalRouteLoader>;
+let loadRegionalRoutesFor: (region: string) => Promise<void> = async () => {};

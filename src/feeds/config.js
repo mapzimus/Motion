@@ -85,7 +85,10 @@ export const CONFIG = {
   // so it's cached as encoded polylines (compact enough for localStorage).
   SHAPE_CACHE_KEY: 'bim-shapes-v4',
   SHAPE_CACHE_TTL_MS: 24 * 3600 * 1000,
-  REGIONAL_ROUTE_URL: `${dataBase}regional-routes.geojson`,
+  // Scheduled routes: one file per area (state or metro) listed in the index,
+  // so a view only downloads the areas it shows.
+  REGIONAL_ROUTES_INDEX_URL: `${dataBase}routes/index.json`,
+  REGIONAL_ROUTES_DIR: `${dataBase}routes/`,
   INFRASTRUCTURE_URL: `${dataBase}infrastructure.geojson`,
   LOCAL_SERVICES_URL: `${dataBase}local-services.geojson`,
   // Bike-share systems without a usable public GBFS feed, one reference

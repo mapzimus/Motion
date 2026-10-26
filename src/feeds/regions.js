@@ -219,6 +219,25 @@ export function stateAt(point) {
   return STATE_KEYS.find((key) => containsPoint(key, point)) ?? null;
 }
 
+// The top-level areas whose scheduled-route files a region needs: a union
+// region takes every member area; anything else takes the nearest ancestor
+// whose parent is nothing or a union (the state, or a metro such as
+// Philadelphia). Matches area_map() in scripts/build-regional-routes.py.
+export function areaKeysForRegion(key) {
+  const region = regionByKey.get(key);
+  if (!region) return [];
+  if (region.kind === 'union') {
+    return [...new Set(region.members.flatMap((member) => areaKeysForRegion(member)))];
+  }
+  let current = region;
+  for (let depth = 0; depth < 8; depth += 1) {
+    const parent = current.parent ? regionByKey.get(current.parent) : null;
+    if (!parent || parent.kind === 'union') break;
+    current = parent;
+  }
+  return [current.key];
+}
+
 // The smallest region (by bounding-box area) that contains the point. Unions
 // such as All New England and All Northeast contain everything, so they are skipped.
 export function smallestRegionAt(point) {

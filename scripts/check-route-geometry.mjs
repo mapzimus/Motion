@@ -18,7 +18,20 @@ const RESTRICTED_BUS_ROAD_PATTERN = /\b(?:Merritt|Wilbur Cross|Hutchinson River|
 const cacheRaw = readFileSync(new URL('./road-route-cache.json', import.meta.url));
 const controlsRaw = readFileSync(new URL('./road-route-controls.json', import.meta.url));
 const cache = JSON.parse(cacheRaw);
-const collection = JSON.parse(readFileSync(new URL('../public/data/regional-routes.geojson', import.meta.url), 'utf8'));
+// The snapshot is one file per area under public/data/routes plus index.json
+// (see scripts/snapshot.py); a route in several areas is deduped on `fid`.
+function loadSnapshot() {
+  const index = JSON.parse(readFileSync(new URL('../public/data/routes/index.json', import.meta.url), 'utf8'));
+  const byFid = new Map();
+  for (const area of index.areas ?? []) {
+    const part = JSON.parse(readFileSync(new URL(`../public/data/routes/${area.file}`, import.meta.url), 'utf8'));
+    for (const feature of part.features ?? []) {
+      if (!byFid.has(feature.properties?.fid)) byFid.set(feature.properties?.fid, feature);
+    }
+  }
+  return { type: 'FeatureCollection', metadata: index.metadata ?? {}, features: [...byFid.values()], areas: index.areas ?? [] };
+}
+const collection = loadSnapshot();
 const airports = JSON.parse(readFileSync(new URL('../public/data/airports.geojson', import.meta.url), 'utf8'));
 const borderCrossings = JSON.parse(
   readFileSync(new URL('../public/data/border-crossings.geojson', import.meta.url), 'utf8'),

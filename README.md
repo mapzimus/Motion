@@ -499,7 +499,7 @@ corridors cross coastline land, plus all OSM `route=ferry` ways:
 py -3 -X utf8 scripts\fetch-ferry-audit-data.py
 py -3 -X utf8 scripts\build-regional-routes.py --update-ferry-cache
 py -3 -X utf8 scripts\audit-ferry-water.py --cache
-py -3 -X utf8 scripts\audit-ferry-water.py --report --before <old regional-routes.geojson>
+py -3 -X utf8 scripts\audit-ferry-water.py --report --before <old routes/<area>.geojson>
 ```
 
 `--update-ferry-cache` recomputes only routes whose inputs changed (a full

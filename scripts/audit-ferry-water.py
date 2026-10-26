@@ -30,7 +30,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import ferry_water as fw  # noqa: E402
 
-REGIONAL_ROUTES = ROOT / "public" / "data" / "regional-routes.geojson"
+REGIONAL_ROUTES = None  # default: the split snapshot under public/data/routes (scripts/snapshot.py)
 CACHE_PATH = ROOT / "scripts" / "ferry-water-cache.json"
 REPORT_PATH = ROOT / "scripts" / "ferry-water-report.md"
 SUPPLEMENTAL_FILES = [
@@ -80,7 +80,11 @@ def identical_geometry(cache):
 
 
 def run_geojson(model, path):
-    collection = json.loads(path.read_text(encoding="utf-8"))
+    if path is None:
+        from snapshot import load_snapshot
+        collection = load_snapshot()
+    else:
+        collection = json.loads(path.read_text(encoding="utf-8"))
     failures = 0
     for feature in ferry_features(collection):
         route = feature["properties"]["route"]

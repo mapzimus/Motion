@@ -1,14 +1,14 @@
 {
   "description": "Last date each scheduled GTFS feed publishes service for. Written by build-regional-routes.py and check-feed-freshness.py; checked offline by check-route-geometry.mjs.",
-  "checkedAt": "2026-10-20",
+  "checkedAt": "2026-10-26",
   "feeds": {
     "amtrak": {
-      "serviceEnd": "2027-10-18",
+      "serviceEnd": "2027-10-25",
       "source": "calendar.txt",
       "url": "https://content.amtrak.com/content/gtfs/GTFS.zip"
     },
     "shore-line-east": {
-      "serviceEnd": "2027-10-18",
+      "serviceEnd": "2027-10-25",
       "source": "calendar.txt",
       "url": "https://content.amtrak.com/content/gtfs/GTFS.zip"
     },
@@ -133,12 +133,12 @@
       "url": "https://files.mobilitydatabase.org/mdb-429/latest.zip"
     },
     "gatra": {
-      "serviceEnd": "2026-11-20",
+      "serviceEnd": "2026-11-25",
       "source": "calendar.txt",
       "url": "https://gtfs.gatra.cadavl.com/GATRA/GTFS/GTFS_GATRA.zip"
     },
     "lrta": {
-      "serviceEnd": "2026-11-20",
+      "serviceEnd": "2026-11-25",
       "source": "calendar_dates.txt",
       "url": "https://gtfs.lrta.cadavl.com/LRTA/GTFS/GTFS_LRTA.zip"
     },
@@ -173,13 +173,13 @@
       "url": "https://files.mobilitydatabase.org/mdb-421/latest.zip"
     },
     "vta": {
-      "serviceEnd": "2026-10-03",
+      "serviceEnd": "2027-04-15",
       "source": "calendar.txt",
       "url": "https://files.mobilitydatabase.org/mdb-420/latest.zip",
       "exempt": "Seasonal feed: the published summer schedule ended 2026-10-03 (same in the Trillium source, rechecked 2026-10-04); remove this exemption once the fall/winter feed is published."
     },
     "wrta": {
-      "serviceEnd": "2027-01-18",
+      "serviceEnd": "2027-01-23",
       "source": "calendar_dates.txt",
       "url": "https://gtfs.wrta.cadavl.com/WRTA/GTFS/GTFS_WRTA.zip"
     },
@@ -194,7 +194,7 @@
       "url": "https://raw.githubusercontent.com/maxtkc/concord-coach-gtfs/main/concord_coach_gtfs.zip"
     },
     "greyhound-flix": {
-      "serviceEnd": "2027-04-20",
+      "serviceEnd": "2027-04-25",
       "source": "calendar.txt",
       "url": "https://gtfs.gis.flix.tech/gtfs_generic_us.zip"
     },
@@ -315,7 +315,7 @@
       "url": "https://bu.transloc.com/Secure/Admin/Reports/GTFSDownload.aspx"
     },
     "bc": {
-      "serviceEnd": "2027-01-02",
+      "serviceEnd": "2027-01-04",
       "source": "calendar.txt",
       "url": "https://bc.transloc.com/Secure/Admin/Reports/GTFSDownload.aspx"
     },
@@ -481,7 +481,7 @@
       "url": "https://files.mobilitydatabase.org/tld-4756/latest.zip"
     },
     "greater-portland": {
-      "serviceEnd": "2026-11-19",
+      "serviceEnd": "2026-11-24",
       "source": "calendar_dates.txt",
       "url": "https://gtfs.gptd.cadavl.com/GPTD/GTFS/GTFS_GPTD.zip"
     },
@@ -688,12 +688,12 @@
       "url": "https://files.mobilitydatabase.org/tld-401/latest.zip"
     },
     "ccpt": {
-      "serviceEnd": "2027-01-24",
+      "serviceEnd": "2027-12-31",
       "source": "calendar.txt",
       "url": "https://files.mobilitydatabase.org/mdb-544/latest.zip"
     },
     "njt-bus": {
-      "serviceEnd": "2027-03-13",
+      "serviceEnd": "2027-04-17",
       "source": "calendar_dates.txt",
       "url": "https://files.mobilitydatabase.org/mdb-508/latest.zip"
     },

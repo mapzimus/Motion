@@ -160,9 +160,9 @@ def corridor_paths(ferry_ways):
         for feature in json.loads((ROOT / "scripts" / name).read_text(encoding="utf-8"))["features"]:
             if feature.get("properties", {}).get("group") == "ferry":
                 add_geometry(feature.get("geometry"))
-    routes = ROOT / "public" / "data" / "regional-routes.geojson"
-    if routes.exists():
-        for feature in json.loads(routes.read_text(encoding="utf-8")).get("features", []):
+    if (ROOT / "public" / "data" / "routes" / "index.json").exists():
+        from snapshot import load_snapshot
+        for feature in load_snapshot().get("features", []):
             if feature.get("properties", {}).get("group") == "ferry":
                 add_geometry(feature.get("geometry"))
     cache = ROOT / "scripts" / "ferry-water-cache.json"

@@ -28,33 +28,86 @@ export function annotateLegendKeys(features: GeoJSON.Feature[]): GeoJSON.Feature
   return features;
 }
 
-/**
- * Fetch regional-routes.geojson with retries.
- */
-export async function loadRegionalRouteFeatures(): Promise<GeoJSON.Feature[]> {
+async function fetchJsonWithRetries(url: string, label: string): Promise<any> {
   const attempts = 3;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
-      const response = await fetch(CONFIG.REGIONAL_ROUTE_URL, {
+      const response = await fetch(url, {
         cache: attempt === 1 ? 'default' : 'reload',
-        signal: AbortSignal.timeout(20_000),
+        signal: AbortSignal.timeout(30_000),
       });
-      if (!response.ok) throw new Error(`regional routes ${response.status}`);
-      const collection = await response.json();
-      if (!Array.isArray(collection.features) || !collection.features.length) {
-        throw new Error('regional routes contained no features');
-      }
-      return annotateLegendKeys(collection.features);
+      if (!response.ok) throw new Error(`${label} ${response.status}`);
+      return await response.json();
     } catch (error: any) {
       if (attempt === attempts) {
-        console.warn('Scheduled regional route ribbons unavailable after retries:', error.message);
-        return [];
+        console.warn(`${label} unavailable after retries:`, error.message);
+        return null;
       }
-      console.warn(`Scheduled regional route ribbons retry ${attempt}/${attempts}:`, error.message);
+      console.warn(`${label} retry ${attempt}/${attempts}:`, error.message);
       await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
     }
   }
-  return [];
+  return null;
+}
+
+interface AreaEntry { key: string; file: string; features: number; bytes: number }
+
+/**
+ * The scheduled-route snapshot is one file per top-level area (state or
+ * metro) under data/routes/, listed in index.json. The loader fetches only the
+ * areas a view needs and keeps them; a route that touches several areas is in
+ * each of their files and is deduped on `fid`.
+ */
+export function createRegionalRouteLoader() {
+  const loaded = new Map<string, GeoJSON.Feature[]>();
+  const pending = new Map<string, Promise<void>>();
+  let indexPromise: Promise<AreaEntry[]> | null = null;
+
+  const index = () => {
+    if (!indexPromise) {
+      indexPromise = fetchJsonWithRetries(CONFIG.REGIONAL_ROUTES_INDEX_URL, 'Scheduled route index')
+        .then((payload) => (Array.isArray(payload?.areas) ? payload.areas as AreaEntry[] : []));
+    }
+    return indexPromise;
+  };
+
+  const loadArea = (area: AreaEntry) => {
+    if (loaded.has(area.key)) return Promise.resolve();
+    if (!pending.has(area.key)) {
+      pending.set(area.key, fetchJsonWithRetries(`${CONFIG.REGIONAL_ROUTES_DIR}${area.file}`, `Scheduled routes (${area.key})`)
+        .then((collection) => {
+          loaded.set(area.key, Array.isArray(collection?.features) ? annotateLegendKeys(collection.features) : []);
+        })
+        .finally(() => pending.delete(area.key)));
+    }
+    return pending.get(area.key)!;
+  };
+
+  /** Every loaded feature, deduped on fid. */
+  const features = () => {
+    const seen = new Set<unknown>();
+    const out: GeoJSON.Feature[] = [];
+    for (const list of loaded.values()) {
+      for (const feature of list) {
+        const fid = feature.properties?.fid;
+        if (fid !== undefined && seen.has(fid)) continue;
+        seen.add(fid);
+        out.push(feature);
+      }
+    }
+    return out;
+  };
+
+  return {
+    /** Make sure these areas are loaded; resolves to every loaded feature. */
+    async ensure(areaKeys: readonly string[]): Promise<GeoJSON.Feature[]> {
+      const areas = await index();
+      const wanted = areas.filter((area) => areaKeys.includes(area.key));
+      await Promise.all(wanted.map(loadArea));
+      return features();
+    },
+    features,
+  };
 }
 
 /** Legend label for an MBTA route: the bus number, else the long name. */
