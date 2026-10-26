@@ -63,8 +63,8 @@ describe('Keene public-works trucks', () => {
             }),
             device('AWAY', 'away', {
               time: NOW - 1000,
-              latitude: 38.5,
-              longitude: -77.0,
+              latitude: 21.3,
+              longitude: -157.86,
               speed: 0,
               formatted: 'Somewhere else',
             }),

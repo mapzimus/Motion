@@ -38,7 +38,7 @@ const FEED = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
     ${event({ EventId: '2', EventStatus: 'Closed' })}
     ${event({ EventId: '3', EventCategory: 'Planned Event' })}
     ${event({ EventId: '4', PrimaryLatitude: '', PrimaryLongitude: '' })}
-    ${event({ EventId: '5', PrimaryLatitude: '38.71', PrimaryLongitude: '-77.01' })}
+    ${event({ EventId: '5', PrimaryLatitude: '21.31', PrimaryLongitude: '-157.86' })}
     ${event({ EventId: '6', LocationType: 'Segment' })}
     ${event({
       EventId: '7',

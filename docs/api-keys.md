@@ -25,8 +25,8 @@ Local development reads the same names from `.dev.vars` (copy
 | `WMATA_API_KEY` | https://developer.wmata.com/ (free "Default Tier" product, instant) | Washington: Metrorail and Metrobus live positions, rail and bus alerts | Sent as the `api_key` header. 10 calls/s, 50,000/day on the free tier; the gateway's 15 s edge cache keeps it far below that. |
 | `CTA_TRAIN_API_KEY` | https://www.transitchicago.com/developers/traintrackerapply/ (form, emailed within a day) | Chicago: 'L' train positions on all eight lines | Train Tracker is JSON, not GTFS-realtime; the gateway adapts it. |
 | `CTA_BUS_API_KEY` | https://www.transitchicago.com/developers/bustracker/ (form, emailed within a day) | Chicago: CTA bus positions (about 1,800 buses) | Bus Tracker returns at most 10 routes per call; the gateway batches the 127 routes. |
-| `METRA_ACCESS_KEY` and `METRA_SECRET_KEY` | https://metra.com/developers (free account) | Chicago: Metra commuter rail positions and alerts | HTTP basic auth against `gtfsapi.metrarr.com`. |
-| `BAY_511_API_KEY` | https://511.org/open-data/token (instant) | Bay Area: Muni, BART, Caltrain, AC Transit, SamTrans, VTA, Golden Gate, WETA ferries, SMART, County Connection, Tri Delta, WestCAT and every other MTC operator, live | One key, one GTFS-realtime vehicle-positions endpoint per operator. 60 calls/h per key by default; the gateway polls the operators you choose, 15 s cached, and asks 511 to raise the limit if needed. |
+| `METRA_ACCESS_KEY` and `METRA_SECRET_KEY` | https://metra.com/developers (free account) | Chicago: Metra commuter rail positions | HTTP basic auth against `gtfsapi.metrarr.com`, which answers JSON rather than protobuf; the gateway adapts it. |
+| `BAY_511_API_KEY` | https://511.org/open-data/token (instant) | Bay Area: Muni, BART, Caltrain, AC Transit, SamTrans, VTA, Golden Gate Transit and Ferry, San Francisco Bay Ferry and SMART, live | One key, one GTFS-realtime vehicle-positions call per operator (ten operators). The default allowance is 60 calls an hour per key, so the gateway caches each operator for 10 minutes (about 54 calls an hour). Ask 511 for a higher limit (they grant it by email) and lower `BAY511_CACHE_SECONDS` in `worker/src/index.ts` to 30 for live-looking motion. |
 | `NJ_TRANSIT_USERNAME` and `NJ_TRANSIT_PASSWORD` | https://developer.njtransit.com/ (free account; approval takes a few days) | New Jersey: NJ Transit rail, light rail and bus live positions | The API issues a token that expires daily; the gateway refreshes it. |
 | `NY_511_API_KEY` | https://511ny.org/developers/register (instant) | New York: road events, work zones, cameras, message signs and winter road conditions on the Roads layers | 511NY's REST API; same shapes as the New England 511 adapters. |
 | `PA_511_API_KEY` | https://www.511pa.com/developers (free account) | Philadelphia: PennDOT incidents, construction and cameras | Needed only for the Roads layers in Pennsylvania. |
@@ -44,7 +44,21 @@ Local development reads the same names from `.dev.vars` (copy
 
 Verified keyless on 2026-10-26: MTA New York (subway, LIRR, Metro-North, Bus
 Time), NYC Ferry, NY Waterway, SEPTA bus and regional rail, MARC, VRE,
-Fairfax Connector, Alexandria DASH, Emery Go-Round, Pottstown PART, TCAT,
-and the Indego, Capital Bikeshare, Divvy and Bay Wheels bike-share feeds.
-PATCO, Pace, DC Circulator, Ride On, NICE, Bee-Line, NFTA, RTS and Centro
-publish schedules but no open vehicle positions.
+Fairfax Connector, Alexandria DASH (its OneBusAway feed), Emery Go-Round,
+Pottstown PART, TCAT, and the Indego, Capital Bikeshare, Divvy and Bay Wheels
+bike-share feeds. PATCO, Pace, Ride On, TheBus, OmniRide, County Connection,
+WestCAT, NICE, Bee-Line, NFTA, RTS and Centro publish schedules but no open
+vehicle positions; DC Circulator ended service in 2024.
+
+## Where each city stands without keys
+
+| City | Live today with no key | Needs a key above |
+|---|---|---|
+| Philadelphia | SEPTA bus, trolley and Regional Rail; Pottstown PART; Indego | NJ Transit buses into Philadelphia |
+| Washington | MARC, VRE, Fairfax Connector, DASH; Capital Bikeshare | Metrorail and Metrobus (`WMATA_API_KEY`) |
+| Chicago | Divvy only | CTA trains and buses (two CTA keys), Metra (two Metra values) |
+| Bay Area | Emery Go-Round; Bay Wheels | Everything else (`BAY_511_API_KEY`) |
+
+Pick a region in the map's region menu; the gateway serves each metro only
+its own feeds (`/api/transit?region=chicago`), and `/health` lists which keys
+are set.

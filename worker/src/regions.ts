@@ -10,11 +10,20 @@ export const REGION_IDS = [
   'nj',
   'new-england',
   'northeast',
+  // Metro areas outside the Northeast union, each its own top-level region.
+  'philadelphia',
+  'washington',
+  'chicago',
+  'bay-area',
 ] as const;
 
 export type RegionId = (typeof REGION_IDS)[number];
-export type StateId = Exclude<RegionId, 'boston' | 'new-england' | 'northeast'>;
-export const NEW_ENGLAND_STATE_IDS: readonly StateId[] = ['ma', 'ct', 'ri', 'nh', 'vt', 'me'];
+// An area a feed can belong to: a state or a metro (not the MBTA core or a union).
+export type AreaId = Exclude<RegionId, 'boston' | 'new-england' | 'northeast'>;
+export type StateId = AreaId;
+export const NEW_ENGLAND_STATE_IDS: readonly AreaId[] = ['ma', 'ct', 'ri', 'nh', 'vt', 'me'];
+export const METRO_IDS: readonly AreaId[] = ['philadelphia', 'washington', 'chicago', 'bay-area'];
+export const NORTHEAST_AREA_IDS: readonly AreaId[] = [...NEW_ENGLAND_STATE_IDS, 'ny', 'nj'];
 // Union regions: `new-england` is the six states; `northeast` adds New York
 // and New Jersey.
 export const UNION_REGION_IDS: readonly RegionId[] = ['new-england', 'northeast'];
@@ -36,12 +45,16 @@ export const AIS_BOUNDS: Record<RegionId, [[number, number], [number, number]]> 
   nj: [[38.85, -75.6], [41.4, -73.85]],
   'new-england': [[40.8, -74.0], [47.7, -66.0]],
   northeast: [[38.8, -80.0], [47.7, -66.0]],
+  philadelphia: [[39.6, -75.9], [40.6, -74.4]],
+  washington: [[38.3, -77.9], [39.5, -76.3]],
+  chicago: [[41.2, -88.7], [42.6, -86.8]],
+  'bay-area': [[36.9, -123.3], [38.9, -121.4]],
 };
 
-// Outer envelope of the whole map (New England, New York and New Jersey),
-// shared by every feed that needs a coarse "is this point in our map area?"
-// check. Matches AIS_BOUNDS.northeast.
-export const MAP_BBOX = { west: -80, south: 38.8, east: -66, north: 47.7 } as const;
+// Outer envelope of the whole map (the continental United States), shared by
+// every feed that needs a coarse "is this point in our map area?" check.
+// Per-region clipping happens in the browser against Census boundaries.
+export const MAP_BBOX = { west: -125, south: 24, east: -66, north: 50 } as const;
 // The six-state box the AIS hub still subscribes to (see ais-hub.ts).
 export const NEW_ENGLAND_BBOX = { west: -74, south: 40.8, east: -66, north: 47.7 } as const;
 

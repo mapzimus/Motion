@@ -19,8 +19,10 @@ export const LEGACY_DEFAULT_REGION = 'boston';
 // The six New England states, then New York and New Jersey.
 export const NEW_ENGLAND_KEYS = ['ct', 'me', 'ma', 'nh', 'ri', 'vt'];
 export const STATE_KEYS = [...NEW_ENGLAND_KEYS, 'ny', 'nj'];
-// Region ids the Motion gateway and aircraft relay understand. Sub-regions ask
-// the gateway for their parent and are clipped to their own boundary here.
+// Region ids the Motion gateway and aircraft relay understand: the MBTA core,
+// every top-level area (a state, or a metro such as Philadelphia) and the
+// unions. Filled by registerRegions(); sub-regions ask the gateway for their
+// parent and are clipped to their own boundary here.
 const GATEWAY_KEYS = new Set(['boston', ...STATE_KEYS, 'new-england', 'northeast']);
 const EMPTY_FC = { type: 'FeatureCollection', features: [] };
 const featureByKey = new Map();
@@ -50,6 +52,9 @@ export function gatewayRegion(key) {
   }
   return 'northeast';
 }
+
+// Exported for tests: the gateway region ids known after registerRegions().
+export const gatewayKeys = () => [...GATEWAY_KEYS];
 
 // True for a union region (All New England, All Northeast), whose view keeps
 // every map-area feature instead of clipping to one boundary.
@@ -96,6 +101,9 @@ export function registerRegions(collection, marineCollection = null) {
     };
     REGIONS.push(region);
     regionByKey.set(key, region);
+  }
+  for (const region of REGIONS) {
+    if (region.kind === 'union' || (!region.parent && region.key !== 'boston')) GATEWAY_KEYS.add(region.key);
   }
   for (const group of metadata.groups ?? []) REGION_GROUPS.push({ key: group.key, label: group.label });
   for (const region of REGIONS) {

@@ -55,7 +55,7 @@ const METAR_FEATURES = [
   // Unusable rows: bad id, no geometry, outside the map.
   metar({ id: 'bad id', obsTime: '2026-10-06T00:54:00.000Z' }, [-71, 42]),
   { type: 'Feature', properties: { id: 'KPVD' }, geometry: null },
-  metar({ id: 'KORD', obsTime: '2026-10-06T00:54:00.000Z' }, [-87.9, 41.98]),
+  metar({ id: 'PHNL', site: 'Honolulu Intl, HI, US', obsTime: '2026-10-06T00:54:00.000Z' }, [-157.92, 21.32]),
 ];
 
 describe('METAR normalizer', () => {
@@ -184,7 +184,7 @@ const TFR_LIST = [
     creation_date: '10/05/2026',
   },
   { notam_id: '6/9000', type: 'HAZARDS', facility: 'ZBW', state: 'ME', description: '5NM S BANGOR, ME', creation_date: '10/05/2026' },
-  { notam_id: '6/7526', type: 'HAZARDS', facility: 'ZLA', state: 'CA', description: 'CMA249063, CA', creation_date: '10/06/2026' },
+  { notam_id: '6/7526', type: 'HAZARDS', facility: 'ZHN', state: 'HI', description: 'HNL249063, HI', creation_date: '10/06/2026' },
 ];
 
 describe('TFR normalizer', () => {

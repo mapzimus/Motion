@@ -246,13 +246,31 @@ const requiredNewYorkAmtrak = [
   'Adirondack', 'Cardinal', 'Carolinian', 'Crescent', 'Empire Service', 'Keystone Service',
   'Maple Leaf', 'Palmetto', 'Pennsylvanian', 'Silver Meteor',
 ];
-const requiredAmtrak = [...requiredNewEnglandAmtrak, ...requiredNewYorkAmtrak];
+// Services that stop in the metro areas (Washington, Chicago, the Bay Area),
+// clipped to each metro by the region match. Floridian replaced the Capitol
+// Limited in 2024, so both names are allowed but neither is required.
+const requiredMetroAmtrak = [
+  'Hiawatha Service', 'Lincoln Service', 'Wolverine', 'Empire Builder', 'California Zephyr',
+  'Capitol Corridor', 'Coast Starlight',
+];
+// The San Joaquins come from the SJJPA feed (san-joaquins), drawn in the Amtrak
+// group under their 2025 name, Gold Runner.
+const allowedMetroAmtrak = new Set([
+  ...requiredMetroAmtrak, 'Auto Train', 'Capitol Limited', 'Floridian', 'Borealis', 'Blue Water',
+  'Pere Marquette', 'Lincoln Service Missouri River Runner', 'Missouri River Runner', 'Illini', 'Saluki',
+  'Illinois Zephyr', 'Carl Sandburg', 'City of New Orleans', 'Southwest Chief', 'Texas Eagle',
+  'San Joaquins', 'Gold Runner',
+]);
+const requiredAmtrak = [...requiredNewEnglandAmtrak, ...requiredNewYorkAmtrak, ...requiredMetroAmtrak];
+const allowedAmtrak = new Set([...requiredAmtrak, ...allowedMetroAmtrak]);
 const amtrakNames = new Set(amtrakRoutes.map((feature) => feature.properties.name));
 if (requiredNewEnglandAmtrak.some((name) => !amtrakNames.has(name))) {
   throw new Error('Official scheduled Amtrak coverage is missing a New England route.');
 }
-if (amtrakNames.size !== requiredAmtrak.length || requiredNewYorkAmtrak.some((name) => !amtrakNames.has(name))) {
-  throw new Error(`Official scheduled Amtrak coverage differs from the expected ${requiredAmtrak.length} routes: ${[...amtrakNames].sort().join(', ')}`);
+const missingAmtrak = requiredAmtrak.filter((name) => !amtrakNames.has(name));
+const unexpectedAmtrak = [...amtrakNames].filter((name) => !allowedAmtrak.has(name));
+if (missingAmtrak.length || unexpectedAmtrak.length) {
+  throw new Error(`Official scheduled Amtrak coverage differs from the expected routes: missing ${missingAmtrak.join(', ') || 'none'}; unexpected ${unexpectedAmtrak.join(', ') || 'none'}`);
 }
 const vermontAmtrakNames = new Set(
   amtrakRoutes
@@ -802,7 +820,7 @@ for (const [group, minimum] of Object.entries(REFERENCE_PLACE_MINIMUMS)) {
   const AIRSPACE_MINIMUMS = { B: 1, C: 5, D: 10, sua: 10 };
   // Offshore warning areas reach south of Long Island (~39.6° N); this box
   // only catches swapped or garbage coordinates.
-  const [west, south, east, north] = [-80.0, 38.5, -65.0, 48.5];
+  const [west, south, east, north] = [-125.0, 24.0, -65.0, 50.0];
   const closedRing = (ring) => Array.isArray(ring) && ring.length >= 4
     && ring.every((point) => Number.isFinite(point?.[0]) && Number.isFinite(point?.[1])
       && point[0] >= west && point[0] <= east && point[1] >= south && point[1] <= north)

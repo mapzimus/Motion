@@ -93,13 +93,13 @@ export function startConditions(onCounts, onAlerts, initialRegion, capabilities 
     },
   }, onCounts);
 
-  // Aviation conditions: one New England-wide answer each, clipped per region
-  // in the browser, so region changes only recount them.
+  // Aviation conditions: the gateway answers for the gateway region's envelope
+  // (a metro, a state or the whole Northeast), clipped per region in the browser.
   const airportWeather = startPoller({
     key: 'airport-weather',
     interval: CONFIG.AIRPORT_WEATHER_POLL_MS,
     enabled: capabilities.airportWeather,
-    url: () => '/api/airport-weather',
+    url: () => `/api/airport-weather?region=${encodeURIComponent(gatewayRegion(region))}`,
     apply(collection) {
       if (collection) setAirportWeatherData(collection);
       onCounts({ 'airport-weather': airportWeatherCountForRegion() });
@@ -110,7 +110,7 @@ export function startConditions(onCounts, onAlerts, initialRegion, capabilities 
     key: 'tfr',
     interval: CONFIG.TFR_POLL_MS,
     enabled: capabilities.tfrs,
-    url: () => '/api/tfrs',
+    url: () => `/api/tfrs?region=${encodeURIComponent(gatewayRegion(region))}`,
     apply(collection) {
       if (collection) setTfrData(collection);
       onCounts({ tfr: tfrCountForRegion() });
@@ -128,12 +128,13 @@ export function startConditions(onCounts, onAlerts, initialRegion, capabilities 
   return {
     setRegion(nextRegion) {
       region = nextRegion;
-      // The gateway filters weather by state, so a region change refetches;
-      // airport status is region-independent and only needs a recount.
+      // The gateway filters weather by state and aviation conditions by the
+      // region envelope, so a region change refetches those; airport status
+      // is region-independent and only needs a recount.
       weather.refresh();
       airports.refreshCount();
-      airportWeather.refreshCount();
-      tfrs.refreshCount();
+      airportWeather.refresh();
+      tfrs.refresh();
     },
   };
 }
