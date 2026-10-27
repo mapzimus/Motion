@@ -85,8 +85,8 @@ describe('Peter Pan coaches', () => {
       departure({
         trip: { short_name: 'NY 1', route_id: 'NY1', departure_location_name: 'New York, NY', arrival_location_name: 'Philadelphia, PA' },
         active_vehicle: {
-          current_wgs84_latitude_degrees: 38.50543,
-          current_wgs84_longitude_degrees: -77.03334,
+          current_wgs84_latitude_degrees: 21.30543,
+          current_wgs84_longitude_degrees: -157.85834,
           current_speed_mph: 0,
           current_forward_azimuth_degrees: 0,
           last_update_time_unix: FRESH,
@@ -140,8 +140,8 @@ describe('Peter Pan coaches', () => {
             arrival_location_name: 'Dover, NH',
           },
           active_vehicle: {
-            current_wgs84_latitude_degrees: 38.75695,
-            current_wgs84_longitude_degrees: -73.9905,
+            current_wgs84_latitude_degrees: 21.31695,
+            current_wgs84_longitude_degrees: -157.8605,
             current_speed_mph: 10,
             current_forward_azimuth_degrees: 0,
             last_update_time_unix: FRESH,

@@ -1,8 +1,10 @@
 import { transit_realtime } from 'gtfs-realtime-bindings';
-import { feedsForRegion, swiftlyApproved, vehiclesFromTrilliumMap, type TransitFeed } from './feeds';
+import { feedsForRegion, swiftlyApproved, vehiclesFromTrilliumMap, type RegionalVehicle, type TransitFeed } from './feeds';
+import { fetchCtaBuses, fetchCtaTrains } from './cta';
+import { metraAuthorization, metraVehicles } from './metra';
 import { LIRR_ROUTES, MNR_ROUTES, railTrips, type RailRoute } from './metro-north';
 import { SUBWAY_ROUTES, subwayTrains } from './nyc-subway';
-import { insideMapArea, isRegionId, type RegionId } from './regions';
+import { AIS_BOUNDS, insideMapArea, isRegionId, type RegionId } from './regions';
 import { MASSDOT_EVENTS_URL, parseErsEvents } from './massdot-events';
 import { HUB_NAME } from './ais-hub';
 import {
@@ -74,7 +76,7 @@ const SUBWAY_FEED_URLS = ['', '-ace', '-bdfm', '-g', '-jz', '-nqrw', '-l', '-si'
   .map((suffix) => `${MTA_FEEDS}/nyct%2Fgtfs${suffix}`);
 const SUBWAY_ALERTS_URL = `${MTA_FEEDS}/camsys%2Fsubway-alerts`;
 const FAA_AIRPORT_STATUS_URL = 'https://nasstatus.faa.gov/api/airport-status-information';
-const NWS_ALERTS_URL = 'https://api.weather.gov/alerts/active?area=MA,CT,RI,NH,VT,ME,NY,NJ';
+const NWS_ALERTS_URL = 'https://api.weather.gov/alerts/active?area=MA,CT,RI,NH,VT,ME,NY,NJ,PA,DE,DC,MD,VA,IL,IN,CA';
 // api.weather.gov rejects requests without an identifying User-Agent.
 const NWS_USER_AGENT = 'motion-map (github.com/mapzimus/Motion)';
 // Most NWS alerts carry no inline polygon, only forecast-zone references. Zone
@@ -86,7 +88,13 @@ const NWS_ZONE_CACHE_TTL_SECONDS = 7 * 24 * 60 * 60;
 // AviationWeather.gov data API: 100 requests/min, 400 entries per query, and a
 // custom User-Agent requested. One bbox query covers every New England METAR.
 // (bbox order is lat0,lon0,lat1,lon1.)
-const AWC_METAR_URL = 'https://aviationweather.gov/api/data/metar?bbox=38.9,-79.8,47.5,-66.9&format=geojson';
+// METARs and TFR shapes are fetched for the requested region's envelope
+// (AIS_BOUNDS); a sub-region asks for its parent, a union for the whole Northeast.
+const AWC_METAR_URL = 'https://aviationweather.gov/api/data/metar?format=geojson';
+function regionEnvelope(region: RegionId): { south: number; west: number; north: number; east: number } {
+  const [[south, west], [north, east]] = AIS_BOUNDS[region];
+  return { south, west, north, east };
+}
 const AWC_TAF_URL = 'https://aviationweather.gov/api/data/taf';
 const AWC_USER_AGENT = 'motion-map (github.com/mapzimus/Motion)';
 const AIRPORT_WEATHER_CACHE_SECONDS = 5 * 60;
@@ -94,7 +102,7 @@ const AIRPORT_TAF_CACHE_SECONDS = 30 * 60;
 // FAA TFR site: undocumented JSON + GeoServer WFS, served no-cache, so the
 // gateway holds each answer for 5 minutes. WFS bbox is lon,lat order.
 const TFR_LIST_URL = 'https://tfr.faa.gov/tfrapi/exportTfrList';
-const TFR_WFS_URL = 'https://tfr.faa.gov/geoserver/TFR/ows?service=WFS&version=1.1.0&request=GetFeature&typeName=TFR:V_TFR_LOC&outputFormat=application/json&srsname=EPSG:4326&bbox=-79.8,38.9,-66.9,47.5,EPSG:4326';
+const TFR_WFS_URL = 'https://tfr.faa.gov/geoserver/TFR/ows?service=WFS&version=1.1.0&request=GetFeature&typeName=TFR:V_TFR_LOC&outputFormat=application/json&srsname=EPSG:4326';
 const TFR_DETAIL_URL = 'https://tfr.faa.gov/tfrapi/getWebText';
 const TFR_CACHE_SECONDS = 5 * 60;
 const TFR_DETAIL_CACHE_SECONDS = 30 * 60;
@@ -136,7 +144,8 @@ function configured(value: string | undefined): boolean {
   return Boolean(value && !value.includes('placeholder') && !value.startsWith('replace-'));
 }
 
-type SecretName = 'AISSTREAM_API_KEY' | 'TOMTOM_API_KEY' | 'SWIFTLY_API_KEY' | 'CARTO_API_KEY';
+type SecretName = 'AISSTREAM_API_KEY' | 'TOMTOM_API_KEY' | 'SWIFTLY_API_KEY' | 'CARTO_API_KEY'
+  | 'WMATA_API_KEY' | 'CTA_TRAIN_API_KEY' | 'CTA_BUS_API_KEY' | 'METRA_ACCESS_KEY' | 'METRA_SECRET_KEY' | 'BAY_511_API_KEY';
 
 function secret(env: Env, name: SecretName): string | undefined {
   return env[name];
@@ -229,7 +238,64 @@ async function swiftlyFeedBytes(feed: TransitFeed, key: string, ctx: ExecutionCo
   return bytes;
 }
 
-async function readTransitFeed(feed: TransitFeed, env: Env, ctx: ExecutionContext) {
+// 511 SF Bay allows 60 calls an hour per key by default. Nine Bay Area
+// operators at this cache interval make about 54 an hour.
+const BAY511_CACHE_SECONDS = 600;
+// CTA's free keys allow 50,000 Train Tracker and 10,000 Bus Tracker calls a day;
+// the bus route list needs 13 calls per refresh.
+const CTA_TRAIN_CACHE_SECONDS = 30;
+const CTA_BUS_CACHE_SECONDS = 120;
+
+type FeedAnswer = {
+  feed: string;
+  agency: string;
+  state: 'live' | 'needs-key' | 'needs-approval';
+  vehicles: RegionalVehicle[];
+};
+
+function needsKey(feed: TransitFeed): FeedAnswer {
+  return { feed: feed.id, agency: feed.agency, state: 'needs-key', vehicles: [] };
+}
+
+async function cachedVehicles(
+  key: string,
+  ttlSeconds: number,
+  ctx: ExecutionContext,
+  load: () => Promise<RegionalVehicle[]>,
+): Promise<RegionalVehicle[]> {
+  const cacheKey = new Request(`https://transit-cache.motion.invalid/${key}`);
+  const cached = await caches.default.match(cacheKey);
+  if (cached) return (await cached.json()) as RegionalVehicle[];
+  const vehicles = await load();
+  ctx.waitUntil(caches.default.put(cacheKey, new Response(JSON.stringify(vehicles), {
+    headers: { 'cache-control': `public, max-age=${ttlSeconds}`, 'content-type': 'application/json' },
+  })));
+  return vehicles;
+}
+
+async function readTransitFeed(feed: TransitFeed, env: Env, ctx: ExecutionContext): Promise<FeedAnswer> {
+  if (feed.source === 'cta-train' || feed.source === 'cta-bus') {
+    const key = secret(env, feed.source === 'cta-train' ? 'CTA_TRAIN_API_KEY' : 'CTA_BUS_API_KEY');
+    if (!configured(key)) return needsKey(feed);
+    const vehicles = feed.source === 'cta-train'
+      ? await cachedVehicles(feed.id, CTA_TRAIN_CACHE_SECONDS, ctx, () => fetchCtaTrains(key ?? ''))
+      : await cachedVehicles(feed.id, CTA_BUS_CACHE_SECONDS, ctx, () => fetchCtaBuses(key ?? ''));
+    return { feed: feed.id, agency: feed.agency, state: 'live', vehicles: vehicles.filter((v) => insideMapArea(v.lng, v.lat)) };
+  }
+  if (feed.authorization === 'metra') {
+    const accessKey = secret(env, 'METRA_ACCESS_KEY');
+    const secretKey = secret(env, 'METRA_SECRET_KEY');
+    if (!configured(accessKey) || !configured(secretKey)) return needsKey(feed);
+    const vehicles = await cachedVehicles(feed.id, 30, ctx, async () => {
+      const upstream = await fetch(feed.url, {
+        headers: { accept: 'application/json', authorization: metraAuthorization(accessKey ?? '', secretKey ?? '') },
+        signal: AbortSignal.timeout(TRANSIT_FEED_TIMEOUT_MS),
+      });
+      if (!upstream.ok) throw new Error(`${feed.id} ${upstream.status}`);
+      return metraVehicles(await upstream.json());
+    });
+    return { feed: feed.id, agency: feed.agency, state: 'live', vehicles };
+  }
   if (feed.source === 'trillium') {
     const upstream = await fetch(feed.url, {
       headers: { accept: 'application/json' },
@@ -238,20 +304,49 @@ async function readTransitFeed(feed: TransitFeed, env: Env, ctx: ExecutionContex
     });
     if (!upstream.ok) throw new Error(`${feed.id} ${upstream.status}`);
     const vehicles = vehiclesFromTrilliumMap(feed, await upstream.json());
-    return { feed: feed.id, agency: feed.agency, state: 'live' as const, vehicles };
+    return { feed: feed.id, agency: feed.agency, state: 'live', vehicles };
   }
 
   let bytes: Uint8Array;
   if (feed.authorization === 'swiftly') {
     const swiftlyKey = secret(env, 'SWIFTLY_API_KEY');
     if (!configured(swiftlyKey)) {
-      return { feed: feed.id, agency: feed.agency, state: 'needs-key' as const, vehicles: [] };
+      return needsKey(feed);
     }
     // The key works only for agencies that approved sharing; never send it to the rest.
     if (!swiftlyApproved(feed)) {
-      return { feed: feed.id, agency: feed.agency, state: 'needs-approval' as const, vehicles: [] };
+      return { feed: feed.id, agency: feed.agency, state: 'needs-approval', vehicles: [] };
     }
     bytes = await swiftlyFeedBytes(feed, swiftlyKey ?? '', ctx);
+  } else if (feed.authorization === 'wmata') {
+    const key = secret(env, 'WMATA_API_KEY');
+    if (!configured(key)) return needsKey(feed);
+    const upstream = await fetch(feed.url, {
+      headers: { accept: TRANSIT_ACCEPT, api_key: key ?? '' },
+      signal: AbortSignal.timeout(TRANSIT_FEED_TIMEOUT_MS),
+      cf: { cacheEverything: true, cacheTtl: 15 },
+    });
+    if (!upstream.ok) throw new Error(`${feed.id} ${upstream.status}`);
+    bytes = new Uint8Array(await upstream.arrayBuffer());
+  } else if (feed.authorization === 'bay511') {
+    const key = secret(env, 'BAY_511_API_KEY');
+    if (!configured(key)) return needsKey(feed);
+    // The key travels in the query string, so the cache key is the keyless URL.
+    const cacheKey = new Request(`https://bay511-cache.motion.invalid/${feed.id}`);
+    const cached = await caches.default.match(cacheKey);
+    if (cached) {
+      bytes = new Uint8Array(await cached.arrayBuffer());
+    } else {
+      const upstream = await fetch(`${feed.url}&api_key=${encodeURIComponent(key ?? '')}`, {
+        headers: { accept: TRANSIT_ACCEPT },
+        signal: AbortSignal.timeout(TRANSIT_FEED_TIMEOUT_MS),
+      });
+      if (!upstream.ok) throw new Error(`${feed.id} ${upstream.status}`);
+      bytes = new Uint8Array(await upstream.arrayBuffer());
+      ctx.waitUntil(caches.default.put(cacheKey, new Response(bytes, {
+        headers: { 'cache-control': `public, max-age=${BAY511_CACHE_SECONDS}`, 'content-type': 'application/octet-stream' },
+      })));
+    }
   } else {
     // Cadavl producers (Greater Portland, WRTA, GATRA) answer 406 to a bare
     // application/x-protobuf Accept header; they serve application/octet-stream.
@@ -292,7 +387,7 @@ async function readTransitFeed(feed: TransitFeed, env: Env, ctx: ExecutionContex
     }];
   });
 
-  return { feed: feed.id, agency: feed.agency, state: 'live' as const, vehicles };
+  return { feed: feed.id, agency: feed.agency, state: 'live', vehicles };
 }
 
 async function transit(request: Request, url: URL, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -1184,11 +1279,14 @@ function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-async function airportWeather(request: Request, ctx: ExecutionContext): Promise<Response> {
+async function airportWeather(request: Request, url: URL, ctx: ExecutionContext): Promise<Response> {
+  const region = url.searchParams.has('region') ? regionFrom(url) : 'northeast';
+  if (!region) return json({ error: 'Unknown region' }, 400);
+  const box = regionEnvelope(region);
   return cachedJson(request, ctx, AIRPORT_WEATHER_CACHE_SECONDS, async () => {
     let upstream: Response;
     try {
-      upstream = await fetch(AWC_METAR_URL, {
+      upstream = await fetch(`${AWC_METAR_URL}&bbox=${box.south},${box.west},${box.north},${box.east}`, {
         headers: { accept: 'application/geo+json, application/json', 'user-agent': AWC_USER_AGENT },
         cf: { cacheEverything: true, cacheTtl: AIRPORT_WEATHER_CACHE_SECONDS },
       });
@@ -1227,10 +1325,13 @@ async function airportTaf(request: Request, url: URL, ctx: ExecutionContext): Pr
   });
 }
 
-async function tfrs(request: Request, ctx: ExecutionContext): Promise<Response> {
+async function tfrs(request: Request, url: URL, ctx: ExecutionContext): Promise<Response> {
+  const region = url.searchParams.has('region') ? regionFrom(url) : 'northeast';
+  if (!region) return json({ error: 'Unknown region' }, 400);
+  const box = regionEnvelope(region);
   return cachedJson(request, ctx, TFR_CACHE_SECONDS, async () => {
     const [shapes, list] = await Promise.allSettled([
-      fetch(TFR_WFS_URL, {
+      fetch(`${TFR_WFS_URL}&bbox=${box.west},${box.south},${box.east},${box.north},EPSG:4326`, {
         headers: { accept: 'application/json' },
         cf: { cacheEverything: true, cacheTtl: TFR_CACHE_SECONDS },
       }).then(async (response) => {
@@ -1441,6 +1542,11 @@ export default {
           ais: true,
           traffic: providerHealthy('traffic'),
           swiftly: configured(secret(env, 'SWIFTLY_API_KEY')),
+          wmata: configured(secret(env, 'WMATA_API_KEY')),
+          ctaTrain: configured(secret(env, 'CTA_TRAIN_API_KEY')),
+          ctaBus: configured(secret(env, 'CTA_BUS_API_KEY')),
+          metra: configured(secret(env, 'METRA_ACCESS_KEY')) && configured(secret(env, 'METRA_SECRET_KEY')),
+          bay511: configured(secret(env, 'BAY_511_API_KEY')),
         },
         healthRule: 'true = last upstream fetch succeeded within 10 min, or not yet attempted in this isolate',
       });
@@ -1481,11 +1587,11 @@ export default {
     } else if (url.pathname === '/api/weather-alerts') {
       response = await weatherAlerts(request, url, ctx);
     } else if (url.pathname === '/api/airport-weather') {
-      response = await airportWeather(request, ctx);
+      response = await airportWeather(request, url, ctx);
     } else if (url.pathname === '/api/airport-taf') {
       response = await airportTaf(request, url, ctx);
     } else if (url.pathname === '/api/tfrs') {
-      response = await tfrs(request, ctx);
+      response = await tfrs(request, url, ctx);
     } else if (url.pathname === '/api/tfr-detail') {
       response = await tfrDetail(request, url, ctx);
     } else if (url.pathname.startsWith('/api/traffic/')) {

@@ -1,16 +1,23 @@
 # Motion
 
 One live map of transportation moving across Connecticut, Maine,
-Massachusetts, New Hampshire, Rhode Island, Vermont, New York, and New Jersey.
+Massachusetts, New Hampshire, Rhode Island, Vermont, New York, and New Jersey,
+plus the Philadelphia, Washington, Chicago and San Francisco Bay metro areas.
 Start with Greater Boston (the 128 cities and towns inside I-495), narrow to
 the 17-municipality MBTA core, pick one of 33 named regions such as the North
 Shore, Cape Cod & Islands, the Pioneer Valley, the Northeast Kingdom, Midcoast
 Maine, New York City, Long Island, the Hudson Valley or North Jersey, switch
 to a single state, zoom out to all New England, or to the whole Northeast.
 
-New York and New Jersey are new and cover transit first: MTA subway, Metro-North,
+New York and New Jersey cover transit first: MTA subway, Metro-North,
 LIRR, buses and ferries live, with NJ Transit rail, PATH and NY Waterway
-schedules. The road, aviation-reference, infrastructure and place layers
+schedules. The four metro areas are newer still: each is its own top-level
+region (county-built boundaries) with its agencies' schedules in the built
+snapshot and live positions from every keyless feed (SEPTA, MARC, VRE,
+Fairfax Connector, DASH, Pottstown, Emery Go-Round). Metrorail, Metrobus,
+CTA, Metra and the Bay Area's 511 operators go live once their free keys are
+set; [docs/api-keys.md](docs/api-keys.md) lists each key, where to get it and
+what it unlocks. The road, aviation-reference, infrastructure and place layers
 below are still built for the six New England states only (see
 [Remaining data gaps](#remaining-data-gaps)).
 
@@ -499,7 +506,7 @@ corridors cross coastline land, plus all OSM `route=ferry` ways:
 py -3 -X utf8 scripts\fetch-ferry-audit-data.py
 py -3 -X utf8 scripts\build-regional-routes.py --update-ferry-cache
 py -3 -X utf8 scripts\audit-ferry-water.py --cache
-py -3 -X utf8 scripts\audit-ferry-water.py --report --before <old regional-routes.geojson>
+py -3 -X utf8 scripts\audit-ferry-water.py --report --before <old routes/<area>.geojson>
 ```
 
 `--update-ferry-cache` recomputes only routes whose inputs changed (a full

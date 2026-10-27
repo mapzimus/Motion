@@ -1,14 +1,14 @@
 {
   "description": "Last date each scheduled GTFS feed publishes service for. Written by build-regional-routes.py and check-feed-freshness.py; checked offline by check-route-geometry.mjs.",
-  "checkedAt": "2026-10-20",
+  "checkedAt": "2026-10-26",
   "feeds": {
     "amtrak": {
-      "serviceEnd": "2027-10-18",
+      "serviceEnd": "2027-10-25",
       "source": "calendar.txt",
       "url": "https://content.amtrak.com/content/gtfs/GTFS.zip"
     },
     "shore-line-east": {
-      "serviceEnd": "2027-10-18",
+      "serviceEnd": "2027-10-25",
       "source": "calendar.txt",
       "url": "https://content.amtrak.com/content/gtfs/GTFS.zip"
     },
@@ -133,12 +133,12 @@
       "url": "https://files.mobilitydatabase.org/mdb-429/latest.zip"
     },
     "gatra": {
-      "serviceEnd": "2026-11-20",
+      "serviceEnd": "2026-11-25",
       "source": "calendar.txt",
       "url": "https://gtfs.gatra.cadavl.com/GATRA/GTFS/GTFS_GATRA.zip"
     },
     "lrta": {
-      "serviceEnd": "2026-11-20",
+      "serviceEnd": "2026-11-25",
       "source": "calendar_dates.txt",
       "url": "https://gtfs.lrta.cadavl.com/LRTA/GTFS/GTFS_LRTA.zip"
     },
@@ -173,13 +173,13 @@
       "url": "https://files.mobilitydatabase.org/mdb-421/latest.zip"
     },
     "vta": {
-      "serviceEnd": "2026-10-03",
+      "serviceEnd": "2027-04-15",
       "source": "calendar.txt",
       "url": "https://files.mobilitydatabase.org/mdb-420/latest.zip",
       "exempt": "Seasonal feed: the published summer schedule ended 2026-10-03 (same in the Trillium source, rechecked 2026-10-04); remove this exemption once the fall/winter feed is published."
     },
     "wrta": {
-      "serviceEnd": "2027-01-18",
+      "serviceEnd": "2027-01-23",
       "source": "calendar_dates.txt",
       "url": "https://gtfs.wrta.cadavl.com/WRTA/GTFS/GTFS_WRTA.zip"
     },
@@ -194,7 +194,7 @@
       "url": "https://raw.githubusercontent.com/maxtkc/concord-coach-gtfs/main/concord_coach_gtfs.zip"
     },
     "greyhound-flix": {
-      "serviceEnd": "2027-04-20",
+      "serviceEnd": "2027-04-25",
       "source": "calendar.txt",
       "url": "https://gtfs.gis.flix.tech/gtfs_generic_us.zip"
     },
@@ -315,7 +315,7 @@
       "url": "https://bu.transloc.com/Secure/Admin/Reports/GTFSDownload.aspx"
     },
     "bc": {
-      "serviceEnd": "2027-01-02",
+      "serviceEnd": "2027-01-04",
       "source": "calendar.txt",
       "url": "https://bc.transloc.com/Secure/Admin/Reports/GTFSDownload.aspx"
     },
@@ -481,7 +481,7 @@
       "url": "https://files.mobilitydatabase.org/tld-4756/latest.zip"
     },
     "greater-portland": {
-      "serviceEnd": "2026-11-19",
+      "serviceEnd": "2026-11-24",
       "source": "calendar_dates.txt",
       "url": "https://gtfs.gptd.cadavl.com/GPTD/GTFS/GTFS_GPTD.zip"
     },
@@ -543,7 +543,8 @@
     "nyc-subway": {
       "serviceEnd": "2026-10-31",
       "source": "calendar.txt",
-      "url": "https://rrgtfsfeeds.s3.amazonaws.com/gtfs_subway.zip"
+      "url": "https://rrgtfsfeeds.s3.amazonaws.com/gtfs_subway.zip",
+      "exempt": "The MTA publishes each subway pick only days before the previous one ends (the 2026-08-26 pick runs through 2026-10-31); the latest zip on rrgtfsfeeds.s3.amazonaws.com rolls over on its own. Rebuild after 2026-11-01 and drop this exemption."
     },
     "nyc-ferry": {
       "serviceEnd": "2027-12-31",
@@ -640,7 +641,8 @@
     "rockland-tor": {
       "serviceEnd": "2026-10-31",
       "source": "calendar.txt",
-      "url": "https://files.mobilitydatabase.org/tld-3368/latest.zip"
+      "url": "https://files.mobilitydatabase.org/tld-3368/latest.zip",
+      "exempt": "Transdev publishes Transport of Rockland GTFS one calendar period at a time (current service ends 2026-10-31) and the Mobility Database mirror rolls over when the county posts the next one. Rebuild after 2026-11-01 and drop this exemption."
     },
     "clarkstown": {
       "serviceEnd": "2026-12-31",
@@ -688,12 +690,12 @@
       "url": "https://files.mobilitydatabase.org/tld-401/latest.zip"
     },
     "ccpt": {
-      "serviceEnd": "2027-01-24",
+      "serviceEnd": "2027-12-31",
       "source": "calendar.txt",
       "url": "https://files.mobilitydatabase.org/mdb-544/latest.zip"
     },
     "njt-bus": {
-      "serviceEnd": "2027-03-13",
+      "serviceEnd": "2027-04-17",
       "source": "calendar_dates.txt",
       "url": "https://files.mobilitydatabase.org/mdb-508/latest.zip"
     },
@@ -716,6 +718,163 @@
       "serviceEnd": "2026-11-20",
       "source": "calendar.txt",
       "url": "https://files.mobilitydatabase.org/tld-6909/latest.zip"
+    },
+    "septa-bus": {
+      "serviceEnd": "2027-02-20",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-502/latest.zip"
+    },
+    "septa-rail": {
+      "serviceEnd": "2026-11-21",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-503/latest.zip"
+    },
+    "patco": {
+      "serviceEnd": "2026-12-31",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-3035/latest.zip"
+    },
+    "pottstown-part": {
+      "serviceEnd": "2026-11-25",
+      "source": "calendar_dates.txt",
+      "url": "https://files.mobilitydatabase.org/tld-7025/latest.zip"
+    },
+    "wmata-rail": {
+      "serviceEnd": "2027-01-02",
+      "source": "calendar_dates.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-1847/latest.zip"
+    },
+    "wmata-bus": {
+      "serviceEnd": "2027-03-27",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-1846/latest.zip"
+    },
+    "marc": {
+      "serviceEnd": "2026-12-31",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-468/latest.zip"
+    },
+    "vre": {
+      "serviceEnd": "2027-01-23",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/tld-61/latest.zip"
+    },
+    "fairfax-connector": {
+      "serviceEnd": "2028-09-30",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-483/latest.zip"
+    },
+    "dash": {
+      "serviceEnd": "2027-07-31",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-482/latest.zip"
+    },
+    "ride-on": {
+      "serviceEnd": "2027-01-09",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-488/latest.zip"
+    },
+    "thebus-pg": {
+      "serviceEnd": "2027-03-01",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-477/latest.zip"
+    },
+    "omniride": {
+      "serviceEnd": "2027-01-30",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-1156/latest.zip"
+    },
+    "cta-train": {
+      "serviceEnd": "2026-11-30",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-389/latest.zip"
+    },
+    "cta-bus": {
+      "serviceEnd": "2026-11-30",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-389/latest.zip"
+    },
+    "metra": {
+      "serviceEnd": "2026-12-31",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-2854/latest.zip"
+    },
+    "pace": {
+      "serviceEnd": "2026-12-26",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-2347/latest.zip"
+    },
+    "muni": {
+      "serviceEnd": "2024-08-16",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-50/latest.zip",
+      "exempt": "Mobility Database archive of SFMTA GTFS; gtfs.sfmta.com refuses downloads from the build host"
+    },
+    "bart": {
+      "serviceEnd": "2027-01-10",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-53/latest.zip"
+    },
+    "caltrain": {
+      "serviceEnd": "2027-01-31",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-54/latest.zip"
+    },
+    "ac-transit": {
+      "serviceEnd": "2027-04-03",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-2455/latest.zip"
+    },
+    "samtrans": {
+      "serviceEnd": "2026-11-14",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-2708/latest.zip"
+    },
+    "sc-vta": {
+      "serviceEnd": "2027-01-10",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-57/latest.zip"
+    },
+    "golden-gate-transit": {
+      "serviceEnd": "2026-12-12",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-67/latest.zip"
+    },
+    "golden-gate-ferry": {
+      "serviceEnd": "2026-12-12",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-67/latest.zip"
+    },
+    "sf-bay-ferry": {
+      "serviceEnd": "2026-11-01",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-3143/latest.zip",
+      "exempt": "WETA publishes San Francisco Bay Ferry GTFS one schedule period at a time (the current one ends 2026-11-01) and the Mobility Database mirror rolls over when the next is posted. Rebuild after 2026-11-02 and drop this exemption."
+    },
+    "smart": {
+      "serviceEnd": "2027-04-30",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-3222/latest.zip"
+    },
+    "san-joaquins": {
+      "serviceEnd": "2027-01-01",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-2295/latest.zip"
+    },
+    "emery-go-round": {
+      "serviceEnd": "2027-11-27",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-2224/latest.zip"
+    },
+    "county-connection": {
+      "serviceEnd": "2027-01-09",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-2421/latest.zip"
+    },
+    "westcat": {
+      "serviceEnd": "2027-06-11",
+      "source": "calendar.txt",
+      "url": "https://files.mobilitydatabase.org/mdb-78/latest.zip"
     }
   }
 }

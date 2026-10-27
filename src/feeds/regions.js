@@ -19,8 +19,10 @@ export const LEGACY_DEFAULT_REGION = 'boston';
 // The six New England states, then New York and New Jersey.
 export const NEW_ENGLAND_KEYS = ['ct', 'me', 'ma', 'nh', 'ri', 'vt'];
 export const STATE_KEYS = [...NEW_ENGLAND_KEYS, 'ny', 'nj'];
-// Region ids the Motion gateway and aircraft relay understand. Sub-regions ask
-// the gateway for their parent and are clipped to their own boundary here.
+// Region ids the Motion gateway and aircraft relay understand: the MBTA core,
+// every top-level area (a state, or a metro such as Philadelphia) and the
+// unions. Filled by registerRegions(); sub-regions ask the gateway for their
+// parent and are clipped to their own boundary here.
 const GATEWAY_KEYS = new Set(['boston', ...STATE_KEYS, 'new-england', 'northeast']);
 const EMPTY_FC = { type: 'FeatureCollection', features: [] };
 const featureByKey = new Map();
@@ -50,6 +52,9 @@ export function gatewayRegion(key) {
   }
   return 'northeast';
 }
+
+// Exported for tests: the gateway region ids known after registerRegions().
+export const gatewayKeys = () => [...GATEWAY_KEYS];
 
 // True for a union region (All New England, All Northeast), whose view keeps
 // every map-area feature instead of clipping to one boundary.
@@ -96,6 +101,9 @@ export function registerRegions(collection, marineCollection = null) {
     };
     REGIONS.push(region);
     regionByKey.set(key, region);
+  }
+  for (const region of REGIONS) {
+    if (region.kind === 'union' || (!region.parent && region.key !== 'boston')) GATEWAY_KEYS.add(region.key);
   }
   for (const group of metadata.groups ?? []) REGION_GROUPS.push({ key: group.key, label: group.label });
   for (const region of REGIONS) {
@@ -217,6 +225,25 @@ export function containsPoint(key, point, { marine = false } = {}) {
 
 export function stateAt(point) {
   return STATE_KEYS.find((key) => containsPoint(key, point)) ?? null;
+}
+
+// The top-level areas whose scheduled-route files a region needs: a union
+// region takes every member area; anything else takes the nearest ancestor
+// whose parent is nothing or a union (the state, or a metro such as
+// Philadelphia). Matches area_map() in scripts/build-regional-routes.py.
+export function areaKeysForRegion(key) {
+  const region = regionByKey.get(key);
+  if (!region) return [];
+  if (region.kind === 'union') {
+    return [...new Set(region.members.flatMap((member) => areaKeysForRegion(member)))];
+  }
+  let current = region;
+  for (let depth = 0; depth < 8; depth += 1) {
+    const parent = current.parent ? regionByKey.get(current.parent) : null;
+    if (!parent || parent.kind === 'union') break;
+    current = parent;
+  }
+  return [current.key];
 }
 
 // The smallest region (by bounding-box area) that contains the point. Unions

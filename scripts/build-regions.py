@@ -46,7 +46,11 @@ TIGERWEB = "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb"
 STATES_QUERY = f"{TIGERWEB}/State_County/MapServer/0/query"
 COUNTIES_QUERY = f"{TIGERWEB}/State_County/MapServer/1/query"
 COUSUB_QUERY = f"{TIGERWEB}/Places_CouSub_ConCity_SubMCD/MapServer/1/query"
-STATE_FIPS = {"CT": "09", "MA": "25", "ME": "23", "NH": "33", "RI": "44", "VT": "50", "NY": "36", "NJ": "34"}
+STATE_FIPS = {
+    "CT": "09", "MA": "25", "ME": "23", "NH": "33", "RI": "44", "VT": "50", "NY": "36", "NJ": "34",
+    # Metro regions outside the Northeast union
+    "PA": "42", "DE": "10", "DC": "11", "MD": "24", "VA": "51", "IL": "17", "IN": "18", "CA": "06",
+}
 PAGE_SIZE = 200
 COORDINATE_DIGITS = 5  # about 1 m; plenty for boundaries generalized to 10+ m
 
@@ -182,9 +186,14 @@ def build_counties(region, counties, tolerance):
         wanted[(STATE_FIPS[state], name)] = member
     found = {}
     for feature in counties:
-        key = (feature["properties"]["STATE"], feature["properties"]["BASENAME"])
-        if key in wanted:
-            found.setdefault(key, []).append(feature)
+        properties = feature["properties"]
+        # A member names a county by its short BASENAME ("Montgomery") or, where
+        # an independent city shares that name, by the full NAME
+        # ("Fairfax County" / "Fairfax city").
+        keys = {(properties["STATE"], properties["BASENAME"]), (properties["STATE"], properties["NAME"])}
+        for key in keys:
+            if key in wanted:
+                found.setdefault(key, []).append(feature)
     missing = sorted(wanted[key] for key in wanted if key not in found)
     duplicated = sorted(wanted[key] for key, matches in found.items() if len(matches) > 1)
     if missing or duplicated:
@@ -230,7 +239,7 @@ MARINE_BUFFER_OVERRIDES = {"boston": 0.06}
 # Sub-state regions get a narrower margin (~10 km) so a small coastal region
 # does not pull in harbors that belong to its neighbours.
 MARINE_SUBREGION_BUFFER_DEG = 0.1
-MARINE_CLIP = box(-80.0, 38.8, -66.0, 47.7)  # AIS [[38.8,-80.0],[47.7,-66.0]]
+MARINE_CLIP = box(-125.0, 24.0, -66.0, 50.0)  # continental US; the AIS hub box is narrower (worker/src/regions.ts)
 MARINE_SIMPLIFY_DEG = 0.004
 
 
@@ -300,7 +309,7 @@ def build_marine(regions_fc):
         "type": "FeatureCollection",
         "metadata": {
             "source": "data/regions.geojson grown by a coastal buffer for the vessel layer",
-            "clip": [[38.8, -80.0], [47.7, -66.0]],
+            "clip": [[24.0, -125.0], [50.0, -66.0]],
         },
         "features": out,
     }

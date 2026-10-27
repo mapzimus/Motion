@@ -42,14 +42,27 @@ BOUNDARIES_PATH = ROOT / "public" / "data" / "regions.geojson"
 # data/regions.geojson in main(). Every route and stop is tagged with each
 # region its geometry touches.
 REGION_ORDER: list[str] = []
-OUTPUT_PATH = ROOT / "public" / "data" / "regional-routes.geojson"
+# One file per top-level area (state or metro) plus an index; see scripts/snapshot.py.
+ROUTES_DIR = ROOT / "public" / "data" / "routes"
+ROUTES_INDEX_PATH = ROUTES_DIR / "index.json"
 FRESHNESS_PATH = ROOT / "scripts" / "feed-freshness.json"
 BORROWED_SHAPE_NOTE = (
     "Track path follows published shapes of other trains on the same corridor between this service's stations."
 )
 BORROWED_SHAPE_MAX_SNAP_KM = 0.6
 
-NE_BOUNDS = (-79.3, 38.9, -65.0, 48.5)  # New England, New York and New Jersey (Cape May to Jamestown NY; Toronto and Washington stops drop out)
+# Build envelopes: New England, New York and New Jersey (Cape May to Jamestown
+# NY; Toronto and Montreal stops drop out) plus one box per metro area. A stop
+# outside every box is dropped and the path splits there, so a coach that runs
+# Boston to Orlando keeps only the parts inside the areas the map covers.
+NE_BOUNDS = (-79.3, 38.9, -65.0, 48.5)
+AREA_BOUNDS = [
+    NE_BOUNDS,
+    (-75.9, 39.6, -74.4, 40.6),  # Philadelphia
+    (-77.9, 38.3, -76.3, 39.5),  # Washington
+    (-88.7, 41.2, -86.8, 42.6),  # Chicago
+    (-123.3, 36.9, -121.4, 38.9),  # San Francisco Bay Area
+]
 TOLERANCE = 0.00022  # roughly 18–25 m in New England
 MAX_BUS_CHORD_KM = 20.0
 OSRM_BASE_URL = "https://router.project-osrm.org"
@@ -127,7 +140,9 @@ def read_rows(archive: zipfile.ZipFile, wanted: str) -> list[dict[str, str]]:
     if not name:
         return []
     raw = archive.read(name).decode("utf-8-sig", errors="replace")
-    return list(csv.DictReader(io.StringIO(raw)))
+    # skipinitialspace: Metra writes "service_id, monday, ..." with a space
+    # after every comma, in headers and values alike.
+    return list(csv.DictReader(io.StringIO(raw), skipinitialspace=True))
 
 
 GTFS_DATE_PATTERNS = (
@@ -294,7 +309,7 @@ def stream_rows(archive: zipfile.ZipFile, wanted: str):
         return
     with archive.open(name) as raw:
         text = io.TextIOWrapper(raw, encoding="utf-8-sig", newline="")
-        for row in csv.DictReader(text):
+        for row in csv.DictReader(text, skipinitialspace=True):
             yield {key.strip(): (value or "").strip() for key, value in row.items() if key}
 
 
@@ -400,8 +415,7 @@ def simplify(points, tolerance=TOLERANCE, max_chord_km=MAX_RAIL_CHORD_KM):
 
 
 def valid_point(lon: float, lat: float) -> bool:
-    west, south, east, north = NE_BOUNDS
-    return west <= lon <= east and south <= lat <= north
+    return any(west <= lon <= east and south <= lat <= north for west, south, east, north in AREA_BOUNDS)
 
 
 def contiguous_valid_runs(points):
@@ -1814,6 +1828,56 @@ def process_feed(
     return features, len(selected_routes), source_metadata, freshness
 
 
+def area_map(boundaries) -> dict:
+    """Region key -> the top-level area it belongs to: the nearest ancestor
+    whose parent is nothing or a union (All New England, All Northeast)."""
+    parents = {}
+    unions = {region["key"] for region in boundaries.get("metadata", {}).get("virtualRegions", [])}
+    for feature in boundaries.get("features", []):
+        properties = feature.get("properties", {})
+        parents[properties["key"]] = properties.get("parent")
+    areas = {}
+    for key in parents:
+        current = key
+        for _ in range(8):
+            parent = parents.get(current)
+            if parent is None or parent in unions or parent not in parents:
+                break
+            current = parent
+        areas[key] = current
+    return areas
+
+
+def write_snapshot(features, metadata, area_of_region):
+    """Write one GeoJSON per area under public/data/routes plus index.json.
+
+    Every feature gets a build-stable ``fid`` and lands in the file of each
+    top-level area its ``regions`` tags belong to (a Boston to New York train
+    is in both ``ma`` and ``ny``); readers dedupe on ``fid``."""
+    ROUTES_DIR.mkdir(parents=True, exist_ok=True)
+    by_area = defaultdict(list)
+    for index, feature in enumerate(features):
+        properties = feature.setdefault("properties", {})
+        properties["fid"] = index
+        area_keys = {area_of_region.get(region) for region in properties.get("regions", [])}
+        area_keys.discard(None)
+        for area in sorted(area_keys) or ["other"]:
+            by_area[area].append(feature)
+    for stale in ROUTES_DIR.glob("*.geojson"):
+        if stale.stem not in by_area:
+            stale.unlink()
+    areas = []
+    for area in sorted(by_area):
+        path = ROUTES_DIR / f"{area}.geojson"
+        text = json.dumps({"type": "FeatureCollection", "area": area, "features": by_area[area]}, separators=(",", ":"))
+        path.write_text(text, encoding="utf-8")
+        areas.append({"key": area, "file": path.name, "features": len(by_area[area]), "bytes": len(text.encode("utf-8"))})
+    ROUTES_INDEX_PATH.write_text(
+        json.dumps({"areas": areas, "metadata": metadata}, separators=(",", ":")), encoding="utf-8",
+    )
+    return areas
+
+
 def main(update_road_cache=False, refresh_road_cache=False, update_ferry_cache=False, refresh_ferry_cache=False,
          season_date=None):
     season_date = season_date or date.today()
@@ -1837,6 +1901,7 @@ def main(update_road_cache=False, refresh_road_cache=False, update_ferry_cache=F
         for feature in boundaries["features"]
     }
     REGION_ORDER[:] = list(region_geometries)
+    area_of_region = area_map(boundaries)
     all_features = []
     successes = []
     failures = []
@@ -2009,22 +2074,20 @@ def main(update_road_cache=False, refresh_road_cache=False, update_ferry_cache=F
 
     road_cache_sha256 = normalized_sha256(ROAD_ROUTE_CACHE_PATH.read_bytes())
 
-    collection = {
-        "type": "FeatureCollection",
-        "metadata": {
-            "description": "Scheduled New England transit routes generated from GTFS and clearly labeled official schedule corridors.",
-            "sources": successes,
-            "failed_sources": failures,
-            "roadGeometryRoutingVersion": ROAD_ROUTING_VERSION,
-            "roadGeometryControlsSha256": controls_sha256,
-            "roadGeometryCacheSha256": road_cache_sha256,
-            "ferryWaterCache": ferry_cache_metadata,
-        },
-        "features": all_features,
+    metadata = {
+        "description": "Scheduled transit routes generated from GTFS and clearly labeled official schedule corridors, one file per area.",
+        "sources": successes,
+        "failed_sources": failures,
+        "roadGeometryRoutingVersion": ROAD_ROUTING_VERSION,
+        "roadGeometryControlsSha256": controls_sha256,
+        "roadGeometryCacheSha256": road_cache_sha256,
+        "ferryWaterCache": ferry_cache_metadata,
     }
-    OUTPUT_PATH.write_text(json.dumps(collection, separators=(",", ":")), encoding="utf-8")
+    areas = write_snapshot(all_features, metadata, area_of_region)
     write_feed_freshness(freshness, feeds)
-    print(f"Wrote {len(all_features)} features from {len(successes)} feeds to {OUTPUT_PATH}")
+    print(f"Wrote {len(all_features)} features from {len(successes)} feeds to {ROUTES_DIR} in {len(areas)} area files")
+    for area in areas:
+        print(f"  {area['key']:<20} {area['features']:>6} features  {area['bytes'] / 1e6:5.1f} MB")
     print(f"Wrote feed service end dates to {FRESHNESS_PATH}")
     print(
         f"Road geometry: used {routing_state['used']} cached segments; "

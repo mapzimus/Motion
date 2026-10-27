@@ -46,6 +46,15 @@ USER_AGENT = "New England in Motion ferry geometry builder (+https://github.com/
 
 # west, south, east, north
 LAND_BBOX = (-74.4, 40.4, -65.8, 47.8)  # New England plus New York Harbor, Raritan Bay and the lower Hudson
+# Further harbors the ferry audit covers, each its own clip box so the land
+# file stays small: Delaware River and Bay (Philadelphia), the Potomac and
+# upper Chesapeake (Washington), Lake Michigan at Chicago, and San Francisco Bay.
+EXTRA_LAND_BBOXES = (
+    (-75.7, 38.8, -74.3, 40.4),
+    (-77.6, 38.2, -75.9, 39.6),
+    (-88.3, 41.2, -86.6, 42.8),
+    (-123.3, 37.1, -121.5, 38.6),
+)
 FERRY_WAY_BBOX = (-74.3, 40.4, -66.0, 47.5)
 WATER_TILE = 0.1
 CORRIDOR_BUFFER = 0.02
@@ -77,8 +86,9 @@ def extract_land():
     import shapefile
     from shapely import make_valid, to_wkb
     from shapely.geometry import box, shape
+    from shapely.ops import unary_union
 
-    clip = box(*LAND_BBOX)
+    clip = unary_union([box(*LAND_BBOX), *(box(*extra) for extra in EXTRA_LAND_BBOXES)])
     polygons = []
     extract_dir = OUTPUT_DIR / "land-polygons-extract"
     with zipfile.ZipFile(LAND_ZIP) as archive:
@@ -92,7 +102,11 @@ def extract_land():
                     (extract_dir / name).replace(target)
     with shapefile.Reader(str(extract_dir / "land_polygons.shp")) as reader:
         print(f"Scanning {len(reader):,} land polygons for the New England bbox", flush=True)
-        for record in reader.iterShapes(bbox=LAND_BBOX):
+        west = min(LAND_BBOX[0], *(extra[0] for extra in EXTRA_LAND_BBOXES))
+        south = min(LAND_BBOX[1], *(extra[1] for extra in EXTRA_LAND_BBOXES))
+        east = max(LAND_BBOX[2], *(extra[2] for extra in EXTRA_LAND_BBOXES))
+        north = max(LAND_BBOX[3], *(extra[3] for extra in EXTRA_LAND_BBOXES))
+        for record in reader.iterShapes(bbox=(west, south, east, north)):
             geometry = shape(record.__geo_interface__)
             if not geometry.is_valid:
                 geometry = make_valid(geometry)
@@ -160,9 +174,9 @@ def corridor_paths(ferry_ways):
         for feature in json.loads((ROOT / "scripts" / name).read_text(encoding="utf-8"))["features"]:
             if feature.get("properties", {}).get("group") == "ferry":
                 add_geometry(feature.get("geometry"))
-    routes = ROOT / "public" / "data" / "regional-routes.geojson"
-    if routes.exists():
-        for feature in json.loads(routes.read_text(encoding="utf-8")).get("features", []):
+    if (ROOT / "public" / "data" / "routes" / "index.json").exists():
+        from snapshot import load_snapshot
+        for feature in load_snapshot().get("features", []):
             if feature.get("properties", {}).get("group") == "ferry":
                 add_geometry(feature.get("geometry"))
     cache = ROOT / "scripts" / "ferry-water-cache.json"
