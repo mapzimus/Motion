@@ -1,0 +1,8 @@
+[
+ {"clock": "7:22", "name": "Boston", "groups": null, "unit": "MBTA vehicles out", "km": 30, "at": [-71.07, 42.35], "fact": "The morning peak", "dist": 300},
+ {"clock": "7:46", "name": "Downtown", "groups": ["red", "orange", "green", "blue", "mattapan"], "unit": "subway trains out", "km": 30, "at": [-71.06, 42.356], "fact": "Most subway trains of the morning", "dist": 130, "legKeys": ["Red", "Orange", "Green", "Blue"]},
+ {"clock": "7:56", "name": "North Station", "groups": ["commuter"], "unit": "commuter trains out", "km": 30, "at": [-71.10, 42.39], "fact": "Commuter Rail's morning rush", "dist": 260, "legKeys": ["Commuter Rail"]},
+ {"clock": "16:30", "name": "Boston", "groups": null, "unit": "MBTA vehicles out", "km": 30, "at": [-71.07, 42.35], "fact": "The evening peak: 9 more than the morning", "dist": 300},
+ {"clock": "17:14", "name": "Boston Harbor", "groups": ["ferry"], "unit": "MBTA ferries out", "km": 30, "at": [-70.99, 42.32], "fact": "The harbor commute home", "dist": 200, "legKeys": ["Ferry"]},
+ {"clock": "18:14", "name": "Cambridge", "groups": ["red", "orange", "green", "blue", "mattapan"], "unit": "subway trains out", "km": 30, "at": [-71.10, 42.365], "fact": "More subway trains than any moment of the morning", "dist": 150, "legKeys": ["Red", "Orange", "Green", "Blue"]}
+]
