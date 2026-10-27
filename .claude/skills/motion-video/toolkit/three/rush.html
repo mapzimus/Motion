@@ -1,0 +1,219 @@
+<!doctype html><html><head><meta charset="utf-8">
+<style>
+  html,body{margin:0;background:#05060a;overflow:hidden;width:1080px;height:1920px}
+  canvas{position:absolute;inset:0}
+  #ov{position:absolute;left:130px;top:270px;font-family:'Inter Display',Inter,sans-serif;color:#fff;text-shadow:0 2px 18px rgba(0,0,0,.8)}
+  .w{font-size:26px;font-weight:700;letter-spacing:.38em;color:#9ad1ff;margin-bottom:12px}
+  .h{font-size:104px;font-weight:600;letter-spacing:-.02em;line-height:1}
+  .s{font-size:36px;font-weight:500;margin-top:16px;color:#e8e8e8;max-width:820px;line-height:1.25}
+  #hud{position:absolute;left:130px;top:262px;font-family:Inter,sans-serif;color:#fff;text-shadow:0 1px 14px #000;opacity:0}
+  #clk{font-size:64px;font-weight:600;line-height:1}
+  #sub2{font-size:26px;font-weight:500;color:rgba(255,255,255,.72);margin-top:10px}
+  #city{position:absolute;left:130px;top:1200px;font-family:Inter,sans-serif;color:#fff;text-shadow:0 2px 16px #000;opacity:0}
+  #city b{display:block;font-size:44px;font-weight:600;letter-spacing:.01em;color:rgba(255,255,255,.92)}
+  #city i{display:block;font-style:normal;font-size:30px;font-weight:500;color:rgba(255,255,255,.92);margin-top:16px;max-width:820px;line-height:1.25}
+  #scrim{position:absolute;left:0;right:0;bottom:0;height:52%;background:linear-gradient(to bottom,rgba(6,7,11,0),rgba(6,7,11,.62) 40%,rgba(6,7,11,.8));opacity:0}
+  #scrimT{position:absolute;left:0;right:0;top:0;height:22%;background:linear-gradient(to bottom,rgba(6,7,11,.6),rgba(6,7,11,0))}
+  #city .hero{display:flex;align-items:baseline;gap:18px;margin-top:6px}
+  #hn{font-size:132px;font-weight:600;line-height:1;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+  #hu{font-size:32px;font-weight:500;color:rgba(255,255,255,.8);max-width:520px;line-height:1.2}
+  #leg{display:flex;flex-wrap:wrap;gap:10px 22px;margin-top:16px;max-width:840px}
+  #leg span{display:flex;align-items:center;gap:9px;font-size:23px;font-weight:500;color:rgba(255,255,255,.72)}
+  #leg span i{width:16px;height:16px;border-radius:4px;display:block;box-shadow:0 0 10px currentColor}
+  #chart{margin-top:22px;width:820px}
+  #chart text{font-family:Inter,sans-serif}
+  #day{position:relative;width:820px;height:46px;margin-top:22px}
+  #dtrack{position:absolute;left:0;right:0;top:8px;height:6px;border-radius:3px;overflow:hidden;display:flex}
+  #dhead{position:absolute;top:0;width:3px;height:22px;margin-left:-1.5px;background:#fff;border-radius:2px;box-shadow:0 0 12px #fff}
+  .dt{position:absolute;top:6px;width:2px;height:10px;margin-left:-1px;background:rgba(255,255,255,.35)}
+  .dl{position:absolute;top:24px;font-size:17px;font-weight:500;color:rgba(255,255,255,.5);transform:translateX(-50%)}
+  #city span.x{display:block;font-size:30px;font-weight:500;color:rgba(255,255,255,.85);margin-top:8px}
+  .card{position:absolute;left:130px;top:1330px;max-width:620px;padding:16px 20px 18px;background:rgba(8,10,16,.8);border:1px solid rgba(255,255,255,.16);border-radius:12px;font-family:Inter,sans-serif;display:none}
+  .card b{display:block;font-size:22px;font-weight:600;color:#9ad1ff;margin-bottom:6px}
+  .card div{font-size:29px;font-weight:500;line-height:1.25;color:#f2f2f2}
+  #key{position:absolute;left:0;right:0;bottom:56px;display:flex;justify-content:center;flex-wrap:wrap;gap:6px 22px;font-family:Inter,sans-serif;font-size:23px;font-weight:500;color:rgba(255,255,255,.75);text-shadow:0 1px 8px #000}
+  #key span{display:flex;align-items:center;gap:8px}
+  #key svg{height:20px;fill:rgba(255,255,255,.75)}
+  #key .m{color:rgba(255,255,255,.5);flex-basis:100%;justify-content:center}
+  #cr{position:absolute;left:0;right:0;bottom:22px;text-align:center;font-family:Inter,sans-serif;font-size:17px;color:rgba(255,255,255,.38)}
+</style>
+<script src="/nm/gsap/dist/gsap.min.js"></script><script src="/nm/d3/dist/d3.min.js"></script>
+<script type="importmap">{"imports":{"postprocessing":"/nm/postprocessing/build/index.js","three":"/three/build/three.module.js","three/addons/":"/three/examples/jsm/"}}</script>
+</head><body>
+<div id="ov"><div class="w">MOTION</div><div class="h" id="title"></div><div class="s" id="sub"></div></div>
+<div id="scrimT"></div><div id="scrim"></div><div id="hud"><div id="clk"></div><div id="sub2"></div><div id="chart"></div></div>
+<div id="city"><b id="cname"></b><div class="hero"><span id="hn"></span><span id="hu"></span></div><div id="leg"></div><i id="cfact"></i></div>
+<div id="key"><span><svg viewBox="0 0 24 12"><rect x="1" y="2" width="22" height="8" rx="2"/></svg>Bus</span><span><svg viewBox="0 0 34 12"><rect x="1" y="3" width="10" height="6" rx="1.5"/><rect x="12" y="3" width="10" height="6" rx="1.5"/><rect x="23" y="3" width="10" height="6" rx="1.5"/></svg>Train</span><span><svg viewBox="0 0 24 12"><path d="M1 4h18l4 4-4 3H3z"/></svg>Boat</span><span><svg viewBox="0 0 24 24"><path d="M12 1l2 8 9 4v2l-9-2-1 6 3 2v1l-4-1-4 1v-1l3-2-1-6-9 2v-2l9-4z"/></svg>Plane</span><span class="m">Color = transit agency · beam = live position</span></div>
+<div id="cr">© CARTO © OpenStreetMap contributors · Transit agency GTFS-realtime feeds · Amtrak · AIS · ADS-B via Motion gateway</div>
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { EffectComposer as PEC, RenderPass as PRP, EffectPass, BloomEffect, SMAAEffect, VignetteEffect } from 'postprocessing';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+const W = 1080, H = 1920, PLANE = new THREE.Color('#9be1ff'), HEAD = new THREE.Color('#fff4d6'), TAIL = new THREE.Color('#ff3b30'), NRED = new THREE.Color('#ff3b30'), NGRN = new THREE.Color('#38e070'), WHT = new THREE.Color('#ffffff');
+const sm = (x) => { x = Math.min(1, Math.max(0, x)); return x * x * (3 - 2 * x); };
+const seek = (tr, T) => { let lo = 0, hi = tr.length - 1; if (T < tr[0][0]) return -1; if (T >= tr[hi][0]) return hi; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (tr[m][0] <= T) lo = m; else hi = m; } return lo; };
+window.__setup = async (cfg) => {
+  document.getElementById('title').textContent = cfg.title; document.getElementById('sub').textContent = cfg.sub;
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); renderer.setPixelRatio(1); renderer.setSize(W, H); document.body.prepend(renderer.domElement);
+  const scene = new THREE.Scene(); scene.fog = new THREE.Fog(new THREE.Color('#1a2132'), cfg.fogNear ?? 3000, cfg.fogFar ?? 9000);
+  // sky: zenith -> horizon gradient, a sunset glow to the west-southwest, and stars once it's dark
+  const skyU = { uTop: { value: new THREE.Color() }, uHor: { value: new THREE.Color() }, uGlow: { value: new THREE.Color('#ff8a3d') }, uGlowAmt: { value: 0 }, uStars: { value: 0 }, uSun: { value: new THREE.Vector3(-0.93, -0.36, 0.05).normalize() } };
+  scene.add(Object.assign(new THREE.Mesh(new THREE.SphereGeometry(60000, 64, 32), new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite: false, fog: false, uniforms: skyU,
+    vertexShader: `varying vec3 vD; void main(){ vD = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+    fragmentShader: `uniform vec3 uTop; uniform vec3 uHor; uniform vec3 uGlow; uniform float uGlowAmt; uniform float uStars; uniform vec3 uSun; varying vec3 vD;
+      float hash(vec3 p){ return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
+      void main(){ float h = clamp(vD.z, 0.0, 1.0); vec3 c = mix(uHor, uTop, pow(h, 0.5));
+        float s = max(0.0, dot(normalize(vec3(vD.xy, 0.0)), normalize(vec3(uSun.xy, 0.0)))); c += uGlow * uGlowAmt * (pow(s, 5.0) * exp(-h * 7.0) + 0.25 * pow(s, 2.0) * exp(-h * 3.0));
+        vec3 q = floor(vD * 700.0); float st = step(0.9975, hash(q)) * smoothstep(0.05, 0.4, h) * uStars; c += vec3(st * 0.9);
+        gl_FragColor = vec4(c, 1.0); }` })), { renderOrder: -1 }));
+  const SKY = { dayTop: new THREE.Color('#2a3d63'), dayHor: new THREE.Color('#7d8aa3'), nightTop: new THREE.Color('#04060c'), nightHor: new THREE.Color('#1c2033') };
+  const P = cfg.proj, TW = P.w * P.dpr, TH = P.h * P.dpr, Z = 512 * Math.pow(2, P.zoom) * P.dpr;
+  const mx = (lon) => (lon + 180) / 360, my = (lat) => { const r = lat * Math.PI / 180; return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2; };
+  const cx = mx(P.center[0]), cy = my(P.center[1]), toW = (lon, lat) => [(mx(lon) - cx) * Z, -(my(lat) - cy) * Z];
+  const loadTex = async (u) => { const t = await new THREE.TextureLoader().loadAsync(u); t.colorSpace = THREE.SRGBColorSpace; t.generateMipmaps = false; t.minFilter = THREE.LinearFilter; return t; };
+  const feather = (px) => { const c = document.createElement('canvas'); c.width = 64; c.height = 112; const x2 = c.getContext('2d');
+    for (let y = 0; y < 112; y++) for (let x = 0; x < 64; x++) { const a = Math.max(0, Math.min(1, Math.min(x, 63 - x, y * 64 / 112, (111 - y) * 64 / 112) / px)); x2.fillStyle = `rgb(${a * 255 | 0},${a * 255 | 0},${a * 255 | 0})`; x2.fillRect(x, y, 1, 1); }
+    return new THREE.CanvasTexture(c); };
+  const gmat = new THREE.MeshBasicMaterial({ map: await loadTex(cfg.bg), alphaMap: feather(5), transparent: true, depthWrite: false, fog: true, color: new THREE.Color(1.25, 1.25, 1.25) });
+  scene.add(Object.assign(new THREE.Mesh(new THREE.PlaneGeometry(TW, TH), gmat), { renderOrder: 1 }));
+  const apron = new THREE.Mesh(new THREE.PlaneGeometry(TW * 40, TH * 40, 120, 120), new THREE.MeshBasicMaterial({ color: '#2c353c', fog: true })); apron.position.z = -25; scene.add(apron);
+  // sharp city patches, feathered into the regional map
+  const hmats = [];
+  for (const h of cfg.his) { const HP = h.proj, k = Math.pow(2, P.zoom - HP.zoom), m = new THREE.MeshBasicMaterial({ map: await loadTex(h.url), alphaMap: feather(10), transparent: true, depthWrite: false, fog: true, color: new THREE.Color(1.15, 1.15, 1.15) });
+    hmats.push(m); const patch = new THREE.Mesh(new THREE.PlaneGeometry(HP.w * HP.dpr * k, HP.h * HP.dpr * k), m); const [px, py] = toW(...HP.center); patch.position.set(px, py, 0.2); patch.renderOrder = 2; scene.add(patch); }
+  const MAX = 200000, pos = new Float32Array(MAX * 3), col = new Float32Array(MAX * 3), siz = new Float32Array(MAX), alp = new Float32Array(MAX), geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('color', new THREE.BufferAttribute(col, 3)); geo.setAttribute('size', new THREE.BufferAttribute(siz, 1)); geo.setAttribute('alpha', new THREE.BufferAttribute(alp, 1));
+  const pmat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, uniforms: { uD0: { value: 2200 }, uGlow: { value: 0.5 } },
+    vertexShader: `attribute float size; attribute float alpha; attribute vec3 color; uniform float uD0; varying vec3 vC; varying float vA;
+      void main(){ vec4 mv = modelViewMatrix * vec4(position,1.0); float d = -mv.z; vC = color; vA = alpha; gl_PointSize = clamp(size * uD0 / d, 1.5, 40.0); gl_Position = projectionMatrix * mv; }`,
+    fragmentShader: `uniform float uGlow; varying vec3 vC; varying float vA;
+      void main(){ float d = length(gl_PointCoord - 0.5) * 2.0; if (d > 1.0) discard; float core = smoothstep(0.42, 0.16, d); float glow = pow(1.0 - d, 2.6) * uGlow;
+        gl_FragColor = vec4(mix(vC, vec3(1.0), core * 0.35) * (core + glow) * vA, 1.0); }` });
+  const pts = new THREE.Points(geo, pmat); pts.frustumCulled = false; pts.renderOrder = 10; scene.add(pts);
+  // vehicles as vehicles: low-poly bus / train / boat / plane, instanced, in each system's colour, pointed along their real track
+  scene.add(new THREE.HemisphereLight('#e6eef8', '#4a505c', 2.0)); const sunL = new THREE.DirectionalLight('#ffffff', 1.1); sunL.position.set(-0.5, -0.8, 1); scene.add(sunL);
+  const box = (l, w, h, x = 0, z = 0) => new THREE.BoxGeometry(l, w, h).translate(x, 0, z + h / 2);
+  const busG = mergeGeometries([box(1, 0.27, 0.27), box(0.9, 0.29, 0.07, 0, 0.17)]);                                   // body + window band
+  const trainG = mergeGeometries([box(0.95, 0.24, 0.26, -1.0), box(0.95, 0.24, 0.26, 0), box(0.95, 0.24, 0.26, 1.0)]);    // three cars
+  const hullS = new THREE.Shape(); hullS.moveTo(-0.5, -0.17); hullS.lineTo(0.25, -0.17); hullS.lineTo(0.55, 0); hullS.lineTo(0.25, 0.17); hullS.lineTo(-0.5, 0.17); hullS.lineTo(-0.5, -0.17);
+  const boatG = mergeGeometries([new THREE.ExtrudeGeometry(hullS, { depth: 0.1, bevelEnabled: false }).toNonIndexed(), box(0.32, 0.2, 0.14, -0.12, 0.1).toNonIndexed()]);
+  const PV = [], ptri = (a, b, c) => PV.push(...a, ...b, ...c), pf = [[0.55, 0, 0], [-0.5, 0.06, 0], [-0.5, -0.06, 0], [-0.5, 0, 0.07], [-0.5, 0, -0.05]];
+  ptri(pf[0], pf[1], pf[3]); ptri(pf[0], pf[3], pf[2]); ptri(pf[0], pf[2], pf[4]); ptri(pf[0], pf[4], pf[1]);
+  ptri([0.12, 0, 0], [-0.22, 0.52, 0], [-0.3, 0.52, 0]); ptri([0.12, 0, 0], [-0.3, 0.52, 0], [-0.18, 0, 0]); ptri([0.12, 0, 0], [-0.3, -0.52, 0], [-0.22, -0.52, 0]); ptri([0.12, 0, 0], [-0.18, 0, 0], [-0.3, -0.52, 0]);
+  ptri([-0.38, 0, 0], [-0.52, 0.2, 0], [-0.55, 0.2, 0]); ptri([-0.38, 0, 0], [-0.55, -0.2, 0], [-0.52, -0.2, 0]); ptri([-0.36, 0, 0], [-0.55, 0, 0.22], [-0.52, 0, 0]);
+  const planeG = new THREE.BufferGeometry(); planeG.setAttribute('position', new THREE.Float32BufferAttribute(PV, 3)); planeG.computeVertexNormals();
+  const mk = (g, n, basic) => { const m = new THREE.InstancedMesh(g, basic ? new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, fog: true }) : new THREE.MeshLambertMaterial({ fog: true, emissive: new THREE.Color('#2a2a2a') }), n); m.frustumCulled = false; m.renderOrder = 11; m.count = 0; scene.add(m); return m; };
+  const MESH = { bus: mk(busG, 3000), train: mk(trainG, 400), boat: mk(boatG, 900), plane: mk(planeG, 900, true) };
+  const dummy = new THREE.Object3D(); dummy.rotation.order = 'ZYX'; const tmpC = new THREE.Color();
+  // light beams over every vehicle, like the first Boston videos: a line plus a stack of soft glows, bright at the base, fading upward
+  const MAXB = 6000, bpos = new Float32Array(MAXB * 6), bcol = new Float32Array(MAXB * 6), bgeo = new THREE.BufferGeometry();
+  bgeo.setAttribute('position', new THREE.BufferAttribute(bpos, 3)); bgeo.setAttribute('color', new THREE.BufferAttribute(bcol, 3));
+  const beams = new THREE.LineSegments(bgeo, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, fog: true }));
+  beams.frustumCulled = false; beams.renderOrder = 12; scene.add(beams);
+  const cam = new THREE.PerspectiveCamera(38, W / H, 1, 120000);
+  const composer = new PEC(renderer, { frameBufferType: THREE.HalfFloatType }); composer.addPass(new PRP(scene, cam));
+  composer.addPass(new EffectPass(cam, new BloomEffect({ luminanceThreshold: 0.62, luminanceSmoothing: 0.18, intensity: 1.15, mipmapBlur: true, radius: 0.55 }), new SMAAEffect(), new VignetteEffect({ offset: 0.32, darkness: 0.5 })));
+  const KF = cfg.keys.map((k) => ({ ...k, w: toW(...k.at) }));
+  let camD = 1000;
+  const setCam = (fk) => { let i = 0; while (i < KF.length - 2 && fk > KF[i + 1].f) i++;
+    const a = KF[i], b = KF[i + 1], e = sm((fk - a.f) / (b.f - a.f)), L = (p, q) => p + (q - p) * e;
+    const gx = L(a.w[0], b.w[0]), gy = L(a.w[1], b.w[1]), az = L(a.az, b.az) * Math.PI / 180, tilt = L(a.tilt, b.tilt) * Math.PI / 180, d = Math.exp(L(Math.log(a.dist), Math.log(b.dist)));
+    camD = d; cam.position.set(gx + d * Math.sin(tilt) * Math.sin(az), gy - d * Math.sin(tilt) * Math.cos(az), d * Math.cos(tilt)); cam.up.set(0, 0, 1); cam.lookAt(gx, gy, 0);
+    scene.fog.near = d * 2.2; scene.fog.far = d * 7; };
+  // vehicles: each system in its own Motion colour; the MBTA stays a faint backdrop (this video is about everyone else)
+  const TR = cfg.transit, list = [];
+  for (const [k, tr] of Object.entries(TR.tracks)) { const p = TR.props[k]; list.push({ id: k, tr, f: p.f, g: p.g, rail: /commuter|amtrak|rail|subway|red|orange|green|blue/.test(p.g || ''), boat: /vessel|ferry/.test(p.g || ''), mbta: false, bus: p.g === 'bus' || p.g === 'silver', e: !!p.e, c: new THREE.Color(p.c), hist: [], h: 0 }); }
+  const GAP = 600000;
+  const where = (tr, T) => { const j = seek(tr, T); if (j < 0) return null; const a = tr[j]; if (j === tr.length - 1) return T - a[0] < 120000 ? a : null;
+    const c = tr[j + 1], gap = c[0] - a[0]; if (gap > GAP) return T - a[0] < 120000 ? a : null; const u = (T - a[0]) / gap; return [T, a[1] + (c[1] - a[1]) * u, a[2] + (c[2] - a[2]) * u, (a[3] ?? 0) + ((c[3] ?? 0) - (a[3] ?? 0)) * u]; };
+  const PL = Object.values(cfg.planes.tracks).map((tr) => ({ tr, hist: [], h: 0 }));
+  const AZ = cfg.altScale ?? 0.012, altZ = (ft) => ft <= 8000 ? ft * AZ : 8000 * AZ + (ft - 8000) * AZ * 0.3;
+  const DAYMS = 86400000, dfr = (T) => Math.max(0, Math.min(1, (T - cfg.dayStart) / DAYMS));
+  const drawChart = (() => {
+  // d3: one series (MBTA vehicles out) over the two recorded windows, drawn up to the clock as the video plays
+  const CW = 820, CH = 140, CV = cfg.curve, WIN = cfg.windows, GAPW = 0.1, span = WIN.reduce((a, w) => a + w[1] - w[0], 0);
+  const chx = (t) => { let x = 0; for (let i = 0; i < WIN.length; i++) { const [a, b] = WIN[i], w = (1 - GAPW * (WIN.length - 1)) * (b - a) / span; if (t <= b || i === WIN.length - 1) return (x + w * Math.max(0, Math.min(1, (t - a) / (b - a)))) * CW; x += w + GAPW; } return x * CW; };
+  const ymax = d3.max(CV, (r) => r[1]), cy = d3.scaleLinear().domain([0, ymax * 1.08]).range([CH - 24, 30]);
+  const svg = d3.select('#chart').append('svg').attr('width', CW).attr('height', CH);
+  svg.append('text').attr('x', 0).attr('y', 0).attr('dy', -6).attr('fill', 'rgba(255,255,255,.6)').attr('font-size', 20).attr('font-weight', 500).text('');
+  const segs = WIN.map((w) => CV.filter((r) => r[0] >= w[0] && r[0] <= w[1]));
+  const area = d3.area().x((r) => chx(r[0])).y0(cy(0)).y1((r) => cy(r[1])).curve(d3.curveMonotoneX), line = d3.line().x((r) => chx(r[0])).y((r) => cy(r[1])).curve(d3.curveMonotoneX);
+  const clip = svg.append('clipPath').attr('id', 'played').append('rect').attr('x', 0).attr('y', 0).attr('height', CH).attr('width', 0);
+  for (const sg of segs) { svg.append('path').attr('d', line(sg)).attr('fill', 'none').attr('stroke', 'rgba(255,255,255,.22)').attr('stroke-width', 2);
+    svg.append('path').attr('d', area(sg)).attr('fill', 'rgba(154,209,255,.16)').attr('clip-path', 'url(#played)');
+    svg.append('path').attr('d', line(sg)).attr('fill', 'none').attr('stroke', '#fff').attr('stroke-width', 2.5).attr('clip-path', 'url(#played)'); }
+  svg.append('line').attr('x1', 0).attr('x2', CW).attr('y1', cy(0)).attr('y2', cy(0)).attr('stroke', 'rgba(255,255,255,.25)');
+  for (const [ti, t] of cfg.ticks.entries()) svg.append('text').attr('x', chx(t[0])).attr('y', CH - 4).attr('text-anchor', ti === 0 ? 'start' : ti === cfg.ticks.length - 1 ? 'end' : 'middle').attr('fill', 'rgba(255,255,255,.5)').attr('font-size', 17).text(t[1]);
+  const ph = svg.append('circle').attr('r', 6).attr('fill', '#fff').style('filter', 'drop-shadow(0 0 6px #fff)'), pv = svg.append('text').attr('fill', '#fff').attr('font-size', 20).attr('font-weight', 600);
+  svg.append('text').attr('x', CW).attr('y', 14).attr('text-anchor', 'end').attr('fill', 'rgba(255,255,255,.55)').attr('font-size', 18).text('MBTA vehicles out');
+  const curveAt = (T) => { const i = d3.bisector((r) => r[0]).left(CV, T); const a = CV[Math.max(0, i - 1)], b = CV[Math.min(CV.length - 1, i)]; if (!a || !b) return null; if (b[0] - a[0] > 600000) return null; const u = b[0] === a[0] ? 0 : (T - a[0]) / (b[0] - a[0]); return a[1] + (b[1] - a[1]) * Math.max(0, Math.min(1, u)); };
+  window.__curveAt = curveAt;
+  return (T) => { const x = chx(T), v = curveAt(T); clip.attr('width', x); if (v == null) { ph.attr('opacity', 0); pv.attr('opacity', 0); return; }
+    ph.attr('opacity', 1).attr('cx', x).attr('cy', cy(v)); pv.attr('opacity', 1).attr('x', Math.min(x + 12, CW - 50)).attr('y', cy(v) + 26).text(Math.round(v)); };
+  })();
+  // GSAP: label entrances/exits on one paused timeline, seeked to the frame time so every render is identical
+  const tl = gsap.timeline({ paused: true }), EASE = gsap.parseEase('power2.out');
+  for (const st of cfg.stops) { tl.fromTo('#city', { y: 46, opacity: 0 }, { y: 0, opacity: 1, duration: 0.55, ease: 'power3.out', immediateRender: false }, st.f0 / 24);
+    tl.to('#city', { y: -24, opacity: 0, duration: 0.35, ease: 'power2.in' }, st.f1 / 24 - 0.35); }
+  const fmt = (T) => new Date(T).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit' });
+  const notes = (cfg.notes || []).map((n) => { const d = document.createElement('div'); d.className = 'card'; d.innerHTML = `<b>${n.kick}</b><div>${n.text}</div>`; document.body.appendChild(d); return { ...n, d }; });
+  let frameNo = 0; window.__win = [cfg.tmap[0], cfg.tmap[cfg.tmap.length - 1]]; window.__tmap = () => cfg.tmap;
+  window.__frame = async (T, draw, k = 0) => {
+    const fk = Math.max(0, k); if (draw) { setCam(fk); cam.updateMatrixWorld(); }
+    pmat.uniforms.uD0.value = 730 * Math.pow(camD / 800, 0.55); // dots shrink a little as the camera climbs, but stay visible from the regional view
+    const msn = (T - cfg.sunset) / 60000, night = Math.max(sm((msn + 12) / 32), cfg.sunrise ? 1 - sm(((T - cfg.sunrise) / 60000 + 14) / 34) : 0), glow = Math.max(0, 1 - Math.abs(msn + 3) / 24);
+    const am = (cfg.stops || []).reduce((w, s) => s.only ? Math.max(w, (s.only === true ? 1 : s.only) * Math.min(1, (k - s.f0 + 30) / 30, (s.f1 + 30 - k) / 30)) : w, 0), amw = Math.max(0, Math.min(1, am));
+    const WHITE3 = window.__W3 || (window.__W3 = new THREE.Color('#ffffff'));
+    let n = 0, nb = 0; const BEAM = camD * 0.07; const live = {}; const ni = { bus: 0, train: 0, boat: 0, plane: 0 };
+    const MS = camD * 0.012, mv = 1 - sm((camD - 450) / 700); // model size tracks the camera so shapes stay readable; they hand over to glow points from far away
+    const place = (kind, x, y, z, hd, c, sc, pitch = 0) => { const M = MESH[kind]; if (mv <= 0.02 || ni[kind] >= M.instanceMatrix.count) return; dummy.position.set(x, y, z); dummy.rotation.set(0, -pitch, hd); dummy.scale.setScalar(sc * mv);
+      dummy.updateMatrix(); M.setMatrixAt(ni[kind], dummy.matrix); M.setColorAt(ni[kind], tmpC.copy(c).lerp(new THREE.Color('#ffffff'), 0.15)); ni[kind]++; };
+    const heading = (v, tr, T, p) => { const a = where(tr, T - 30000), b = where(tr, T + 30000); if (a && b) { const [ax, ay] = toW(a[1], a[2]), [bx, by] = toW(b[1], b[2]); if (Math.hypot(bx - ax, by - ay) > MS * 0.05) v.h = Math.atan2(by - ay, bx - ax); } return v.h; };
+    const put = (x, y, z, c, s, a) => { if (n >= MAX || a <= 0.003 || !Number.isFinite(x + y + z + s + a)) return; pos[n * 3] = x; pos[n * 3 + 1] = y; pos[n * 3 + 2] = z; col[n * 3] = c.r; col[n * 3 + 1] = c.g; col[n * 3 + 2] = c.b; siz[n] = s; alp[n] = a; n++; };
+    const st = (cfg.stops || []).find((s) => k >= s.f0 && k <= s.f1); let near = 0;
+    const jump = Math.abs(T - (window.__lastT ?? T)) > 15 * 60000; window.__lastT = T;
+    for (const v of list) { if (jump) v.hist.length = 0; const p = v.e && T > v.tr[v.tr.length - 1][0] ? null : where(v.tr, T); if (!p) { v.hist.length = 0; continue; }
+      const isAm = st && st.focus ? v.id === st.focus : v.f === 'amtrak'; if (amw > 0.97 && !isAm) continue; const fade = isAm ? 1 : 1 - amw, vc = isAm && amw > 0 ? v.c.clone().lerp(WHITE3, 0.35 * amw) : v.c;
+      if (st && st.fleets.includes(v.f) && (!st.groups || st.groups.includes(v.g)) && Math.hypot((p[1] - st.at[0]) * 82, (p[2] - st.at[1]) * 111) < st.km) near++;
+      if (fade < 0.02) continue;
+      const [x, y] = toW(p[1], p[2]), s = (v.rail ? 7 : v.boat ? 5 : 3.5) * (isAm ? 1 + 3 * amw : 1), a = (v.mbta ? 0.25 : 1) * fade;
+      { let px = x, py = y; for (let j = 0; j < v.hist.length; j++) { const [hx, hy] = v.hist[j], q = 1 - (j + 1) / (v.hist.length + 1); if (Math.hypot(hx - px, hy - py) < 40) for (let u = 1; u <= 3; u++) { const t3 = u / 3; put(px + (hx - px) * t3, py + (hy - py) * t3, 0.5, vc, s * (0.3 + 0.55 * q), a * (v.bus ? 0.28 : 0.5) * q); } px = hx; py = hy; } }
+      if (!v.mbta && mv > 0.02 && fade > 0.3) { const hd = heading(v, v.tr, T, p), L = MS * (v.rail ? 0.38 : v.boat ? 0.16 : 0.12) * mv, cx2 = Math.cos(hd), sy2 = Math.sin(hd), lz = 0.4 + MS * 0.03 * mv;
+        place(v.rail ? 'train' : v.boat ? 'boat' : 'bus', x, y, 0.4, hd, vc, MS * (v.rail ? 0.25 : v.boat ? 0.33 : 0.16) * (st && st.focus === v.id ? 3.2 : 1));
+        if (night > 0.05) { if (v.boat) { put(x + sy2 * MS * 0.05 * mv, y - cx2 * MS * 0.05 * mv, lz, NRED, 6, night * 1.2); put(x - sy2 * MS * 0.05 * mv, y + cx2 * MS * 0.05 * mv, lz, NGRN, 6, night * 1.2); put(x, y, lz + MS * 0.06 * mv, WHT, 5.5, night); }
+          else { put(x + cx2 * L, y + sy2 * L, lz, HEAD, v.rail ? 8 : 7, night * 1.3); put(x - cx2 * L, y - sy2 * L, lz, TAIL, 5.5, night * 1.1); } } }
+      put(x, y, 0.5 + (v.mbta ? 0 : MS * 0.08 * mv), vc, s * (1 - 0.25 * mv) * (v.mbta ? 1 : 1.25), v.mbta ? a : fade);
+      if (!v.bus && nb < MAXB) { const z0 = 0.5 + MS * 0.08 * mv, BH = BEAM * (v.rail ? 1.6 : v.boat ? 0.7 : 1) * (isAm ? 1 + 0.6 * amw : 1), i = nb * 6;
+        bpos[i] = x; bpos[i + 1] = y; bpos[i + 2] = z0; bpos[i + 3] = x; bpos[i + 4] = y; bpos[i + 5] = z0 + BH; bcol[i] = vc.r * fade; bcol[i + 1] = vc.g * fade; bcol[i + 2] = vc.b * fade; bcol[i + 3] = 0; bcol[i + 4] = 0; bcol[i + 5] = 0; nb++;
+        for (let q = 1; q <= 7; q++) { const h = q / 7; put(x, y, z0 + BH * h, vc, s * (0.7 - 0.35 * h), ((v.rail ? 0.22 : 0.14) * (1 - h) * (1 - h) + 0.008) * fade * (isAm ? 1 + 2.5 * amw : 1)); } } v.hist.unshift([x, y]); if (v.hist.length > 16) v.hist.pop(); }
+    for (const v of PL) { if (jump) v.hist.length = 0; const p = where(v.tr, T); if (!p || amw > 0.97) { v.hist.length = 0; continue; } const [x, y] = toW(p[1], p[2]), z = 0.5 + altZ(p[3]);
+      for (let j = 0; j < v.hist.length; j++) { const q = 1 - (j + 1) / 13; put(v.hist[j][0], v.hist[j][1], v.hist[j][2], PLANE, 6 * (0.4 + 0.5 * q), 0.3 * q); }
+      { const a2 = where(v.tr, T - 20000) || p, b2 = where(v.tr, T + 20000) || p, [ax, ay] = toW(a2[1], a2[2]), [bx, by] = toW(b2[1], b2[2]);
+        if (Math.hypot(bx - ax, by - ay) > MS * 0.05) v.h = Math.atan2(by - ay, bx - ax); const pitch = Math.atan2((altZ(b2[3] ?? 0) - altZ(a2[3] ?? 0)) * 0.35, Math.max(Math.hypot(bx - ax, by - ay), 1e-3));
+        place('plane', x, y, z, v.h, PLANE, MS * 0.55, pitch);
+        if (mv > 0.05) { const wx = -Math.sin(v.h) * MS * 0.28 * mv, wy = Math.cos(v.h) * MS * 0.28 * mv; put(x + wx, y + wy, z, NRED, 3.5, 0.9); put(x - wx, y - wy, z, NGRN, 3.5, 0.9);
+          if ((k + (v.tr.length % 19)) % 24 < 2) put(x, y, z, WHT, 9, 1.3); } }
+      put(x, y, z, PLANE, 5 * (1 - 0.5 * mv), 0.8); if (frameNo % 2 === 0) { v.hist.unshift([x, y, z]); if (v.hist.length > 12) v.hist.pop(); } }
+    frameNo++; if (!draw) return;
+    skyU.uTop.value.copy(SKY.dayTop).lerp(SKY.nightTop, night); skyU.uHor.value.copy(SKY.dayHor).lerp(SKY.nightHor, night); skyU.uGlowAmt.value = 0.95 * glow; skyU.uStars.value = sm((msn - 10) / 25);
+    scene.fog.color.copy(skyU.uHor.value); const g = 1.55 - 0.45 * night; gmat.color.setRGB(g, g, g); for (const m of hmats) m.color.setRGB(g * 0.95, g * 0.95, g * 0.95);
+    geo.setDrawRange(0, n); for (const a of ['position', 'color', 'size', 'alpha']) geo.attributes[a].needsUpdate = true;
+    bgeo.setDrawRange(0, nb * 2); bgeo.attributes.position.needsUpdate = true; bgeo.attributes.color.needsUpdate = true;
+    for (const [kk, M] of Object.entries(MESH)) { M.count = ni[kk]; M.instanceMatrix.needsUpdate = true; if (M.instanceColor) M.instanceColor.needsUpdate = true; }
+    const F0 = cfg.textFrames ?? 96; if (cfg.ovF) { const oo = Math.max(0, Math.min(1, (k - cfg.ovF[0]) / 14, (cfg.ovF[1] - k) / 14)); document.getElementById('ov').style.opacity = oo; document.getElementById('hud').style.opacity = 1 - oo; } else { document.getElementById('ov').style.opacity = 1 - sm((k - F0) / 30); document.getElementById('hud').style.opacity = sm((k - F0 - 10) / 24); }
+    document.getElementById('clk').textContent = fmt(T); drawChart(T); tl.seek(k / 24); document.getElementById('sub2').textContent = cfg.date;
+    // city stop: name + the live count of that city's own system(s)
+    const cityEl = document.getElementById('city');
+    if (st) { const cnt = near; document.getElementById('cname').textContent = st.name; const hn = document.getElementById('hn'); hn.textContent = st.heroText ?? Math.round((st.groups == null && window.__curveAt(T) != null ? window.__curveAt(T) : cnt) * EASE(Math.min(1, (k - st.f0) / 20))); hn.style.display = st.heroText === '' ? 'none' : ''; document.getElementById('hu').textContent = st.unit; if (cityEl.dataset.k !== st.name + st.f0) { cityEl.dataset.k = st.name + st.f0; document.getElementById('leg').innerHTML = (st.leg || []).map(([l, c]) => `<span><i style="background:${c};color:${c}"></i>${l}</span>`).join(''); } document.getElementById('cfact').textContent = st.fact || '';
+      } document.getElementById('scrim').style.opacity = st ? Math.min(1, (k - st.f0) / 10, (st.f1 - k) / 10) : 0;
+    for (const nn of notes) { const a = Math.min(1, (k - nn.f0) / 10, (nn.f1 - k) / 10); nn.d.style.display = a > 0 ? 'block' : 'none'; nn.d.style.opacity = Math.max(0, a); }
+    if (!scene.userData.noCull) { scene.traverse((o) => { o.frustumCulled = false; }); scene.userData.noCull = true; }
+    composer.render(); renderer.getContext().finish();
+  };
+  return true;
+};
+</script></body></html>
