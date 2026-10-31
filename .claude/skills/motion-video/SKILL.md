@@ -5,60 +5,48 @@ description: House style and toolkit for Motion TikTok/IG videos rendered with t
 
 # Motion video style (baseline)
 
-This is the default look for every Motion video, set by "Monday's two rushes" (Boston, Oct 26 2026). Small variations per video are fine. Change the baseline only when the user says so.
+Default for every Motion video. Set by "Just planes" (Logan, Monday Oct 26 2026), which replaced the earlier "Monday's two rushes" baseline. Small variations per video are fine. Change the baseline only when the user says so.
+
+## The one rule
+The animation is the proof. Text tells you where to look and when, nothing else. If the viewer needs a sentence to see the point, the shot is wrong; fix the camera, not the caption.
 
 ## Setup (once per session)
-1. Copy `toolkit/` into a working directory (the scratchpad, e.g. `scratchpad/rec/`) and keep its layout. Scripts use paths relative to that folder: `three/`, `mon/`, `ne/`, `a-ne/`, and `../tiktok/` for outputs.
-2. Run `npm install three@0.160.0 playwright-core postprocessing@6.36.4 gsap@3.12.5 d3@7.9.0` in that directory. The renderer serves `/three/...` and `/nm/<pkg>/...` from its `node_modules`.
+1. Copy `toolkit/` into a working directory (the scratchpad, e.g. `scratchpad/rec/`) and keep its layout. Scripts use paths relative to that folder: `three/`, `pl/`, `mon/`, `ne/`, `a-ne/`, `data/`, `fonts/`, and `../tiktok/` for outputs.
+2. `npm install three@0.160.0 playwright-core postprocessing@6.36.4 gsap@3.12.5 d3@7.9.0` in that directory. The renderer serves `/three/...` and `/nm/<pkg>/...` from `node_modules`, `/fonts/` and any other folder listed in the job's `assets`.
 3. Chromium is pre-installed. The `.cjs` scripts hardcode `/opt/pw-browsers/chromium-1194/...`; fix the path if that version differs (`ls /opt/pw-browsers`).
-4. Map tiles: `node bg.cjs ne/view-X.json ne/bg-X.png ne/bg-X-proj.json`. Run tiles one at a time, since parallel runs time out.
-   - World tile: `view-ne.json`.
-   - City tiles: a wide low-res tile plus a sharp one, both with rail lines drawn (`routeOpacity` 0.9, `lineWidth` 2.2, `noBoundaries`). The Boston examples are `view-boswt.json` and `view-bost.json`.
+4. Map tiles: `node bg.cjs ne/view-X.json ne/bg-X.png ne/bg-X-proj.json`, one at a time. Dark CARTO, no labels, no boundaries, rail lines drawn in their line colours (`routeOpacity` 0.9, `lineWidth` 2.2).
+   - Render base for Boston 3D videos: `view-crowd.json` (zoom 10.2). Sharp patches: `view-day-hi.json` (12.2, the core) and `view-logan-hi.json` (12.6, the airport). Pass the base as the renderer's bg/proj args and the patches as `hi` / `his` in the job.
 
 ## Pipeline
-1. **Record.** `rec-block.sh` (in the original rec folder) writes hour folders `day24/MMDD-HH/` (transit-clean.json, traffic/, extra/planes.jsonl …).
-2. **Prep.** `python3 mon/prep-rush.py OUT day24/MMDD-HH …` writes `OUT-transit.json` and `OUT-planes.json`.
-   - Box is Boston.
-   - MBTA is drawn in full as fleet `mbta-hook`.
-   - Planes are airborne only; on-ground fixes are dropped.
-3. **Clean (always).** `python3 a-ne/clean.py IN OUT`:
-   - Drops frozen-then-leap fixes, zigzags and spikes.
-   - Eases rail and boat speeds.
-   - Splits tracks that are still impossible; split pieces carry `e:1` so they end with no ghost hold.
-   - Speed limits: 110 mph for commuter/Amtrak, 70 mph for subway and bus, 45 mph for boats.
-4. **Count.** `python3 mon/counts.py transit.json curve.json` gives live counts every 2 min on the page's own "present" rule, and feeds the chart and the facts.
-5. **Stops.** Write `mon/stops.json`. Each entry has clock, name, groups (null = all MBTA), unit, km, at, fact, dist, and legKeys.
-6. **Job.** `python3 make-rush.py transit planes curve Y-M-D "label"` writes `job-rush.json`.
-   - Only the clock jumps. A gap of over 3 h with no data is cut mid-flight; never show an empty data gap.
-7. **Render.**
-   - Test stills first: make a job copy with 1-frame slices.
-   - Full render: `NODE_OPTIONS=--max-old-space-size=6144 node three-render.cjs job.json planes.json ne/bg-ne.png ne/bg-ne-proj.json OUTDIR 3`. Loop it; it resumes completed slices.
-8. **Build.** `bash fix-and-build.sh job planes bg proj OUTDIR name` (adds a 3 s end card), then re-encode under 65 MB, e.g. `-crf 21 -maxrate 8M`. Check a contact sheet of frames before sending.
+1. **Record.** `rec-block.sh` writes hour folders `day24/MMDD-HH/` (transit-clean.json, traffic/, extra/planes.jsonl, extra/crowding.jsonl, extra/bikes.jsonl …). See the recording rules below.
+2. **Prep.** One small script per layer, per day:
+   - Planes: `python3 pl/prep-planes-day.py MMDD pl/planes.json` (tracks + every landing/takeoff as an event; prints the counts you may quote).
+   - Rail background: `python3 pl/prep-rail-day.py MMDD pl/rail.json` (subway + commuter rail, cleaned).
+   - Boston rush (buses, boats, everything): `python3 mon/prep-rush.py OUT day24/MMDD-HH …` then `python3 a-ne/clean.py IN OUT`.
+3. **Clean (always).** `a-ne/clean.py` drops frozen-then-leap fixes, zigzags and spikes, eases rail and boat speeds, splits tracks that are still impossible (split pieces carry `e:1`). Limits: 110 mph commuter/Amtrak, 70 mph subway and bus, 45 mph boats.
+4. **Shot list first.** Write it as a table (video seconds, clock, camera, the one line) and get it approved before rendering anything. `make-planes.py` is the template: `segs` map video seconds to the clock, `keys` are camera keyframes, `lines` are the captions.
+5. **Job.** `python3 make-planes.py` writes `job-planes.json`; `python3 make-planes.py 30,700,1300` writes a 1-frame-per-slice test job.
+6. **Render.** Test stills first, always, and look at them on a contact sheet. Full render: `NODE_OPTIONS=--max-old-space-size=6144 node three-render.cjs job.json pl/planes.json ne/bg-crowd.png ne/bg-crowd-proj.json OUTDIR 3`, looped so it resumes finished slices. Run it as a tracked background job.
+7. **Build.** `bash fix-and-build.sh job planes bg proj OUTDIR name` (repairs dropped frames, adds the 3 s end card), then re-encode under 65 MB (`-crf 22 -maxrate 7M`). Check a contact sheet of the finished file before sending.
 
 ## Look (do not drift from this)
-- **Rendering:** three.js 0.160. Post effects come from pmndrs `postprocessing`:
-  - BloomEffect: threshold 0.62, smoothing 0.18, intensity 1.15, mipmapBlur, radius 0.55.
-  - SMAA anti-aliasing.
-  - Vignette: offset 0.32, darkness 0.5.
-  - The glow covers only bright parts; no haze.
-- **Map:** dark CARTO, no boundaries, rail lines on the ground in their line colors, map brightness 1.55 by day.
-- **Vehicles:** small. Models are rail 0.25, boat 0.33, bus 0.16 × MS (MS = camD × 0.012).
-  - Buses get a model plus a small dot, and no beam.
-  - Rail and boats get a short beam (camD × 0.07) with 7 glow dots.
-  - Long-exposure trails, 16 frames, cleared on clock jumps.
-  - Planes are small, airborne only.
-- **Color:** each agency's or line's real color. Focus states brighten the vehicle's own color and never recolor it.
-- **Text (Inter):**
-  - Small place name.
-  - One hero number (132 px): GSAP counts it up, then it follows the live count. Whole-system stops use the chart's value so the two always match.
-  - The unit in secondary ink.
-  - A color key: swatch plus name, with text in neutral ink.
-  - One fact line.
-  - Scrims behind the text at the top and bottom.
-- **Chart:** a d3 live line and area chart of the main count under the clock. It draws up to the current time, with a dot plus the value, gaps between recorded windows, and headroom so the value never hits the title.
-- **Legend:** always on at the bottom. Bus / Train / Boat / Plane shapes, plus "Color = transit agency · beam = live position".
-- **Motion:** one continuous camera that lowers and orbits at each stop (tilt about 66–69); GSAP label entrances on a paused timeline seeked to frame/24, so renders are deterministic.
-- **Format:** 1080×1920 at 24 fps, about 60 s unless the user asks otherwise.
+- **Rendering:** three.js 0.160, `three/planes.html` as the base page (the older `rush.html` and `day.html` are kept for reference). UnrealBloom 0.36 / threshold 0.6, fog, sky dome.
+- **One continuous camera.** Only the clock jumps, and when it jumps the line says so ("Nothing recorded between nine and three"). Never show an empty data gap.
+- **Light follows the real sun.** The page computes Boston's solar position from the clock: long shadows at 6 am, short at noon, sunset glow, none after dark.
+- **Buildings and shadows.** `data/boston-massing.json` (downtown, from the lab repo's boston-massing model) plus `data/airport-bld.json` (Logan terminals), extruded at 1.8× height, casting shadows on the ground and on each other. Logan runways and footprint from `data/airport.json`; runways light up in the colour of the plane using them.
+- **Vehicles:** small. Planes amber when landing, teal when taking off, grey when passing over, with an altitude beam and a long contrail. Rail in its line colours, dimmed to about half when it is background. Buses get a model plus a dot and no beam.
+- **Text, and the limit is strict:** the clock top-left and one short line bottom-left. Nothing else on the frame: no title card, no kicker, no hero number, no chart, no colour key, no legend, no fact card, no pins unless the camera is following that one thing.
+  - Clock and date: IBM Plex Mono, lowercase (`6:01 am`, `monday, october 26`).
+  - The line: IBM Plex Serif Medium, 38 px, left-aligned, thin dark edge, no glow.
+  - Credit: 14 px Plex Mono, bottom-left, lowercase.
+  - Fonts ship in `toolkit/fonts/`; never fall back to Inter or a system sans.
+- **Voice of the lines:** written like a person, specific, no colons, no middle dots, no "X: Y" stat phrasing, no closing question. Numbers in words where they read better ("Before seven, 31 planes left and 11 came in."). Every number is verified first (below).
+- **End card:** 3 s, blurred last frame, "MOTION Boston" in Plex Mono. No "link in bio", no portfolio line.
+- **Format:** 1080×1920 at 24 fps, 65 s including the end card, under 65 MB.
+- **Series shape:** one subject per video (just planes, just the MBTA, commuter rail, regional buses, boats), plus the occasional story video (a comparison, the week's oddities). Charts and summaries are not videos; they go in the caption or a carousel.
+
+## Avoiding the "Claude format"
+Viewers recognise the defaults. Do not use: Inter or any system sans; letter-spaced uppercase kickers; glowing white text; translucent cards with a coloured label; centred hero numbers; charts over the map; middle dots between facts; "Here's what the data caught"; a question as the last line; "Link in bio". Prefer: one unusual type pairing (mono clock, serif line), lowercase, specific sentences, and silence.
 
 ## Recording rules (non-negotiable)
 - Start every recording block as a tracked background job (the Bash tool with `run_in_background`).
@@ -68,12 +56,11 @@ This is the default look for every Motion video, set by "Monday's two rushes" (B
 - If a check-in fires late, start the hour right away with `rec-block.sh resume`, and log the gap in the plan.
 
 ## Truth rules (non-negotiable)
-- Every on-screen number and every caption stat is computed from the recorded data with the same counting rule the page uses, and checked before use. If two methods disagree, soften the wording (e.g. "rush" instead of "peak").
-- Check feed coverage before calling anything verified. Known traps:
-  - Regional feeds were missing 2–3 PM on Thu 10/22.
-  - Bus and train speed values are unreliable; don't publish speed stats.
-  - Plane coverage is Boston-centric.
-- Weather only from official sources (NWS CLI / IEM METARs), and only if asked. A wrong weather claim already cost the user publicly.
+- Every on-screen number and every caption stat is computed from the recorded data with the same counting rule the prep script prints, and checked before use. If two methods disagree, soften the wording.
+- Say what was not recorded. A clock jump over a gap gets a line.
+- Check feed coverage before calling anything verified. Known traps: regional feeds were missing 2–3 PM on Thu 10/22; bus and train speed values are unreliable, don't publish speed stats; plane coverage is Boston-centric; Friday 10/30 evening has two gaps.
+- Weather only from official sources (NWS CLI / IEM METARs), and only if asked.
+- Causes need two outside sources or they are cut.
 
 ## Captions
-Short hook line, then 3–5 bullets that match exactly what's on screen, then a question to drive comments, then hashtags. Don't add stats the video doesn't show. Proofread the hashtags.
+Short hook line, then 3–5 bullets with the numbers the video earned (the per-hour counts, the wind, the gaps), then hashtags. Don't add stats the video doesn't show the proof for. Proofread the hashtags.
