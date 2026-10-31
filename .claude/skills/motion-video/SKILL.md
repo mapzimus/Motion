@@ -60,6 +60,13 @@ This is the default look for every Motion video, set by "Monday's two rushes" (B
 - **Motion:** one continuous camera that lowers and orbits at each stop (tilt about 66–69); GSAP label entrances on a paused timeline seeked to frame/24, so renders are deterministic.
 - **Format:** 1080×1920 at 24 fps, about 60 s unless the user asks otherwise.
 
+## Recording rules (non-negotiable)
+- Start every recording block as a tracked background job (the Bash tool with `run_in_background`).
+- Never use `setsid`, `nohup`, `&` or any other detached process. In a cloud session the container may stop while the session is idle unless a tracked job is running, and that kills detached processes mid-hour. On Fri 10/30 this lost 4:10–5:00 and 6:10–7:00 PM.
+- A tracked job lives at most 2 hours, so launch each block no more than about 1 hour before its start time.
+- Never change a recording setup that works during a live capture. Test any change on a throwaway block first.
+- If a check-in fires late, start the hour right away with `rec-block.sh resume`, and log the gap in the plan.
+
 ## Truth rules (non-negotiable)
 - Every on-screen number and every caption stat is computed from the recorded data with the same counting rule the page uses, and checked before use. If two methods disagree, soften the wording (e.g. "rush" instead of "peak").
 - Check feed coverage before calling anything verified. Known traps:
