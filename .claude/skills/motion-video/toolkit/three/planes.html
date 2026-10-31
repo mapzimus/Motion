@@ -175,7 +175,9 @@ window.__setup = async (cfg) => {
     const c = tr[j + 1], gap = c[0] - a[0]; if (gap > GAP) return T - a[0] < 45000 ? a : null; if (gap > 180000 || Math.hypot(c[1] - a[1], c[2] - a[2]) > 0.4) return a;
     const p0 = tr[j - 1] || a, p3 = tr[j + 2] || c, u = (T - a[0]) / gap, u2 = u * u, u3 = u2 * u;
     const cr = (q0, q1, q2, q3) => 0.5 * ((2 * q1) + (-q0 + q2) * u + (2 * q0 - 5 * q1 + 4 * q2 - q3) * u2 + (-q0 + 3 * q1 - 3 * q2 + q3) * u3);
-    return [T, cr(p0[1], a[1], c[1], p3[1]), cr(p0[2], a[2], c[2], p3[2]), Math.max(0, a[3] + (c[3] - a[3]) * u), a[4] && c[4]]; };
+    let br = -1; if (a[5] >= 0 && c[5] >= 0) { let d = ((c[5] - a[5] + 540) % 360) - 180; br = (a[5] + d * u + 360) % 360; } else br = a[5] >= 0 ? a[5] : (c[5] ?? -1);
+    return [T, cr(p0[1], a[1], c[1], p3[1]), cr(p0[2], a[2], c[2], p3[2]), Math.max(0, a[3] + (c[3] - a[3]) * u), a[4] && c[4], br]; };
+  const yaw = (p, fallback) => (p[5] >= 0 ? Math.PI / 2 - p[5] * Math.PI / 180 : fallback);
   // Logan: footprint, lit runways (glow in the colour of the plane using them), label
   const AP = cfg.airport, rwys = [], RW0 = new THREE.Color('#5d6672'), EDGE = new THREE.Color('#ffe2b0'), GREEN = new THREE.Color('#59e08a');
   const MPU = (() => { const [ax] = toW(-71, 42.36), [bx] = toW(-70.99, 42.36); return 0.01 * 111320 * Math.cos(42.36 * Math.PI / 180) / (bx - ax); })();
@@ -228,7 +230,7 @@ window.__setup = async (cfg) => {
       const [x, y] = toW(p[1], p[2]), z = 2 + altZ(p[3]), size = (over ? 12 : 30) * S, ta = (over ? 0.22 : 0.6) * pw;
       if (p[4] || p[3] < 50) { v.hist.length = 0; if (over && pw < 0.6) continue; put(x, y, 1.5, vc, size * 0.3, 0.22 * pw);
         const ga = pwhere(v.tr, T - 15000) || p, gb = pwhere(v.tr, T + 15000) || p, [gx0, gy0] = toW(ga[1], ga[2]), [gx1, gy1] = toW(gb[1], gb[2]);
-        if (Math.hypot(gx1 - gx0, gy1 - gy0) > 1.5 * S && ni < 800) { const sc = (over ? 5 : 8) * S; dummy.position.set(x, y, 1.5); dummy.rotation.set(0, 0, Math.atan2(gy1 - gy0, gx1 - gx0)); dummy.scale.set(sc, sc, sc);
+        if (Math.hypot(gx1 - gx0, gy1 - gy0) > 1.5 * S && ni < 800) { const sc = (over ? 5 : 8) * S; dummy.position.set(x, y, 1.5); dummy.rotation.set(0, 0, yaw(p, Math.atan2(gy1 - gy0, gx1 - gx0))); dummy.scale.set(sc, sc, sc);
           dummy.updateMatrix(); planes.setMatrixAt(ni, dummy.matrix); planes.setColorAt(ni, tint(vc).multiplyScalar(pw)); ni++; }
         continue; }
       if (Math.abs(x) < TW / 2 && Math.abs(y) < TH / 2) air++;
@@ -236,10 +238,10 @@ window.__setup = async (cfg) => {
       for (let j = 0; j < v.hist.length; j++) { const q = 1 - (j + 1) / (PTRAIL + 1), h = v.hist[j], fj = (over ? 0.4 : 0.95) * pw * q * q; seg(prev, h, vc, fp, fj); prev = h; fp = fj; if (j % 2 === 1) put(h[0], h[1], h[2], vc, size * (0.25 + 0.35 * q), ta * 0.6 * q); }
       const near = draw ? sm((camP.distanceTo(tmpV.set(x, y, z)) - 140 * S) / (220 * S)) : 1;
       put(x, y, z, vc, size * 0.75, (over ? 0.4 : 0.9) * near * pw);
-      const pa = pwhere(v.tr, T - 20000) || p, pb = pwhere(v.tr, T + 20000) || p, [ax, ay] = toW(pa[1], pa[2]), [bx, by] = toW(pb[1], pb[2]), hd = Math.atan2(by - ay, bx - ax);
-      const hz = Math.hypot(bx - ax, by - ay), pitch = Math.atan2((altZ(pb[3]) - altZ(pa[3])) * 0.35, Math.max(hz, 1)), pc = pwhere(v.tr, T + 40000) || pb, [cx2, cy2] = toW(pc[1], pc[2]);
-      let turn = Math.atan2(cy2 - by, cx2 - bx) - hd; while (turn > Math.PI) turn -= 2 * Math.PI; while (turn < -Math.PI) turn += 2 * Math.PI;
-      if (hz > 2 * S && ni < 800 && near > 0.02) { const sc = (over ? 10 : 21) * S * near; dummy.position.set(x, y, z); dummy.rotation.set(Math.max(-0.6, Math.min(0.6, -turn * 1.6)), -pitch, hd); dummy.scale.set(sc, sc, sc);
+      const pa = pwhere(v.tr, T - 40000) || p, pb = pwhere(v.tr, T + 40000) || p, [ax, ay] = toW(pa[1], pa[2]), [bx, by] = toW(pb[1], pb[2]), hd = yaw(p, Math.atan2(by - ay, bx - ax));
+      const hz = Math.hypot(bx - ax, by - ay), pitch = Math.max(-0.3, Math.min(0.3, Math.atan2((altZ(pb[3]) - altZ(pa[3])) * 0.3, Math.max(hz, 1))));
+      let turn = yaw(pb, Math.atan2(by - ay, bx - ax)) - yaw(pa, hd); while (turn > Math.PI) turn -= 2 * Math.PI; while (turn < -Math.PI) turn += 2 * Math.PI;
+      if (hz > 2 * S && ni < 800 && near > 0.02) { const sc = (over ? 10 : 21) * S * near; dummy.position.set(x, y, z); dummy.rotation.set(Math.max(-0.45, Math.min(0.45, -turn * 1.1)), -pitch, hd); dummy.scale.set(sc, sc, sc);
         dummy.updateMatrix(); planes.setMatrixAt(ni, dummy.matrix); planes.setColorAt(ni, tint(vc).multiplyScalar((over ? 0.6 : 1) * pw)); ni++; }
       if (!over && (k + v.ph) % 24 < 2) put(x, y, z, WHITE, size * 0.55, 1.2 * pw);
       if (!over && z > 6 * S && nl < MAXL) { const i = nl * 6; lpos[i] = x; lpos[i + 1] = y; lpos[i + 2] = z; lpos[i + 3] = x; lpos[i + 4] = y; lpos[i + 5] = 0.5;

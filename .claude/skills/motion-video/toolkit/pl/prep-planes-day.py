@@ -12,7 +12,7 @@ for f in sorted(glob.glob(f'day24/{DAY}-*/extra/planes.jsonl')):
         for a in s['d']:
             if a.get('altitudeFeet') is None and not a.get('onGround'): continue
             t = int(datetime.fromisoformat(a['updatedAt'].replace('Z', '+00:00')).timestamp() * 1000)
-            fix[a['id']][t] = [t, round(a['lng'], 5), round(a['lat'], 5), 0 if a.get('onGround') else max(0, a['altitudeFeet'] or 0), 1 if a.get('onGround') else 0]
+            fix[a['id']][t] = [t, round(a['lng'], 5), round(a['lat'], 5), 0 if a.get('onGround') else max(0, a['altitudeFeet'] or 0), 1 if a.get('onGround') else 0, round(a['bearing'], 1) if a.get('bearing') is not None else -1]
 gnd = lambda p: km(p) < 4 and (p[4] or p[3] <= 50); air = lambda p: not p[4] and p[3] >= 400
 pt, ev = {}, []
 for k, dd in fix.items():
