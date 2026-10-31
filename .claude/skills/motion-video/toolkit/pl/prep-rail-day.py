@@ -1,14 +1,14 @@
 # One day of MBTA rail (subway, Mattapan, commuter rail) as a background layer, cleaned and thinned to 30 s.
-# usage: python3 pl/prep-rail-day.py MMDD out.json   (needs a-ne/clean.py)
+# usage: python3 pl/prep-rail-day.py MMDD out.json [groups]   e.g. groups ferry,vessel for boats (needs a-ne/clean.py)
 import glob, json, collections, subprocess, sys
-DAY, OUT = sys.argv[1], sys.argv[2]; RAIL = {'red', 'orange', 'blue', 'green', 'mattapan', 'commuter'}
+DAY, OUT = sys.argv[1], sys.argv[2]; GROUPS = set(sys.argv[3].split(',')) if len(sys.argv) > 3 else {'red', 'orange', 'blue', 'green', 'mattapan', 'commuter'}
 tracks, props = collections.defaultdict(dict), {}
 for f in sorted(glob.glob(f'day24/{DAY}-*/transit-clean.json')):
     d = json.load(open(f))
     for k, tr in d['tracks'].items():
         p = d['props'].get(k) or {}
-        if p.get('legendKey') != 'mbta' or p.get('group') not in RAIL: continue
-        props[k] = {'g': p['group'], 'r': p.get('route'), 'f': 'mbta'}
+        if p.get('group') not in GROUPS or (p.get('legendKey') != 'mbta' and p.get('group') not in ('vessel', 'ferry')): continue
+        props[k] = {'g': p['group'], 'r': p.get('route'), 'f': p.get('legendKey'), 'n': p.get('title') if p.get('group') in ('vessel', 'ferry') else None}
         for q in tr: tracks[k][q[0]] = [q[0], round(q[1], 5), round(q[2], 5)]
 raw = {k: [d[t] for t in sorted(d)] for k, d in tracks.items() if len(d) > 1}
 json.dump({'props': {k: props[k] for k in raw}, 'tracks': raw}, open(OUT + '.raw', 'w'), separators=(',', ':'))

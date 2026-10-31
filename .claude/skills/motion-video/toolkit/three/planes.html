@@ -214,7 +214,7 @@ window.__setup = async (cfg) => {
       v.last = null; const ll = where(v.tr, T); if (!ll) { v.hist.length = 0; continue; }
       const [x, y] = toW(ll[0], ll[1]), fa = Math.max(0, Math.min(1, ll[2])); if (v.g !== 'amtrak' && fa > 0.5) live++;
       const lvl = lvlAt(v.cs, T); if (lvl >= 2) crowded++;
-      tmpC.copy(v.c); let s = v.rail ? 6.5 : 3.6, a = (v.rail ? 0.85 : 0.5) * fa;
+      const boat = v.g === 'ferry' || v.g === 'vessel'; tmpC.copy(v.c); let s = boat ? 8 : v.rail ? 6.5 : 3.6, a = (boat ? 0.8 : v.rail ? 0.85 : 0.5) * fa;
       if (cw > 0.01) { const cc = lvl < 0 ? CC[0] : CC[lvl], cs = lvl < 0 ? 3.5 : [4, 5.5, 8, 10][lvl], ca = lvl < 0 ? 0.25 : [0.4, 0.65, 1, 1][lvl];
         tmpC.lerp(cc, cw); s += (cs - s) * cw; a += (ca * fa - a) * cw; }
       a *= tw; s *= S; const HL = v.hl && v.hl.some((w) => T >= w[0] && T <= w[1]); if (HL) { tmpC.set('#ffe94a'); s = Math.max(s, 9 * S); a = 1; } v.last = [x, y, fa];
