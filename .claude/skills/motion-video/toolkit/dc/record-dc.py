@@ -1,7 +1,8 @@
 # DC day recorder: polls the feeds directly and appends JSON lines per hour folder.
 # usage: python3 record-dc.py OUTDIR SECONDS   (run as a tracked background job, one call per block)
 # Feeds: WMATA rail + bus GTFS-rt (key injected by the network proxy as the api_key header),
-# Motion gateway region=washington (MARC, VRE, DASH, Fairfax Connector), ADSB.lol planes, Capital Bikeshare GBFS.
+# Motion gateway region=washington (MARC, VRE, DASH, Fairfax Connector), ADSB.lol planes (helicopters included), Capital Bikeshare
+# GBFS (docks + dockless e-bikes), Lime DC GBFS (vehicle ids rotate: counts and density only, no trips), Amtrak via amtraker.
 import json, os, sys, time, urllib.request
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -23,7 +24,17 @@ def planes():
 def bikes():
     d = json.loads(get('https://gbfs.lyft.com/gbfs/1.1/dca-cabi/en/station_status.json'))
     return [[s['station_id'], s.get('num_bikes_available'), s.get('num_ebikes_available', 0), s.get('is_renting')] for s in d['data']['stations']]
-JOBS = [('rail', lambda: gtfsrt('rail'), 15), ('bus', lambda: gtfsrt('bus'), 20), ('regional', regional, 30), ('planes', planes, 10), ('bikes', bikes, 120)]
+def lime():
+    d = json.loads(get('https://data.lime.bike/api/partners/v2/gbfs/washington_dc/free_bike_status'))
+    return [[round(b['lat'], 5), round(b['lon'], 5), b.get('vehicle_type_id'), b.get('is_disabled'), b.get('is_reserved')] for b in d['data']['bikes']]
+def cabi_free():
+    d = json.loads(get('https://gbfs.lyft.com/gbfs/1.1/dca-cabi/en/free_bike_status.json'))
+    return [[round(b['lat'], 5), round(b['lon'], 5), b.get('is_disabled'), b.get('is_reserved')] for b in d['data']['bikes']]
+def amtrak():
+    d = json.loads(get('https://api-v3.amtraker.com/v3/trains'))
+    return [[t.get('trainID'), t.get('lon'), t.get('lat'), t.get('routeName'), t.get('heading'), t.get('velocity'), t.get('lastValTS')] for v in d.values() for t in v
+            if t.get('lat') and 37.5 < t['lat'] < 40.5 and -78.5 < t['lon'] < -75.5]
+JOBS = [('rail', lambda: gtfsrt('rail'), 15), ('bus', lambda: gtfsrt('bus'), 20), ('regional', regional, 30), ('planes', planes, 10), ('bikes', bikes, 120), ('lime', lime, 120), ('cabi_free', cabi_free, 120), ('amtrak', amtrak, 30)]
 last = {k: 0 for k, _, _ in JOBS}; t_end = time.time() + DUR; errs = {}
 while time.time() < t_end:
     now = time.time()
