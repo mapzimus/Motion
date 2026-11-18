@@ -35,6 +35,9 @@ async function slice({ p, Tof }, s, i) {
     if ((f - s.f0) % 60 === 0) console.log(`s${i} ${f - s.f0}/${s.f1 - s.f0} ${new Date().toISOString()}`);
   }
 }
+if (process.env.PROJ) { (async () => { const pts = JSON.parse(fs.readFileSync(process.env.PROJ, 'utf8')); const w = await open(); const out = [];
+  for (let f = 0; f < job.total; f += 500) out.push(...await w.p.evaluate(([a, b, q]) => window.__projectAll(a, b, q), [f, Math.min(job.total, f + 500), pts.map((x) => x.at)]));
+  fs.writeFileSync(`${outDir}/labels-proj.json`, JSON.stringify(out)); console.log('PROJ-DONE', out.length); await w.b.close(); })(); } else
 (async () => {
   const q = job.slices.map((s, i) => [s, i]); let next = 0;
   await Promise.all(Array.from({ length: +par }, async () => {
