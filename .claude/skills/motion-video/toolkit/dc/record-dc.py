@@ -19,8 +19,11 @@ def regional():
     d = json.loads(get('https://motion-gateway.mapzimus.workers.dev/api/transit?region=washington'))
     return [[v['id'], v['lng'], v['lat'], v.get('route'), v.get('feed'), v.get('bearing'), v.get('updatedAt')] for v in d['vehicles'] if not v['feed'].startswith('wmata')]
 def planes():
-    d = json.loads(get('https://api.adsb.lol/v2/point/38.89/-77.03/60'))
-    return [[a.get('hex'), a.get('lon'), a.get('lat'), a.get('alt_baro'), a.get('track'), a.get('gs'), (a.get('flight') or '').strip(), a.get('t'), a.get('seen_pos')] for a in d.get('ac', []) if a.get('lat')]
+    try:
+        ac = json.loads(get('https://api.adsb.lol/v2/point/38.89/-77.03/60')).get('ac', [])
+    except Exception:  # adsb.lol rate-limits (429); same readsb fields from adsb.fi
+        ac = json.loads(get('https://opendata.adsb.fi/api/v2/lat/38.89/lon/-77.03/dist/60')).get('aircraft', [])
+    return [[a.get('hex'), a.get('lon'), a.get('lat'), a.get('alt_baro'), a.get('track'), a.get('gs'), (a.get('flight') or '').strip(), a.get('t'), a.get('seen_pos')] for a in ac if a.get('lat')]
 def bikes():
     d = json.loads(get('https://gbfs.lyft.com/gbfs/1.1/dca-cabi/en/station_status.json'))
     return [[s['station_id'], s.get('num_bikes_available'), s.get('num_ebikes_available', 0), s.get('is_renting')] for s in d['data']['stations']]
