@@ -66,13 +66,31 @@ for k, d in fix.items():
     for i, t in enumerate(ts):
         if t - last >= 20000 or i == len(ts) - 1 or ts[i + 1] - t > 300000: tr.append(d[t]); last = t
     if len(tr) > 1: P[k] = tr
-json.dump({'props': {k: pprops[k] for k in P}, 'tracks': P}, open(f'{out}-planes.json', 'w'), separators=(',', ':'))
-print('aircraft', len(P))
+# landings / takeoffs: a ground <-> air change within 4 km of an airport (same rule as the Logan video)
+APT = {'DCA': (-77.0377, 38.8512), 'IAD': (-77.4565, 38.9445), 'BWI': (-76.6684, 39.1754)}
+near = lambda q: next((a for a, (lo, la) in APT.items() if abs(q[1] - lo) * 86.6 < 4 and abs(q[2] - la) * 111.2 < 4), None)
+EV = []
+for k, tr in P.items():
+    for a, b in zip(tr, tr[1:]):
+        if b[0] - a[0] > 300000 or a[4] == b[4]: continue
+        ap = near(b) or near(a)
+        if ap: EV.append(['arr' if b[4] else 'dep', b[0], [b[1], b[2]], k, ap])
+EV.sort(key=lambda e: e[1])
+json.dump({'props': {k: pprops[k] for k in P}, 'tracks': P, 'events': EV}, open(f'{out}-planes.json', 'w'), separators=(',', ':'))
+print('aircraft', len(P), 'events', collections.Counter((e[4], e[0]) for e in EV))
 # Capital Bikeshare docks: station positions + bikes docked, every snapshot (2 min)
 si = json.loads(urllib.request.urlopen('https://gbfs.lyft.com/gbfs/1.1/dca-cabi/en/station_information.json', timeout=30).read())
-ST = {s['station_id']: [round(s['lon'], 5), round(s['lat'], 5)] for s in si['data']['stations']}
-snaps = [[t, {sid: nb for sid, nb, ne, ok in d if sid in ST}] for h in hours for t, d in rows(h, 'bikes')]
-json.dump({'stations': ST, 'snaps': snaps}, open(f'{out}-bikes.json', 'w'), separators=(',', ':'))
+SI = [s for s in si['data']['stations'] if inb(s['lon'], s['lat'])]; IX = {s['station_id']: i for i, s in enumerate(SI)}
+snaps = []
+for h in hours:
+    for t, d in rows(h, 'bikes'):
+        row = [-1] * len(SI)
+        for sid, nb, ne, ok in d:
+            if sid in IX and ok: row[IX[sid]] = nb
+        snaps.append([t, row])
+json.dump({'stations': [[round(s['lon'], 5), round(s['lat'], 5), s.get('capacity', 0)] for s in SI], 'ids': [s['station_id'] for s in SI], 'names': [s['name'] for s in SI], 'snaps': snaps},
+          open(f'{out}-bikes.json', 'w'), separators=(',', ':'))
+ST = SI
 lime = [[t, [[r[1], r[0]] for r in d if not r[3]]] for h in hours for t, d in rows(h, 'lime')]
 json.dump(lime, open(f'{out}-lime.json', 'w'), separators=(',', ':'))
 print('bike snaps', len(snaps), 'stations', len(ST), 'lime snaps', len(lime))
