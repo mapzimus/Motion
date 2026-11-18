@@ -91,6 +91,9 @@ for h in hours:
 json.dump({'stations': [[round(s['lon'], 5), round(s['lat'], 5), s.get('capacity', 0)] for s in SI], 'ids': [s['station_id'] for s in SI], 'names': [s['name'] for s in SI], 'snaps': snaps},
           open(f'{out}-bikes.json', 'w'), separators=(',', ':'))
 ST = SI
-lime = [[t, [[r[1], r[0]] for r in d if not r[3]]] for h in hours for t, d in rows(h, 'lime')]
+lime, lt = [], -1e15  # one snapshot per 10 min is plenty for a density layer (IDs rotate, so no trips anyway)
+for h in hours:
+    for t, d in rows(h, 'lime'):
+        if t - lt >= 600000: lime.append([t, [[round(r[1], 4), round(r[0], 4)] for r in d if not r[3]]]); lt = t
 json.dump(lime, open(f'{out}-lime.json', 'w'), separators=(',', ':'))
 print('bike snaps', len(snaps), 'stations', len(ST), 'lime snaps', len(lime))

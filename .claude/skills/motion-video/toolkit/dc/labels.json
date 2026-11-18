@@ -1,0 +1,22 @@
+[
+ {"t":"wp","label":"Capitol","at":[-77.0091,38.8899]},
+ {"t":"wp","label":"White House","at":[-77.0365,38.8977]},
+ {"t":"wp","label":"Washington Monument","at":[-77.0352,38.8895]},
+ {"t":"wp","label":"Lincoln Memorial","at":[-77.0502,38.8893]},
+ {"t":"wp","label":"Pentagon","at":[-77.0558,38.8719]},
+ {"t":"wp","label":"Union Station","at":[-77.0063,38.8973]},
+ {"t":"wp","label":"Reagan National","at":[-77.0410,38.8520]},
+ {"t":"hood","label":"Georgetown","at":[-77.0654,38.9097]},
+ {"t":"hood","label":"Capitol Hill","at":[-76.9960,38.8870]},
+ {"t":"hood","label":"Navy Yard","at":[-77.0030,38.8760]},
+ {"t":"hood","label":"Anacostia","at":[-76.9850,38.8630]},
+ {"t":"hood","label":"Dupont Circle","at":[-77.0434,38.9096]},
+ {"t":"hood","label":"Columbia Heights","at":[-77.0300,38.9280]},
+ {"t":"hood","label":"Rosslyn","at":[-77.0717,38.8960]},
+ {"t":"hood","label":"Crystal City","at":[-77.0510,38.8570]},
+ {"t":"hood","label":"Old Town Alexandria","at":[-77.0470,38.8048]},
+ {"t":"hood","label":"Silver Spring","at":[-77.0261,38.9907]},
+ {"t":"hood","label":"Bethesda","at":[-77.0947,38.9847]},
+ {"t":"boro","label":"VIRGINIA","at":[-77.1500,38.8500]},
+ {"t":"boro","label":"MARYLAND","at":[-76.9300,38.9600]}
+]
