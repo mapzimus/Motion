@@ -80,11 +80,15 @@ window.__setup = async (cfg) => {
   const railMats = [];
   if (cfg.rail) { const ORD = { ORANGE: -1.5, SILVER: -0.5, BLUE: 0.5, YELLOW: 1.5, GREEN: 1.5, RED: 0 }, RW = (cfg.railW ?? 1.6) * S;
     for (const L of cfg.rail.lines) { if (!(L.r in ORD)) continue; const w = L.pts.map((q) => toW(q[0], q[1])), v = [];
+      if (cfg.railMiter) { // one continuous strip with mitred joints: separate quads leave dark notches at every bend
+        const o = ORD[L.r] * RW * 1.1, zz = 0.7 + 0.04 * (ORD[L.r] + 2), N = w.map((p, i) => { const a = w[Math.max(0, i - 1)], b = w[Math.min(w.length - 1, i + 1)], l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1; return [-(b[1] - a[1]) / l, (b[0] - a[0]) / l]; });
+        const E = (i, s) => [w[i][0] + N[i][0] * (o + s * RW / 2), w[i][1] + N[i][1] * (o + s * RW / 2), zz];
+        for (let i = 0; i < w.length - 1; i++) v.push(...E(i, -1), ...E(i + 1, -1), ...E(i + 1, 1), ...E(i, -1), ...E(i + 1, 1), ...E(i, 1)); } else
       for (let i = 0; i < w.length - 1; i++) { const [ax, ay] = w[i], [bx, by] = w[i + 1], len = Math.hypot(bx - ax, by - ay) || 1, nx = -(by - ay) / len, ny = (bx - ax) / len, o = ORD[L.r] * RW * 1.1;
         const A0 = [ax + nx * (o - RW / 2), ay + ny * (o - RW / 2)], A1 = [ax + nx * (o + RW / 2), ay + ny * (o + RW / 2)], B0 = [bx + nx * (o - RW / 2), by + ny * (o - RW / 2)], B1 = [bx + nx * (o + RW / 2), by + ny * (o + RW / 2)];
         const zz = 0.7 + 0.04 * (ORD[L.r] + 2); v.push(...A0, zz, ...B0, zz, ...B1, zz, ...A0, zz, ...B1, zz, ...A1, zz); }
       const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
-      const m = new THREE.MeshBasicMaterial({ color: new THREE.Color(L.c), transparent: true, opacity: cfg.railOpacity ?? 0.75, depthWrite: false, fog: true, side: THREE.DoubleSide }); railMats.push(m);
+      const m = new THREE.MeshBasicMaterial({ color: new THREE.Color(L.c).multiplyScalar(cfg.railDim ?? 1), transparent: true, opacity: cfg.railOpacity ?? 0.75, depthWrite: false, fog: true, side: THREE.DoubleSide }); railMats.push(m);
       scene.add(Object.assign(new THREE.Mesh(g, m), { renderOrder: 5 + railMats.length })); } }
   // traffic: 511 snapshots every 5 min, crossfaded; its strength follows the focus
   const TS = cfg.traffic ? cfg.traffic.index : null, tcache = new Map();
@@ -211,6 +215,7 @@ window.__setup = async (cfg) => {
   const pins = (cfg.pins || []).map((p) => { const d = document.createElement('div'); d.className = 'pin'; d.textContent = p.label; document.body.appendChild(d); return { ...p, w: toW(...p.at), d }; });
   const C = { dayTop: new THREE.Color('#2a3d63'), dayHor: new THREE.Color('#6f7f99'), nightTop: new THREE.Color('#05070d'), nightHor: new THREE.Color('#1a1d2e') };
   const dayStart = cfg.dayStart, TRAIL = 10, PTRAIL = 44; let frameNo = 0;
+  const BUSC = cfg.busColor ? new THREE.Color(cfg.busColor) : null, WHITE_T = new THREE.Color('#ffffff'); // DC: one bus colour; trains = white core in a line-colour halo
   window.__win = [cfg.tmap[0], cfg.tmap[cfg.tmap.length - 1]];
   window.__tmap = () => cfg.tmap;
   // labels pass: camera only, no drawing. returns per frame [[x, y, on], ...] for each [lon, lat]
@@ -230,12 +235,12 @@ window.__setup = async (cfg) => {
       v.last = null; const ll = where(v.tr, T); if (!ll) { v.hist.length = 0; continue; }
       const [x, y] = toW(ll[0], ll[1]), fa = Math.max(0, Math.min(1, ll[2])); if (v.g !== 'amtrak' && fa > 0.5) live++;
       const lvl = lvlAt(v.cs, T); if (lvl >= 2) crowded++;
-      const boat = v.g === 'ferry' || v.g === 'vessel'; tmpC.copy(v.c); let s = (boat ? 8 : v.rail ? 6.5 : 3.6) * (cfg.dotScale ?? 1), a = Math.min(1, (boat ? 0.8 : v.rail ? 0.85 : cfg.busA ?? 0.5) * (cfg.dotBright ?? 1)) * fa;
+      const boat = v.g === 'ferry' || v.g === 'vessel'; tmpC.copy(v.g === 'bus' && BUSC ? BUSC : v.c); let s = (boat ? 8 : v.rail ? 6.5 : 3.6) * (cfg.dotScale ?? 1), a = Math.min(1, (boat ? 0.8 : v.rail ? 0.85 : cfg.busA ?? 0.5) * (cfg.dotBright ?? 1)) * fa;
       if (cw > 0.01) { const cc = lvl < 0 ? CC[0] : CC[lvl], cs = lvl < 0 ? 3.5 : [4, 5.5, 8, 10][lvl], ca = lvl < 0 ? 0.25 : [0.4, 0.65, 1, 1][lvl];
         tmpC.lerp(cc, cw); s += (cs - s) * cw; a += (ca * fa - a) * cw; }
       a *= tw; s *= S; const HL = v.hl && v.hl.some((w) => T >= w[0] && T <= w[1]); if (HL) { tmpC.set('#ffe94a'); s = Math.max(s, 9 * S); a = 1; } v.last = [x, y, fa];
       for (let j = 0; j < v.hist.length; j++) { const q = 1 - (j + 1) / (TRAIL + 1); put(v.hist[j][0], v.hist[j][1], 2, tmpC, s * (0.35 + 0.5 * q), a * 0.3 * q); }
-      put(x, y, 2, tmpC, s, a); if (HL) put(x, y, 2, tmpC, s * 2.4, 0.3 + 0.18 * Math.sin(k / 2.5)); if (cw > 0.3 && lvl === 3 && (k + (v.tr.length % 17)) % 20 < 10) put(x, y, 2, tmpC, s * 2.2, 0.35 * cw);
+      if (v.rail && cfg.trainCore) { put(x, y, 2.1, tmpC, s * 2.1, a * 0.6); put(x, y, 2.2, WHITE_T, s * 0.75, Math.min(1, a * 1.25)); } else put(x, y, 2, tmpC, s, a); if (HL) put(x, y, 2, tmpC, s * 2.4, 0.3 + 0.18 * Math.sin(k / 2.5)); if (cw > 0.3 && lvl === 3 && (k + (v.tr.length % 17)) % 20 < 10) put(x, y, 2, tmpC, s * 2.2, 0.35 * cw);
       if (frameNo % 2 === 0) { v.hist.unshift([x, y]); if (v.hist.length > TRAIL) v.hist.pop(); }
     }
     // planes
@@ -243,24 +248,24 @@ window.__setup = async (cfg) => {
     for (const v of plist) {
       const p = pwhere(v.tr, T); if (!p) { v.hist.length = 0; continue; }
       const kind = kindAt(v, T), over = kind === 'over', vc = new THREE.Color(KIND[kind]);
-      const [x, y] = toW(p[1], p[2]), z = 2 + altZ(p[3]), size = (over ? 12 : 30) * S, ta = (over ? 0.22 : 0.6) * pw;
+      const [x, y] = toW(p[1], p[2]), z = 2 + altZ(p[3]), size = (over ? 12 : 30) * S * (cfg.planeScale ?? 1), ta = (over ? 0.22 : 0.6) * pw;
       if (p[4] || p[3] < 50) { v.hist.length = 0; if (over && pw < 0.6) continue; put(x, y, 1.5, vc, size * 0.3, 0.22 * pw);
         const ga = pwhere(v.tr, T - 15000) || p, gb = pwhere(v.tr, T + 15000) || p, [gx0, gy0] = toW(ga[1], ga[2]), [gx1, gy1] = toW(gb[1], gb[2]);
-        if (Math.hypot(gx1 - gx0, gy1 - gy0) > 1.5 * S && ni < 800) { const sc = (over ? 5 : 8) * S; dummy.position.set(x, y, 1.5); dummy.rotation.set(0, 0, yaw(p, Math.atan2(gy1 - gy0, gx1 - gx0))); dummy.scale.set(sc, sc, sc);
+        if (Math.hypot(gx1 - gx0, gy1 - gy0) > 1.5 * S && ni < 800) { const sc = (over ? 5 : 8) * S * (cfg.planeScale ?? 1); dummy.position.set(x, y, 1.5); dummy.rotation.set(0, 0, yaw(p, Math.atan2(gy1 - gy0, gx1 - gx0))); dummy.scale.set(sc, sc, sc);
           dummy.updateMatrix(); planes.setMatrixAt(ni, dummy.matrix); planes.setColorAt(ni, tint(vc).multiplyScalar(pw)); ni++; }
         continue; }
       if (Math.abs(x) < TW / 2 && Math.abs(y) < TH / 2) air++;
       let prev = [x, y, z], fp = (over ? 0.4 : 0.95) * pw;
-      for (let j = 0; j < v.hist.length; j++) { const q = 1 - (j + 1) / (PTRAIL + 1), h = v.hist[j], fj = (over ? 0.4 : 0.95) * pw * q * q; seg(prev, h, vc, fp, fj); prev = h; fp = fj; if (j % 2 === 1) put(h[0], h[1], h[2], vc, size * (0.25 + 0.35 * q), ta * 0.6 * q); }
+      if (!(over && cfg.overTrails === false)) for (let j = 0; j < v.hist.length; j++) { const q = 1 - (j + 1) / (PTRAIL + 1), h = v.hist[j], fj = (over ? 0.4 : 0.95) * pw * q * q; seg(prev, h, vc, fp, fj); prev = h; fp = fj; if (j % 2 === 1) put(h[0], h[1], h[2], vc, size * (0.25 + 0.35 * q), ta * 0.6 * q); }
       const near = draw ? sm((camP.distanceTo(tmpV.set(x, y, z)) - 140 * S) / (220 * S)) : 1;
       put(x, y, z, vc, size * 0.75, (over ? 0.4 : 0.9) * near * pw);
       const pa = pwhere(v.tr, T - 40000) || p, pb = pwhere(v.tr, T + 40000) || p, [ax, ay] = toW(pa[1], pa[2]), [bx, by] = toW(pb[1], pb[2]), hd = yaw(p, Math.atan2(by - ay, bx - ax));
       const hz = Math.hypot(bx - ax, by - ay), pitch = Math.max(-0.3, Math.min(0.3, Math.atan2((altZ(pb[3]) - altZ(pa[3])) * 0.3, Math.max(hz, 1))));
       let turn = yaw(pb, Math.atan2(by - ay, bx - ax)) - yaw(pa, hd); while (turn > Math.PI) turn -= 2 * Math.PI; while (turn < -Math.PI) turn += 2 * Math.PI;
-      if (hz > 2 * S && ni < 800 && near > 0.02) { const sc = (over ? 10 : 21) * S * near; dummy.position.set(x, y, z); dummy.rotation.set(Math.max(-0.45, Math.min(0.45, -turn * 1.1)), -pitch, hd); dummy.scale.set(sc, sc, sc);
+      if (hz > 2 * S && ni < 800 && near > 0.02) { const sc = (over ? 10 : 21) * S * near * (cfg.planeScale ?? 1); dummy.position.set(x, y, z); dummy.rotation.set(Math.max(-0.45, Math.min(0.45, -turn * 1.1)), -pitch, hd); dummy.scale.set(sc, sc, sc);
         dummy.updateMatrix(); planes.setMatrixAt(ni, dummy.matrix); planes.setColorAt(ni, tint(vc).multiplyScalar((over ? 0.6 : 1) * pw)); ni++; }
       if (!over && (k + v.ph) % 24 < 2) put(x, y, z, WHITE, size * 0.55, 1.2 * pw);
-      if (!over && z > 6 * S && nl < MAXL) { const i = nl * 6; lpos[i] = x; lpos[i + 1] = y; lpos[i + 2] = z; lpos[i + 3] = x; lpos[i + 4] = y; lpos[i + 5] = 0.5;
+      if (!over && cfg.drops !== false && z > 6 * S && nl < MAXL) { const i = nl * 6; lpos[i] = x; lpos[i + 1] = y; lpos[i + 2] = z; lpos[i + 3] = x; lpos[i + 4] = y; lpos[i + 5] = 0.5;
         lcol[i] = vc.r * 0.5 * pw; lcol[i + 1] = vc.g * 0.5 * pw; lcol[i + 2] = vc.b * 0.5 * pw; lcol[i + 3] = 0; lcol[i + 4] = 0; lcol[i + 5] = 0; nl++; put(x, y, 1, vc, size * 0.5, 0.25 * pw); }
       if (frameNo % 2 === 0) { v.hist.unshift([x, y, z]); if (v.hist.length > PTRAIL) v.hist.pop(); }
     }

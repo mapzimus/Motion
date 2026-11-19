@@ -4,7 +4,7 @@ import { Audio } from '@remotion/media';
 export type Card = { f0: number; f1: number; kick: string; big?: string; bigValue?: number; decimals?: number; text: string };
 export type TL = { total: number; fps: number; clock: number[]; date: string; title: string; kicker: string; sub: string;
   counter: { label: string; values: (number | null)[] }[]; cards: Card[]; pins: Record<string, { label: string; x: number; y: number; a: number }[]>;
-  credit: string; outroFrom: number; frameDir: string; chapters?: { f: number; text: string }[]; cuts?: number[]; dayStart?: number; hook?: { place: string; line: string; cta?: string }; outroLine?: string;
+  credit: string; outroFrom: number; frameDir: string; chapters?: { f: number; text: string }[]; cuts?: number[]; dayStart?: number; hook?: { place: string; line: string; cta?: string }; outroLine?: string; legend?: { kind: 'train' | 'bus' | 'plane'; label: string; color?: string }[];
   labels?: { defs: { t: 'hood' | 'boro' | 'wp'; label: string }[]; proj: number[][][] } };
 const fonts = `
 @font-face{font-family:PlexMono;src:url(${staticFile('fonts/IBMPlexMono-Regular.ttf')})}
@@ -124,6 +124,18 @@ const Labels: React.FC<{ tl: TL; f: number; fps: number; pins: { x: number; y: n
   return <>{out}</>;
 };
 
+// legend: what each mark is, from the cut to the outro
+const Sw: React.FC<{ k: string; c?: string }> = ({ k, c }) => k === 'train'
+  ? <span style={{ width: 14, height: 14, borderRadius: 7, background: '#fff', boxShadow: `0 0 0 4px ${c || '#BF0D3E'}, 0 0 10px 4px ${c || '#BF0D3E'}` }} />
+  : k === 'bus' ? <span style={{ width: 9, height: 9, borderRadius: 5, background: c || '#ffb347' }} />
+  : <svg width="26" height="22" viewBox="-13 -11 26 22"><path d="M12 0 L-3 -1.5 L-6 -10 L-8.5 -10 L-7 -1.5 L-11 -1.2 L-12.5 -4.5 L-13 -4.5 L-12.5 0 L-13 4.5 L-12.5 4.5 L-11 1.2 L-7 1.5 L-8.5 10 L-6 10 L-3 1.5 Z" fill={c || '#bfe3ff'} /></svg>;
+const Legend: React.FC<{ tl: TL; f: number; fps: number }> = ({ tl, f, fps }) => {
+  if (!tl.legend) return null;
+  const a = interpolate(f, [CUT(tl) + fps * 0.5, CUT(tl) + fps * 1.5, tl.outroFrom - 10, tl.outroFrom], [0, 1, 1, 0], clamp);
+  return <div style={{ position: 'absolute', left: 96, right: 96, bottom: 92, opacity: a, display: 'flex', gap: 38, alignItems: 'center', fontFamily: 'PlexMono', fontWeight: 500, fontSize: 24, color: 'rgba(255,255,255,.88)', textShadow: shadow }}>
+    {tl.legend.map((l, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14 }}><Sw k={l.kind} c={l.color} />{l.label}</div>)}</div>;
+};
+
 const Sfx: React.FC<{ tl: TL; fps: number }> = ({ tl, fps }) => <>
   <Sequence from={CUT(tl) - 14} durationInFrames={fps * 2}><Audio src={staticFile('sfx/whoosh.wav')} volume={0.55} /></Sequence>
   {tl.cards.map((c, i) => <Sequence key={'c' + i} from={c.f0} durationInFrames={fps}><Audio src={staticFile('sfx/mouse-click.wav')} volume={0.4} /></Sequence>)}
@@ -149,6 +161,7 @@ export const Motion: React.FC<{ tl: TL }> = ({ tl }) => {
     <Sfx tl={tl} fps={fps} />
     <Title tl={tl} f={f} fps={fps} />
     <Hud tl={tl} f={f} fps={fps} />
+    <Legend tl={tl} f={f} fps={fps} />
     {tl.cards.map((c, i) => <CardView key={i} c={c} f={f} fps={fps} />)}
     <AbsoluteFill style={{ backgroundColor: '#fff', opacity: flash, pointerEvents: 'none' }} />
     <div style={{ position: 'absolute', left: 40, right: 40, bottom: 26, textAlign: 'center', fontFamily: 'PlexMono', fontSize: 15, lineHeight: 1.45, color: 'rgba(255,255,255,.42)' }}>{tl.credit.split('\n').map((l, i) => <div key={i}>{l}</div>)}</div>

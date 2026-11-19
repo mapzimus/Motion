@@ -29,12 +29,20 @@
   "sunset": "16:49",
   "noon": "11:53",
   "railW": 1.6,
-  "dotScale": 1.55,
-  "dotBright": 1.3,
-  "busA": 0.7,
+  "dotScale": 1.3,
+  "dotBright": 1.2,
+  "busA": 0.75,
   "fogNear": 6500,
   "fogFar": 16000,
-  "runways": "dc/runways.json"
+  "runways": "dc/runways.json",
+  "planeScale": 0.4,
+  "drops": false,
+  "railDim": 0.55,
+  "railOpacity": 1.0,
+  "trainCore": true,
+  "busColor": "#ffb347",
+  "railMiter": true,
+  "overTrails": false
  },
  "warp": [
   [
@@ -211,7 +219,7 @@
    {
     "transit": 1,
     "planes": 0.6,
-    "lime": 0.12
+    "lime": 0
    }
   ],
   [
@@ -219,7 +227,7 @@
    {
     "transit": 1,
     "planes": 0.6,
-    "lime": 0.12
+    "lime": 0
    }
   ],
   [
@@ -227,7 +235,7 @@
    {
     "transit": 0.6,
     "planes": 1,
-    "lime": 0.08
+    "lime": 0
    }
   ],
   [
@@ -235,7 +243,7 @@
    {
     "transit": 0.6,
     "planes": 1,
-    "lime": 0.08
+    "lime": 0
    }
   ],
   [
@@ -243,7 +251,7 @@
    {
     "transit": 1,
     "planes": 0.6,
-    "lime": 0.12
+    "lime": 0
    }
   ],
   [
@@ -251,7 +259,7 @@
    {
     "transit": 1,
     "planes": 0.6,
-    "lime": 0.12
+    "lime": 0
    }
   ]
  ],
@@ -309,6 +317,22 @@
    "kick": "5:32 pm, the evening peak",
    "fact": "all_peak_pm",
    "text": "Metro trains and buses moving at once, more than the morning."
+  }
+ ],
+ "legend": [
+  {
+   "kind": "train",
+   "label": "train",
+   "color": "#BF0D3E"
+  },
+  {
+   "kind": "bus",
+   "label": "bus",
+   "color": "#ffb347"
+  },
+  {
+   "kind": "plane",
+   "label": "flight"
   }
  ]
 }

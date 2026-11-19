@@ -71,7 +71,7 @@ look = {'total': N, 'tmap': tmap, 'keys': keys, 'focus': focus, 'notes': [], 'pi
         'dayStart': D0, 'sunrise': clk(L['sunrise']), 'sunset': clk(L['sunset']), 'noon': clk(L['noon'])}
 base = {'warm': 48, 'page': 'dc.html', 'assets': {'/hi-core.png': L['hi_png'], '/fonts/': 'fonts'},
         'extraJson': {'rail': 'dc/rail-lines.json', 'transit': f'{pre}-transit.json', 'planes': f'{pre}-planes.json', 'lime': f'{pre}-lime.json'}}
-look.update({k: L[k] for k in ('dotScale', 'dotBright', 'busA', 'bloom', 'railOpacity') if k in L})  # clarity knobs, optional
+look.update({k: L[k] for k in ('dotScale', 'dotBright', 'busA', 'bloom', 'railOpacity', 'railDim', 'planeScale', 'drops', 'trainCore', 'busColor', 'railMiter', 'overTrails') if k in L})  # clarity knobs, optional
 if L.get('runways'): base['extraJson']['airport'] = L['runways']
 NS = C.get('slices', 12)
 job = dict(base); job.update({'total': N, 'fps': FPS, 'look': look, 'slices': [{'f0': i * N // NS, 'f1': (i + 1) * N // NS} for i in range(NS)]})
@@ -80,7 +80,7 @@ if len(sys.argv) > 2:
     json.dump(job, open(os.path.join(OUTD, 'job-test.json'), 'w'))
 else: json.dump(job, open(os.path.join(OUTD, 'job.json'), 'w'))
 tl = {'total': N, 'fps': FPS, 'clock': tmap, 'date': C['date'], 'title': C['title'], 'kicker': C.get('kicker', 'MOTION'), 'sub': C['sub'], 'counter': counter,
-      'cards': cards, 'chapters': chapters, 'cuts': cuts, 'dayStart': D0, 'pins': {}, 'hook': C.get('hook'), 'outroLine': C.get('outro_line', ''), 'credit': C['credit'], 'outroFrom': F(C.get('outro_from', DUR - 3)), 'frameDir': 'frames'}
+      'cards': cards, 'chapters': chapters, 'cuts': cuts, 'dayStart': D0, 'pins': {}, 'hook': C.get('hook'), 'outroLine': C.get('outro_line', ''), 'legend': C.get('legend'), 'credit': C['credit'], 'outroFrom': F(C.get('outro_from', DUR - 3)), 'frameDir': 'frames'}
 json.dump(tl, open(os.path.join(OUTD, 'timeline.json'), 'w'))
 for c in cards: print(f"{c['f0']/FPS:6.1f}-{c['f1']/FPS:6.1f}s  clock {datetime.fromtimestamp(tmap[c['f0']]/1000, ET):%H:%M}  {c['kick']}: {c['text']}")
 print('frames', N, 'cuts at', [c / FPS for c in cuts])
