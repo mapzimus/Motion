@@ -65,43 +65,43 @@
   ],
   [
    5.0,
-   "1:05"
+   "1:12"
   ],
   [
    6.75,
-   "1:10"
+   "1:16"
   ],
   [
    8.5,
-   "1:15"
+   "1:21"
   ],
   [
    10.25,
-   "1:20"
+   "1:26"
   ],
   [
    12.0,
-   "1:25"
+   "1:30"
   ],
   [
    14.0,
-   "4:30"
+   "4:37"
   ],
   [
    15.75,
-   "4:35"
+   "4:42"
   ],
   [
    17.5,
-   "4:40"
+   "4:46"
   ],
   [
    19.25,
-   "4:45"
+   "4:50"
   ],
   [
    21.0,
-   "4:50"
+   "4:55"
   ],
   [
    23.5,
@@ -125,27 +125,27 @@
   ],
   [
    40.0,
-   "9:40"
-  ],
-  [
-   43.4,
    "9:45"
   ],
   [
-   46.8,
+   43.4,
    "9:50"
   ],
   [
-   50.2,
+   46.8,
    "9:55"
   ],
   [
-   53.6,
+   50.2,
    "10:00"
   ],
   [
-   57.0,
+   53.6,
    "10:05"
+  ],
+  [
+   57.0,
+   "10:10"
   ],
   [
    59.5,
@@ -345,60 +345,47 @@
    }
   ]
  ],
- "chapters": [
-  [
-   "6:00",
-   "rush hour"
-  ],
-  [
-   "9:45",
-   "national airport"
-  ],
-  [
-   "15:30",
-   "evening rush"
-  ]
- ],
+ "chapters": [],
  "cards": [
   {
    "at": "1:17",
-   "hold": 3.4,
+   "hold": 5,
    "kick": "1:17 am",
    "fact": null,
-   "text": "The last Metro train stops moving."
+   "text": "The last Metro train of the night stops."
   },
   {
    "at": "4:40",
-   "hold": 3.4,
-   "kick": "4:40 am",
+   "hold": 5,
+   "kick": "1:17 to 4:40 am",
    "fact": "metro_dark_minutes",
-   "count_up": false,
-   "text": "Metro sat dark for 3 hours 23 minutes. The buses never stopped."
+   "big": " min",
+   "text": "with no Metro trains moving. The buses kept going."
   },
   {
    "at": "8:15",
-   "hold": 3.4,
-   "kick": "8:15 am, the peak",
+   "hold": 5,
+   "kick": "8:15 am",
    "fact": "all_peak_am",
-   "text": "Metro trains and buses moving at the same moment."
+   "text": "trains and buses moving at once."
   },
   {
    "at": "10:00",
-   "hold": 3.4,
+   "hold": 5,
    "kick": "9 to 10 am",
    "fact": "DCA_by_hour",
-   "text": "landings and takeoffs at Reagan National in that one hour.",
    "value_path": [
     "value",
     "9"
-   ]
+   ],
+   "text": "flights in and out of Reagan National."
   },
   {
    "at": "17:32",
-   "hold": 3.4,
-   "kick": "5:32 pm, the evening peak",
+   "hold": 5,
+   "kick": "5:32 pm",
    "fact": "all_peak_pm",
-   "text": "Metro trains and buses moving at once, more than the morning."
+   "text": "trains and buses moving at once, the busiest moment of the day."
   }
  ],
  "legend": [
@@ -417,5 +404,13 @@
    "label": "flight"
   }
  ],
- "ff_chip": true
+ "ff_chip": true,
+ "quiet": {
+  "labelKeep": [
+   "White House",
+   "Capitol",
+   "Reagan National"
+  ],
+  "legendSecs": 7
+ }
 }

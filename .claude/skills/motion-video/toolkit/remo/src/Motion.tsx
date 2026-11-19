@@ -4,7 +4,7 @@ import { Audio } from '@remotion/media';
 export type Card = { f0: number; f1: number; kick: string; big?: string; bigValue?: number; decimals?: number; text: string };
 export type TL = { total: number; fps: number; clock: number[]; date: string; title: string; kicker: string; sub: string;
   counter: { label: string; values: (number | null)[] }[]; cards: Card[]; pins: Record<string, { label: string; x: number; y: number; a: number }[]>;
-  credit: string; outroFrom: number; frameDir: string; chapters?: { f: number; text: string }[]; cuts?: number[]; dayStart?: number; hook?: { place: string; line: string; cta?: string }; outroLine?: string; ffChip?: boolean; legend?: { kind: 'train' | 'bus' | 'plane'; label: string; color?: string }[];
+  credit: string; outroFrom: number; frameDir: string; chapters?: { f: number; text: string }[]; cuts?: number[]; dayStart?: number; hook?: { place: string; line: string; cta?: string }; outroLine?: string; ffChip?: boolean; quiet?: { labelKeep?: string[]; legendSecs?: number };  legend?: { kind: 'train' | 'bus' | 'plane'; label: string; color?: string }[];
   labels?: { defs: { t: 'hood' | 'boro' | 'wp'; label: string }[]; proj: number[][][] } };
 const fonts = `
 @font-face{font-family:PlexMono;src:url(${staticFile('fonts/IBMPlexMono-Regular.ttf')})}
@@ -65,9 +65,9 @@ const Hud: React.FC<{ tl: TL; f: number; fps: number }> = ({ tl, f, fps }) => {
   const c = tl.counter.map((s) => ({ label: s.label, v: s.values[f] })).find((s) => s.v != null);
   return <div style={{ position: 'absolute', left: 96, top: 250, opacity: a, color: '#fff', textShadow: shadow }}>
     <div style={{ fontFamily: 'PlexMono', fontWeight: 500, fontSize: 66, lineHeight: 1 }}>{fmt(tl.clock[f])}</div>
-    <div style={{ fontFamily: 'PlexMono', fontSize: 26, color: 'rgba(255,255,255,.72)', marginTop: 12 }}>{tl.date}</div>
-    {c ? <div style={{ fontFamily: 'PlexMono', fontSize: 27, color: 'rgba(255,255,255,.92)', marginTop: 6 }}>{Math.round(c.v as number).toLocaleString('en-US')} {c.label}</div> : null}
-    <DayBar tl={tl} f={f} />
+    {tl.quiet ? null : <div style={{ fontFamily: 'PlexMono', fontSize: 26, color: 'rgba(255,255,255,.72)', marginTop: 12 }}>{tl.date}</div>}
+    {c && !tl.quiet ? <div style={{ fontFamily: 'PlexMono', fontSize: 27, color: 'rgba(255,255,255,.92)', marginTop: 6 }}>{Math.round(c.v as number).toLocaleString('en-US')} {c.label}</div> : null}
+    {tl.quiet ? null : <DayBar tl={tl} f={f} />}
   </div>;
 };
 
@@ -79,7 +79,7 @@ const Chapter: React.FC<{ ch: { f: number; text: string }; f: number; fps: numbe
     filter: `blur(${interpolate(t, [0, fps * 0.35], [12, 0], { ...clamp, easing: ease })}px)` }}>{ch.text}</div>;
 };
 
-const CardView: React.FC<{ c: Card; f: number; fps: number }> = ({ c, f, fps }) => {
+const CardView: React.FC<{ c: Card; f: number; fps: number; Q?: boolean }> = ({ c, f, fps, Q }) => {
   if (f < c.f0 || f > c.f1) return null;
   const inA = spring({ frame: f - c.f0, fps, config: { damping: 20, mass: 0.7 } });
   const outA = interpolate(f, [c.f1 - fps * 0.35, c.f1], [1, 0], clamp);
@@ -87,10 +87,10 @@ const CardView: React.FC<{ c: Card; f: number; fps: number }> = ({ c, f, fps }) 
   const dec = c.decimals ?? 0, n = c.bigValue != null ? c.bigValue * interpolate(f - c.f0, [0, fps * 0.9], [0, 1], { ...clamp, easing: Easing.out(Easing.cubic) }) : null;
   return <div style={{ position: 'absolute', left: 96, right: 96, bottom: 360, opacity: a, transform: `translateY(${(1 - inA) * 50}px)` }}>
     <div style={{ display: 'inline-block', background: 'rgba(7,9,14,.80)', border: '1px solid rgba(255,255,255,.13)', borderRadius: 14, padding: '22px 26px 24px', maxWidth: 800 }}>
-      <div style={{ fontFamily: 'PlexMono', fontWeight: 500, fontSize: 25, color: '#bcd3f2' }}>{c.kick}</div>
-      {n != null ? <div style={{ fontFamily: 'PlexSerif', fontWeight: 500, fontSize: 92, lineHeight: 1.05, color: '#fff', marginTop: 6 }}>{n.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec })}{c.big ?? ''}</div> : null}
+      <div style={{ fontFamily: 'PlexMono', fontWeight: 500, fontSize: Q ? 30 : 25, color: '#bcd3f2' }}>{c.kick}</div>
+      {n != null ? <div style={{ fontFamily: 'PlexSerif', fontWeight: 500, fontSize: Q ? 132 : 92, lineHeight: 1.05, color: '#fff', marginTop: 6 }}>{n.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec })}{c.big ?? ''}</div> : null}
       <div style={{ height: 5, borderRadius: 3, background: '#ffd27a', marginTop: 4, width: `${interpolate(f - c.f0, [fps * 0.2, fps * 1.0], [0, 100], { ...clamp, easing: ease })}%` }} />
-      <div style={{ fontFamily: 'PlexSerif', fontWeight: 500, fontSize: 38, lineHeight: 1.22, color: '#f2f2f2', marginTop: 8 }}>{c.text}</div>
+      <div style={{ fontFamily: 'PlexSerif', fontWeight: 500, fontSize: Q ? 48 : 38, lineHeight: 1.2, color: '#f2f2f2', marginTop: 10 }}>{c.text}</div>
     </div></div>;
 };
 
@@ -102,13 +102,15 @@ const Labels: React.FC<{ tl: TL; f: number; fps: number; pins: { x: number; y: n
   if (!tl.labels) return null;
   const g = interpolate(f, [fps * 2.7, fps * 3.4], [0, 1], clamp) * interpolate(f, [tl.outroFrom - fps * 0.6, tl.outroFrom], [1, 0], clamp);
   const chA = Math.max(0, ...(tl.chapters || []).map((c) => interpolate(f - c.f, [-8, 4, fps * 1.8, fps * 2.3], [0, 1, 1, 0], clamp)));
-  const gg = g * (1 - chA); if (gg <= 0.001) return null;
+  const cardA = tl.quiet ? Math.max(0, ...tl.cards.map((c) => interpolate(f, [c.f0 - 12, c.f0, c.f1, c.f1 + 12], [0, 1, 1, 0], clamp))) : 0;
+  const gg = g * (1 - chA) * (1 - cardA); if (gg <= 0.001) return null;
   const card = tl.cards.some((c) => f >= c.f0 - 10 && f <= c.f1 + 10), yMax = card ? 1180 : 1500;
   const taken: number[][] = pins.map((p) => [p.x - 140, p.y - 50, p.x + 140, p.y + 10]);
   const out: React.JSX.Element[] = [];
   const idx = tl.labels.defs.map((d, i) => i).sort((a, b) => ORDER[tl.labels!.defs[a].t] - ORDER[tl.labels!.defs[b].t]);
   for (const i of idx) {
     const d = tl.labels.defs[i], [x, y, on] = tl.labels.proj[f][i]; if (!on) continue;
+    if (tl.quiet?.labelKeep && !tl.quiet.labelKeep.includes(d.label)) continue;
     const fs = d.t === 'boro' ? 28 : d.t === 'wp' ? 24 : 22, txt = d.t === 'wp' ? d.label : d.label.toUpperCase();
     const w = txt.length * fs * (d.t === 'wp' ? 0.6 : 0.72) + (d.t === 'wp' ? 22 : 0), h = fs + 10;
     const box = d.t === 'wp' ? [x - 8, y - h / 2, x + w, y + h / 2] : [x - w / 2, y - h / 2, x + w / 2, y + h / 2];
@@ -131,7 +133,7 @@ const Sw: React.FC<{ k: string; c?: string }> = ({ k, c }) => k === 'train'
   : <svg width="26" height="22" viewBox="-13 -11 26 22"><path d="M12 0 L-3 -1.5 L-6 -10 L-8.5 -10 L-7 -1.5 L-11 -1.2 L-12.5 -4.5 L-13 -4.5 L-12.5 0 L-13 4.5 L-12.5 4.5 L-11 1.2 L-7 1.5 L-8.5 10 L-6 10 L-3 1.5 Z" fill={c || '#bfe3ff'} /></svg>;
 const Legend: React.FC<{ tl: TL; f: number; fps: number }> = ({ tl, f, fps }) => {
   if (!tl.legend) return null;
-  const a = interpolate(f, [CUT(tl) + fps * 0.5, CUT(tl) + fps * 1.5, tl.outroFrom - 10, tl.outroFrom], [0, 1, 1, 0], clamp);
+  const L = tl.quiet?.legendSecs, a = L ? interpolate(f, [CUT(tl) + fps * 0.5, CUT(tl) + fps * 1.2, CUT(tl) + fps * L, CUT(tl) + fps * (L + 0.8)], [0, 1, 1, 0], clamp) : interpolate(f, [CUT(tl) + fps * 0.5, CUT(tl) + fps * 1.5, tl.outroFrom - 10, tl.outroFrom], [0, 1, 1, 0], clamp);
   return <div style={{ position: 'absolute', left: 96, right: 96, bottom: 92, opacity: a, display: 'flex', gap: 38, alignItems: 'center', fontFamily: 'PlexMono', fontWeight: 500, fontSize: 24, color: 'rgba(255,255,255,.88)', textShadow: shadow }}>
     {tl.legend.map((l, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14 }}><Sw k={l.kind} c={l.color} />{l.label}</div>)}</div>;
 };
@@ -174,8 +176,9 @@ export const Motion: React.FC<{ tl: TL }> = ({ tl }) => {
     <Hud tl={tl} f={f} fps={fps} />
     <Legend tl={tl} f={f} fps={fps} />
     <FastForward tl={tl} f={f} fps={fps} />
-    {tl.cards.map((c, i) => <CardView key={i} c={c} f={f} fps={fps} />)}
+    {tl.quiet ? <AbsoluteFill style={{ pointerEvents: 'none', opacity: Math.max(0, ...tl.cards.map((c) => interpolate(f, [c.f0 - 8, c.f0 + 6, c.f1 - 6, c.f1 + 6], [0, 1, 1, 0], clamp))), background: 'linear-gradient(180deg, rgba(5,6,10,0) 45%, rgba(5,6,10,.62) 72%, rgba(5,6,10,.75) 100%)' }} /> : null}
+    {tl.cards.map((c, i) => <CardView key={i} c={c} f={f} fps={fps} Q={!!tl.quiet} />)}
     <AbsoluteFill style={{ backgroundColor: '#fff', opacity: flash, pointerEvents: 'none' }} />
-    <div style={{ position: 'absolute', left: 40, right: 40, bottom: 26, textAlign: 'center', fontFamily: 'PlexMono', fontSize: 15, lineHeight: 1.45, color: 'rgba(255,255,255,.42)' }}>{tl.credit.split('\n').map((l, i) => <div key={i}>{l}</div>)}</div>
+    <div style={{ position: 'absolute', left: 40, right: 40, bottom: 26, textAlign: 'center', opacity: tl.quiet ? interpolate(f, [tl.outroFrom, tl.outroFrom + 10], [0, 1], clamp) : 1, fontFamily: 'PlexMono', fontSize: 15, lineHeight: 1.45, color: 'rgba(255,255,255,.42)' }}>{tl.credit.split('\n').map((l, i) => <div key={i}>{l}</div>)}</div>
   </AbsoluteFill>;
 };

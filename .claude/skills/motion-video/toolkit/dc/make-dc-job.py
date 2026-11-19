@@ -80,7 +80,7 @@ if len(sys.argv) > 2:
     json.dump(job, open(os.path.join(OUTD, 'job-test.json'), 'w'))
 else: json.dump(job, open(os.path.join(OUTD, 'job.json'), 'w'))
 tl = {'total': N, 'fps': FPS, 'clock': tmap, 'date': C['date'], 'title': C['title'], 'kicker': C.get('kicker', 'MOTION'), 'sub': C['sub'], 'counter': counter,
-      'cards': cards, 'chapters': chapters, 'cuts': cuts, 'dayStart': D0, 'pins': {}, 'hook': C.get('hook'), 'outroLine': C.get('outro_line', ''), 'legend': C.get('legend'), 'ffChip': C.get('ff_chip', False), 'credit': C['credit'], 'outroFrom': F(C.get('outro_from', DUR - 3)), 'frameDir': 'frames'}
+      'cards': cards, 'chapters': chapters, 'cuts': cuts, 'dayStart': D0, 'pins': {}, 'hook': C.get('hook'), 'outroLine': C.get('outro_line', ''), 'legend': C.get('legend'), 'ffChip': C.get('ff_chip', False), 'quiet': C.get('quiet'), 'credit': C['credit'], 'outroFrom': F(C.get('outro_from', DUR - 3)), 'frameDir': 'frames'}
 json.dump(tl, open(os.path.join(OUTD, 'timeline.json'), 'w'))
 for c in cards: print(f"{c['f0']/FPS:6.1f}-{c['f1']/FPS:6.1f}s  clock {datetime.fromtimestamp(tmap[c['f0']]/1000, ET):%H:%M}  {c['kick']}: {c['text']}")
 print('frames', N, 'cuts at', [c / FPS for c in cuts])
