@@ -1,16 +1,16 @@
 {
  "name": "Washington",
  "day": "2026-11-18",
- "len": 74,
+ "len": 127,
  "fps": 30,
  "prefix": "day",
- "slices": 15,
+ "slices": 18,
  "title": "24 hours in Washington",
  "kicker": "WEDNESDAY, NOVEMBER 18",
  "sub": "every Metro train, bus and flight, recorded live",
  "date": "wednesday, november 18",
  "outro_line": "recorded live, nothing simulated",
- "outro_from": 71,
+ "outro_from": 124,
  "hook": {
   "place": "Washington",
   "line": "Metro trains and buses moving right now.",
@@ -47,62 +47,62 @@
  "warp": [
   [
    0,
-   "8:13"
+   "8:13:30"
   ],
   [
-   3,
-   "8:16"
+   4,
+   "8:15:30"
   ],
   [
-   3,
+   4,
    "0:00"
   ],
   [
-   5,
-   "1:12"
+   6,
+   "1:13"
   ],
   [
-   12,
-   "1:20"
+   18,
+   "1:19"
   ],
   [
-   14,
-   "4:36"
+   20,
+   "4:37"
   ],
   [
-   21,
-   "4:44"
+   32,
+   "4:43"
   ],
   [
-   24,
-   "8:08"
-  ],
-  [
-   36,
-   "8:22"
-  ],
-  [
-   38,
-   "9:50"
-  ],
-  [
-   52,
-   "10:02"
+   35,
+   "8:10"
   ],
   [
    55,
-   "17:25"
+   "8:20"
   ],
   [
-   67,
-   "17:38"
+   57,
+   "9:52"
   ],
   [
-   70,
+   97,
+   "10:02"
+  ],
+  [
+   100,
+   "17:28"
+  ],
+  [
+   120,
+   "17:37"
+  ],
+  [
+   123,
    "23:59"
   ],
   [
-   74,
+   127,
    "23:59:59"
   ]
  ],
@@ -117,16 +117,16 @@
    0
   ],
   [
-   3,
+   4,
    -77.03,
    38.898,
-   -10,
+   -8,
    50,
-   850,
+   860,
    0
   ],
   [
-   3,
+   4,
    -77.05,
    38.915,
    -12,
@@ -135,7 +135,7 @@
    0
   ],
   [
-   21,
+   32,
    -77.045,
    38.91,
    -15,
@@ -144,7 +144,7 @@
    0
   ],
   [
-   24,
+   35,
    -77.035,
    38.902,
    -8,
@@ -153,34 +153,43 @@
    0
   ],
   [
-   36,
+   55,
    -77.03,
    38.898,
-   -4,
+   4,
    48,
    950,
    0
   ],
   [
-   38,
-   -77.037,
-   38.858,
-   4,
+   57,
+   -77.038,
+   38.856,
+   -14,
    52,
-   620,
+   600,
    0
   ],
   [
-   52,
+   77,
    -77.04,
    38.852,
-   -10,
-   54,
+   4,
+   55,
+   520,
+   0
+  ],
+  [
+   97,
+   -77.04,
+   38.85,
+   20,
+   56,
    560,
    0
   ],
   [
-   55,
+   100,
    -77.03,
    38.898,
    -10,
@@ -189,7 +198,7 @@
    0
   ],
   [
-   67,
+   120,
    -77.03,
    38.9,
    8,
@@ -198,7 +207,7 @@
    0
   ],
   [
-   70,
+   123,
    -77.05,
    38.915,
    0,
@@ -207,7 +216,7 @@
    0
   ],
   [
-   74,
+   127,
    -77.05,
    38.915,
    0,
@@ -226,7 +235,7 @@
    }
   ],
   [
-   36,
+   55,
    {
     "transit": 1,
     "planes": 0.6,
@@ -234,7 +243,7 @@
    }
   ],
   [
-   38,
+   57,
    {
     "transit": 0.6,
     "planes": 1,
@@ -242,7 +251,7 @@
    }
   ],
   [
-   52,
+   97,
    {
     "transit": 0.6,
     "planes": 1,
@@ -250,7 +259,7 @@
    }
   ],
   [
-   54,
+   99,
    {
     "transit": 1,
     "planes": 0.6,
@@ -258,7 +267,7 @@
    }
   ],
   [
-   74,
+   127,
    {
     "transit": 1,
     "planes": 0.6,
@@ -283,14 +292,14 @@
  "cards": [
   {
    "at": "1:17",
-   "hold": 3.4,
+   "hold": 4.0,
    "kick": "1:17 am",
    "fact": null,
    "text": "The last Metro train stops moving."
   },
   {
    "at": "4:40",
-   "hold": 3.4,
+   "hold": 4.0,
    "kick": "4:40 am",
    "fact": "metro_dark_minutes",
    "count_up": false,
@@ -298,14 +307,14 @@
   },
   {
    "at": "8:15",
-   "hold": 3.4,
+   "hold": 4.0,
    "kick": "8:15 am, the peak",
    "fact": "all_peak_am",
    "text": "Metro trains and buses moving at the same moment."
   },
   {
    "at": "10:00",
-   "hold": 3.4,
+   "hold": 4.0,
    "kick": "9 to 10 am",
    "fact": "DCA_by_hour",
    "text": "landings and takeoffs at Reagan National in that one hour.",
@@ -316,7 +325,7 @@
   },
   {
    "at": "17:32",
-   "hold": 3.4,
+   "hold": 4.0,
    "kick": "5:32 pm, the evening peak",
    "fact": "all_peak_pm",
    "text": "Metro trains and buses moving at once, more than the morning."
