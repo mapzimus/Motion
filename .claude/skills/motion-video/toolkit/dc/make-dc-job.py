@@ -71,6 +71,8 @@ look = {'total': N, 'tmap': tmap, 'keys': keys, 'focus': focus, 'notes': [], 'pi
         'dayStart': D0, 'sunrise': clk(L['sunrise']), 'sunset': clk(L['sunset']), 'noon': clk(L['noon'])}
 base = {'warm': 48, 'page': 'dc.html', 'assets': {'/hi-core.png': L['hi_png'], '/fonts/': 'fonts'},
         'extraJson': {'rail': 'dc/rail-lines.json', 'transit': f'{pre}-transit.json', 'planes': f'{pre}-planes.json', 'lime': f'{pre}-lime.json'}}
+look.update({k: L[k] for k in ('dotScale', 'dotBright', 'busA', 'bloom', 'railOpacity') if k in L})  # clarity knobs, optional
+if L.get('runways'): base['extraJson']['airport'] = L['runways']
 NS = C.get('slices', 12)
 job = dict(base); job.update({'total': N, 'fps': FPS, 'look': look, 'slices': [{'f0': i * N // NS, 'f1': (i + 1) * N // NS} for i in range(NS)]})
 if len(sys.argv) > 2:
