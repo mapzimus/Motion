@@ -4,8 +4,9 @@
 #  - one track per run on a single route (a train that switches Blue -> Silver becomes two tracks, each the right colour)
 #  - every fix snapped onto its line's geometry (fixes more than 250 m from it, e.g. yards, are dropped)
 #  - points added along the line between fixes, so motion follows curves instead of cutting chords
-#  - rows are [t_ms, lon, lat, nx, ny]; (nx, ny) is the line's unit normal (east, north) there, the same normal
-#    the page uses to offset each line's ribbon, so the page can shift the train onto its own ribbon.
+#  - default rows are [t_ms, metres along the line] with props.arc = 1; three/dc.html walks the same line geometry
+#    (same east/north metric) to place the train and shifts it by its line's ribbon offset, so it rides its own ribbon.
+#    SNAP_MODE=points instead writes densified [t_ms, lon, lat, nx, ny] rows (much heavier on page memory).
 import glob, json, math, os, sys
 from collections import defaultdict
 import numpy as np
@@ -15,6 +16,7 @@ lines_path = sys.argv[3] if len(sys.argv) > 3 else os.path.join(os.path.dirname(
 COL = {'RED': '#BF0D3E', 'BLUE': '#009CDE', 'ORANGE': '#ED8B00', 'SILVER': '#A2A4A1', 'GREEN': '#00B140', 'YELLOW': '#FFD100'}
 LAT0 = 38.9; KX, KY = 111320 * math.cos(math.radians(LAT0)), 110540
 STEP_M, SNAP_M, GAP_MS = 120, 250, 600000
+MODE = os.environ.get('SNAP_MODE', 'arc')  # 'arc' (default): store metres along the line; 'points': densified lon/lat rows
 
 L = {}
 for l in json.load(open(lines_path))['lines']:
@@ -55,12 +57,16 @@ for vid, F in fix.items():
     def flush():
         global nruns, npts
         if len(run) < 2: return
-        r = run[0][1]; rows = []
-        for (t0, _, s0), (t1, _, s1) in zip(run, run[1:]):
-            n = max(1, int(abs(s1 - s0) // STEP_M)) if t1 - t0 <= GAP_MS else 1
-            for q in range(n): rows.append([int(t0 + (t1 - t0) * q / n)] + at(r, s0 + (s1 - s0) * q / n))
-        rows.append([run[-1][0]] + at(r, run[-1][2]))
-        k = f'rail-{vid}#{rid}'; T['props'][k] = {'g': 'subway', 'f': 'wmata-rail', 'l': r.title(), 'c': COL[r]}; T['tracks'][k] = rows
+        r = run[0][1]
+        if MODE == 'arc':  # rows [t_ms, metres along the line]; the page walks the line geometry itself (light on memory)
+            rows = [[ts, round(s, 1)] for ts, _, s in run]
+        else:
+            rows = []
+            for (t0, _, s0), (t1, _, s1) in zip(run, run[1:]):
+                n = max(1, int(abs(s1 - s0) // STEP_M)) if t1 - t0 <= GAP_MS else 1
+                for q in range(n): rows.append([int(t0 + (t1 - t0) * q / n)] + at(r, s0 + (s1 - s0) * q / n))
+            rows.append([run[-1][0]] + at(r, run[-1][2]))
+        k = f'rail-{vid}#{rid}'; T['props'][k] = {'g': 'subway', 'f': 'wmata-rail', 'l': r.title(), 'c': COL[r], **({'arc': 1} if MODE == 'arc' else {})}; T['tracks'][k] = rows
         nruns += 1; npts += len(rows)
     for ts in sorted(F):
         r, lon, lat = F[ts]; nfix += 1
