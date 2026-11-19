@@ -1,0 +1,3 @@
+{"name": "motion-remo", "private": true, "type": "module",
+ "dependencies": {"remotion": "4.0.543", "@remotion/cli": "4.0.543", "@remotion/media": "4.0.543", "react": "19.2.0", "react-dom": "19.2.0"},
+ "devDependencies": {"typescript": "5.9.3", "@types/react": "19.2.2"}}

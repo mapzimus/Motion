@@ -7,19 +7,22 @@ const ROOT = __dirname, TYPES = { '.js': 'text/javascript', '.html': 'text/html'
 const data = JSON.parse(fs.readFileSync(dataPath, 'utf8')), proj = JSON.parse(fs.readFileSync(projPath, 'utf8'));
 const extra = Object.fromEntries(Object.entries(job.extraJson || {}).map(([k, f]) => [k, JSON.parse(fs.readFileSync(path.resolve(ROOT, f), 'utf8'))]));
 // one browser + page per worker, reused for every slice it renders (setup is the slow part)
+let CFG = null; // setup config + data as one JSON buffer, built once, served to every worker page
 async function open() {
-  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist'] });
+  CFG = CFG || Buffer.from(JSON.stringify({ ...job.look, ...extra, bg: '/bg.png', proj, data }));
+  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist','--js-flags=--max-old-space-size=8192'] });
   const p = await b.newPage({ viewport: { width: job.look.W || 1080, height: job.look.H || 1920 }, deviceScaleFactor: 1 });
   p.on('pageerror', (e) => console.log('PAGEERR', e.message));
   await p.route('http://local/**', (r) => {
     const u = new URL(r.request().url()).pathname;
     const f = u === '/' ? path.join(ROOT, 'three', job.page || 'index.html') : u === '/bg.png' ? path.resolve(bgPath) : (job.assets || {})[u] ? path.resolve(ROOT, job.assets[u]) : Object.keys(job.assets || {}).find((k) => k.endsWith('/') && u.startsWith(k)) ? (() => { const k = Object.keys(job.assets).find((k) => k.endsWith('/') && u.startsWith(k)); return path.resolve(ROOT, job.assets[k], u.slice(k.length)); })() : u.startsWith('/three/') ? path.join(ROOT, 'node_modules', u) : u.startsWith('/nm/') ? path.join(ROOT, 'node_modules', u.slice(4)) : null;
+    if (u === '/__cfg.json') return r.fulfill({ status: 200, contentType: 'application/json', body: CFG });
     if (!f || !fs.existsSync(f)) return r.fulfill({ status: 404, body: '' });
     r.fulfill({ status: 200, contentType: TYPES[path.extname(f)] || 'application/octet-stream', body: fs.readFileSync(f) });
   });
   await p.goto('http://local/', { waitUntil: 'load', timeout: 180000 });
   await p.waitForFunction(() => typeof window.__setup === 'function', null, { timeout: 180000 });
-  await p.evaluate((cfg) => window.__setup(cfg), { ...job.look, ...extra, bg: '/bg.png', proj, data });
+  await p.evaluate(async () => window.__setup(await (await fetch('/__cfg.json')).json())); // fetched, not passed: a full day is too big to hand over through evaluate
   const [w0, w1] = await p.evaluate(() => window.__win);
   console.log('PEAK', JSON.stringify(await p.evaluate(() => window.__peakInfo)));
   const tm = await p.evaluate((n) => window.__tmap ? window.__tmap(n) : null, job.total);
@@ -35,6 +38,9 @@ async function slice({ p, Tof }, s, i) {
     if ((f - s.f0) % 60 === 0) console.log(`s${i} ${f - s.f0}/${s.f1 - s.f0} ${new Date().toISOString()}`);
   }
 }
+if (process.env.PROJ) { (async () => { const pts = JSON.parse(fs.readFileSync(process.env.PROJ, 'utf8')); const w = await open(); const out = [];
+  for (let f = 0; f < job.total; f += 500) out.push(...await w.p.evaluate(([a, b, q]) => window.__projectAll(a, b, q), [f, Math.min(job.total, f + 500), pts.map((x) => x.at)]));
+  fs.writeFileSync(`${outDir}/labels-proj.json`, JSON.stringify(out)); console.log('PROJ-DONE', out.length); await w.b.close(); })(); } else
 (async () => {
   const q = job.slices.map((s, i) => [s, i]); let next = 0;
   await Promise.all(Array.from({ length: +par }, async () => {
