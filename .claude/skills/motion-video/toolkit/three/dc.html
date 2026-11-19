@@ -285,7 +285,8 @@ window.__setup = async (cfg) => {
         put(bst[i].w[0], bst[i].w[1], 1.6, bc, (2.5 + Math.sqrt(Math.max(0, now)) * 1.6) * S, (0.35 + 0.6 * m) * F.bikes); }
       bikesOut = Math.round(docked0 - dock); }
     if (cfg.lime && F.lime > 0.02) { const LS = cfg.lime; let i = 0; while (i < LS.length - 2 && LS[i + 1][0] <= T) i++; const LC = new THREE.Color('#7CFF6B');
-      if (Math.abs(LS[i][0] - T) < 900000) for (const q of LS[i][1]) { const [x, y] = toW(q[0], q[1]); put(x, y, 1.4, LC, 2.2 * S, 0.5 * F.lime); } }
+      if (Math.abs(LS[i][0] - T) < 900000) { const Q = LS[i][1], flat = typeof Q[0] === 'number'; // flat [lon, lat, lon, lat, ...] keeps a full day of snapshots small
+        for (let n = 0; n < (flat ? Q.length / 2 : Q.length); n++) { const [x, y] = flat ? toW(Q[2 * n], Q[2 * n + 1]) : toW(Q[n][0], Q[n][1]); put(x, y, 1.4, LC, 2.2 * S, 0.5 * F.lime); } } }
     frameNo++;
     if (!draw) return;
     // traffic overlay pair around T

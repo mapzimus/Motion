@@ -2,7 +2,7 @@
 # usage: python3 prep-dc.py REC_DIR OUT_PREFIX [HOURS ...]   (HOURS like 1118-07; default: every hour folder)
 # writes OUT-transit.json {props, tracks}   rows [t_ms, lon, lat]          (Metro rail, Metro bus, MARC, VRE, DASH, Fairfax, Amtrak)
 #        OUT-planes.json  {props, tracks}   rows [t_ms, lon, lat, alt_ft, onGround]
-#        OUT-bikes.json   {stations: {id: [lon, lat]}, snaps: [[t_ms, {id: bikes}]]}, OUT-lime.json [[t_ms, [[lon, lat], ...]]]
+#        OUT-bikes.json   {stations: {id: [lon, lat]}, snaps: [[t_ms, {id: bikes}]]}, OUT-lime.json [[t_ms, [lon, lat, lon, lat, ...]]] (flat: nested pairs blow the page heap on a full day)
 import glob, json, sys, os, collections, urllib.request
 from datetime import datetime
 rec, out = sys.argv[1], sys.argv[2]
@@ -94,6 +94,6 @@ ST = SI
 lime, lt = [], -1e15  # one snapshot per 10 min is plenty for a density layer (IDs rotate, so no trips anyway)
 for h in hours:
     for t, d in rows(h, 'lime'):
-        if t - lt >= 600000: lime.append([t, [[round(r[1], 4), round(r[0], 4)] for r in d if not r[3]]]); lt = t
+        if t - lt >= 600000: lime.append([t, [c for r in d if not r[3] for c in (round(r[1], 4), round(r[0], 4))]]); lt = t
 json.dump(lime, open(f'{out}-lime.json', 'w'), separators=(',', ':'))
 print('bike snaps', len(snaps), 'stations', len(ST), 'lime snaps', len(lime))

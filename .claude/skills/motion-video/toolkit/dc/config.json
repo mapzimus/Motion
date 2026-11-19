@@ -264,8 +264,19 @@
    "at": "10:30",
    "hold": 3.2,
    "kick": "9 to 10 am",
-   "fact": "DCA_busiest_hour",
-   "text": "landings and takeoffs at Reagan National in one hour."
+   "fact": "DCA_by_hour",
+   "text": "landings and takeoffs at Reagan National in that one hour.",
+   "value_path": [
+    "value",
+    "9"
+   ]
+  },
+  {
+   "at": "17:32",
+   "hold": 3.0,
+   "kick": "5:32 pm, the evening peak",
+   "fact": "all_peak_pm",
+   "text": "Metro trains and buses moving at once, more than the morning."
   }
  ]
 }

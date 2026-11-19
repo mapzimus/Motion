@@ -54,6 +54,7 @@ for ap in ('DCA', 'IAD', 'BWI'):
     F[f'{ap}_flights'] = {'value': len(E), 'arr': sum(e[0] == 'arr' for e in E), 'dep': sum(e[0] == 'dep' for e in E)}
     hrs = collections.Counter(datetime.fromtimestamp(e[1] / 1000, ET).hour for e in E)
     if hrs: h, n = hrs.most_common(1)[0]; F[f'{ap}_busiest_hour'] = {'value': n, 'hour': h}
+    F[f'{ap}_by_hour'] = {'value': {str(k): hrs[k] for k in sorted(hrs)}}
 cov = {f: sum(1 for v in s if v) for f, s in series.items()}
 F['_coverage_minutes'] = {'value': cov, 'from': hm(t0), 'to': hm(t1)}
 json.dump({'facts': F, 'rules': 'see header of facts-dc.py'}, open(f'{outd}/facts.json', 'w'), indent=1)
