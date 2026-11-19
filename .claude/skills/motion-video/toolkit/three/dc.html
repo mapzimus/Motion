@@ -272,7 +272,7 @@ window.__setup = async (cfg) => {
     // touchdown / lift-off rings and runway lights
     let flights = 0;
     for (const e of events) { if (e.t <= T && e.t >= dayStart) flights++; const age = (T - e.t) / 60000; if (age < 0 || age > 2) continue;
-      const [ex, ey] = toW(e.at[0], e.at[1]), r = (6 + age * 34) * S, a = (1 - age / 2) * 0.7 * pw, c = new THREE.Color(KIND[e.kind]);
+      const [ex, ey] = toW(e.at[0], e.at[1]), r = (6 + age * 34) * S * (cfg.ringScale ?? 1), a = (1 - age / 2) * 0.7 * pw * (cfg.ringAlpha ?? 1), c = new THREE.Color(KIND[e.kind]);
       for (let q = 0; q < 28; q++) { const th = q / 28 * Math.PI * 2; put(ex + Math.cos(th) * r, ey + Math.sin(th) * r, 1.2, c, 5 * S, a); } }
     for (const r of rwys) { let hot = 0, hc = null;
       for (const e of r.ev) { const age = (T - e.t) / 60000; if (age < -0.5 || age > 2) continue; const h = age < 0 ? 1 + age * 2 : 1 - age / 2; if (h > hot) { hot = h; hc = KIND[e.kind]; } }
