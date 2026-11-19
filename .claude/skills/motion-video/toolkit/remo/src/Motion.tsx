@@ -4,7 +4,7 @@ import { Audio } from '@remotion/media';
 export type Card = { f0: number; f1: number; kick: string; big?: string; bigValue?: number; decimals?: number; text: string };
 export type TL = { total: number; fps: number; clock: number[]; date: string; title: string; kicker: string; sub: string;
   counter: { label: string; values: (number | null)[] }[]; cards: Card[]; pins: Record<string, { label: string; x: number; y: number; a: number }[]>;
-  credit: string; outroFrom: number; frameDir: string; chapters?: { f: number; text: string }[]; cuts?: number[]; dayStart?: number; hook?: { place: string; line: string; cta?: string }; outroLine?: string; legend?: { kind: 'train' | 'bus' | 'plane'; label: string; color?: string }[];
+  credit: string; outroFrom: number; frameDir: string; chapters?: { f: number; text: string }[]; cuts?: number[]; dayStart?: number; hook?: { place: string; line: string; cta?: string }; outroLine?: string; ffChip?: boolean; legend?: { kind: 'train' | 'bus' | 'plane'; label: string; color?: string }[];
   labels?: { defs: { t: 'hood' | 'boro' | 'wp'; label: string }[]; proj: number[][][] } };
 const fonts = `
 @font-face{font-family:PlexMono;src:url(${staticFile('fonts/IBMPlexMono-Regular.ttf')})}
@@ -136,6 +136,17 @@ const Legend: React.FC<{ tl: TL; f: number; fps: number }> = ({ tl, f, fps }) =>
     {tl.legend.map((l, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14 }}><Sw k={l.kind} c={l.color} />{l.label}</div>)}</div>;
 };
 
+// fast-forward chip: shows while the clock races (speed read off the frame clock, smoothed)
+const FastForward: React.FC<{ tl: TL; f: number; fps: number }> = ({ tl, f, fps }) => {
+  if (!tl.ffChip || f < CUT(tl) || f >= tl.outroFrom) return null;
+  const sp = (g: number) => { const a = Math.max(0, Math.min(tl.clock.length - 2, g)); return (tl.clock[a + 1] - tl.clock[a]) * fps / 60000; }; // clock minutes per video second
+  let m = 0; for (let d = -4; d <= 4; d++) m += sp(f + d); m /= 9;
+  const a = interpolate(m, [8, 25], [0, 1], clamp); if (a <= 0.01) return null;
+  const blink = 0.75 + 0.25 * Math.sin(f / 3);
+  return <div style={{ position: 'absolute', left: 96, top: 500, opacity: a, display: 'flex', alignItems: 'center', gap: 14, fontFamily: 'PlexMono', fontWeight: 500, fontSize: 30, letterSpacing: '.08em', color: '#ffe8b0', textShadow: shadow }}>
+    <svg width="44" height="26" viewBox="0 0 44 26" style={{ opacity: blink }}><path d="M0 0 L22 13 L0 26 Z M20 0 L42 13 L20 26 Z" fill="#ffe8b0" /></svg>fast forward</div>;
+};
+
 const Sfx: React.FC<{ tl: TL; fps: number }> = ({ tl, fps }) => <>
   <Sequence from={CUT(tl) - 14} durationInFrames={fps * 2}><Audio src={staticFile('sfx/whoosh.wav')} volume={0.55} /></Sequence>
   {tl.cards.map((c, i) => <Sequence key={'c' + i} from={c.f0} durationInFrames={fps}><Audio src={staticFile('sfx/mouse-click.wav')} volume={0.4} /></Sequence>)}
@@ -162,6 +173,7 @@ export const Motion: React.FC<{ tl: TL }> = ({ tl }) => {
     <Title tl={tl} f={f} fps={fps} />
     <Hud tl={tl} f={f} fps={fps} />
     <Legend tl={tl} f={f} fps={fps} />
+    <FastForward tl={tl} f={f} fps={fps} />
     {tl.cards.map((c, i) => <CardView key={i} c={c} f={f} fps={fps} />)}
     <AbsoluteFill style={{ backgroundColor: '#fff', opacity: flash, pointerEvents: 'none' }} />
     <div style={{ position: 'absolute', left: 40, right: 40, bottom: 26, textAlign: 'center', fontFamily: 'PlexMono', fontSize: 15, lineHeight: 1.45, color: 'rgba(255,255,255,.42)' }}>{tl.credit.split('\n').map((l, i) => <div key={i}>{l}</div>)}</div>
