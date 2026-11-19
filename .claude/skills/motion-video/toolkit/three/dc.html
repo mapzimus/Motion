@@ -78,7 +78,9 @@ window.__setup = async (cfg) => {
     const patch = new THREE.Mesh(new THREE.PlaneGeometry(HP.w * HP.dpr * k, HP.h * HP.dpr * k), m); const [px, py] = toW(...HP.center); patch.position.set(px, py, 0.3 + 0.05 * hmats.length); patch.renderOrder = 2 + hmats.length; scene.add(patch); }
   // Metro lines from GTFS shapes, in their own colours, as thin ribbons on the ground (shared track: side by side)
   const railMats = [];
+  const ROFF = {}; // per-line ribbon offset (world units); snapped trains shift by the same amount so they ride their own ribbon
   if (cfg.rail) { const ORD = { ORANGE: -1.5, SILVER: -0.5, BLUE: 0.5, YELLOW: 1.5, GREEN: 1.5, RED: 0 }, RW = (cfg.railW ?? 1.6) * S;
+    for (const r in ORD) ROFF[r] = ORD[r] * RW * 1.1;
     for (const L of cfg.rail.lines) { if (!(L.r in ORD)) continue; const w = L.pts.map((q) => toW(q[0], q[1])), v = [];
       if (cfg.railMiter) { // one continuous strip with mitred joints: separate quads leave dark notches at every bend
         const o = ORD[L.r] * RW * 1.1, zz = 0.7 + 0.04 * (ORD[L.r] + 2), N = w.map((p, i) => { const a = w[Math.max(0, i - 1)], b = w[Math.min(w.length - 1, i + 1)], l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1; return [-(b[1] - a[1]) / l, (b[0] - a[0]) / l]; });
@@ -172,7 +174,7 @@ window.__setup = async (cfg) => {
   // --- transit
   const TR = cfg.transit, crowd = (cfg.crowd || { status: {} }).status, list = [];
   for (const [k, tr] of Object.entries(TR.tracks)) { const p = TR.props[k], g = p.g, vid = k.slice(k.indexOf(':') + 1).split('#')[0];
-    list.push({ tr, g, vid, rail: g !== 'bus', c: new THREE.Color(p.c || LINE[g] || LINE.bus), cs: crowd[vid] || null, hl: (cfg.hl || {})[vid] || null, hist: [], last: null }); }
+    list.push({ tr, g, vid, ln: (p.l || '').toUpperCase(), rail: g !== 'bus', c: new THREE.Color(p.c || LINE[g] || LINE.bus), cs: crowd[vid] || null, hl: (cfg.hl || {})[vid] || null, hist: [], last: null }); }
   const byVid = {}; for (const v of list) (byVid[v.vid] = byVid[v.vid] || []).push(v);
   const GAP = 600000, FADE = 420000; // gaps over 10 min (restarts, overnight) fade out / in instead of sliding across the map
   const where = (tr, T) => { const j = seek(tr, T); if (j < 0) return tr[0][0] - T < FADE ? [tr[0][1], tr[0][2], 1 - (tr[0][0] - T) / FADE] : null;
@@ -182,7 +184,7 @@ window.__setup = async (cfg) => {
     if (Math.hypot(c[1] - a[1], (c[2] - a[2]) * 1.35) > 0.25) return [a[1], a[2], 1];
     const p0 = tr[j - 1] || a, p3 = tr[j + 2] || c, u = (T - a[0]) / gap, u2 = u * u, u3 = u2 * u;
     const cr = (q0, q1, q2, q3) => 0.5 * ((2 * q1) + (-q0 + q2) * u + (2 * q0 - 5 * q1 + 4 * q2 - q3) * u2 + (-q0 + 3 * q1 - 3 * q2 + q3) * u3);
-    return [cr(p0[1], a[1], c[1], p3[1]), cr(p0[2], a[2], c[2], p3[2]), 1]; };
+    return a.length > 4 ? [cr(p0[1], a[1], c[1], p3[1]), cr(p0[2], a[2], c[2], p3[2]), 1, a[3] + (c[3] - a[3]) * u, a[4] + (c[4] - a[4]) * u] : [cr(p0[1], a[1], c[1], p3[1]), cr(p0[2], a[2], c[2], p3[2]), 1]; };
   const lvlAt = (cs, T) => { if (!cs) return -1; const j = seek(cs, T); if (j < 0) return cs[0][0] - T < 120000 ? cs[0][1] : -1; return T - cs[j][0] < 1800000 ? cs[j][1] : -1; };
 
   // --- planes (24 h tracks [t, lon, lat, ft, onGround]); colour by what the plane is doing right now
@@ -238,7 +240,8 @@ window.__setup = async (cfg) => {
     let live = 0, crowded = 0; const CC = CROWD.map((c) => new THREE.Color(c)), tw = 0.35 + 0.65 * Math.max(F.transit, F.crowd), cw = F.crowd, tmpC = new THREE.Color();
     for (const v of list) {
       v.last = null; const ll = where(v.tr, T); if (!ll) { v.hist.length = 0; continue; }
-      const [x, y] = toW(ll[0], ll[1]), fa = Math.max(0, Math.min(1, ll[2])); if (v.g !== 'amtrak' && fa > 0.5) live++;
+      let [x, y] = toW(ll[0], ll[1]); const fa = Math.max(0, Math.min(1, ll[2]));
+      if (ll.length > 3 && ROFF[v.ln]) { x += ll[3] * ROFF[v.ln]; y += ll[4] * ROFF[v.ln]; } if (v.g !== 'amtrak' && fa > 0.5) live++;
       const lvl = lvlAt(v.cs, T); if (lvl >= 2) crowded++;
       const boat = v.g === 'ferry' || v.g === 'vessel'; tmpC.copy(v.g === 'bus' && BUSC ? BUSC : v.c); let s = (boat ? 8 : v.rail ? 6.5 : 3.6) * (cfg.dotScale ?? 1), a = Math.min(1, (boat ? 0.8 : v.rail ? 0.85 : cfg.busA ?? 0.5) * (cfg.dotBright ?? 1)) * fa;
       if (cw > 0.01) { const cc = lvl < 0 ? CC[0] : CC[lvl], cs = lvl < 0 ? 3.5 : [4, 5.5, 8, 10][lvl], ca = lvl < 0 ? 0.25 : [0.4, 0.65, 1, 1][lvl];
