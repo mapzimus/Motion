@@ -148,6 +148,11 @@ window.__setup = async (cfg) => {
   lgeo.setAttribute('position', new THREE.BufferAttribute(lpos, 3)); lgeo.setAttribute('color', new THREE.BufferAttribute(lcol, 3));
   const drops = new THREE.LineSegments(lgeo, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false, fog: true }));
   drops.frustumCulled = false; drops.renderOrder = 9; scene.add(drops);
+  // light beams over trains, as in the Boston videos: a line plus a stack of soft glows, bright at the base, fading upward
+  const MAXB = 3000, bpos = new Float32Array(MAXB * 6), bcol = new Float32Array(MAXB * 6), bgeo = new THREE.BufferGeometry();
+  bgeo.setAttribute('position', new THREE.BufferAttribute(bpos, 3)); bgeo.setAttribute('color', new THREE.BufferAttribute(bcol, 3));
+  const beamL = new THREE.LineSegments(bgeo, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, fog: true }));
+  beamL.frustumCulled = false; beamL.renderOrder = 12; scene.add(beamL);
 
   const cam = new THREE.PerspectiveCamera(38, W / H, 4, 90000);
   const composer = new EffectComposer(renderer); composer.addPass(new RenderPass(scene, cam));
@@ -226,7 +231,7 @@ window.__setup = async (cfg) => {
   window.__frame = async (T, draw, k = 0) => {
     const fk = Math.max(0, k), F = focus(fk), camP = cam.position, tmpV = new THREE.Vector3();
     if (draw) { setCam(fk); cam.updateMatrixWorld(); }
-    let n = 0, nt = 0, ni = 0, nl = 0;
+    let n = 0, nt = 0, ni = 0, nl = 0, nb = 0; const BEAM = Math.max(20, cam.position.z) * (cfg.beamH ?? 0.11);
     const put = (x, y, z, c, s, a) => { if (n >= MAX || a <= 0.003 || !Number.isFinite(x + y + z + s + a)) return; pos[n * 3] = x; pos[n * 3 + 1] = y; pos[n * 3 + 2] = z; col[n * 3] = c.r; col[n * 3 + 1] = c.g; col[n * 3 + 2] = c.b; siz[n] = s; alp[n] = a; n++; };
     const seg = (a, b, c, fa, fb) => { if (nt >= MAXT) return; const i = nt * 6; tpos.set(a, i); tpos.set(b, i + 3); tcol[i] = c.r * fa; tcol[i + 1] = c.g * fa; tcol[i + 2] = c.b * fa; tcol[i + 3] = c.r * fb; tcol[i + 4] = c.g * fb; tcol[i + 5] = c.b * fb; nt++; };
     // transit (line colours), recoloured by crowding as the crowd focus rises
@@ -240,6 +245,9 @@ window.__setup = async (cfg) => {
         tmpC.lerp(cc, cw); s += (cs - s) * cw; a += (ca * fa - a) * cw; }
       a *= tw; s *= S; const HL = v.hl && v.hl.some((w) => T >= w[0] && T <= w[1]); if (HL) { tmpC.set('#ffe94a'); s = Math.max(s, 9 * S); a = 1; } v.last = [x, y, fa];
       for (let j = 0; j < v.hist.length; j++) { const q = 1 - (j + 1) / (TRAIL + 1); put(v.hist[j][0], v.hist[j][1], 2, tmpC, s * (0.35 + 0.5 * q), a * 0.3 * q); }
+      if (v.rail && cfg.beams && nb < MAXB && a > 0.05) { const BH = BEAM * (v.g === 'subway' ? 1 : 0.8), i = nb * 6;
+        bpos[i] = x; bpos[i + 1] = y; bpos[i + 2] = 2; bpos[i + 3] = x; bpos[i + 4] = y; bpos[i + 5] = 2 + BH; bcol[i] = tmpC.r * a; bcol[i + 1] = tmpC.g * a; bcol[i + 2] = tmpC.b * a; bcol[i + 3] = 0; bcol[i + 4] = 0; bcol[i + 5] = 0; nb++;
+        for (let q = 1; q <= 12; q++) { const h = q / 12; put(x, y, 2 + BH * h, tmpC, s * (1.1 - 0.6 * h), ((cfg.beamA ?? 0.3) * (1 - h) * (1 - h) + 0.015) * a); } }
       if (v.rail && cfg.trainCore) { put(x, y, 2.1, tmpC, s * 2.1, a * 0.6); put(x, y, 2.2, WHITE_T, s * 0.75, Math.min(1, a * 1.25)); } else put(x, y, 2, tmpC, s, a); if (HL) put(x, y, 2, tmpC, s * 2.4, 0.3 + 0.18 * Math.sin(k / 2.5)); if (cw > 0.3 && lvl === 3 && (k + (v.tr.length % 17)) % 20 < 10) put(x, y, 2, tmpC, s * 2.2, 0.35 * cw);
       if (frameNo % 2 === 0) { v.hist.unshift([x, y]); if (v.hist.length > TRAIL) v.hist.pop(); }
     }
@@ -265,7 +273,7 @@ window.__setup = async (cfg) => {
       if (hz > 2 * S && ni < 800 && near > 0.02) { const sc = (over ? 10 : 21) * S * near * (cfg.planeScale ?? 1); dummy.position.set(x, y, z); dummy.rotation.set(Math.max(-0.45, Math.min(0.45, -turn * 1.1)), -pitch, hd); dummy.scale.set(sc, sc, sc);
         dummy.updateMatrix(); planes.setMatrixAt(ni, dummy.matrix); planes.setColorAt(ni, tint(vc).multiplyScalar((over ? 0.6 : 1) * pw)); ni++; }
       if (!over && (k + v.ph) % 24 < 2) put(x, y, z, WHITE, size * 0.55, 1.2 * pw);
-      if (!over && cfg.drops !== false && z > 6 * S && nl < MAXL) { const i = nl * 6; lpos[i] = x; lpos[i + 1] = y; lpos[i + 2] = z; lpos[i + 3] = x; lpos[i + 4] = y; lpos[i + 5] = 0.5;
+      if (!over && cfg.drops !== false && z > 6 * S && p[3] < (cfg.dropMaxFt ?? 1e9) && nl < MAXL) { const i = nl * 6; lpos[i] = x; lpos[i + 1] = y; lpos[i + 2] = z; lpos[i + 3] = x; lpos[i + 4] = y; lpos[i + 5] = 0.5;
         lcol[i] = vc.r * 0.5 * pw; lcol[i + 1] = vc.g * 0.5 * pw; lcol[i + 2] = vc.b * 0.5 * pw; lcol[i + 3] = 0; lcol[i + 4] = 0; lcol[i + 5] = 0; nl++; put(x, y, 1, vc, size * 0.5, 0.25 * pw); }
       if (frameNo % 2 === 0) { v.hist.unshift([x, y, z]); if (v.hist.length > PTRAIL) v.hist.pop(); }
     }
@@ -311,6 +319,7 @@ window.__setup = async (cfg) => {
       skyU.uSun.value.copy(dir).normalize(); }
     geo.setDrawRange(0, n); for (const a of ['position', 'color', 'size', 'alpha']) geo.attributes[a].needsUpdate = true;
     tgeo.setDrawRange(0, nt * 2); tgeo.attributes.position.needsUpdate = true; tgeo.attributes.color.needsUpdate = true;
+    bgeo.setDrawRange(0, nb * 2); bgeo.attributes.position.needsUpdate = true; bgeo.attributes.color.needsUpdate = true;
     lgeo.setDrawRange(0, nl * 2); lgeo.attributes.position.needsUpdate = true; lgeo.attributes.color.needsUpdate = true;
     planes.count = ni; planes.instanceMatrix.needsUpdate = true; if (planes.instanceColor) planes.instanceColor.needsUpdate = true;
     // HUD: title first, then clock + whichever number the camera is on

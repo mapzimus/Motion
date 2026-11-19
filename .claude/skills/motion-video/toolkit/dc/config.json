@@ -31,12 +31,12 @@
   "railW": 1.6,
   "dotScale": 1.3,
   "dotBright": 1.2,
-  "busA": 0.75,
+  "busA": 0.5,
   "fogNear": 6500,
   "fogFar": 16000,
   "runways": "dc/runways.json",
   "planeScale": 0.4,
-  "drops": false,
+  "drops": true,
   "railDim": 0.55,
   "railOpacity": 1.0,
   "trainCore": true,
@@ -44,7 +44,11 @@
   "railMiter": true,
   "overTrails": false,
   "ringScale": 0.45,
-  "ringAlpha": 0.55
+  "ringAlpha": 0.55,
+  "beams": true,
+  "beamH": 0.13,
+  "beamA": 0.6,
+  "dropMaxFt": 4000
  },
  "warp": [
   [
