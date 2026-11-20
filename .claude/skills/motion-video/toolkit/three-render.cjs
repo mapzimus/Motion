@@ -13,6 +13,7 @@ async function open() {
   const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist','--js-flags=--max-old-space-size=8192'] });
   const p = await b.newPage({ viewport: { width: job.look.W || 1080, height: job.look.H || 1920 }, deviceScaleFactor: 1 });
   p.on('pageerror', (e) => console.log('PAGEERR', e.message));
+  p.on('crash', () => console.log('PAGECRASH')); p.on('console', (m) => { if (m.type() === 'error' || m.text().startsWith('DBG')) console.log('CONSOLE', m.text().slice(0, 300)); });
   await p.route('http://local/**', (r) => {
     const u = new URL(r.request().url()).pathname;
     const f = u === '/' ? path.join(ROOT, 'three', job.page || 'index.html') : u === '/bg.png' ? path.resolve(bgPath) : (job.assets || {})[u] ? path.resolve(ROOT, job.assets[u]) : Object.keys(job.assets || {}).find((k) => k.endsWith('/') && u.startsWith(k)) ? (() => { const k = Object.keys(job.assets).find((k) => k.endsWith('/') && u.startsWith(k)); return path.resolve(ROOT, job.assets[k], u.slice(k.length)); })() : u.startsWith('/three/') ? path.join(ROOT, 'node_modules', u) : u.startsWith('/nm/') ? path.join(ROOT, 'node_modules', u.slice(4)) : null;

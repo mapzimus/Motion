@@ -78,7 +78,9 @@ window.__setup = async (cfg) => {
     const patch = new THREE.Mesh(new THREE.PlaneGeometry(HP.w * HP.dpr * k, HP.h * HP.dpr * k), m); const [px, py] = toW(...HP.center); patch.position.set(px, py, 0.3 + 0.05 * hmats.length); patch.renderOrder = 2 + hmats.length; scene.add(patch); }
   // Metro lines from GTFS shapes, in their own colours, as thin ribbons on the ground (shared track: side by side)
   const railMats = [];
+  const ROFF = {}; // per-line ribbon offset (world units); snapped trains shift by the same amount so they ride their own ribbon
   if (cfg.rail) { const ORD = { ORANGE: -1.5, SILVER: -0.5, BLUE: 0.5, YELLOW: 1.5, GREEN: 1.5, RED: 0 }, RW = (cfg.railW ?? 1.6) * S;
+    for (const r in ORD) ROFF[r] = ORD[r] * RW * 1.1;
     for (const L of cfg.rail.lines) { if (!(L.r in ORD)) continue; const w = L.pts.map((q) => toW(q[0], q[1])), v = [];
       if (cfg.railMiter) { // one continuous strip with mitred joints: separate quads leave dark notches at every bend
         const o = ORD[L.r] * RW * 1.1, zz = 0.7 + 0.04 * (ORD[L.r] + 2), N = w.map((p, i) => { const a = w[Math.max(0, i - 1)], b = w[Math.min(w.length - 1, i + 1)], l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1; return [-(b[1] - a[1]) / l, (b[0] - a[0]) / l]; });
@@ -148,6 +150,11 @@ window.__setup = async (cfg) => {
   lgeo.setAttribute('position', new THREE.BufferAttribute(lpos, 3)); lgeo.setAttribute('color', new THREE.BufferAttribute(lcol, 3));
   const drops = new THREE.LineSegments(lgeo, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false, fog: true }));
   drops.frustumCulled = false; drops.renderOrder = 9; scene.add(drops);
+  // light beams over trains, as in the Boston videos: a line plus a stack of soft glows, bright at the base, fading upward
+  const MAXB = 3000, bpos = new Float32Array(MAXB * 6), bcol = new Float32Array(MAXB * 6), bgeo = new THREE.BufferGeometry();
+  bgeo.setAttribute('position', new THREE.BufferAttribute(bpos, 3)); bgeo.setAttribute('color', new THREE.BufferAttribute(bcol, 3));
+  const beamL = new THREE.LineSegments(bgeo, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, fog: true }));
+  beamL.frustumCulled = false; beamL.renderOrder = 12; scene.add(beamL);
 
   const cam = new THREE.PerspectiveCamera(38, W / H, 4, 90000);
   const composer = new EffectComposer(renderer); composer.addPass(new RenderPass(scene, cam));
@@ -157,9 +164,15 @@ window.__setup = async (cfg) => {
   // camera keyframes in video time (frames), each looking at a place with an azimuth / tilt / distance
   const KF = cfg.keys.map((k) => ({ ...k, w: toW(...k.at) }));
   const setCam = (fk) => { let i = 0; while (i < KF.length - 2 && fk > KF[i + 1].f) i++;
-    const a = KF[i], b = KF[i + 1], e = sm((fk - a.f) / (b.f - a.f)), L = (p, q) => p + (q - p) * e;
-    const gx = L(a.w[0], b.w[0]), gy = L(a.w[1], b.w[1]), az = L(a.az, b.az) * Math.PI / 180, tilt = L(a.tilt, b.tilt) * Math.PI / 180, d = Math.exp(L(Math.log(a.dist), Math.log(b.dist))), ty = gy + L(a.lead ?? 0, b.lead ?? 0);
-    cam.position.set(gx + d * Math.sin(tilt) * Math.sin(az), ty - d * Math.sin(tilt) * Math.cos(az), d * Math.cos(tilt)); cam.up.set(0, 0, 1); cam.lookAt(gx, ty, 0); };
+    const a = KF[i], b = KF[i + 1], e = sm((fk - a.f) / (b.f - a.f)); let L = (p, q) => p + (q - p) * e;
+    if (cfg.camSpline && b.f - a.f > 1) { // carry speed through keys instead of stopping at each one; a key pair one frame apart is a cut
+      const A0 = i > 0 && a.f - KF[i - 1].f > 1 ? KF[i - 1] : null, B1 = i + 2 < KF.length && KF[i + 2].f - b.f > 1 ? KF[i + 2] : null, h = b.f - a.f, u = (fk - a.f) / h;
+      const u2 = u * u, u3 = u2 * u, h00 = 2 * u3 - 3 * u2 + 1, h10 = u3 - 2 * u2 + u, h01 = -2 * u3 + 3 * u2, h11 = u3 - u2;
+      const g = (o) => o === a ? (x) => x(a) : null;
+      L = (p, q, get) => { if (!get) return p + (q - p) * e; const pa = A0 ? get(A0) : null, pb = B1 ? get(B1) : null;
+        const ma = A0 ? (q - pa) / (b.f - A0.f) * h : (q - p) * 0.5, mb = B1 ? (pb - p) / (B1.f - a.f) * h : (q - p) * 0.5; return h00 * p + h10 * ma + h01 * q + h11 * mb; }; }
+    const gx = L(a.w[0], b.w[0], (k) => k.w[0]), gy = L(a.w[1], b.w[1], (k) => k.w[1]), az = L(a.az, b.az, (k) => k.az) * Math.PI / 180, tilt = L(a.tilt, b.tilt, (k) => k.tilt) * Math.PI / 180, d = Math.exp(L(Math.log(a.dist), Math.log(b.dist), (k) => Math.log(k.dist))), ty = gy + L(a.lead ?? 0, b.lead ?? 0), lz = altZ(Math.max(0, L(a.lzft ?? 0, b.lzft ?? 0, (k) => k.lzft ?? 0)));
+    cam.position.set(gx + d * Math.sin(tilt) * Math.sin(az), ty - d * Math.sin(tilt) * Math.cos(az), lz + d * Math.cos(tilt)); cam.up.set(0, 0, 1); cam.lookAt(gx, ty, lz); };
   // focus: how strongly each layer shows, keyed in video time
   const FK = cfg.focus; const focus = (fk) => { let i = 0; while (i < FK.length - 2 && fk > FK[i + 1].f) i++; const a = FK[i], b = FK[i + 1], e = sm((fk - a.f) / Math.max(1, b.f - a.f)), o = {};
     for (const key of ['transit', 'crowd', 'traffic', 'planes', 'bikes', 'lime']) o[key] = (a.w[key] ?? 0) + ((b.w[key] ?? 0) - (a.w[key] ?? 0)) * e; return o; };
@@ -167,7 +180,7 @@ window.__setup = async (cfg) => {
   // --- transit
   const TR = cfg.transit, crowd = (cfg.crowd || { status: {} }).status, list = [];
   for (const [k, tr] of Object.entries(TR.tracks)) { const p = TR.props[k], g = p.g, vid = k.slice(k.indexOf(':') + 1).split('#')[0];
-    list.push({ tr, g, vid, rail: g !== 'bus', c: new THREE.Color(p.c || LINE[g] || LINE.bus), cs: crowd[vid] || null, hl: (cfg.hl || {})[vid] || null, hist: [], last: null }); }
+    list.push({ tr, g, vid, ln: (p.l || '').toUpperCase(), arc: !!p.arc, rail: g !== 'bus', c: new THREE.Color(p.c || LINE[g] || LINE.bus), cs: crowd[vid] || null, hl: (cfg.hl || {})[vid] || null, hist: [], last: null }); }
   const byVid = {}; for (const v of list) (byVid[v.vid] = byVid[v.vid] || []).push(v);
   const GAP = 600000, FADE = 420000; // gaps over 10 min (restarts, overnight) fade out / in instead of sliding across the map
   const where = (tr, T) => { const j = seek(tr, T); if (j < 0) return tr[0][0] - T < FADE ? [tr[0][1], tr[0][2], 1 - (tr[0][0] - T) / FADE] : null;
@@ -177,21 +190,38 @@ window.__setup = async (cfg) => {
     if (Math.hypot(c[1] - a[1], (c[2] - a[2]) * 1.35) > 0.25) return [a[1], a[2], 1];
     const p0 = tr[j - 1] || a, p3 = tr[j + 2] || c, u = (T - a[0]) / gap, u2 = u * u, u3 = u2 * u;
     const cr = (q0, q1, q2, q3) => 0.5 * ((2 * q1) + (-q0 + q2) * u + (2 * q0 - 5 * q1 + 4 * q2 - q3) * u2 + (-q0 + 3 * q1 - 3 * q2 + q3) * u3);
-    return [cr(p0[1], a[1], c[1], p3[1]), cr(p0[2], a[2], c[2], p3[2]), 1]; };
+    return a.length > 4 ? [cr(p0[1], a[1], c[1], p3[1]), cr(p0[2], a[2], c[2], p3[2]), 1, a[3] + (c[3] - a[3]) * u, a[4] + (c[4] - a[4]) * u] : [cr(p0[1], a[1], c[1], p3[1]), cr(p0[2], a[2], c[2], p3[2]), 1]; };
   const lvlAt = (cs, T) => { if (!cs) return -1; const j = seek(cs, T); if (j < 0) return cs[0][0] - T < 120000 ? cs[0][1] : -1; return T - cs[j][0] < 1800000 ? cs[j][1] : -1; };
 
   // --- planes (24 h tracks [t, lon, lat, ft, onGround]); colour by what the plane is doing right now
   const PL = cfg.planes, plist = [], byId = {};
-  for (const [k, tr] of Object.entries(PL.tracks)) { const v = { tr, ev: [], hist: [], ph: plist.length % 23 }; plist.push(v); byId[k] = v; }
+  for (const [k, tr] of Object.entries(PL.tracks)) { const v = { tr, ev: [], hist: [], ph: plist.length % 23 }; v.id = k; plist.push(v); byId[k] = v; }
   const events = (PL.events || []).map((e) => ({ kind: e[0], t: e[1], at: e[2], id: e[3] })); for (const e of events) if (byId[e.id]) byId[e.id].ev.push(e);
   const kindAt = (v, T) => { for (const e of v.ev) { if (e.kind === 'arr' && T >= e.t - 1500000 && T <= e.t + 240000) return 'arr'; if (e.kind === 'dep' && T >= e.t - 480000 && T <= e.t + 1500000) return 'dep'; } return 'over'; };
-  const AZ = 0.06 * S, altZ = (ft) => ft <= 8000 ? ft * AZ : 8000 * AZ + (ft - 8000) * AZ * 0.3;
+  const AZ = 0.06 * S * (cfg.altScale ?? 1), altZ = (ft) => ft <= 8000 ? ft * AZ : 8000 * AZ + (ft - 8000) * AZ * 0.3;
   const pwhere = (tr, T) => { const j = seek(tr, T); if (j < 0) return null; const a = tr[j]; if (j === tr.length - 1) return T - a[0] < 45000 ? a : null;
     const c = tr[j + 1], gap = c[0] - a[0]; if (gap > GAP) return T - a[0] < 45000 ? a : null; if (gap > 180000 || Math.hypot(c[1] - a[1], c[2] - a[2]) > 0.4) return a;
     const p0 = tr[j - 1] || a, p3 = tr[j + 2] || c, u = (T - a[0]) / gap, u2 = u * u, u3 = u2 * u;
     const cr = (q0, q1, q2, q3) => 0.5 * ((2 * q1) + (-q0 + q2) * u + (2 * q0 - 5 * q1 + 4 * q2 - q3) * u2 + (-q0 + 3 * q1 - 3 * q2 + q3) * u3);
     let br = -1; if (a[5] >= 0 && c[5] >= 0) { let d = ((c[5] - a[5] + 540) % 360) - 180; br = (a[5] + d * u + 360) % 360; } else br = a[5] >= 0 ? a[5] : (c[5] ?? -1);
     return [T, cr(p0[1], a[1], c[1], p3[1]), cr(p0[2], a[2], c[2], p3[2]), Math.max(0, a[3] + (c[3] - a[3]) * u), a[4] && c[4], br]; };
+  // snapped Metro trains (props.arc): rows [t, metres along the line]; walk the same line geometry dc/snap-rail.py used
+  const RL = {}; if (cfg.rail) { const KX = 111320 * Math.cos(38.9 * Math.PI / 180), KY = 110540;
+    for (const L of cfg.rail.lines) { const P = L.pts, n = P.length, E = P.map((q) => (q[0] + 77) * KX), N = P.map((q) => (q[1] - 38.9) * KY), cum = [0];
+      for (let i = 1; i < n; i++) cum.push(cum[i - 1] + (Math.hypot(E[i] - E[i - 1], N[i] - N[i - 1]) || 1e-6));
+      const nE = [], nN = []; for (let i = 0; i < n; i++) { const a = Math.max(0, i - 1), b = Math.min(n - 1, i + 1), vE = E[b] - E[a], vN = N[b] - N[a], l = Math.hypot(vE, vN) || 1; nE.push(-vN / l); nN.push(vE / l); }
+      RL[L.r] = { P, cum, nE, nN }; } }
+  const onLine = (r, s) => { const g = RL[r]; if (!g) return null; const C = g.cum; s = Math.max(0, Math.min(C[C.length - 1], s)); let lo = 0, hi = C.length - 1;
+    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (C[m] <= s) lo = m; else hi = m; } const u = (s - C[lo]) / ((C[hi] - C[lo]) || 1), A = g.P[lo], B = g.P[hi];
+    let nx = g.nE[lo] + (g.nE[hi] - g.nE[lo]) * u, ny = g.nN[lo] + (g.nN[hi] - g.nN[lo]) * u; const nl = Math.hypot(nx, ny) || 1;
+    return [A[0] + (B[0] - A[0]) * u, A[1] + (B[1] - A[1]) * u, nx / nl, ny / nl]; };
+  const whereArc = (tr, r, T) => { const j = seek(tr, T); let s, f = 1;
+    if (j < 0) { if (tr[0][0] - T >= FADE) return null; s = tr[0][1]; f = 1 - (tr[0][0] - T) / FADE; }
+    else { const a = tr[j]; if (j === tr.length - 1) { if (T - a[0] >= FADE) return null; s = a[1]; f = 1 - (T - a[0]) / FADE; }
+      else { const c = tr[j + 1], gap = c[0] - a[0];
+        if (gap > GAP) { if (T - a[0] < FADE) { s = a[1]; f = 1 - (T - a[0]) / FADE; } else if (c[0] - T < FADE) { s = c[1]; f = 1 - (c[0] - T) / FADE; } else return null; }
+        else { const p0 = tr[j - 1] || a, p3 = tr[j + 2] || c, u = (T - a[0]) / gap; s = 0.5 * ((2 * a[1]) + (-p0[1] + c[1]) * u + (2 * p0[1] - 5 * a[1] + 4 * c[1] - p3[1]) * u * u + (-p0[1] + 3 * a[1] - 3 * c[1] + p3[1]) * u * u * u); } } }
+    const q = onLine(r, s); return q ? [q[0], q[1], f, q[2], q[3]] : null; };
   const yaw = (p, fallback) => (p[5] >= 0 ? Math.PI / 2 - p[5] * Math.PI / 180 : fallback);
   // Logan: footprint, lit runways (glow in the colour of the plane using them), label
   const AP = cfg.airport, rwys = [], RW0 = new THREE.Color('#5d6672'), EDGE = new THREE.Color('#ffe2b0'), GREEN = new THREE.Color('#59e08a');
@@ -226,20 +256,24 @@ window.__setup = async (cfg) => {
   window.__frame = async (T, draw, k = 0) => {
     const fk = Math.max(0, k), F = focus(fk), camP = cam.position, tmpV = new THREE.Vector3();
     if (draw) { setCam(fk); cam.updateMatrixWorld(); }
-    let n = 0, nt = 0, ni = 0, nl = 0;
+    let n = 0, nt = 0, ni = 0, nl = 0, nb = 0; const BEAM = Math.max(20, cam.position.z) * (cfg.beamH ?? 0.11);
     const put = (x, y, z, c, s, a) => { if (n >= MAX || a <= 0.003 || !Number.isFinite(x + y + z + s + a)) return; pos[n * 3] = x; pos[n * 3 + 1] = y; pos[n * 3 + 2] = z; col[n * 3] = c.r; col[n * 3 + 1] = c.g; col[n * 3 + 2] = c.b; siz[n] = s; alp[n] = a; n++; };
     const seg = (a, b, c, fa, fb) => { if (nt >= MAXT) return; const i = nt * 6; tpos.set(a, i); tpos.set(b, i + 3); tcol[i] = c.r * fa; tcol[i + 1] = c.g * fa; tcol[i + 2] = c.b * fa; tcol[i + 3] = c.r * fb; tcol[i + 4] = c.g * fb; tcol[i + 5] = c.b * fb; nt++; };
     // transit (line colours), recoloured by crowding as the crowd focus rises
     let live = 0, crowded = 0; const CC = CROWD.map((c) => new THREE.Color(c)), tw = 0.35 + 0.65 * Math.max(F.transit, F.crowd), cw = F.crowd, tmpC = new THREE.Color();
     for (const v of list) {
-      v.last = null; const ll = where(v.tr, T); if (!ll) { v.hist.length = 0; continue; }
-      const [x, y] = toW(ll[0], ll[1]), fa = Math.max(0, Math.min(1, ll[2])); if (v.g !== 'amtrak' && fa > 0.5) live++;
+      v.last = null; const ll = v.arc ? whereArc(v.tr, v.ln, T) : where(v.tr, T); if (!ll) { v.hist.length = 0; continue; }
+      let [x, y] = toW(ll[0], ll[1]); const fa = Math.max(0, Math.min(1, ll[2]));
+      if (ll.length > 3 && ROFF[v.ln]) { x += ll[3] * ROFF[v.ln]; y += ll[4] * ROFF[v.ln]; } if (v.g !== 'amtrak' && fa > 0.5) live++;
       const lvl = lvlAt(v.cs, T); if (lvl >= 2) crowded++;
       const boat = v.g === 'ferry' || v.g === 'vessel'; tmpC.copy(v.g === 'bus' && BUSC ? BUSC : v.c); let s = (boat ? 8 : v.rail ? 6.5 : 3.6) * (cfg.dotScale ?? 1), a = Math.min(1, (boat ? 0.8 : v.rail ? 0.85 : cfg.busA ?? 0.5) * (cfg.dotBright ?? 1)) * fa;
       if (cw > 0.01) { const cc = lvl < 0 ? CC[0] : CC[lvl], cs = lvl < 0 ? 3.5 : [4, 5.5, 8, 10][lvl], ca = lvl < 0 ? 0.25 : [0.4, 0.65, 1, 1][lvl];
         tmpC.lerp(cc, cw); s += (cs - s) * cw; a += (ca * fa - a) * cw; }
       a *= tw; s *= S; const HL = v.hl && v.hl.some((w) => T >= w[0] && T <= w[1]); if (HL) { tmpC.set('#ffe94a'); s = Math.max(s, 9 * S); a = 1; } v.last = [x, y, fa];
       for (let j = 0; j < v.hist.length; j++) { const q = 1 - (j + 1) / (TRAIL + 1); put(v.hist[j][0], v.hist[j][1], 2, tmpC, s * (0.35 + 0.5 * q), a * 0.3 * q); }
+      if (v.rail && cfg.beams && nb < MAXB && a > 0.05) { const BH = BEAM * (v.g === 'subway' ? 1 : 0.8), i = nb * 6;
+        bpos[i] = x; bpos[i + 1] = y; bpos[i + 2] = 2; bpos[i + 3] = x; bpos[i + 4] = y; bpos[i + 5] = 2 + BH; bcol[i] = tmpC.r * a; bcol[i + 1] = tmpC.g * a; bcol[i + 2] = tmpC.b * a; bcol[i + 3] = 0; bcol[i + 4] = 0; bcol[i + 5] = 0; nb++;
+        for (let q = 1; q <= 12; q++) { const h = q / 12; put(x, y, 2 + BH * h, tmpC, s * (1.1 - 0.6 * h), ((cfg.beamA ?? 0.3) * (1 - h) * (1 - h) + 0.015) * a); } }
       if (v.rail && cfg.trainCore) { put(x, y, 2.1, tmpC, s * 2.1, a * 0.6); put(x, y, 2.2, WHITE_T, s * 0.75, Math.min(1, a * 1.25)); } else put(x, y, 2, tmpC, s, a); if (HL) put(x, y, 2, tmpC, s * 2.4, 0.3 + 0.18 * Math.sin(k / 2.5)); if (cw > 0.3 && lvl === 3 && (k + (v.tr.length % 17)) % 20 < 10) put(x, y, 2, tmpC, s * 2.2, 0.35 * cw);
       if (frameNo % 2 === 0) { v.hist.unshift([x, y]); if (v.hist.length > TRAIL) v.hist.pop(); }
     }
@@ -247,27 +281,28 @@ window.__setup = async (cfg) => {
     const pw = 0.3 + 0.7 * F.planes, WHITE = new THREE.Color('#ffffff'); let air = 0;
     for (const v of plist) {
       const p = pwhere(v.tr, T); if (!p) { v.hist.length = 0; continue; }
-      const kind = kindAt(v, T), over = kind === 'over', vc = new THREE.Color(KIND[kind]);
-      const [x, y] = toW(p[1], p[2]), z = 2 + altZ(p[3]), size = (over ? 12 : 30) * S * (cfg.planeScale ?? 1), ta = (over ? 0.22 : 0.6) * pw;
-      if (p[4] || p[3] < 50) { v.hist.length = 0; if (over && pw < 0.6) continue; put(x, y, 1.5, vc, size * 0.3, 0.22 * pw);
+      const HLw = cfg.planeHL && cfg.planeHL[v.id], HL = HLw && T >= HLw[0] && T <= HLw[1]; // the plane a beat is about: gold, larger, long trail
+      const kind = kindAt(v, T), over = kind === 'over' && !HL, vc = HL ? new THREE.Color('#ffc94a') : new THREE.Color(KIND[kind]), PT = HL ? 260 : PTRAIL;
+      const [x, y] = toW(p[1], p[2]), z = 2 + altZ(p[3]), size = (over ? 12 : 30) * S * (cfg.planeScale ?? 1) * (HL ? 1.4 : 1), ta = (over ? 0.22 : 0.6) * pw;
+      if (p[4] || (p[3] < 50 && !HL)) { v.hist.length = 0; if (over && pw < 0.6) continue; put(x, y, 1.5, vc, size * 0.3, 0.22 * pw);
         const ga = pwhere(v.tr, T - 15000) || p, gb = pwhere(v.tr, T + 15000) || p, [gx0, gy0] = toW(ga[1], ga[2]), [gx1, gy1] = toW(gb[1], gb[2]);
         if (Math.hypot(gx1 - gx0, gy1 - gy0) > 1.5 * S && ni < 800) { const sc = (over ? 5 : 8) * S * (cfg.planeScale ?? 1); dummy.position.set(x, y, 1.5); dummy.rotation.set(0, 0, yaw(p, Math.atan2(gy1 - gy0, gx1 - gx0))); dummy.scale.set(sc, sc, sc);
           dummy.updateMatrix(); planes.setMatrixAt(ni, dummy.matrix); planes.setColorAt(ni, tint(vc).multiplyScalar(pw)); ni++; }
         continue; }
       if (Math.abs(x) < TW / 2 && Math.abs(y) < TH / 2) air++;
       let prev = [x, y, z], fp = (over ? 0.4 : 0.95) * pw;
-      if (!(over && cfg.overTrails === false)) for (let j = 0; j < v.hist.length; j++) { const q = 1 - (j + 1) / (PTRAIL + 1), h = v.hist[j], fj = (over ? 0.4 : 0.95) * pw * q * q; seg(prev, h, vc, fp, fj); prev = h; fp = fj; if (j % 2 === 1) put(h[0], h[1], h[2], vc, size * (0.25 + 0.35 * q), ta * 0.6 * q); }
-      const near = draw ? sm((camP.distanceTo(tmpV.set(x, y, z)) - 140 * S) / (220 * S)) : 1;
+      if (!(over && cfg.overTrails === false)) for (let j = 0; j < v.hist.length; j++) { const q = 1 - (j + 1) / (PT + 1), h = v.hist[j], fj = (over ? 0.4 : 0.95) * pw * (HL ? Math.sqrt(q) * 1.4 : q * q); seg(prev, h, vc, fp, fj); prev = h; fp = fj; if (j % 2 === 1) put(h[0], h[1], h[2], vc, size * (0.25 + 0.35 * q), ta * 0.6 * q); }
+      const near = HL || !draw ? 1 : sm((camP.distanceTo(tmpV.set(x, y, z)) - 140 * S) / (220 * S)); // the followed plane never fades near the camera
       put(x, y, z, vc, size * 0.75, (over ? 0.4 : 0.9) * near * pw);
       const pa = pwhere(v.tr, T - 40000) || p, pb = pwhere(v.tr, T + 40000) || p, [ax, ay] = toW(pa[1], pa[2]), [bx, by] = toW(pb[1], pb[2]), hd = yaw(p, Math.atan2(by - ay, bx - ax));
       const hz = Math.hypot(bx - ax, by - ay), pitch = Math.max(-0.3, Math.min(0.3, Math.atan2((altZ(pb[3]) - altZ(pa[3])) * 0.3, Math.max(hz, 1))));
       let turn = yaw(pb, Math.atan2(by - ay, bx - ax)) - yaw(pa, hd); while (turn > Math.PI) turn -= 2 * Math.PI; while (turn < -Math.PI) turn += 2 * Math.PI;
-      if (hz > 2 * S && ni < 800 && near > 0.02) { const sc = (over ? 10 : 21) * S * near * (cfg.planeScale ?? 1); dummy.position.set(x, y, z); dummy.rotation.set(Math.max(-0.45, Math.min(0.45, -turn * 1.1)), -pitch, hd); dummy.scale.set(sc, sc, sc);
+      if (hz > 2 * S && ni < 800 && near > 0.02) { const sc = (over ? 10 : 21) * S * near * (cfg.planeScale ?? 1) * (HL ? 1.4 : 1); dummy.position.set(x, y, z); dummy.rotation.set(Math.max(-0.45, Math.min(0.45, -turn * 1.1)), -pitch, hd); dummy.scale.set(sc, sc, sc);
         dummy.updateMatrix(); planes.setMatrixAt(ni, dummy.matrix); planes.setColorAt(ni, tint(vc).multiplyScalar((over ? 0.6 : 1) * pw)); ni++; }
       if (!over && (k + v.ph) % 24 < 2) put(x, y, z, WHITE, size * 0.55, 1.2 * pw);
-      if (!over && cfg.drops !== false && z > 6 * S && nl < MAXL) { const i = nl * 6; lpos[i] = x; lpos[i + 1] = y; lpos[i + 2] = z; lpos[i + 3] = x; lpos[i + 4] = y; lpos[i + 5] = 0.5;
+      if (!over && cfg.drops !== false && z > 6 * S && p[3] < (cfg.dropMaxFt ?? 1e9) && nl < MAXL) { const i = nl * 6; lpos[i] = x; lpos[i + 1] = y; lpos[i + 2] = z; lpos[i + 3] = x; lpos[i + 4] = y; lpos[i + 5] = 0.5;
         lcol[i] = vc.r * 0.5 * pw; lcol[i + 1] = vc.g * 0.5 * pw; lcol[i + 2] = vc.b * 0.5 * pw; lcol[i + 3] = 0; lcol[i + 4] = 0; lcol[i + 5] = 0; nl++; put(x, y, 1, vc, size * 0.5, 0.25 * pw); }
-      if (frameNo % 2 === 0) { v.hist.unshift([x, y, z]); if (v.hist.length > PTRAIL) v.hist.pop(); }
+      if (frameNo % 2 === 0) { v.hist.unshift([x, y, z]); if (v.hist.length > PT) v.hist.pop(); }
     }
     // touchdown / lift-off rings and runway lights
     let flights = 0;
@@ -311,6 +346,7 @@ window.__setup = async (cfg) => {
       skyU.uSun.value.copy(dir).normalize(); }
     geo.setDrawRange(0, n); for (const a of ['position', 'color', 'size', 'alpha']) geo.attributes[a].needsUpdate = true;
     tgeo.setDrawRange(0, nt * 2); tgeo.attributes.position.needsUpdate = true; tgeo.attributes.color.needsUpdate = true;
+    bgeo.setDrawRange(0, nb * 2); bgeo.attributes.position.needsUpdate = true; bgeo.attributes.color.needsUpdate = true;
     lgeo.setDrawRange(0, nl * 2); lgeo.attributes.position.needsUpdate = true; lgeo.attributes.color.needsUpdate = true;
     planes.count = ni; planes.instanceMatrix.needsUpdate = true; if (planes.instanceColor) planes.instanceColor.needsUpdate = true;
     // HUD: title first, then clock + whichever number the camera is on

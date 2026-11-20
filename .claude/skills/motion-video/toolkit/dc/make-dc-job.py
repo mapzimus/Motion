@@ -39,9 +39,9 @@ for i in range(1, N):
     if i not in cuts: assert tmap[i] >= tmap[i - 1], ('time ran backwards', i)
 # ---- camera: keyframes; a repeated second = cut (two keys one frame apart)
 keys, prev = [], None
-for s, lon, lat, az, ti, di, le in C['cam']:
+for s, lon, lat, az, ti, di, le, *rest in C['cam']:  # optional 8th value: look-at height above ground in feet (chase shots)
     f = F(s) + (1 if prev is not None and F(s) <= prev else 0); prev = f
-    keys.append({'f': f, 'at': [lon, lat], 'az': az, 'tilt': ti, 'dist': di, 'lead': le})
+    keys.append({'f': f, 'at': [lon, lat], 'az': az, 'tilt': ti, 'dist': di, 'lead': le, 'lzft': rest[0] if rest else 0})
 focus = [{'f': F(s), 'w': w} for s, w in C['focus']]
 # ---- cards: appear only once the clock has reached their time, after any cut, never overlapping
 def first_frame(c, after=0):
@@ -71,7 +71,7 @@ look = {'total': N, 'tmap': tmap, 'keys': keys, 'focus': focus, 'notes': [], 'pi
         'dayStart': D0, 'sunrise': clk(L['sunrise']), 'sunset': clk(L['sunset']), 'noon': clk(L['noon'])}
 base = {'warm': 48, 'page': 'dc.html', 'assets': {'/hi-core.png': L['hi_png'], '/fonts/': 'fonts'},
         'extraJson': {'rail': 'dc/rail-lines.json', 'transit': f'{pre}-transit.json', 'planes': f'{pre}-planes.json', 'lime': f'{pre}-lime.json'}}
-look.update({k: L[k] for k in ('dotScale', 'dotBright', 'busA', 'bloom', 'railOpacity', 'railDim', 'planeScale', 'drops', 'trainCore', 'busColor', 'railMiter', 'overTrails', 'ringScale', 'ringAlpha') if k in L})  # clarity knobs, optional
+look.update({k: L[k] for k in ('dotScale', 'dotBright', 'busA', 'bloom', 'railOpacity', 'railDim', 'planeScale', 'drops', 'trainCore', 'busColor', 'railMiter', 'overTrails', 'ringScale', 'ringAlpha', 'beams', 'beamH', 'beamA', 'dropMaxFt', 'camSpline', 'planeHL', 'altScale') if k in L})  # clarity knobs, optional
 if L.get('runways'): base['extraJson']['airport'] = L['runways']
 NS = C.get('slices', 12)
 job = dict(base); job.update({'total': N, 'fps': FPS, 'look': look, 'slices': [{'f0': i * N // NS, 'f1': (i + 1) * N // NS} for i in range(NS)]})
@@ -80,7 +80,7 @@ if len(sys.argv) > 2:
     json.dump(job, open(os.path.join(OUTD, 'job-test.json'), 'w'))
 else: json.dump(job, open(os.path.join(OUTD, 'job.json'), 'w'))
 tl = {'total': N, 'fps': FPS, 'clock': tmap, 'date': C['date'], 'title': C['title'], 'kicker': C.get('kicker', 'MOTION'), 'sub': C['sub'], 'counter': counter,
-      'cards': cards, 'chapters': chapters, 'cuts': cuts, 'dayStart': D0, 'pins': {}, 'hook': C.get('hook'), 'outroLine': C.get('outro_line', ''), 'legend': C.get('legend'), 'ffChip': C.get('ff_chip', False), 'credit': C['credit'], 'outroFrom': F(C.get('outro_from', DUR - 3)), 'frameDir': 'frames'}
+      'cards': cards, 'chapters': chapters, 'cuts': cuts, 'dayStart': D0, 'pins': {}, 'hook': C.get('hook'), 'outroLine': C.get('outro_line', ''), 'legend': C.get('legend'), 'ffChip': C.get('ff_chip', False), 'quiet': C.get('quiet'), 'credit': C['credit'], 'outroFrom': F(C.get('outro_from', DUR - 3)), 'frameDir': 'frames'}
 json.dump(tl, open(os.path.join(OUTD, 'timeline.json'), 'w'))
 for c in cards: print(f"{c['f0']/FPS:6.1f}-{c['f1']/FPS:6.1f}s  clock {datetime.fromtimestamp(tmap[c['f0']]/1000, ET):%H:%M}  {c['kick']}: {c['text']}")
 print('frames', N, 'cuts at', [c / FPS for c in cuts])
