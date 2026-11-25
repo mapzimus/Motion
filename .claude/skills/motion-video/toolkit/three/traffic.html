@@ -35,7 +35,7 @@ window.__setup = async (cfg) => {
   // ground + a water-coloured apron so the edge never shows
   const gmat = new THREE.MeshBasicMaterial({ map: await loadTex(cfg.bg), fog: true, color: new THREE.Color(cfg.groundTint ?? '#ffffff') });
   scene.add(new THREE.Mesh(new THREE.PlaneGeometry(TW, TH), gmat));
-  const apron = new THREE.Mesh(new THREE.PlaneGeometry(TW * 40, TH * 40, 80, 80), new THREE.MeshBasicMaterial({ color: '#272e36', fog: true })); apron.position.z = -4; scene.add(apron);
+  const apron = new THREE.Mesh(new THREE.PlaneGeometry(TW * 40, TH * 40, 80, 80), new THREE.MeshBasicMaterial({ color: cfg.apron ?? '#0e0e0e', fog: true })); apron.position.z = -4; scene.add(apron);
   // traffic texture pair, crossfaded
   const TS = cfg.traffic.index, tcache = new Map();
   const tex = async (t) => { if (!tcache.has(t)) { tcache.set(t, await loadTex(`${cfg.traffic.base}${t}.png`)); while (tcache.size > 4) { const k = tcache.keys().next().value; tcache.get(k).dispose(); tcache.delete(k); } } return tcache.get(t); };
@@ -46,8 +46,8 @@ window.__setup = async (cfg) => {
   const tp = new THREE.Mesh(new THREE.PlaneGeometry(TW, TH), tmat); tp.position.z = 0.5; scene.add(tp);
   // jam columns
   const C = cfg.data, CW = C.cell * TW / (C.w * C.cell), NMAX = cfg.maxCols ?? 30000;
-  const colH = cfg.colH ?? { 2: 10, 3: 34, 4: 70 }, COL = { 2: new THREE.Color(cfg.cSlow ?? '#ffcf33'), 3: new THREE.Color(cfg.cJam ?? '#ff3b22'), 4: new THREE.Color(cfg.cStop ?? '#ff1f6a') };
-  const box = new THREE.BoxGeometry(CW * 0.78, CW * 0.78, 1); box.translate(0, 0, 0.5);
+  const colH = cfg.colH ?? { 2: 5, 3: 18, 4: 36 }, COL = { 2: new THREE.Color(cfg.cSlow ?? '#ffcf33'), 3: new THREE.Color(cfg.cJam ?? '#ff3b22'), 4: new THREE.Color(cfg.cStop ?? '#ff1f6a') };
+  const box = new THREE.BoxGeometry(CW * 0.7, CW * 0.7, 1); box.translate(0, 0, 0.5);
   // brighter top, darker foot: vertex colour by height
   { const pos = box.attributes.position, c = []; for (let i = 0; i < pos.count; i++) { const v = 0.35 + 0.65 * pos.getZ(i); c.push(v, v, v); } box.setAttribute('color', new THREE.Float32BufferAttribute(c, 3)); }
   const cols = new THREE.InstancedMesh(box, new THREE.MeshBasicMaterial({ vertexColors: true, fog: true, transparent: true, opacity: 0.95 }), NMAX); cols.count = 0; scene.add(cols);

@@ -33,7 +33,7 @@ def classify(a):
 
 os.makedirs(f'{out}/tex', exist_ok=True)
 idx, stats, cells = [], [], []
-CELL = 8  # jam-column grid, basemap px
+CELL = int(os.environ.get('CELL', 4))  # jam-column grid, basemap px (env CELL)
 for folder in sorted(glob.glob(f'{rec}/*/[0-9][0-9][0-9][0-9]')):
     day, hm = folder.split('/')[-2].split('-')[0], folder.split('/')[-1]
     t = int(datetime(2026, int(day[:2]), int(day[2:]), int(hm[:2]), int(hm[2:]), tzinfo=ET).timestamp() * 1000)
