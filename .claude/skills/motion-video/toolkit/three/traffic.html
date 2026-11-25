@@ -1,0 +1,89 @@
+<!doctype html><html><head><meta charset="utf-8">
+<!-- Road congestion in 3D from 511 traffic-flow snapshots (ne/rec-traffic.py -> ne/prep-traffic.py).
+     Flat map + free-flow roads as a dim green texture; slow / jammed / stop-and-go cells rise as glowing columns.
+     cfg (job.look + extraJson): proj, bg, traffic {index, base}, data = traffic-cells.json,
+     warp [[sec, 'H:MM'], ...] (hours may pass 24 for later days), day0 (ms, midnight of day 1 ET), fps,
+     cam [[sec, lon, lat, azDeg, tiltDeg, dist], ...] (Catmull-Rom through keys), colH {2,3,4} column heights, days ['Wed', ...] -->
+<style>
+  @font-face{font-family:PlexMono;src:url(/fonts/IBMPlexMono-Medium.ttf)}
+  html,body{margin:0;background:#07080c;overflow:hidden;width:1080px;height:1920px}
+  canvas{position:absolute;inset:0}
+  #hud{position:absolute;left:96px;top:236px;font-family:PlexMono,monospace;color:#f3efe6;text-shadow:0 0 2px #000,0 0 2px #000}
+  #clk{font-size:58px;line-height:1} #day{font-size:24px;color:rgba(243,239,230,.7);margin-top:12px;letter-spacing:.08em}
+</style>
+<script type="importmap">{"imports":{"three":"/three/build/three.module.js","three/addons/":"/three/examples/jsm/"}}</script>
+</head><body>
+<div id="hud"><div id="clk"></div><div id="day"></div></div>
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+const W = 1080, H = 1920;
+const sm = (x) => { x = Math.min(1, Math.max(0, x)); return x * x * (3 - 2 * x); };
+const mins = (c) => { const p = String(c).split(':'); return +p[0] * 60 + +p[1] + (p[2] ? +p[2] / 60 : 0); };
+window.__setup = async (cfg) => {
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setPixelRatio(1); renderer.setSize(W, H); document.body.prepend(renderer.domElement);
+  const scene = new THREE.Scene(); scene.background = new THREE.Color('#0b0d12'); scene.fog = new THREE.Fog('#0b0d12', cfg.fogNear ?? 5000, cfg.fogFar ?? 11000);
+  const cam = new THREE.PerspectiveCamera(cfg.fov ?? 34, W / H, 5, 40000); cam.up.set(0, 0, 1);
+  const P = cfg.proj, TW = P.w * P.dpr, TH = P.h * P.dpr, Z = 512 * Math.pow(2, P.zoom) * P.dpr;
+  const mx = (lon) => (lon + 180) / 360, my = (lat) => { const r = lat * Math.PI / 180; return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2; };
+  const cx = mx(P.center[0]), cy = my(P.center[1]), toW = (lon, lat) => [(mx(lon) - cx) * Z, -(my(lat) - cy) * Z];
+  const loadTex = async (u) => { const t = await new THREE.TextureLoader().loadAsync(u); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t; };
+  // ground + a water-coloured apron so the edge never shows
+  const gmat = new THREE.MeshBasicMaterial({ map: await loadTex(cfg.bg), fog: true, color: new THREE.Color(cfg.groundTint ?? '#ffffff') });
+  scene.add(new THREE.Mesh(new THREE.PlaneGeometry(TW, TH), gmat));
+  const apron = new THREE.Mesh(new THREE.PlaneGeometry(TW * 40, TH * 40, 80, 80), new THREE.MeshBasicMaterial({ color: '#272e36', fog: true })); apron.position.z = -4; scene.add(apron);
+  // traffic texture pair, crossfaded
+  const TS = cfg.traffic.index, tcache = new Map();
+  const tex = async (t) => { if (!tcache.has(t)) { tcache.set(t, await loadTex(`${cfg.traffic.base}${t}.png`)); while (tcache.size > 4) { const k = tcache.keys().next().value; tcache.get(k).dispose(); tcache.delete(k); } } return tcache.get(t); };
+  const tmat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, uniforms: { uA: { value: null }, uB: { value: null }, uMix: { value: 0 }, uG: { value: cfg.greenA ?? 0.55 } },
+    vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+    fragmentShader: `uniform sampler2D uA; uniform sampler2D uB; uniform float uMix; uniform float uG; varying vec2 vUv;
+      void main(){ vec4 c = mix(texture2D(uA, vUv), texture2D(uB, vUv), uMix); float warm = step(0.7, c.a); gl_FragColor = vec4(c.rgb, c.a * mix(uG, 1.0, warm)); }` });
+  const tp = new THREE.Mesh(new THREE.PlaneGeometry(TW, TH), tmat); tp.position.z = 0.5; scene.add(tp);
+  // jam columns
+  const C = cfg.data, CW = C.cell * TW / (C.w * C.cell), NMAX = cfg.maxCols ?? 30000;
+  const colH = cfg.colH ?? { 2: 10, 3: 34, 4: 70 }, COL = { 2: new THREE.Color(cfg.cSlow ?? '#ffcf33'), 3: new THREE.Color(cfg.cJam ?? '#ff3b22'), 4: new THREE.Color(cfg.cStop ?? '#ff1f6a') };
+  const box = new THREE.BoxGeometry(CW * 0.78, CW * 0.78, 1); box.translate(0, 0, 0.5);
+  // brighter top, darker foot: vertex colour by height
+  { const pos = box.attributes.position, c = []; for (let i = 0; i < pos.count; i++) { const v = 0.35 + 0.65 * pos.getZ(i); c.push(v, v, v); } box.setAttribute('color', new THREE.Float32BufferAttribute(c, 3)); }
+  const cols = new THREE.InstancedMesh(box, new THREE.MeshBasicMaterial({ vertexColors: true, fog: true, transparent: true, opacity: 0.95 }), NMAX); cols.count = 0; scene.add(cols);
+  const snapMap = C.snaps.map((s) => { const m = new Map(); for (let i = 0; i < s.length; i += 2) m.set(s[i], s[i + 1]); return m; });
+  const M4 = new THREE.Matrix4(), col = new THREE.Color();
+  // timing
+  const fps = cfg.fps ?? 30, WP = cfg.warp.map(([s, c]) => [s, cfg.day0 + mins(c) * 60000]);
+  const Tat = (s) => { if (s <= WP[0][0]) return WP[0][1]; for (let i = 0; i < WP.length - 1; i++) if (s <= WP[i + 1][0]) { const [s0, t0] = WP[i], [s1, t1] = WP[i + 1]; return s1 > s0 ? t0 + (t1 - t0) * (s - s0) / (s1 - s0) : t1; } return WP[WP.length - 1][1]; };
+  window.__tmap = (n) => Array.from({ length: n }, (_, k) => Tat(k / fps));
+  window.__win = [WP[0][1], WP[WP.length - 1][1]]; window.__peakInfo = { snaps: TS.length };
+  // camera: Catmull-Rom through keys (lon, lat converted to world first)
+  const K = cfg.cam.map(([s, lon, lat, az, ti, d]) => { const [x, y] = toW(lon, lat); return [s, x, y, az, ti, d]; });
+  const camAt = (s) => { let i = 0; while (i < K.length - 2 && K[i + 1][0] <= s) i++; const a = K[Math.max(0, i - 1)], b = K[i], c = K[Math.min(K.length - 1, i + 1)], d = K[Math.min(K.length - 1, i + 2)];
+    const u = c[0] > b[0] ? Math.min(1, Math.max(0, (s - b[0]) / (c[0] - b[0]))) : 0, u2 = u * u, u3 = u2 * u;
+    return b.map((_, j) => j === 0 ? s : 0.5 * (2 * b[j] + (-a[j] + c[j]) * u + (2 * a[j] - 5 * b[j] + 4 * c[j] - d[j]) * u2 + (-a[j] + 3 * b[j] - 3 * c[j] + d[j]) * u3)); };
+  const composer = new EffectComposer(renderer); composer.addPass(new RenderPass(scene, cam));
+  composer.addPass(new UnrealBloomPass(new THREE.Vector2(W, H), cfg.bloom ?? 0.85, 0.45, 0.55)); composer.addPass(new OutputPass());
+  const DAYS = cfg.days ?? ['Wed', 'Thu', 'Fri', 'Sat'];
+  const clock = (T) => { const m = Math.floor((T - cfg.day0) / 60000), d = Math.floor(m / 1440), h = Math.floor(m / 60) % 24, mm = m % 60;
+    return [`${h % 12 || 12}:${String(mm).padStart(2, '0')} ${h < 12 ? 'am' : 'pm'}`, (cfg.dayNames ?? DAYS)[d] ?? '']; };
+  window.__frame = async (T, draw, k) => {
+    if (!draw) return;
+    const s = Math.max(0, (k ?? 0) / fps);
+    let i = 0; while (i < TS.length - 2 && TS[i + 1] <= T) i++; const j = Math.min(i + 1, TS.length - 1), u = TS[j] > TS[i] ? sm((T - TS[i]) / (TS[j] - TS[i])) : 0;
+    tmat.uniforms.uA.value = await tex(TS[i]); tmat.uniforms.uB.value = await tex(TS[j]); tmat.uniforms.uMix.value = u;
+    const A = snapMap[i], B = snapMap[j]; let n = 0;
+    const put = (cell, ca, cb) => { if (n >= NMAX) return; const h = (ca ? colH[ca] : 0) * (1 - u) + (cb ? colH[cb] : 0) * u; if (h < 0.5) return;
+      const r = Math.floor(cell / C.w), q = cell % C.w, x = (q + 0.5) * CW - TW / 2, y = TH / 2 - (r + 0.5) * CW;
+      M4.makeScale(1, 1, h).setPosition(x, y, 0.6); cols.setMatrixAt(n, M4); col.copy(COL[Math.max(ca || 0, cb || 0)]); cols.setColorAt(n, col); n++; };
+    for (const [cell, ca] of A) put(cell, ca, B.get(cell));
+    for (const [cell, cb] of B) if (!A.has(cell)) put(cell, 0, cb);
+    cols.count = n; cols.instanceMatrix.needsUpdate = true; if (cols.instanceColor) cols.instanceColor.needsUpdate = true;
+    const [, x, y, az, ti, d] = camAt(s), a = az * Math.PI / 180, t = ti * Math.PI / 180;
+    cam.position.set(x + d * Math.sin(t) * Math.sin(a), y - d * Math.sin(t) * Math.cos(a), d * Math.cos(t)); cam.lookAt(x, y, 0);
+    const [c1, c2] = clock(T); document.getElementById('clk').textContent = c1; document.getElementById('day').textContent = c2;
+    composer.render();
+  };
+};
+</script></body></html>
