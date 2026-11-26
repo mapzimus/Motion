@@ -35,7 +35,9 @@ window.__setup = async (cfg) => {
   // ground + a water-coloured apron so the edge never shows
   const gmat = new THREE.MeshBasicMaterial({ map: await loadTex(cfg.bg), fog: true, color: new THREE.Color(cfg.groundTint ?? '#ffffff') });
   scene.add(new THREE.Mesh(new THREE.PlaneGeometry(TW, TH), gmat));
-  const apron = new THREE.Mesh(new THREE.PlaneGeometry(TW * 40, TH * 40, 80, 80), new THREE.MeshBasicMaterial({ color: cfg.apron ?? '#0e0e0e', fog: true })); apron.position.z = -4; scene.add(apron);
+  // apron: the basemap's edge pixels stretched outward (texture clamps), so land stays land and ocean stays ocean past the frame
+  const ag = new THREE.PlaneGeometry(TW * 40, TH * 40); { const uv = ag.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, (uv.getX(i) - 0.5) * 40 + 0.5, (uv.getY(i) - 0.5) * 40 + 0.5); }
+  const apron = new THREE.Mesh(ag, cfg.apron ? new THREE.MeshBasicMaterial({ color: cfg.apron, fog: true }) : gmat); apron.position.z = -4; scene.add(apron);
   // traffic texture pair, crossfaded
   const TS = cfg.traffic.index, tcache = new Map();
   const tex = async (t) => { if (!tcache.has(t)) { tcache.set(t, await loadTex(`${cfg.traffic.base}${t}.png`)); while (tcache.size > 4) { const k = tcache.keys().next().value; tcache.get(k).dispose(); tcache.delete(k); } } return tcache.get(t); };
