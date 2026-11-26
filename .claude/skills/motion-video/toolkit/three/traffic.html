@@ -27,7 +27,7 @@ window.__setup = async (cfg) => {
   const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
   renderer.setPixelRatio(1); renderer.setSize(W, H); document.body.prepend(renderer.domElement);
   const scene = new THREE.Scene(); scene.background = new THREE.Color('#0b0d12'); scene.fog = new THREE.Fog('#0b0d12', cfg.fogNear ?? 5000, cfg.fogFar ?? 11000);
-  const cam = new THREE.PerspectiveCamera(cfg.fov ?? 34, W / H, 5, 40000); cam.up.set(0, 0, 1);
+  const cam = new THREE.PerspectiveCamera(cfg.fov ?? 34, W / H, 5, cfg.far ?? 1e6); cam.up.set(0, 0, 1);
   const P = cfg.proj, TW = P.w * P.dpr, TH = P.h * P.dpr, Z = 512 * Math.pow(2, P.zoom) * P.dpr;
   const mx = (lon) => (lon + 180) / 360, my = (lat) => { const r = lat * Math.PI / 180; return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2; };
   const cx = mx(P.center[0]), cy = my(P.center[1]), toW = (lon, lat) => [(mx(lon) - cx) * Z, -(my(lat) - cy) * Z];
@@ -37,7 +37,10 @@ window.__setup = async (cfg) => {
   scene.add(new THREE.Mesh(new THREE.PlaneGeometry(TW, TH), gmat));
   // apron: the basemap's edge pixels stretched outward (texture clamps), so land stays land and ocean stays ocean past the frame
   const ag = new THREE.PlaneGeometry(TW * 40, TH * 40); { const uv = ag.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, (uv.getX(i) - 0.5) * 40 + 0.5, (uv.getY(i) - 0.5) * 40 + 0.5); }
-  const apron = new THREE.Mesh(ag, cfg.apron ? new THREE.MeshBasicMaterial({ color: cfg.apron, fog: true }) : gmat); apron.position.z = -4; scene.add(apron);
+  // a tiny copy of the basemap, so stretched edge pixels blur into soft land / water instead of road streaks
+  const sc = document.createElement('canvas'); sc.width = 27; sc.height = 48; sc.getContext('2d').drawImage(gmat.map.image, 0, 0, 27, 48);
+  const st = new THREE.CanvasTexture(sc); st.colorSpace = THREE.SRGBColorSpace;
+  const apron = new THREE.Mesh(ag, new THREE.MeshBasicMaterial(cfg.apron ? { color: cfg.apron, fog: true } : { map: st, fog: true })); apron.position.z = -4; scene.add(apron);
   // traffic texture pair, crossfaded
   const TS = cfg.traffic.index, tcache = new Map();
   const tex = async (t) => { if (!tcache.has(t)) { tcache.set(t, await loadTex(`${cfg.traffic.base}${t}.png`)); while (tcache.size > 4) { const k = tcache.keys().next().value; tcache.get(k).dispose(); tcache.delete(k); } } return tcache.get(t); };
