@@ -9,11 +9,16 @@
   html,body{margin:0;background:#07080c;overflow:hidden;width:1080px;height:1920px}
   canvas{position:absolute;inset:0}
   #hud{position:absolute;left:96px;top:236px;font-family:PlexMono,monospace;color:#f3efe6;text-shadow:0 0 2px #000,0 0 2px #000}
+  @font-face{font-family:PlexSerif;src:url(/fonts/IBMPlexSerif-Medium.ttf)}
   #clk{font-size:58px;line-height:1} #day{font-size:24px;color:rgba(243,239,230,.7);margin-top:12px;letter-spacing:.08em}
+  #pct{font-size:24px;color:rgba(243,239,230,.85);margin-top:28px} #pct b{font-size:44px;color:#ffcf33;font-weight:500}
+  #spark{position:absolute;inset:auto;left:96px;top:420px}
+  #note{position:absolute;left:96px;right:96px;bottom:500px;font-family:PlexSerif,serif;font-size:46px;line-height:1.15;color:#f3efe6;text-shadow:0 0 3px #000,0 0 3px #000;opacity:0}
+  #note small{display:block;font-family:PlexMono,monospace;font-size:24px;color:#ffcf33;margin-bottom:10px;letter-spacing:.06em}
 </style>
 <script type="importmap">{"imports":{"three":"/three/build/three.module.js","three/addons/":"/three/examples/jsm/"}}</script>
 </head><body>
-<div id="hud"><div id="clk"></div><div id="day"></div></div>
+<div id="hud"><div id="clk"></div><div id="day"></div><div id="pct"></div></div><canvas id="spark" width="888" height="150"></canvas><div id="note"></div>
 <script type="module">
 import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
@@ -73,6 +78,11 @@ window.__setup = async (cfg) => {
   const DAYS = cfg.days ?? ['Wed', 'Thu', 'Fri', 'Sat'];
   const clock = (T) => { const m = Math.floor((T - cfg.day0) / 60000), d = Math.floor(m / 1440), h = Math.floor(m / 60) % 24, mm = m % 60;
     return [`${h % 12 || 12}:${String(mm).padStart(2, '0')} ${h < 12 ? 'am' : 'pm'}`, (cfg.dayNames ?? DAYS)[d] ?? '']; };
+  const SS = new Map((cfg.traffic.stats ?? []).map(([t, a, b, c]) => [t, a + b + c]));
+  const SP = (cfg.traffic.stats ?? []).filter(([t]) => t >= WP[0][1] && t <= WP[WP.length - 1][1]).map(([t, a, b, c]) => [t, a + b + c]), SMAX = Math.max(1e-6, ...SP.map((p) => p[1])) * 1.1;
+  const spark = document.getElementById('spark'), NH = cfg.noteHold ?? 2.6;
+  // notes [['HH:MM', 'label', 'text'], ...]: find the video second each clock time is reached
+  const NOTES = (cfg.notes ?? []).map(([c, lab, txt]) => { const t = cfg.day0 + mins(c) * 60000; let k = 0; while (Tat(k / fps) < t && k < 1e5) k++; return { t, s: k / fps, c: lab, txt }; });
   window.__frame = async (T, draw, k) => {
     if (!draw) return;
     const s = Math.max(0, (k ?? 0) / fps);
@@ -88,6 +98,15 @@ window.__setup = async (cfg) => {
     const [, x, y, az, ti, d] = camAt(s), a = az * Math.PI / 180, t = ti * Math.PI / 180;
     cam.position.set(x + d * Math.sin(t) * Math.sin(a), y - d * Math.sin(t) * Math.cos(a), d * Math.cos(t)); cam.lookAt(x, y, 0);
     const [c1, c2] = clock(T); document.getElementById('clk').textContent = c1; document.getElementById('day').textContent = c2;
+    // live share of road slow or worse, interpolated between snapshots, plus the day's curve drawn up to now
+    const sA = SS.get(TS[i]), sB = SS.get(TS[j]), sh = sA && sB ? sA * (1 - u) + sB * u : 0;
+    document.getElementById('pct').innerHTML = `<b>${(100 * sh).toFixed(1)}%</b> of mapped roads slow or jammed`;
+    if (SP.length) { const g = spark.getContext('2d'), w = spark.width, h = spark.height, x = (t) => (t - SP[0][0]) / (SP[SP.length - 1][0] - SP[0][0]) * w, y = (v) => h - 6 - v / SMAX * (h - 18);
+      g.clearRect(0, 0, w, h); g.strokeStyle = 'rgba(243,239,230,.18)'; g.lineWidth = 2; g.beginPath(); g.moveTo(0, h - 5); g.lineTo(w, h - 5); g.stroke();
+      g.beginPath(); let on = false; for (const [t, v] of SP) { if (t > T) break; on ? g.lineTo(x(t), y(v)) : g.moveTo(x(t), y(v)); on = true; } if (on) { g.lineTo(x(T), y(sh)); g.strokeStyle = '#ffcf33'; g.lineWidth = 4; g.stroke(); g.fillStyle = '#ffcf33'; g.beginPath(); g.arc(x(T), y(sh), 7, 0, 7); g.fill(); } }
+    // callouts: each appears once its clock time has passed and holds for noteHold seconds of video
+    let nt = null; for (const n of NOTES) if (T >= n.t && s < n.s + NH) nt = n;
+    const ne = document.getElementById('note'); if (nt) { ne.innerHTML = `<small>${nt.c}</small>${nt.txt}`; ne.style.opacity = Math.min(sm((s - nt.s) / 0.4), sm((nt.s + NH - s) / 0.4)); } else ne.style.opacity = 0;
     composer.render();
   };
 };
