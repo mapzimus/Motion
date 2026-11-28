@@ -125,7 +125,7 @@ window.__setup = async (cfg) => {
       if (Pn) { cam.updateMatrixWorld(); const [px, py] = toW(Pn[2], Pn[3]), v = new THREE.Vector3(px, py, 40).project(cam);
         pe.textContent = Pn[4]; pe.style.left = `${(v.x + 1) / 2 * W}px`; pe.style.top = `${(1 - v.y) / 2 * H - 30}px`; pe.style.opacity = Math.min(sm((s - Pn[0]) / 0.4), sm((Pn[1] - s) / 0.4)); } else pe.style.opacity = 0; }
     if (LINES.length) { const le = document.getElementById('line'); const L = LINES.find(([a, b]) => s >= a && s < b);
-      if (L) { le.textContent = L[2]; le.style.opacity = Math.min(sm((s - L[0]) / 0.4), sm((L[1] - s) / 0.4)); } else le.style.opacity = 0; }
+      if (L) { le.textContent = L[2]; le.style.fontSize = `${L[3] ?? 38}px`; le.style.lineHeight = L[3] ? '1.15' : '1.3'; le.style.opacity = Math.min(sm((s - L[0]) / 0.4), sm((L[1] - s) / 0.4)); } else le.style.opacity = 0; }
     composer.render();
   };
 };
