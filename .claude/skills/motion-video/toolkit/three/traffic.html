@@ -12,6 +12,7 @@
   @font-face{font-family:PlexSerif;src:url(/fonts/IBMPlexSerif-Medium.ttf)}
   #clk{font-size:58px;font-weight:500;line-height:1} #day{font-size:22px;color:rgba(243,239,230,.7);margin-top:12px}
   #line{position:absolute;left:96px;right:120px;bottom:168px;font-family:PlexSerif,serif;font-size:38px;font-weight:500;line-height:1.3;color:#f3efe6;text-shadow:0 0 2px #000,0 0 2px #000,0 1px 3px #000;opacity:0}
+  .pin{position:absolute;transform:translate(-50%,-100%);font-family:PlexMono,monospace;font-size:24px;color:#f3efe6;white-space:nowrap;text-shadow:0 0 3px #000,0 0 3px #000;padding-bottom:10px;border-bottom:2px solid rgba(243,239,230,.6);opacity:0}
   #cr{position:absolute;left:96px;bottom:40px;font-family:PlexMono,monospace;font-size:14px;color:rgba(243,239,230,.35)}
   #pct{font-size:24px;color:rgba(243,239,230,.85);margin-top:28px} #pct b{font-size:44px;color:#ffcf33;font-weight:500}
   #spark{position:absolute;inset:auto;left:96px;top:420px}
@@ -22,7 +23,7 @@
 </style>
 <script type="importmap">{"imports":{"three":"/three/build/three.module.js","three/addons/":"/three/examples/jsm/"}}</script>
 </head><body>
-<div id="hud"><div id="clk"></div><div id="day"></div><div id="pct"></div></div><canvas id="spark" width="888" height="150"></canvas><div id="note"></div><div id="line"></div><div id="cr"></div><div id="legend" style="display:none"><div><i style="background:#2ebe78"></i>flowing</div><div><i style="background:#ffcf33"></i>slow</div><div><i style="background:#ff3b22;height:22px;width:10px;margin:0 24px 0 10px"></i>jammed</div><div><i style="background:#ff1f6a;height:30px;width:10px;margin:0 24px 0 10px"></i>stop and go</div></div>
+<div id="hud"><div id="clk"></div><div id="day"></div><div id="pct"></div></div><canvas id="spark" width="888" height="150"></canvas><div id="note"></div><div id="line"></div><div id="cr"></div><div id="pin" class="pin"></div><div id="legend" style="display:none"><div><i style="background:#2ebe78"></i>flowing</div><div><i style="background:#ffcf33"></i>slow</div><div><i style="background:#ff3b22;height:22px;width:10px;margin:0 24px 0 10px"></i>jammed</div><div><i style="background:#ff1f6a;height:30px;width:10px;margin:0 24px 0 10px"></i>stop and go</div></div>
 <script type="module">
 import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
@@ -119,6 +120,10 @@ window.__setup = async (cfg) => {
     let nt = null; NOTES.forEach((n, q) => { const last = q === NOTES.length - 1; if (T >= n.t && (last || (s < n.s + NH && T <= n.t + NMX))) nt = n; });
     const ne = document.getElementById('note'); if (nt) { const last = nt === NOTES[NOTES.length - 1], fo = last ? 1 : Math.min(sm((nt.s + NH - s) / 0.4), sm((nt.t + NMX - T) / (NMX * 0.15)));
       ne.innerHTML = `<small>${nt.c}</small>${nt.txt}`; ne.style.opacity = Math.min(sm((s - nt.s) / 0.4), fo); } else ne.style.opacity = 0;
+    // pins [[fromSec, toSec, lon, lat, label]]: only while the camera is on that one place
+    { const pe = document.getElementById('pin'), Pn = (cfg.pins ?? []).find(([a, b]) => s >= a && s < b);
+      if (Pn) { cam.updateMatrixWorld(); const [px, py] = toW(Pn[2], Pn[3]), v = new THREE.Vector3(px, py, 40).project(cam);
+        pe.textContent = Pn[4]; pe.style.left = `${(v.x + 1) / 2 * W}px`; pe.style.top = `${(1 - v.y) / 2 * H - 30}px`; pe.style.opacity = Math.min(sm((s - Pn[0]) / 0.4), sm((Pn[1] - s) / 0.4)); } else pe.style.opacity = 0; }
     if (LINES.length) { const le = document.getElementById('line'); const L = LINES.find(([a, b]) => s >= a && s < b);
       if (L) { le.textContent = L[2]; le.style.opacity = Math.min(sm((s - L[0]) / 0.4), sm((L[1] - s) / 0.4)); } else le.style.opacity = 0; }
     composer.render();
