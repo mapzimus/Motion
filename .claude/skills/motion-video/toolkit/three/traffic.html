@@ -54,10 +54,10 @@ window.__setup = async (cfg) => {
   // traffic texture pair, crossfaded
   const TS = cfg.traffic.index, tcache = new Map();
   const tex = async (t) => { if (!tcache.has(t)) { tcache.set(t, await loadTex(`${cfg.traffic.base}${t}.png`)); while (tcache.size > 4) { const k = tcache.keys().next().value; tcache.get(k).dispose(); tcache.delete(k); } } return tcache.get(t); };
-  const tmat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, uniforms: { uA: { value: null }, uB: { value: null }, uMix: { value: 0 }, uG: { value: cfg.greenA ?? 0.55 } },
+  const tmat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, uniforms: { uA: { value: null }, uB: { value: null }, uMix: { value: 0 }, uG: { value: cfg.greenA ?? 0.55 }, uW: { value: cfg.warmA ?? 1 } },
     vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
-    fragmentShader: `uniform sampler2D uA; uniform sampler2D uB; uniform float uMix; uniform float uG; varying vec2 vUv;
-      void main(){ vec4 c = mix(texture2D(uA, vUv), texture2D(uB, vUv), uMix); float warm = step(0.7, c.a); gl_FragColor = vec4(c.rgb, c.a * mix(uG, 1.0, warm)); }` });
+    fragmentShader: `uniform sampler2D uA; uniform sampler2D uB; uniform float uMix; uniform float uG; uniform float uW; varying vec2 vUv;
+      void main(){ vec4 c = mix(texture2D(uA, vUv), texture2D(uB, vUv), uMix); float warm = step(0.7, c.a); gl_FragColor = vec4(c.rgb, c.a * mix(uG, uW, warm)); }` });
   const tp = new THREE.Mesh(new THREE.PlaneGeometry(TW, TH), tmat); tp.position.z = 0.5; scene.add(tp);
   // jam columns
   const C = cfg.data, CW = C.cell * TW / (C.w * C.cell), NMAX = cfg.maxCols ?? 30000;
@@ -87,6 +87,9 @@ window.__setup = async (cfg) => {
   const SS = new Map((cfg.traffic.stats ?? []).map(([t, a, b, c]) => [t, a + b + c]));
   const SP = (cfg.traffic.stats ?? []).filter(([t]) => t >= WP[0][1] && t <= WP[WP.length - 1][1]).map(([t, a, b, c]) => [t, a + b + c]), SMAX = Math.max(1e-6, ...SP.map((p) => p[1])) * 1.1;
   if (cfg.legend) document.getElementById('legend').style.display = 'block';
+  if (cfg.clockSize) document.getElementById('clk').style.fontSize = `${cfg.clockSize}px`;
+  if (cfg.dateSize) document.getElementById('day').style.fontSize = `${cfg.dateSize}px`;
+  if (cfg.creditSize) document.getElementById('cr').style.fontSize = `${cfg.creditSize}px`;
   if (cfg.house) { for (const id of ['pct', 'spark', 'note']) document.getElementById(id).style.display = 'none'; document.getElementById('hud').style.top = '236px'; }
   document.getElementById('cr').textContent = cfg.credit ?? '';
   // house lines: [[fromSec, toSec, text], ...] by video seconds, 0.4 s fades
@@ -94,10 +97,62 @@ window.__setup = async (cfg) => {
   const spark = document.getElementById('spark'), NH = cfg.noteHold ?? 2.6, NMX = (cfg.noteMaxMin ?? 240) * 60000;
   // notes [['HH:MM', 'label', 'text'], ...]: find the video second each clock time is reached
   const NOTES = (cfg.notes ?? []).map(([c, lab, txt]) => { const t = cfg.day0 + mins(c) * 60000; let k = 0; while (Tat(k / fps) < t && k < 1e5) k++; return { t, s: k / fps, c: lab, txt }; });
+  // flowing streams (cfg.roads = roads-from-traffic.py output): particles run both ways along every traced road, at a speed
+  // set by the 511 class under them (free / slow / jammed / stop-and-go), so they bunch up and crawl where it jams.
+  // Particles are illustrative, not counted cars. Deterministic: state replays from frame 0 (the harness passes k during warm-up).
+  let stream = null;
+  if (cfg.roads) {
+    const SPC = cfg.streamSpacing ?? 6, OFF = cfg.laneOff ?? 1.4, VS = [0, ...(cfg.streamSpeeds ?? [70, 26, 9, 3.5])];
+    const polys = cfg.roads.lines.map((L) => { let Q = []; for (let q = 0; q < L.length; q += 2) Q.push([L[q] - TW / 2, TH / 2 - L[q + 1]]);
+      for (let it = 0; it < 2 && Q.length > 2; it++) { const N = [Q[0]]; for (let q = 0; q < Q.length - 1; q++) { const [ax, ay] = Q[q], [bx, by] = Q[q + 1]; N.push([.75 * ax + .25 * bx, .75 * ay + .25 * by], [.25 * ax + .75 * bx, .25 * ay + .75 * by]); } N.push(Q[Q.length - 1]); Q = N; }
+      const cum = [0]; for (let q = 1; q < Q.length; q++) cum.push(cum[q - 1] + Math.hypot(Q[q][0] - Q[q - 1][0], Q[q][1] - Q[q - 1][1]));
+      return { P: Q, cum, L: cum[cum.length - 1] }; }).filter((p) => p.L > 4);
+    let n = 0; for (const p of polys) n += 2 * Math.max(1, Math.floor(p.L / SPC));
+    const pl = new Int32Array(n), pd = new Int8Array(n), ps = new Float32Array(n), pg = new Int32Array(n), pv = new Float32Array(n), pc = new Float32Array(n);
+    const reset = () => { let a = 0x9e3779b9 >>> 0; const rnd = () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+      let q = 0; polys.forEach((p, li) => { const m = Math.max(1, Math.floor(p.L / SPC)); for (const d of [1, -1]) for (let r = 0; r < m; r++) { pl[q] = li; pd[q] = d; ps[q] = (r + rnd() * 0.8) * p.L / m; pg[q] = 0; pv[q] = VS[1]; pc[q] = 1; q++; } }); };
+    const seg = (q) => { const p = polys[pl[q]], c = p.cum; let g = Math.min(pg[q], c.length - 2); while (g < c.length - 2 && c[g + 1] < ps[q]) g++; while (g > 0 && c[g] > ps[q]) g--; pg[q] = g; return g; };
+    const posOf = (q, out) => { const p = polys[pl[q]], g = seg(q), [ax, ay] = p.P[g], [bx, by] = p.P[g + 1], sl = (p.cum[g + 1] - p.cum[g]) || 1, f = (ps[q] - p.cum[g]) / sl;
+      const tx = (bx - ax) / sl, ty = (by - ay) / sl, d = pd[q]; out[0] = ax + (bx - ax) * f + ty * OFF * d; out[1] = ay + (by - ay) * f - tx * OFF * d; out[2] = tx * d; out[3] = ty * d; return out; };
+    // worst class in the 3x3 cells around the particle: traced centerlines sit up to a cell off the 511 pixels
+    const cls = (m, x, y) => { const cx = Math.floor((x + TW / 2) / C.cell), cy = Math.floor((TH / 2 - y) / C.cell); let c = 1;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const v = m.get((cy + dy) * C.w + cx + dx); if (v > c) c = v; } return c; };
+    const tmp = [0, 0, 0, 0], dt = 1 / fps;
+    const step = (A, B, u) => { for (let q = 0; q < n; q++) { posOf(q, tmp); const ca = cls(A, tmp[0], tmp[1]), cb = cls(B, tmp[0], tmp[1]);
+      pv[q] = VS[ca] * (1 - u) + VS[cb] * u; pc[q] = ca * (1 - u) + cb * u; const L = polys[pl[q]].L; ps[q] += pd[q] * pv[q] * dt; if (ps[q] > L) ps[q] -= L; else if (ps[q] < 0) ps[q] += L; } };
+    // drawing: a bright head (point) plus a short trail along the road, length grows with speed
+    const COLS = [null, new THREE.Color(cfg.cFree ?? '#1f8f5a'), new THREE.Color(cfg.cSlow ?? '#ffcf33'), new THREE.Color(cfg.cJam ?? '#ff3b22'), new THREE.Color(cfg.cStop ?? '#ff1f6a')];
+    const colAt = (c, out) => { const lo = Math.max(1, Math.min(3, Math.floor(c))), f = Math.min(1, c - lo); out.copy(COLS[lo]).lerp(COLS[lo + 1], f); return out; };
+    const sprite = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.4, 'rgba(255,255,255,.6)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
+    const hp = new Float32Array(n * 3), hc = new Float32Array(n * 3), lp = new Float32Array(n * 6), lc = new Float32Array(n * 6);
+    const hz = new Float32Array(n), SZ = [0, ...(cfg.dotSizes ?? [0.7, 1.3, 1.9, 2.3])];
+    const hg = new THREE.BufferGeometry(); hg.setAttribute('position', new THREE.BufferAttribute(hp, 3)); hg.setAttribute('color', new THREE.BufferAttribute(hc, 3)); hg.setAttribute('sz', new THREE.BufferAttribute(hz, 1));
+    const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.BufferAttribute(lp, 3)); lg.setAttribute('color', new THREE.BufferAttribute(lc, 3));
+    // per-particle size (jams bigger), attenuated with distance like PointsMaterial
+    const heads = new THREE.Points(hg, new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+      uniforms: { uMap: { value: sprite }, uSize: { value: cfg.dotSize ?? 4 }, uScale: { value: H / 2 } },
+      vertexShader: `attribute float sz; attribute vec3 color; varying vec3 vC; uniform float uSize; uniform float uScale;
+        void main(){ vC = color; vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_PointSize = uSize * sz * uScale / -mv.z * projectionMatrix[1][1] * 0.5; gl_Position = projectionMatrix * mv; }`,
+      fragmentShader: `uniform sampler2D uMap; varying vec3 vC; void main(){ gl_FragColor = vec4(vC, 1.0) * texture2D(uMap, gl_PointCoord); }` }));
+    const trails = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.8, depthWrite: false, blending: THREE.AdditiveBlending, fog: true }));
+    heads.frustumCulled = trails.frustumCulled = false; scene.add(trails); scene.add(heads);
+    const cc = new THREE.Color();
+    const draw = () => { for (let q = 0; q < n; q++) { posOf(q, tmp); colAt(pc[q], cc); const dim = pc[q] < 1.5 ? (cfg.freeDim ?? 0.55) : 1, z = 1.2;
+      hp.set([tmp[0], tmp[1], z], q * 3); hc.set([cc.r * dim, cc.g * dim, cc.b * dim], q * 3); { const lo = Math.max(1, Math.min(3, Math.floor(pc[q]))), f = Math.min(1, pc[q] - lo); hz[q] = SZ[lo] + (SZ[lo + 1] - SZ[lo]) * f; }
+      const tl = 1.5 + pv[q] * (cfg.trail ?? 0.09); lp.set([tmp[0], tmp[1], z, tmp[0] - tmp[2] * tl, tmp[1] - tmp[3] * tl, z], q * 6);
+      lc.set([cc.r * dim, cc.g * dim, cc.b * dim, 0, 0, 0], q * 6); }
+      hg.attributes.position.needsUpdate = hg.attributes.color.needsUpdate = hg.attributes.sz.needsUpdate = lg.attributes.position.needsUpdate = lg.attributes.color.needsUpdate = true; };
+    reset(); stream = { reset, step, draw, last: -Infinity, n };
+    window.__peakInfo.particles = n;
+  }
+  if (stream || cfg.columns === false) cols.visible = false;
   window.__frame = async (T, draw, k) => {
+    if (!Number.isFinite(T)) return;
+    let i = 0; while (i < TS.length - 2 && TS[i + 1] <= T) i++; const j = Math.min(i + 1, TS.length - 1), u = TS[j] > TS[i] ? sm((T - TS[i]) / (TS[j] - TS[i])) : 0;
+    if (stream && k !== undefined) { if (k <= stream.last) stream.reset(); if (k >= 0) stream.step(snapMap[i], snapMap[j], u); stream.last = k; }
     if (!draw) return;
     const s = Math.max(0, (k ?? 0) / fps);
-    let i = 0; while (i < TS.length - 2 && TS[i + 1] <= T) i++; const j = Math.min(i + 1, TS.length - 1), u = TS[j] > TS[i] ? sm((T - TS[i]) / (TS[j] - TS[i])) : 0;
+    if (stream) stream.draw();
     tmat.uniforms.uA.value = await tex(TS[i]); tmat.uniforms.uB.value = await tex(TS[j]); tmat.uniforms.uMix.value = u;
     const A = snapMap[i], B = snapMap[j]; let n = 0;
     const put = (cell, ca, cb) => { if (n >= NMAX) return; const h = (ca ? colH[ca] : 0) * (1 - u) + (cb ? colH[cb] : 0) * u; if (h < 0.5) return;
@@ -122,10 +177,10 @@ window.__setup = async (cfg) => {
       ne.innerHTML = `<small>${nt.c}</small>${nt.txt}`; ne.style.opacity = Math.min(sm((s - nt.s) / 0.4), fo); } else ne.style.opacity = 0;
     // pins [[fromSec, toSec, lon, lat, label]]: only while the camera is on that one place
     { const pe = document.getElementById('pin'), Pn = (cfg.pins ?? []).find(([a, b]) => s >= a && s < b);
-      if (Pn) { cam.updateMatrixWorld(); const [px, py] = toW(Pn[2], Pn[3]), v = new THREE.Vector3(px, py, 40).project(cam);
+      if (Pn) { cam.updateMatrixWorld(); const [px, py] = toW(Pn[2], Pn[3]), v = new THREE.Vector3(px, py, 2).project(cam);
         pe.textContent = Pn[4]; pe.style.left = `${(v.x + 1) / 2 * W}px`; pe.style.top = `${(1 - v.y) / 2 * H - 30}px`; pe.style.opacity = Math.min(sm((s - Pn[0]) / 0.4), sm((Pn[1] - s) / 0.4)); } else pe.style.opacity = 0; }
     if (LINES.length) { const le = document.getElementById('line'); const L = LINES.find(([a, b]) => s >= a && s < b);
-      if (L) { le.textContent = L[2]; le.style.fontSize = `${L[3] ?? 38}px`; le.style.lineHeight = L[3] ? '1.15' : '1.3'; le.style.opacity = Math.min(sm((s - L[0]) / 0.4), sm((L[1] - s) / 0.4)); } else le.style.opacity = 0; }
+      if (L) { le.textContent = L[2]; le.style.fontSize = `${L[3] ?? cfg.lineSize ?? 38}px`; le.style.lineHeight = L[3] ? '1.15' : '1.3'; le.style.opacity = Math.min(sm((s - L[0]) / 0.4), sm((L[1] - s) / 0.4)); } else le.style.opacity = 0; }
     composer.render();
   };
 };
