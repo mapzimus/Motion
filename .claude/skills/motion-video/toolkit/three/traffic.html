@@ -79,7 +79,7 @@ window.__setup = async (cfg) => {
   const camAt = (s) => { let i = 0; while (i < K.length - 2 && K[i + 1][0] <= s) i++; const a = K[Math.max(0, i - 1)], b = K[i], c = K[Math.min(K.length - 1, i + 1)], d = K[Math.min(K.length - 1, i + 2)];
     const u = c[0] > b[0] ? Math.min(1, Math.max(0, (s - b[0]) / (c[0] - b[0]))) : 0, u2 = u * u, u3 = u2 * u;
     return b.map((_, j) => j === 0 ? s : 0.5 * (2 * b[j] + (-a[j] + c[j]) * u + (2 * a[j] - 5 * b[j] + 4 * c[j] - d[j]) * u2 + (-a[j] + 3 * b[j] - 3 * c[j] + d[j]) * u3)); };
-  const composer = new EffectComposer(renderer); composer.addPass(new RenderPass(scene, cam));
+  const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(W, H, { samples: cfg.msaa ?? 4, type: THREE.HalfFloatType })); composer.addPass(new RenderPass(scene, cam));
   composer.addPass(new UnrealBloomPass(new THREE.Vector2(W, H), cfg.bloom ?? 0.85, cfg.bloomRadius ?? 0.45, cfg.bloomThreshold ?? 0.55)); composer.addPass(new OutputPass());
   const DAYS = cfg.days ?? ['Wed', 'Thu', 'Fri', 'Sat'];
   const clock = (T) => { const m = Math.floor((T - cfg.day0) / 60000), d = Math.floor(m / 1440), h = Math.floor(m / 60) % 24, mm = m % 60;
@@ -126,25 +126,33 @@ window.__setup = async (cfg) => {
     // drawing: a bright head (point) plus a short trail along the road, length grows with speed
     const COLS = [null, new THREE.Color(cfg.cFree ?? '#1f8f5a'), new THREE.Color(cfg.cSlow ?? '#ffcf33'), new THREE.Color(cfg.cJam ?? '#ff3b22'), new THREE.Color(cfg.cStop ?? '#ff1f6a')];
     const colAt = (c, out) => { const lo = Math.max(1, Math.min(3, Math.floor(c))), f = Math.min(1, c - lo); out.copy(COLS[lo]).lerp(COLS[lo + 1], f); return out; };
-    const sprite = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.4, 'rgba(255,255,255,.6)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
-    const hp = new Float32Array(n * 3), hc = new Float32Array(n * 3), lp = new Float32Array(n * 6), lc = new Float32Array(n * 6);
-    const hz = new Float32Array(n), SZ = [0, ...(cfg.dotSizes ?? [0.7, 1.3, 1.9, 2.3])];
-    const hg = new THREE.BufferGeometry(); hg.setAttribute('position', new THREE.BufferAttribute(hp, 3)); hg.setAttribute('color', new THREE.BufferAttribute(hc, 3)); hg.setAttribute('sz', new THREE.BufferAttribute(hz, 1));
-    const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.BufferAttribute(lp, 3)); lg.setAttribute('color', new THREE.BufferAttribute(lc, 3));
-    // per-particle size (jams bigger), attenuated with distance like PointsMaterial
-    const heads = new THREE.Points(hg, new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
-      uniforms: { uMap: { value: sprite }, uSize: { value: cfg.dotSize ?? 4 }, uScale: { value: H / 2 } },
-      vertexShader: `attribute float sz; attribute vec3 color; varying vec3 vC; uniform float uSize; uniform float uScale;
-        void main(){ vC = color; vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_PointSize = uSize * sz * uScale / -mv.z * projectionMatrix[1][1] * 0.5; gl_Position = projectionMatrix * mv; }`,
-      fragmentShader: `uniform sampler2D uMap; varying vec3 vC; void main(){ gl_FragColor = vec4(vC, 1.0) * texture2D(uMap, gl_PointCoord); }` }));
-    const trails = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.8, depthWrite: false, blending: THREE.AdditiveBlending, fog: true }));
-    heads.frustumCulled = trails.frustumCulled = false; scene.add(trails); scene.add(heads);
+    // soft comet streaks as instanced quads: never thinner than minPx on screen (no sub-pixel twinkle), gaussian edge, tail fades out
+    const SZ = [0, ...(cfg.dotSizes ?? [0.7, 1.3, 1.9, 2.3])];
+    const ig = new THREE.InstancedBufferGeometry();
+    ig.setAttribute('corner', new THREE.Float32BufferAttribute([0, -1, 1, -1, 1, 1, 0, 1], 2)); ig.setIndex([0, 1, 2, 0, 2, 3]);
+    const iH = new Float32Array(n * 2), iD = new Float32Array(n * 2), iL = new Float32Array(n), iW = new Float32Array(n), iC = new Float32Array(n * 3);
+    ig.setAttribute('iHead', new THREE.InstancedBufferAttribute(iH, 2)); ig.setAttribute('iDir', new THREE.InstancedBufferAttribute(iD, 2));
+    ig.setAttribute('iLen', new THREE.InstancedBufferAttribute(iL, 1)); ig.setAttribute('iWid', new THREE.InstancedBufferAttribute(iW, 1)); ig.setAttribute('iCol', new THREE.InstancedBufferAttribute(iC, 3));
+    ig.instanceCount = n;
+    const smat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending,
+      uniforms: { uK: { value: 2 * Math.tan((cfg.fov ?? 34) * Math.PI / 360) / H }, uMinPx: { value: cfg.minPx ?? 2.2 }, uGain: { value: cfg.streakGain ?? 1.0 } },
+      vertexShader: `attribute vec2 corner; attribute vec2 iHead; attribute vec2 iDir; attribute float iLen; attribute float iWid; attribute vec3 iCol;
+        uniform float uK; uniform float uMinPx; varying vec2 vUV; varying vec3 vC;
+        void main(){ float depth = -(modelViewMatrix * vec4(iHead, 1.2, 1.0)).z; float px = depth * uK;
+          float w = max(iWid, uMinPx * px), len = max(iLen, 2.5 * w); vec2 perp = vec2(-iDir.y, iDir.x);
+          vec2 p = iHead - iDir * len * (1.0 - corner.x) + perp * corner.y * w * 0.5;
+          vUV = corner; vC = iCol * mix(1.0, clamp(iWid / w, 0.0, 1.0), 0.45);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.2, 1.0); }`,
+      fragmentShader: `uniform float uGain; varying vec2 vUV; varying vec3 vC;
+        void main(){ float a = pow(vUV.x, 1.6) * exp(-vUV.y * vUV.y * 2.6); a += 0.6 * smoothstep(0.82, 1.0, vUV.x) * exp(-vUV.y * vUV.y * 4.0);
+          gl_FragColor = vec4(vC * a * uGain, 1.0); }` });
+    const streaks = new THREE.Mesh(ig, smat); streaks.frustumCulled = false; streaks.renderOrder = 5; scene.add(streaks);
     const cc = new THREE.Color();
-    const draw = () => { for (let q = 0; q < n; q++) { posOf(q, tmp); colAt(pc[q], cc); const dim = pc[q] < 1.5 ? (cfg.freeDim ?? 0.55) : 1, z = 1.2;
-      hp.set([tmp[0], tmp[1], z], q * 3); hc.set([cc.r * dim, cc.g * dim, cc.b * dim], q * 3); { const lo = Math.max(1, Math.min(3, Math.floor(pc[q]))), f = Math.min(1, pc[q] - lo); hz[q] = SZ[lo] + (SZ[lo + 1] - SZ[lo]) * f; }
-      const tl = 1.5 + pv[q] * (cfg.trail ?? 0.09); lp.set([tmp[0], tmp[1], z, tmp[0] - tmp[2] * tl, tmp[1] - tmp[3] * tl, z], q * 6);
-      lc.set([cc.r * dim, cc.g * dim, cc.b * dim, 0, 0, 0], q * 6); }
-      hg.attributes.position.needsUpdate = hg.attributes.color.needsUpdate = hg.attributes.sz.needsUpdate = lg.attributes.position.needsUpdate = lg.attributes.color.needsUpdate = true; };
+    const draw = () => { for (let q = 0; q < n; q++) { posOf(q, tmp); colAt(pc[q], cc); const dim = pc[q] < 1.5 ? (cfg.freeDim ?? 0.55) : 1;
+      const lo = Math.max(1, Math.min(3, Math.floor(pc[q]))), f = Math.min(1, pc[q] - lo), sz = SZ[lo] + (SZ[lo + 1] - SZ[lo]) * f;
+      iH[q * 2] = tmp[0]; iH[q * 2 + 1] = tmp[1]; iD[q * 2] = tmp[2]; iD[q * 2 + 1] = tmp[3];
+      iL[q] = 2 + pv[q] * (cfg.trail ?? 0.09); iW[q] = (cfg.dotSize ?? 4) * 0.5 * sz; iC[q * 3] = cc.r * dim; iC[q * 3 + 1] = cc.g * dim; iC[q * 3 + 2] = cc.b * dim; }
+      for (const k of ['iHead', 'iDir', 'iLen', 'iWid', 'iCol']) ig.attributes[k].needsUpdate = true; };
     reset(); stream = { reset, step, draw, last: -Infinity, n };
     window.__peakInfo.particles = n;
   }
