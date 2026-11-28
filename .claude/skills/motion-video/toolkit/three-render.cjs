@@ -32,7 +32,7 @@ async function open() {
 }
 async function slice({ p, Tof }, s, i) {
   const dir = `${outDir}/s${i}`; fs.mkdirSync(dir, { recursive: true });
-  for (let k = s.f0 - (job.warm ?? 48); k < s.f0; k++) await p.evaluate(([T, d]) => window.__frame(T, d), [Tof(k), k === s.f0 - 1]); // warm-up trails (also before clip start); last one drawn to prime the bloom pass
+  for (let k = s.f0 - (job.warm ?? 48); k < s.f0; k++) await p.evaluate(([T, d, k]) => window.__frame(T, d, k), [Tof(k), k === s.f0 - 1, k]); // warm-up trails (also before clip start); last one drawn to prime the bloom pass
   for (let f = s.f0; f < s.f1; f++) {
     await p.evaluate(([T, k]) => window.__frame(T, true, k), [Tof(f), f]);
     await p.screenshot({ type: 'jpeg', quality: 93, path: `${dir}/f${String(f).padStart(4, '0')}.jpg` });
