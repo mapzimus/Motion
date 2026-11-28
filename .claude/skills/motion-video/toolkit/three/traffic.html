@@ -13,12 +13,14 @@
   #clk{font-size:58px;line-height:1} #day{font-size:24px;color:rgba(243,239,230,.7);margin-top:12px;letter-spacing:.08em}
   #pct{font-size:24px;color:rgba(243,239,230,.85);margin-top:28px} #pct b{font-size:44px;color:#ffcf33;font-weight:500}
   #spark{position:absolute;inset:auto;left:96px;top:420px}
-  #note{position:absolute;left:96px;right:96px;bottom:500px;font-family:PlexSerif,serif;font-size:46px;line-height:1.15;color:#f3efe6;text-shadow:0 0 3px #000,0 0 3px #000;opacity:0}
+  #legend{position:absolute;left:96px;top:600px;font-family:PlexMono,monospace;font-size:22px;color:rgba(243,239,230,.8);line-height:1.7;text-shadow:0 0 2px #000,0 0 2px #000}
+  #legend i{display:inline-block;width:30px;height:10px;margin-right:14px;vertical-align:middle;border-radius:2px}
+  #note{position:absolute;left:96px;right:96px;bottom:500px;font-family:PlexSerif,serif;font-size:44px;line-height:1.15;color:#f3efe6;text-shadow:0 0 3px #000,0 0 3px #000;opacity:0}
   #note small{display:block;font-family:PlexMono,monospace;font-size:24px;color:#ffcf33;margin-bottom:10px;letter-spacing:.06em}
 </style>
 <script type="importmap">{"imports":{"three":"/three/build/three.module.js","three/addons/":"/three/examples/jsm/"}}</script>
 </head><body>
-<div id="hud"><div id="clk"></div><div id="day"></div><div id="pct"></div></div><canvas id="spark" width="888" height="150"></canvas><div id="note"></div>
+<div id="hud"><div id="clk"></div><div id="day"></div><div id="pct"></div></div><canvas id="spark" width="888" height="150"></canvas><div id="note"></div><div id="legend" style="display:none"><div><i style="background:#2ebe78"></i>flowing</div><div><i style="background:#ffcf33"></i>slow</div><div><i style="background:#ff3b22;height:22px;width:10px;margin:0 24px 0 10px"></i>jammed</div><div><i style="background:#ff1f6a;height:30px;width:10px;margin:0 24px 0 10px"></i>stop and go</div></div>
 <script type="module">
 import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
@@ -80,6 +82,7 @@ window.__setup = async (cfg) => {
     return [`${h % 12 || 12}:${String(mm).padStart(2, '0')} ${h < 12 ? 'am' : 'pm'}`, (cfg.dayNames ?? DAYS)[d] ?? '']; };
   const SS = new Map((cfg.traffic.stats ?? []).map(([t, a, b, c]) => [t, a + b + c]));
   const SP = (cfg.traffic.stats ?? []).filter(([t]) => t >= WP[0][1] && t <= WP[WP.length - 1][1]).map(([t, a, b, c]) => [t, a + b + c]), SMAX = Math.max(1e-6, ...SP.map((p) => p[1])) * 1.1;
+  if (cfg.legend) document.getElementById('legend').style.display = 'block';
   const spark = document.getElementById('spark'), NH = cfg.noteHold ?? 2.6, NMX = (cfg.noteMaxMin ?? 240) * 60000;
   // notes [['HH:MM', 'label', 'text'], ...]: find the video second each clock time is reached
   const NOTES = (cfg.notes ?? []).map(([c, lab, txt]) => { const t = cfg.day0 + mins(c) * 60000; let k = 0; while (Tat(k / fps) < t && k < 1e5) k++; return { t, s: k / fps, c: lab, txt }; });
