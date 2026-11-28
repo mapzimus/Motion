@@ -80,7 +80,7 @@ window.__setup = async (cfg) => {
     return [`${h % 12 || 12}:${String(mm).padStart(2, '0')} ${h < 12 ? 'am' : 'pm'}`, (cfg.dayNames ?? DAYS)[d] ?? '']; };
   const SS = new Map((cfg.traffic.stats ?? []).map(([t, a, b, c]) => [t, a + b + c]));
   const SP = (cfg.traffic.stats ?? []).filter(([t]) => t >= WP[0][1] && t <= WP[WP.length - 1][1]).map(([t, a, b, c]) => [t, a + b + c]), SMAX = Math.max(1e-6, ...SP.map((p) => p[1])) * 1.1;
-  const spark = document.getElementById('spark'), NH = cfg.noteHold ?? 2.6;
+  const spark = document.getElementById('spark'), NH = cfg.noteHold ?? 2.6, NMX = (cfg.noteMaxMin ?? 240) * 60000;
   // notes [['HH:MM', 'label', 'text'], ...]: find the video second each clock time is reached
   const NOTES = (cfg.notes ?? []).map(([c, lab, txt]) => { const t = cfg.day0 + mins(c) * 60000; let k = 0; while (Tat(k / fps) < t && k < 1e5) k++; return { t, s: k / fps, c: lab, txt }; });
   window.__frame = async (T, draw, k) => {
@@ -105,8 +105,10 @@ window.__setup = async (cfg) => {
       g.clearRect(0, 0, w, h); g.strokeStyle = 'rgba(243,239,230,.18)'; g.lineWidth = 2; g.beginPath(); g.moveTo(0, h - 5); g.lineTo(w, h - 5); g.stroke();
       g.beginPath(); let on = false; for (const [t, v] of SP) { if (t > T) break; on ? g.lineTo(x(t), y(v)) : g.moveTo(x(t), y(v)); on = true; } if (on) { g.lineTo(x(T), y(sh)); g.strokeStyle = '#ffcf33'; g.lineWidth = 4; g.stroke(); g.fillStyle = '#ffcf33'; g.beginPath(); g.arc(x(T), y(sh), 7, 0, 7); g.fill(); } }
     // callouts: each appears once its clock time has passed and holds for noteHold seconds of video
-    let nt = null; for (const n of NOTES) if (T >= n.t && s < n.s + NH) nt = n;
-    const ne = document.getElementById('note'); if (nt) { ne.innerHTML = `<small>${nt.c}</small>${nt.txt}`; ne.style.opacity = Math.min(sm((s - nt.s) / 0.4), sm((nt.s + NH - s) / 0.4)); } else ne.style.opacity = 0;
+    // a note also drops once the clock is noteMaxMin past it (overnight jumps), and the last note stays to the end
+    let nt = null; NOTES.forEach((n, q) => { const last = q === NOTES.length - 1; if (T >= n.t && (last || (s < n.s + NH && T <= n.t + NMX))) nt = n; });
+    const ne = document.getElementById('note'); if (nt) { const last = nt === NOTES[NOTES.length - 1], fo = last ? 1 : Math.min(sm((nt.s + NH - s) / 0.4), sm((nt.t + NMX - T) / (NMX * 0.15)));
+      ne.innerHTML = `<small>${nt.c}</small>${nt.txt}`; ne.style.opacity = Math.min(sm((s - nt.s) / 0.4), fo); } else ne.style.opacity = 0;
     composer.render();
   };
 };
